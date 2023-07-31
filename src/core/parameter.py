@@ -92,7 +92,6 @@ class Parameter(dict):
 
         """
 
-
         message = "{0} (of type {1}) is not in {2}".format(str(value), type(value), str(self.valid_values[key]))
         assert self.is_valid(value, self.valid_values[key]), message
 

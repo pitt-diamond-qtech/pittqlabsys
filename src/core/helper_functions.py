@@ -1,4 +1,4 @@
-# Created by Gurudev Dutt <gdutt@pitt.edu> on 2023-07-31
+# Created by Gurudev Dutt <gdutt@pitt.edu> on 2023-07-20
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation; either version 2 of the License, or
@@ -81,7 +81,7 @@ def module_name_from_path(folder_name, verbose=False):
 
     # occurs if module not found in this path
     if (not module):
-        raise ModuleNotFoundError('The path in the .b26 file to this package is not valid')
+        raise ModuleNotFoundError('The path in the .aq file to this package is not valid')
 
     # module = module[:-1]
     # print('mod', module)

@@ -59,7 +59,7 @@ class Script(QObject):
     ]
 
     RAW_DATA_DIR = 'raw_data'  # dir name for rawdata
-    SUBSCRIPT_DATA_DIR = 'data_subscripts'  # dir name for subscript data
+    SUBSCRIPT_DATA_DIR = 'subscripts_data'  # dir name for subscript data
 
     def __init__(self, name=None, settings=None, devices=None, scripts=None, log_function=None, data_path=None):
         """
@@ -95,7 +95,7 @@ class Script(QObject):
             scripts = {}
         self.scripts = scripts
 
-        # set end time to be before start time if script hasn't been excecuted this tells us
+        # set end time to be before start time -- tells us if script hasn't been excecuted
         self.start_time = datetime.datetime.now()
         self.end_time = self.start_time - datetime.timedelta(seconds=1)
 
@@ -1485,13 +1485,4 @@ class Script(QObject):
 if __name__ == '__main__':
     pass
 
-    # # test for get_script_information
-    # sinfo = {'info': '\nExample Script that has all different types of parameters (integer, str, fload, point, list of parameters). Plots 1D and 2D data.\n    ',
-    #                                          'settings': {'count': 3, 'name': 'this is a counter', 'wait_time': 0.1, 'point2': {'y': 0.1, 'x': 0.1}, 'tag': 'scriptdummy', 'path': '',
-    #                                                       'save': False, 'plot_style': 'main'},
-    #                                          'class': 'ScriptDummy', 'filepath': '/Users/rettentulla/PycharmProjects/AQuISS/src/Model/example_scripts.py'}
-    #
-    # info = Script.get_script_information(sinfo, verbose=True)
-    #
-    # print(info)
-    #
+

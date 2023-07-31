@@ -1,24 +1,38 @@
 # Created by Gurudev Dutt on 2023-07-20
-
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 import os, inspect
-from importlib import import_module
+from src.core.parameter import Parameter
+
 from copy import deepcopy
 from importlib import import_module
-from core.helper_functions import module_name_from_path
-from core.read_write_functions import save_aq_file
+from src.core.helper_functions import module_name_from_path
+from src.core.read_write_functions import save_aq_file
 
 
 class Device:
     """
     generic device class
     for subclass overwrite following old_functions/properties:
-        - settings_default => parameter object, that is alist of parameters that can be set to configure the device
+        - default_settings => parameter object, that is alist of parameters that can be set to configure the device
         - update => function that sends parameter changes to the device
         - values => dictionary that contains all the values that can be read from the device
         - get_values => function that actually requests the values from the device
         - is_connected => property that checks if the device is actually connected
 
     """
+    _DEFAULT_SETTINGS = Parameter("default", 0, int, "some int parameter")
 
     def __init__(self, name=None, settings=None):
         self._initialized = True
@@ -41,11 +55,11 @@ class Device:
 
         # apply settings to device should be carried out in derived class
 
-    def _DEFAULT_SETTINGS(self):
+    def default_settings(self):
         """
         returns the default parameter_list of the device this function should be over written in any subclass
         """
-        raise NotImplementedError
+        return NotImplementedError
 
     def update(self, settings):
         """
@@ -118,17 +132,6 @@ class Device:
 
         Returns: value of input channel
         """
-        # try:
-        #     print('xxxxx', name, self._PROBES())
-        #     xx = self.read_probes(name)
-        #     print(xx)
-        #     return xx
-        #     # return self.read_probes(name)
-        # except:
-        #     # restores standard behavior for missing keys
-        #     if not str(name) in ['_initialized', '_settings']:
-        #         print('class ' + type(self).__name__ + ' has no attribute ' + str(name))
-        #     raise AttributeError('class ' + type(self).__name__ + ' has no attribute ' + str(name))
 
         if not str(name) in ['_initialized', '_settings']:
             try:
@@ -258,7 +261,8 @@ class Device:
         Returns:
                 dictionary updated_devices that contains the old and the new devices
 
-                and list loaded_failed = [name_of_device_1, name_of_device_2, ....] that contains the devices that were requested but could not be loaded
+                and list loaded_failed = [name_of_device_1, name_of_device_2, ....] that contains the devices that
+                were requested but could not be loaded
 
         """
         if devices is None:
@@ -297,7 +301,7 @@ class Device:
                         else:
                             # this creates an instance of the class with custom settings
                             device_instance = class_of_device(name=device_name,
-                                                                      settings=device_settings)
+                                                              settings=device_settings)
                     except Exception as e:
                         loaded_failed[device_name] = e
                         print('loading ' + device_name + ' failed:')
@@ -321,7 +325,7 @@ class Device:
                         else:
                             # this creates an instance of the class with custom settings
                             device_instance = class_of_device(name=device_name,
-                                                                      settings=device_settings)
+                                                              settings=device_settings)
                     except Exception as e:
                         loaded_failed[device_name] = e
                         # print(device_name, ': ', str(e))
@@ -337,12 +341,15 @@ class Device:
 
 
 if __name__ == '__main__':
-
-
-
-    folder_name = ''
-
-    x = Device.get_devices_in_path(folder_name)
-
-    for k, v in x.items():
-        print((k, issubclass(v['x'], Script), issubclass(v['x'], Device)))
+    dummy_dev = Device()
+    print("Dummy device has default settings", dummy_dev.settings)
+    # devices, __ = Device.load_and_append({'DummyDevice': DummyDevice})
+    # for dev in devices:
+    #     print("-----")
+    #     print("Device %s is of class %s",dev,dev.device_class_name)
+    # folder_name = ''
+    #
+    # x = Device.get_devices_in_path(folder_name)
+    #
+    # for k, v in x.items():
+    #     print((k, issubclass(v['x'], Script), issubclass(v['x'], Device)))
