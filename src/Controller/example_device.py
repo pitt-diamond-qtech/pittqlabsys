@@ -96,7 +96,7 @@ class ExampleDevice(Device):
 class Plant(Device, QThread):
 
     _DEFAULT_SETTINGS = Parameter([
-        Parameter('update frequency', 20, float, 'update frequency of signal in Hz'),
+        Parameter('update frequency', 20, float, 'update frequency of signal in Hz',units="Hz"),
         Parameter('noise_strength', 1.0, float, 'strength of noise'),
         Parameter('noise_bandwidth', 1.0, float, 'bandwidth of noise (Hz)'),
         Parameter('control', 0.0, float, 'set the output varariable to a given value (in the absence of noise)')
@@ -260,4 +260,5 @@ if __name__ == '__main__':
     for i in range(15):
         time.sleep(0.1)
         print((d.read_probes('output')))
+    d.save_aqs("C:\\Users\\l00055843\\PycharmProjects\\AQuISS\\aqsfiles\\example_device.aqs")
     print('done')

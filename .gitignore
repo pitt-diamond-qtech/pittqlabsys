@@ -178,6 +178,11 @@ cython_debug/
 *.wfm
 *.seq
 
+# Aqs and b26 Files #
+######################
+*.aqs
+*.b26
+
 # Logs and databases #
 ######################
 
