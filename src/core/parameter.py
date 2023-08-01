@@ -13,8 +13,10 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
+
+
 class Parameter(dict):
-    def __init__(self, name, value=None, valid_values=None, info=None, visible=False):
+    def __init__(self, name, value=None, valid_values=None, info=None, visible=False,units=None):
         """
 
         Parameter(name, value, valid_values, info)
@@ -32,10 +34,13 @@ class Parameter(dict):
             :param valid_values: defines which values are accepted for value can be a type or a list if not provided => type(value)
             :param info: description of parameter, if not provided => empty string
             :param visible: boolean if true always show parameter if false hide it
+            :param units: units for the parameter
         """
+        # inherit from dict class all methods
+        super().__init__()
 
         if isinstance(name, str):
-
+            self.name = name
             if valid_values is None:
                 valid_values = type(value)
 
@@ -47,39 +52,52 @@ class Parameter(dict):
 
             assert self.is_valid(value, valid_values)
 
+            if units is None:
+                units = ""
+            assert isinstance(units,str)
+
             if isinstance(value, list) and isinstance(value[0], Parameter):
                 self._valid_values = {name: {k: v for d in value for k, v in d.valid_values.items()}}
                 self.update({name: {k: v for d in value for k, v in d.items()}})
                 self._info = {name: {k: v for d in value for k, v in d.info.items()}}
                 self._visible = {name: {k: v for d in value for k, v in d.visible.items()}}
+                self._units = {name: {k: v for d in value for k,v in d.units.items()}}
 
             else:
                 self._valid_values = {name: valid_values}
                 self.update({name: value})
                 self._info = {name: info}
                 self._visible = {name: visible}
+                self._units = {name: units}
 
         elif isinstance(name, (list, dict)) and value is None:
 
             self._valid_values = {}
             self._info = {}
             self._visible = {}
+            self._units = {}
+            self.name = {}
             if isinstance(name, dict):
+
                 for k, v in name.items():
                     # convert to Parameter if value is a dict
                     if isinstance(v, dict):
                         v = Parameter(v)
+                    self.name.update({k:k})
                     self._valid_values.update({k: type(v)})
                     self.update({k: v})
                     self._info.update({k: ''})
                     self._visible.update({k: visible})
+                    self._units.update({k: ''})
             elif isinstance(name, list) and isinstance(name[0], Parameter):
                 for p in name:
                     for k, v in p.items():
+                        self.name.update({k:k})
                         self._valid_values.update({k: p.valid_values[k]})
                         self.update({k: v})
                         self._info.update({k: p.info[k]})
                         self._visible.update({k: p.visible[k]})
+                        self._units.update({k: p.units[k]})
             else:
                 raise TypeError('unknown input: ', name)
 
@@ -133,6 +151,12 @@ class Parameter(dict):
 
         """
         return self._info
+    @property
+    def units(self):
+        """
+        :return: the units of the parameter
+        """
+        return self._units
 
     @staticmethod
     def is_valid(value, valid_values):
@@ -160,7 +184,7 @@ class Parameter(dict):
             # valid = True
             for k, v in value.items():
                 valid = Parameter.is_valid(v, valid_values[k])
-                if valid == False:
+                if not valid:
                     break
 
         elif isinstance(value, dict) and valid_values == Parameter:
@@ -171,22 +195,32 @@ class Parameter(dict):
 
         return valid
 
+    def __str__(self):
+        """
+
+        :return: name of parameter object
+        """
+        output_string = '{:s} (class type: {:s})\n'.format(self.name, self.__class__.__name__)
+        return output_string
 
 if __name__ == '__main__':
     p = Parameter([
-        Parameter('x', 1),
+        Parameter('x', 1,units='m'),
         Parameter('filter wheel', [
             Parameter('channel', 1, int, 'channel to which motor is connected'),
-            Parameter('settle_time', 0.8, float, 'settling time'),
+            Parameter('settle_time', 0.8, float, 'settling time',units='s'),
             Parameter('ND2.0', 4 * 2700, int, 'position corresponding to position 1'),
             Parameter('ND1.0', 4 * 1700, int, 'position corresponding to position 2'),
             Parameter('Red', 4 * 750, int, 'position corresponding to position 3'),
-            Parameter('current_position', 'ND1.0', ['ND1.0', 'ND2.0', 'Red'],
-                      'current position of filter wheel')
+            Parameter('current_position', 'ND1.0', ['ND1.0', 'ND2.0', 'Red'], 'current position of filter wheel')
         ])
     ])
 
     print((p['filter wheel'], type(p['filter wheel'])))
-
     print('======')
     print((p.valid_values['filter wheel']))
+    print("Units for {} are {}".format(p.name['filter wheel'], p.units['filter wheel']))
+    print('======')
+    print((p['x'], type(p['x'])))
+    print((p.valid_values['x']))
+    print("Units for {} are {}".format(p.name['x'],p.units['x']))

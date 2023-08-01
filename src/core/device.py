@@ -18,7 +18,7 @@ from src.core.parameter import Parameter
 from copy import deepcopy
 from importlib import import_module
 from src.core.helper_functions import module_name_from_path
-from src.core.read_write_functions import save_aq_file
+from src.core.read_write_functions import save_aqs_file
 
 
 class Device:
@@ -168,6 +168,9 @@ class Device:
 
         return output_string
 
+    def __str__(self):
+        return "Device class with name {}".format(self.name)
+
     @property
     def name(self):
         """
@@ -210,15 +213,15 @@ class Device:
 
         return dictator
 
-    def save_aq(self, filename):
+    def save_aqs(self, filename):
         """
-        saves the device to path as a .aq file
+        saves the device to path as a .aqs file
 
         Args:
             filename: path of file
         """
 
-        save_aq_file(filename, devices=self.to_dict())
+        save_aqs_file(filename, devices=self.to_dict())
 
     @staticmethod
     def load_and_append(device_dict, devices=None, raise_errors=False):

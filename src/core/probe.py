@@ -15,7 +15,7 @@
 
 from src.core.device import Device
 from collections import deque
-from src.core.read_write_functions import save_aq_file
+from src.core.read_write_functions import save_aqs_file
 
 
 class Probe(object):
@@ -89,12 +89,12 @@ class Probe(object):
 
     def save(self, filename):
         """
-        save the device to path as a .aq file
+        save the device to path as a .aqs file
 
         Args:
             filename: path of file
         """
-        save_aq_file(filename, probes=self.to_dict())
+        save_aqs_file(filename, probes=self.to_dict())
 
     @staticmethod
     def load_and_append(probe_dict, probes, devices={}):

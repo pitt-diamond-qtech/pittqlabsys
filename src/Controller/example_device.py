@@ -26,10 +26,9 @@ class ExampleDevice(Device):
     _DEFAULT_SETTINGS = Parameter([
         Parameter('test1', 0, int, 'some int parameter'),
         Parameter('output probe2', 0, int, 'return value of probe 2 (int)'),
-        Parameter('test2',
-                  [Parameter('test2_1', 'string', str, 'test parameter (str)'),
-                   Parameter('test2_2', 0.0, float, 'test parameter (float)')
-                   ])
+        Parameter('test2', [Parameter('test2_1', 'string', str, 'test parameter (str)'),
+                            Parameter('test2_2', 0.0, float, 'test parameter (float)')
+                            ])
     ])
 
     _PROBES = {'value1': 'this is some value from the device',
@@ -98,7 +97,7 @@ class Plant(Device, QThread):
 
     _DEFAULT_SETTINGS = Parameter([
         Parameter('update frequency', 20, float, 'update frequency of signal in Hz'),
-        Parameter('noise_strength',1.0, float, 'strength of noise'),
+        Parameter('noise_strength', 1.0, float, 'strength of noise'),
         Parameter('noise_bandwidth', 1.0, float, 'bandwidth of noise (Hz)'),
         Parameter('control', 0.0, float, 'set the output varariable to a given value (in the absence of noise)')
     ])
@@ -187,7 +186,7 @@ class PIController(Device):
     """
     _DEFAULT_SETTINGS = Parameter([
         Parameter('set_point', 0.0, float, 'setpoint to which to stabilize'),
-        Parameter('gains',[
+        Parameter('gains', [
             Parameter('proportional', 0.0, float, 'proportional gain'),
             Parameter('integral', 0.0, float, 'integral gain')
         ]),

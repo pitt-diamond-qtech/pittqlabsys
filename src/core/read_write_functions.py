@@ -24,16 +24,16 @@ def import_sub_modules(module_type):
     """
     imports all the module_type from additional modules that contain module_type
     This name of those modules is in the config file that is located in the main directory
-    module_type: str that specifies the type of module to be loaded (scripts / devices)
+    module_type: str that specifies the type of module to be loaded (experiments / devices)
 
     :return: module_list: a list with modules that contain module_type
     """
 
-    assert module_type in ('scripts', 'devices')
+    assert module_type in ('experiments', 'devices')
 
     path_to_config = '/'.join(
         os.path.normpath(os.path.dirname(inspect.getfile(import_sub_modules))).split('\\')[0:-2]) + '/config.txt'
-    module_list = get_config_value('SCRIPT_MODULES', path_to_config).split(';')
+    module_list = get_config_value('EXPERIMENT_MODULES', path_to_config).split(';')
     module_list = [import_module(module_name + module_type) for module_name in module_list]
 
     return module_list
@@ -75,14 +75,14 @@ def get_config_value(name, path_to_file='config.txt'):
         return config_value
 
 
-def load_aq_file(file_name):
+def load_aqs_file(file_name):
     """
-    loads a .aq file into a dictionary
+    loads a .aqs file into a dictionary
 
     Args:
         file_name:
 
-    Returns: dictionary with keys device, scripts, probes
+    Returns: dictionary with keys device, experiments, probes
 
     """
 
@@ -93,13 +93,13 @@ def load_aq_file(file_name):
     return data
 
 
-def save_aq_file(filename, devices=None, scripts=None, probes=None, overwrite=False, verbose=False):
+def save_aqs_file(filename, devices=None, experiments=None, probes=None, overwrite=False, verbose=False):
     """
-    save devices, scripts and probes as a json file
+    save devices, experiments and probes as a json file
     Args:
         filename:
         devices:
-        scripts:
+        experiments:
         probes: dictionary of the form {device_name : probe_1_of_device, probe_2_of_device, ...}
 
     Returns:
@@ -108,7 +108,7 @@ def save_aq_file(filename, devices=None, scripts=None, probes=None, overwrite=Fa
 
     # if overwrite is false load existing data and append to new devices
     if os.path.isfile(filename) and overwrite is False:
-        data_dict = load_aq_file(filename)
+        data_dict = load_aqs_file(filename)
     else:
         data_dict = {}
 
@@ -118,11 +118,11 @@ def save_aq_file(filename, devices=None, scripts=None, probes=None, overwrite=Fa
         else:
             data_dict['devices'] = devices
 
-    if scripts is not None:
-        if 'scripts' in data_dict:
-            data_dict['scripts'].update(scripts)
+    if experiments is not None:
+        if 'experiments' in data_dict:
+            data_dict['experiments'].update(experiments)
         else:
-            data_dict['scripts'] = scripts
+            data_dict['experiments'] = experiments
 
     if probes is not None:
         probe_devices = list(probes.keys())
