@@ -186,6 +186,8 @@ class Probe(object):
 
 
 if __name__ == '__main__':
+    pass
+    # device load and append still has bugs....could this be an issue?
     # probe_dict = {'DummyDevice': 'internal,value1'}
     # devices, __ = Device.load_and_append({'DummyDevice': 'Device'})
     #

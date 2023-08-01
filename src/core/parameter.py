@@ -195,15 +195,8 @@ class Parameter(dict):
 
         return valid
 
-    def __str__(self):
-        """
-
-        :return: name of parameter object
-        """
-        output_string = '{:s} (class type: {:s})\n'.format(self.name, self.__class__.__name__)
-        return output_string
-
 if __name__ == '__main__':
+    # Parameter is working with units.
     p = Parameter([
         Parameter('x', 1,units='m'),
         Parameter('filter wheel', [
