@@ -17,8 +17,27 @@ from src.core import Device, Parameter
 from src.core.read_write_functions import get_config_value
 from PyQt5.QtCore import QThread
 import nidaqmx as ni
-import numpy as np
 
+import numpy as np
+#########################################################################################
+# NI DAQmx Analog constants
+DAQmx_Val_Cfg_Default = int(-1)
+DAQmx_Val_Volts = ni.constants.UnitsPreScaled.VOLTS.value
+DAQmx_Val_Rising = ni.constants.Edge.RISING.value
+DAQmx_Val_Falling = ni.constants.Edge.FALLING.value
+DAQmx_Val_FiniteSamps = ni.constants.AcquisitionType.FALLING.value
+DAQmx_Val_ContSamps = ni.constants.AcquisitionType.CONTINUOUS.value
+DAQmx_Val_GroupByChannel = ni.constants.FillMode.GROUP_BY_CHANNEL.value
+
+# DI constants
+DAQmx_Val_CountUp = ni.constants.CountDirection.COUNT_UP.value
+DAQmx_Val_Hz = ni.constants.UnitsPreScaled.HERTZ.value  # Hz
+DAQmx_Val_Low = ni.constants.Level.LOW.value  # Low
+DAQmx_Val_Seconds = ni.constants.UnitsPreScaled.SECONDS.value
+DAQmx_Val_Ticks = ni.constants.UnitsPreScaled.TICKS.value  # specifies units as timebase ticks
+
+DAQmx_Val_ChanPerLine = ni.constants.LineGrouping.CHAN_PER_LINE.value# One Channel For Each Line
+DAQmx_Val_ChanForAllLines = ni.constants.LineGrouping.CHAN_FOR_ALL_LINES.value  # One Channel For All Lines
 
 class DAQ(Device):
     """
@@ -50,52 +69,52 @@ class DAQ(Device):
     _DEFAULT_SETTINGS = Parameter([
         Parameter('device', 'Dev1', ['Dev1', "PXI1Slot8"], 'Name of NI-DAQ device'),
         Parameter('override_buffer_size', -1, int, 'Buffer size for manual override (unused if -1)'),
-        Parameter('ao_read_offset', .005, float, 'Empirically determined offset for reading ao voltages internally'),
+        Parameter('ao_read_offset', .005, float, 'Empirically determined offset for reading ao voltages internally',units='V'),
         Parameter('analog_output', [
             Parameter('ao0', [
                 Parameter('channel', 0, [0, 1, 2, 3], 'output channel'),
-                Parameter('sample_rate', 1000.0, float, 'output sample rate (Hz)'),
-                Parameter('min_voltage', -10.0, float, 'minimum output voltage (V)'),
-                Parameter('max_voltage', 10.0, float, 'maximum output voltage (V)')
+                Parameter('sample_rate', 1000.0, float, 'output sample rate (Hz)',units = "Hz"),
+                Parameter('min_voltage', -10.0, float, 'minimum output voltage (V)',units = "V"),
+                Parameter('max_voltage', 10.0, float, 'maximum output voltage (V)',units = "V")
             ]),
             Parameter('ao1', [
                 Parameter('channel', 1, [0, 1, 2, 3], 'output channel'),
-                Parameter('sample_rate', 1000.0, float, 'output sample rate (Hz)'),
-                Parameter('min_voltage', -10.0, float, 'minimum output voltage (V)'),
-                Parameter('max_voltage', 10.0, float, 'maximum output voltage (V)')
+                Parameter('sample_rate', 1000.0, float, 'output sample rate (Hz)',units = "Hz"),
+                Parameter('min_voltage', -10.0, float, 'minimum output voltage (V)',units = "V"),
+                Parameter('max_voltage', 10.0, float, 'maximum output voltage (V)',units = "V")
             ]),
             Parameter('ao2', [
                 Parameter('channel', 2, [0, 1, 2, 3], 'output channel'),
-                Parameter('sample_rate', 1000.0, float, 'output sample rate (Hz)'),
-                Parameter('min_voltage', -10.0, float, 'minimum output voltage (V)'),
-                Parameter('max_voltage', 10.0, float, 'maximum output voltage (V)')
+                Parameter('sample_rate', 1000.0, float, 'output sample rate (Hz)',units = "Hz"),
+                Parameter('min_voltage', -10.0, float, 'minimum output voltage (V)',units = "V"),
+                Parameter('max_voltage', 10.0, float, 'maximum output voltage (V)',units = "V")
             ]),
             Parameter('ao3', [
                 Parameter('channel', 3, [0, 1, 2, 3], 'output channel'),
-                Parameter('sample_rate', 1000.0, float, 'output sample rate (Hz)'),
-                Parameter('min_voltage', -10.0, float, 'minimum output voltage (V)'),
-                Parameter('max_voltage', 10.0, float, 'maximum output voltage (V)')
+                Parameter('sample_rate', 1000.0, float, 'output sample rate (Hz)',units = "Hz"),
+                Parameter('min_voltage', -10.0, float, 'minimum output voltage (V)',units = "V"),
+                Parameter('max_voltage', 10.0, float, 'maximum output voltage (V)',units = "V")
             ])
         ]),
         Parameter('analog_input', [
             Parameter('ai0',
                       [
                           Parameter('channel', 0, list(range(0, 32)), 'input channel'),
-                          Parameter('sample_rate', 1000.0, float, 'input sample rate (Hz)'),
+                          Parameter('sample_rate', 1000.0, float, 'input sample rate (Hz)',units = "Hz"),
                           Parameter('min_voltage', -10.0, float, 'minimum input voltage'),
                           Parameter('max_voltage', 10.0, float, 'maximum input voltage')
                       ]
                       ),
             Parameter('ai1', [
                 Parameter('channel', 1, list(range(0, 32)), 'input channel'),
-                Parameter('sample_rate', 1000.0, float, 'input sample rate'),
+                Parameter('sample_rate', 1000.0, float, 'input sample rate',units = "Hz"),
                 Parameter('min_voltage', -10.0, float, 'minimum input voltage'),
                 Parameter('max_voltage', 10.0, float, 'maximum input voltage')
             ]),
             Parameter('ai2',
                       [
                           Parameter('channel', 2, list(range(0, 32)), 'input channel'),
-                          Parameter('sample_rate', 1000.0, float, 'input sample rate'),
+                          Parameter('sample_rate', 1000.0, float, 'input sample rate',units = "Hz"),
                           Parameter('min_voltage', -10.0, float, 'minimum input voltage'),
                           Parameter('max_voltage', 10.0, float, 'maximum input voltage')
                       ]
@@ -103,7 +122,7 @@ class DAQ(Device):
             Parameter('ai3',
                       [
                           Parameter('channel', 3, list(range(0, 32)), 'input channel'),
-                          Parameter('sample_rate', 1000.0, float, 'input sample rate'),
+                          Parameter('sample_rate', 1000.0, float, 'input sample rate',units = "Hz"),
                           Parameter('min_voltage', -10.0, float, 'minimum input voltage'),
                           Parameter('max_voltage', 10.0, float, 'maximum input voltage')
                       ]
@@ -111,7 +130,7 @@ class DAQ(Device):
             Parameter('ai4',
                       [
                           Parameter('channel', 4, list(range(0, 32)), 'input channel'),
-                          Parameter('sample_rate', 1000.0, float, 'input sample rate'),
+                          Parameter('sample_rate', 1000.0, float, 'input sample rate',units = "Hz"),
                           Parameter('min_voltage', -10.0, float, 'minimum input voltage'),
                           Parameter('max_voltage', 10.0, float, 'maximum input voltage (V)')
                       ]
@@ -121,17 +140,17 @@ class DAQ(Device):
             Parameter('ctr0', [
                 Parameter('input_channel', 0, list(range(0, 32)), 'channel for counter signal input'),
                 Parameter('counter_PFI_channel', 8, list(range(0, 32)), 'PFI for counter channel input'),
-                Parameter('gate_PFI_channel', 14, list(range(0, 32)), 'PFI for counter channel input'),
+                Parameter('gate_PFI_channel', 9, list(range(0, 32)), 'PFI for counter channel input'),
                 Parameter('clock_PFI_channel', 13, list(range(0, 32)), 'PFI for clock channel output'),
                 Parameter('clock_counter_channel', 1, [0, 1], 'channel for clock output'),
-                Parameter('sample_rate', 1000.0, float, 'input sample rate (Hz)')
+                Parameter('sample_rate', 1000.0, float, 'input sample rate (Hz)',units="Hz")
             ]),
             Parameter('ctr1', [
                 Parameter('input_channel', 1, list(range(0, 32)),
                           'channel for counter signal input'),
                 Parameter('counter_PFI_channel', 3, list(range(0, 32)),
                           'PFI for counter channel input'),
-                Parameter('gate_PFI_channel', 14, list(range(0, 32)),
+                Parameter('gate_PFI_channel', 4, list(range(0, 32)),
                           'PFI for counter channel input'),
                 Parameter('clock_PFI_channel', 12, list(range(0, 32)), 'PFI for clock channel output'),
                 Parameter('clock_counter_channel', 0, [0, 1], 'channel for clock output'),
@@ -197,12 +216,14 @@ class DAQ(Device):
         Returns: True if daq is connected, false if it is not
         """
         buf_size = 10
-        data = ctypes.create_string_buffer(('\000' * buf_size).encode('ascii'))
+        #data = ctypes.create_string_buffer(('\000' * buf_size).encode('ascii'))
         try:
             # Calls arbitrary function to check connection
-            self._check_error(
-                self.nidaq.DAQmxGetDevProductType(self.settings['device'].encode('ascii'), ctypes.byref(data),
-                                                  buf_size))
+            # self._check_error(
+            #     self.nidaq.DAQmxGetDevProductType(self.settings['device'].encode('ascii'), ctypes.byref(data),
+            #                                       buf_size))
+            dev = ni.system.device.Device(self.settings['device'])
+            serial_num = dev.serial_num
             return True
         except RuntimeError:
             return False
