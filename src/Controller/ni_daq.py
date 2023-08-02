@@ -29,7 +29,7 @@ DAQmx_Val_Cfg_Default = int(-1)
 DAQmx_Val_Volts = UnitsPreScaled.VOLTS.value
 DAQmx_Val_Rising = Edge.RISING.value
 DAQmx_Val_Falling = Edge.FALLING.value
-DAQmx_Val_FiniteSamps = AcquisitionType.FALLING.value
+DAQmx_Val_FiniteSamps = AcquisitionType.FINITE.value
 DAQmx_Val_ContSamps = AcquisitionType.CONTINUOUS.value
 DAQmx_Val_GroupByChannel = ni.constants.FillMode.GROUP_BY_CHANNEL.value
 
@@ -72,7 +72,7 @@ class NIDAQ(Device):
     # currently includes four analog outputs, five analog inputs, and one digital counter input. Add
     # more as needed and your device allows
     _DEFAULT_SETTINGS = Parameter([
-        Parameter('device', 'Dev1', ['Dev1', "PXI1Slot8"], 'Name of NI-DAQ device'),
+        Parameter('device', 'Dev1', ['Dev1', "PXI1Slot3", "PXI1Slot8"], 'Name of NI-DAQ device'),
         Parameter('override_buffer_size', -1, int, 'Buffer size for manual override (unused if -1)'),
         Parameter('ao_read_offset', .005, float, 'Empirically determined offset for reading ao voltages internally',
                   units='V'),
@@ -188,7 +188,7 @@ class NIDAQ(Device):
                 )
             )
             self.local_system = local_system
-            #print("NI-DAQ System Version: %s", system.driver_version)
+            # print("NI-DAQ System Version: %s", system.driver_version)
             super(NIDAQ, self).__init__(name, settings)
         except:
             raise EnvironmentError('Cannot load device, no DAQ system detected')
@@ -870,7 +870,9 @@ class NIDAQ(Device):
         device_list = []
         local_system = ni.system.System.local()
         for device in local_system.devices:
-            device_list.append("Device Name : {0}, Product Category: {1}, Product Type: {2}".format(device.name, device.product_category,device.product_type))
+            device_list.append("Device Name : {0}, Product Category: {1}, Product Type: {2}".format(device.name,
+                                                                                                    device.product_category,
+                                                                                                    device.product_type))
         return device_list
 
 
@@ -908,12 +910,12 @@ def buffersize_to_time(size, ticks=56):
 
 
 if __name__ == '__main__':
-    print((voltage_to_int(2.4)))
-
-if __name__ == '__main__':
-    pass
+    daq = NIDAQ()
+    dev_list = daq.get_connected_devices()
+    for d in dev_list:
+        print(d)
     # daq, failed = Instrument.load_and_append({'daq': NI9263, 'daq_in': NI6259})
-    #NI9402.get_connected_devices()
+    # NI9402.get_connected_devices()
     # print('FAILED', failed)
     # print(daq['daq'].settings)
     #
