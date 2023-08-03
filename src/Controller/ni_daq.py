@@ -71,6 +71,7 @@ class NIDAQ(Device):
 
     # currently includes four analog outputs, five analog inputs, and one digital counter input. Add
     # more as needed and your device allows
+    # TODO: write a function that loads all the parameters from a .cfg or .ini file for that instrument
     _DEFAULT_SETTINGS = Parameter([
         Parameter('device', 'Dev1', ['Dev1', "PXI1Slot3", "PXI1Slot8"], 'Name of NI-DAQ device'),
         Parameter('override_buffer_size', -1, int, 'Buffer size for manual override (unused if -1)'),
@@ -666,7 +667,7 @@ class NIDAQ(Device):
         return data, samples_read
 
     # run the task specified by task_name
-    # todo: AK - should this be threaded? original todo: is this actually blocking? Is the threading actually doing anything? see nidaq cookbook
+    # todo: GD - should this be threaded?  is this actually blocking? Is the threading actually doing anything? see nidaq cookbook
     def run(self, task_name):
         """
         Runs the task or list of tasks specified in taskname. What 'running' does depends on the type of task that was
@@ -887,7 +888,98 @@ def int_to_voltage(integer):
     """
     return (10 * integer) / 32767.
 
+class PXI6733(NIDAQ):
+    """This class implements the PXIe6733 DAQ, which includes 8 analog outputs, 8 DIO channels, 2 counters, 1 frequency scaler
+    and inherits basic input/output functionality from NIDAQ. A subset of these channels are accessible here, but more can added up to the above limits
+    """
+    _DEFAULT_SETTINGS = Parameter([
+        Parameter('device',"PXI1Slot8",["PXI1Slot8"],"Name of DAQ device"),
+        Parameter('override_buffer_size', -1, int, 'Buffer size for manual override (unused if -1)'),
+        Parameter('ao_read_offset', .005, float, 'Empirically determined offset for reading ao voltages internally'),
+        Parameter('analog_output',
+                  [
+                      Parameter('ao0',
+                                [
+                                    Parameter('channel', 0, [0, 1, 2, 3], 'output channel'),
+                                    Parameter('sample_rate', 1000.0, float, 'output sample rate (Hz)'),
+                                    Parameter('min_voltage', -10.0, float, 'minimum output voltage (V)'),
+                                    Parameter('max_voltage', 10.0, float, 'maximum output voltage (V)')
+                                ]
+                                ),
+                      Parameter('ao1',
+                                [
+                                    Parameter('channel', 1, [0, 1, 2, 3], 'output channel'),
+                                    Parameter('sample_rate', 1000.0, float, 'output sample rate (Hz)'),
+                                    Parameter('min_voltage', -10.0, float, 'minimum output voltage (V)'),
+                                    Parameter('max_voltage', 10.0, float, 'maximum output voltage (V)')
+                                ]
+                                ),
+                      Parameter('ao2',
+                                [
+                                    Parameter('channel', 2, [0, 1, 2, 3], 'output channel'),
+                                    Parameter('sample_rate', 1000.0, float, 'output sample rate (Hz)'),
+                                    Parameter('min_voltage', -10.0, float, 'minimum output voltage (V)'),
+                                    Parameter('max_voltage', 10.0, float, 'maximum output voltage (V)')
+                                ]
+                                ),
+                      Parameter('ao3',
+                                [
+                                    Parameter('channel', 3, [0, 1, 2, 3], 'output channel'),
+                                    Parameter('sample_rate', 1000.0, float, 'output sample rate (Hz)'),
+                                    Parameter('min_voltage', -10.0, float, 'minimum output voltage (V)'),
+                                    Parameter('max_voltage', 10.0, float, 'maximum output voltage (V)')
+                                ]
+                                )
+                  ]
+                  ),
+        Parameter('digital_input',
+                  [
+                      Parameter('ctr0',
+                                [
+                                    Parameter('input_channel', 0, list(range(0, 32)), 'channel for counter signal input'),
+                                    Parameter('counter_PFI_channel', 8, list(range(0, 32)), 'PFI for counter channel input'),
+                                    Parameter('gate_PFI_channel', 9, list(range(0, 32)), 'PFI for counter channel input'),
+                                    Parameter('clock_PFI_channel', 12, list(range(0, 32)), 'PFI for clock channel output'),
+                                    Parameter('clock_counter_channel', 1, [0, 1], 'channel for clock output'),
+                                    Parameter('sample_rate', 1000.0, float, 'input sample rate (Hz)')
+                                ]
+                                ),
+                      Parameter('ctr1',
+                                [
+                                    Parameter('input_channel', 1, list(range(0, 32)), 'channel for counter signal input'),
+                                    Parameter('counter_PFI_channel', 3, list(range(0, 32)), 'PFI for counter channel input'),
+                                    Parameter('gate_PFI_channel', 4, list(range(0, 32)), 'PFI for counter channel input'),
+                                    Parameter('clock_PFI_channel', 13, list(range(0, 32)), 'PFI for clock channel output'),
+                                    Parameter('clock_counter_channel', 0, [0, 1], 'channel for clock output'),
+                                    Parameter('sample_rate', 1000.0, float, 'input sample rate (Hz)')
+                                ]
+                                )
+                  ]
+                  ),
+        Parameter('digital_output',
+                  [
+                      Parameter('do0',
+                                [
+                                    Parameter('channel', 0, list(range(0, 8)), 'channel'),
+                                    # Parameter('value', False, bool, 'value')
+                                    Parameter('sample_rate', 1000.0, float, 'output sample rate (Hz)')
+                                    # Parameter('min_voltage', -10.0, float, 'minimum output voltage (V)'),
+                                    # Parameter('max_voltage', 10.0, float, 'maximum output voltage (V)')
+                                ]
+                                ),
+                      Parameter('do7',
+                                [
+                                    Parameter('channel', 7, list(range(0, 8)), 'channel'),
+                                    # Parameter('value', False, bool, 'value')
+                                    Parameter('sample_rate', 1000.0, float, 'output sample rate (Hz)')
+                                    # Parameter('min_voltage', -10.0, float, 'minimum output voltage (V)'),
+                                    # Parameter('max_voltage', 10.0, float, 'maximum output voltage (V)')
+                                ]
+                                )
+                  ]
+                  )
 
+    ])
 def voltage_to_int(voltage):
     """
     convert voltage to integer value

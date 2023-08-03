@@ -13,5 +13,19 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
-from .example_device import ExampleDevice,Plant,PIController
-from .ni_daq import PXI6733
+from src.Controller.ni_daq import NIDAQ,PXI6733
+import pytest
+import matplotlib.pyplot as plt
+
+@pytest.mark.run_this
+def test_nidaq(capsys):
+    daq = NIDAQ()
+    dev_list = daq.get_connected_devices()
+    for d in dev_list:
+        with capsys.disabled():
+            print(d)
+
+def test_pxi6733_connection():
+    daq = PXI6733()
+    assert daq.is_connected
+

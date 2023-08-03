@@ -13,7 +13,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
-import visa
+import pyvisa as visa
 import pyvisa.errors
 
 from src.core import Parameter, Device
@@ -28,9 +28,10 @@ class MicrowaveGenerator(Device):
     device over GPIB using pyvisa.
     """
         # SHOULD BE 4
+    ## GD: watch out for the ports this might be different on each computer and might cause issues when running export default
     _DEFAULT_SETTINGS = Parameter([
         Parameter('connection_type', 'RS232', ['GPIB', 'RS232'], 'type of connection to open to controller'),
-        Parameter('port', 5, list(range(0, 31)), 'GPIB or COM port on which to connect'), ## JG: what out for the ports this might be different on each computer and might cause issues when running export default
+        Parameter('port', 5, list(range(0, 31)), 'GPIB or COM port on which to connect'),
         Parameter('GPIB_num', 0, int, 'GPIB device on which to connect'),
         Parameter('enable_output', False, bool, 'Type-N output enabled'),
         Parameter('frequency', 3e9, float, 'frequency in Hz, or with label in other units ex 300 MHz'),
