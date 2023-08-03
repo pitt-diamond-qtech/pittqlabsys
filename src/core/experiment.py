@@ -47,7 +47,7 @@ import pickle
 class Experiment(QObject):
     # This is the signal that will be emitted during the processing.
     # By including int as an argument, it lets the signal know to expect
-    # an integer argument when emitting.
+    # an integer argument when emitting. these must all be defined at the class level
     updateProgress = pyqtSignal(int)  # emits a progress update in percent
     started = pyqtSignal()  # signals the begin of the experiment
     finished = pyqtSignal()  # signals the end of the experiment
@@ -61,7 +61,7 @@ class Experiment(QObject):
     RAW_DATA_DIR = 'raw_data'  # dir name for rawdata
     SUBEXPERIMENT_DATA_DIR = 'subexperiments_data'  # dir name for subexperiment data
 
-    def __init__(self, name=None, settings=None, devices=None, sub_experiments=None, log_function=None, data_path=None):
+    def __init__(self, name=None, settings=None, devices=None, sub_experiments =None, log_function=None, data_path=None):
         """
         executes experiments and stores experiment parameters and settings
         Args:
@@ -71,7 +71,8 @@ class Experiment(QObject):
             sub_experiments (optional):  sub_experiments used in the experiment
             log_function(optional): function reference that takes a string
         """
-        QObject.__init__(self)
+        QObject.__init__(self) # must call this way for pyqtSignal and pyqtSlot
+        #super().__init__(self)
 
         self._experiment_class = self.__class__.__name__
 
@@ -229,7 +230,7 @@ class Experiment(QObject):
         if there is not experiment it should return an empty dict
 
         """
-        raise NotImplementedError("Subclass did not implement _experimentS")
+        raise NotImplementedError("Subclass did not implement _EXPERIMENTS")
 
     def __str__(self):
         """
@@ -289,7 +290,7 @@ class Experiment(QObject):
             self.name, str(list(experiment_dict.keys())), str(list(self._EXPERIMENTS.keys())))
 
         for key, value in self._EXPERIMENTS.items():
-            assert isinstance(experiment_dict[key], self._EXPERIMENTS[key])
+            #assert isinstance(experiment_dict[key], self._EXPERIMENTS[key])
             self._experiments.update({key: experiment_dict[key]})
 
     @property
@@ -960,7 +961,7 @@ class Experiment(QObject):
 
     @staticmethod
     def load_and_append(experiment_dict, experiments=None, devices=None, log_function=None, data_path=None,
-                        raise_errors=False, package='AQuISS', verbose=False):
+                        raise_errors=False, package='src.Model', verbose=False):
         """
         load experiment from experiment_dict and append to experiments, if additional devices are required create them and add them to devices
 
@@ -1040,6 +1041,8 @@ class Experiment(QObject):
             """
 
             default_devices = getattr(class_of_experiment, '_DEVICES')
+            # default_devices = getattr(class_of_experiment,devices)
+            #default_devices = class_of_experiment.devices
             device_dict = {}
             devices_updated = {}
             devices_updated.update(devices)
@@ -1086,7 +1089,8 @@ class Experiment(QObject):
 
             """
 
-            default_experiments = getattr(class_of_experiment, '_experimentS')
+            default_experiments = getattr(class_of_experiment, '_EXPERIMENTS')
+            # default_experiments = getattr(class_of_experiment,experiments)
             #
             # create devices that experiment needs
             sub_experiments = {}
@@ -1197,7 +1201,7 @@ class Experiment(QObject):
         return updated_experiments, load_failed, updated_devices
 
     @staticmethod
-    def get_experiment_information(experiment_information, package='AQuISS', verbose=False):
+    def get_experiment_information(experiment_information, package='src.Model', verbose=False):
         """
         extracts all the relevant information from experiment_information and returns it as individual variables
         Args:
@@ -1311,7 +1315,7 @@ class Experiment(QObject):
         return module, experiment_class_name, experiment_settings, experiment_devices, experiment_sub_experiments, experiment_info, package
 
     @staticmethod
-    def get_experiment_module(experiment_information, package='AQuISS', verbose=False):
+    def get_experiment_module(experiment_information, package='src.Model', verbose=False):
         """
         wrapper to get the module for a experiment
 
@@ -1483,6 +1487,12 @@ class Experiment(QObject):
 
 
 if __name__ == '__main__':
-    pass
+    expt = {}
+    instr = {}
+    expt,failed,instr = Experiment.load_and_append({"DummyExpt":"ExampleExperiment"},experiments=expt,devices=instr)
+    if failed:
+        print("Expt failed to load")
+    else:
+        print("Success !")
 
 

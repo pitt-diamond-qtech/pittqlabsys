@@ -13,30 +13,13 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
-from src.Controller.ni_daq import NIDAQ,PXI6733
+from src.Model.experiments.example_experiment import ExampleExperimentWrapper
+from src.Controller import ExampleDevice,Plant
 import pytest
-import matplotlib.pyplot as plt
-import time
 
-#@pytest.mark.run_this
-def test_nidaq(capsys):
-    daq = NIDAQ()
-    dev_list = daq.get_connected_devices()
-    for d in dev_list:
-        with capsys.disabled():
-            print(d)
-
-def test_pxi6733_connection():
-    daq = PXI6733()
-    assert daq.is_connected
-
-@pytest.mark.run_this
-def test_pxi6733_ctrout():
-    daq = PXI6733()
-    clk_task = daq.setup_clock('ctr0', 1000)
-    print('clktask: ', clk_task)
-    time.sleep(0.1)
-    daq.run(clk_task)
-    daq.wait_to_finish(clk_task)
-    daq.stop(clk_task)
-
+@pytest.mark.xfail
+def test_example_experiment():
+    expt = {}
+    instr = {"DummyDev":Plant}
+    expt,failed,instr = ExampleExperimentWrapper.load_and_append({'Example_Expt':'ExampleExperimentWrapper'},expt,instr)
+    assert failed == False

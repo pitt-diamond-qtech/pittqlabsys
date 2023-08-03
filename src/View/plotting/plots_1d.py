@@ -441,7 +441,7 @@ def update_1d_simple(axis, times, counts_list, fit_in_plot=False):
 
     Args:
         axis: axes object
-        times: JG: THIS IS NOT USED! WHAT IS IT? => add comment, e.g. for future purpose or delete!
+        times: GD: THIS IS NOT USED! WHAT IS IT? => add comment, e.g. for future purpose or delete!
         counts_list: list of
         fitting: if fitting is True, then account for the fact that the number of lines in the existing plot will be more than the length of the counts list
 
@@ -456,7 +456,7 @@ def update_1d_simple(axis, times, counts_list, fit_in_plot=False):
         counts_list = np.transpose(counts_list)
 
 
-    #print('===>> JG 20181128: number of lines', len(axis.lines),' number of list ', len(counts_list), ' (they should be the same!!)')
+    #print('===>> GD 20230803: number of lines', len(axis.lines),' number of list ', len(counts_list), ' (they should be the same!!)')
     # if len(axis.lines) != len(counts_list):
     #     print('UUUUUU axes.lines:', len(axis.lines), 'len counts:', len(counts_list))
 

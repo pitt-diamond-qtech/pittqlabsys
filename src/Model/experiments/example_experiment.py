@@ -16,7 +16,7 @@
 from src.core import Parameter, Experiment
 from src.Controller import ExampleDevice
 import numpy as np
-import datetime
+import time
 
 from src.Controller import Plant, PIController
 
@@ -31,7 +31,7 @@ Minimal Example Experiment that has only a single parameter (execution time)
         Parameter('execution_time', 0.1, float, 'execution time of Experiment (s)')
     ]
 
-    _INSTRUMENTS = {}
+    _DEVICES = {}
     _EXPERIMENTS = {}
 
     def __init__(self, name=None, settings=None,
@@ -71,7 +71,7 @@ Example Experiment that has all different types of parameters (integer, str, flo
         Parameter('plot_style', 'main', ['main', 'aux', '2D', 'two'])
     ]
 
-    _INSTRUMENTS = {}
+    _DEVICES = {}
     _EXPERIMENTS = {}
 
     def __init__(self, name=None, settings=None, log_function=None, data_path=None):
@@ -179,17 +179,18 @@ Example Experiment that has all different types of parameters (integer, str, flo
 
     _DEFAULT_SETTINGS = []
 
-    _INSTRUMENTS = {}
-    _EXPERIMENTS = {'ExperimentDummy': ExampleExperiment}
+    _DEVICES = {}
+    _EXPERIMENTS = {'ExptDummy':ExampleExperiment}
 
-    def __init__(self, instruments=None, experiments=None, name=None, settings=None, log_function=None, data_path=None):
+    def __init__(self,  name=None, settings=None, devices=None, sub_experiments=None, log_function=None, data_path=None):
         """
         Example of a experiment
         Args:
             name (optional): name of experiment, if empty same as class name
             settings (optional): settings for this experiment, if empty same as default settings
         """
-        super(ExampleExperimentWrapper, self).__init__(self, name, settings, log_function=log_function, data_path=data_path)
+        #super(ExampleExperimentWrapper, self).__init__(self, name, settings, devices, sub_experiments, log_function, data_path)
+        super().__init__(name,settings,devices,sub_experiments,log_function,data_path)
 
     def _function(self):
         """
@@ -209,7 +210,7 @@ Example Experiment that has all different types of parameters (integer, str, flo
 
         """
 
-        self.experiments['ExperimentDummy']._plot(axes_list)
+        self.experiments['ExptDummy']._plot(axes_list)
 
     def _update(self, axes_list):
         """
@@ -220,11 +221,18 @@ Example Experiment that has all different types of parameters (integer, str, flo
         Returns: None
 
         """
-        self.experiments['ExperimentDummy']._update(axes_list)
+        self.experiments['ExptDummy']._update(axes_list)
 
 
 if __name__ == '__main__':
-    d_instr = Plant()
-    #d = DummyPlantWithController(instruments={'plant': Plant(), 'controller': PIController()})
 
-    print(d_instr)
+    instr = {"DummyDev": ExampleDevice}
+    sub_expts = {'ExptDummy': ExampleExperiment}
+    # expt, failed, instr = ExampleExperimentWrapper.load_and_append({'Example_Expt': 'ExampleExperimentWrapper'}, experiments=expt,
+    #                                                                devices = instr)
+    #expt = ExampleExperimentWrapper(name="silly",devices=instr)
+    expt = ExampleExperiment(name="silly")
+    expt.run()
+    time.sleep(1)
+    expt2 = ExampleExperimentWrapper(name="silly2",sub_experiments=sub_expts)
+    expt2.run()
