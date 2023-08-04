@@ -261,11 +261,11 @@ class NIDAQ(Device):
 
         """
 
-        # Note that for this counter, we have two tasks. The normal 'task_handle_clk' corresponds to the clock, and this
+        # Note that for this counter, we have two tasks. The normal 'task_handle' corresponds to the clock, and this
         # is the task which is started when run is called. The second 'task_handle_ctr' corresponds to the counter,
         # and this waits for the clock and will be started simultaneously.
         task = {
-            'task_handle_clk': None,
+            'task_handle': None,
             'task_handle_ctr': None,
             'counter_out_PFI_str': None,
             'sample_num': None,
@@ -298,7 +298,7 @@ class NIDAQ(Device):
         #with ni.Task() as clock_task, ni.Task() as counter_task:
         clock_task = ni.Task()
         counter_task = ni.Task()
-        task['task_handle_clk'] = clock_task
+        task['task_handle'] = clock_task
         task['task_handle_ctr'] = counter_task
         clock_task.co_channels.add_co_pulse_chan_freq(counter_out_str, freq=float(task['sample_rate']),
                                                       duty_cycle=0.5)
@@ -336,7 +336,7 @@ class NIDAQ(Device):
         Returns:
 
         """
-        pulse_train_task = task['task_handle_clk']
+        pulse_train_task = task['task_handle']
         co_channel = pulse_train_task.co_channels.add_co_pulse_chan_freq(counter_out_str,
                                                                          freq=float(pulse_train_task['sample_rate']),
                                                                          duty_cycle=duty_cycle)
@@ -734,7 +734,7 @@ class NIDAQ(Device):
         if 'task_handle_ctr' in list(task.keys()):
             task_ctr = task['task_handle_ctr']
             task_ctr.stop()
-            task_clk = task['task_handle_clk']
+            task_clk = task['task_handle']
             task_clk.stop()
             task_clk.close()
             task_ctr.close()
@@ -951,7 +951,7 @@ class PXI6733(NIDAQ):
                                     Parameter('input_channel', 0, list(range(0, 32)), 'channel for counter signal input'),
                                     Parameter('counter_PFI_channel', 8, list(range(0, 32)), 'PFI for counter channel input'),
                                     Parameter('gate_PFI_channel', 9, list(range(0, 32)), 'PFI for counter channel input'),
-                                    Parameter('clock_PFI_channel', 12, list(range(0, 32)), 'PFI for clock channel output'),
+                                    Parameter('clock_PFI_channel', 5, list(range(0, 32)), 'PFI for clock channel output'),
                                     Parameter('clock_counter_channel', 0, [0, 1], 'channel for clock output'),
                                     Parameter('sample_rate', 1000.0, float, 'input sample rate (Hz)')
                                 ]
@@ -961,7 +961,7 @@ class PXI6733(NIDAQ):
                                     Parameter('input_channel', 1, list(range(0, 32)), 'channel for counter signal input'),
                                     Parameter('counter_PFI_channel', 3, list(range(0, 32)), 'PFI for counter channel input'),
                                     Parameter('gate_PFI_channel', 4, list(range(0, 32)), 'PFI for counter channel input'),
-                                    Parameter('clock_PFI_channel', 13, list(range(0, 32)), 'PFI for clock channel output'),
+                                    Parameter('clock_PFI_channel', 6, list(range(0, 32)), 'PFI for clock channel output'),
                                     Parameter('clock_counter_channel', 1, [0, 1], 'channel for clock output'),
                                     Parameter('sample_rate', 1000.0, float, 'input sample rate (Hz)')
                                 ]

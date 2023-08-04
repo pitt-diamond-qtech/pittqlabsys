@@ -17,7 +17,7 @@ import time
 from collections import deque
 import numpy as np
 #from scipy.ndimage.filters import uniform_filter1d
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 from src.Controller import NIDAQ,PXI6733
 from src.View.plotting.plots_1d import plot_counts,  update_counts_vs_pos
 from src.core import Parameter, Experiment
@@ -30,25 +30,13 @@ This experiment reads the Counter input from the DAQ and plots it.
 
 WARNING: Only implemented either for the PCI DAQ (NI6281) or PXIe6733 !!!!
 
-If you want to use it make sure that the right instrument is defined in _DEVICES = {'daq': PXI6733} in the python code.
+If you want to use it make sure that the right device is defined in _DEVICES = {'daq': PXI6733} in the python code.
 
     """
     _DEFAULT_SETTINGS = [
         Parameter('integration_time', .25, float, 'Time per data point (s)'),
         Parameter('counter_channel', 'ctr0', ['ctr0', 'ctr2'], 'Daq channel used for counter'),
-        Parameter('total_int_time', 3.0, float, 'Total time to integrate (s) (if -1 then it will go indefinitely)'), # added by ER 20180606
-        Parameter('track_laser_power_photodiode1',
-                  [
-                      Parameter('on/off', False, bool,
-                                'If true, measure and normalize out laser power drifts during daq_read_counter'),
-                      Parameter('ai_channel', 'ai2', ['ai0', 'ai1', 'ai2', 'ai3', 'ai4'],
-                                'channel to use for analog input, to which the photodiode is connected')
-                  ]),
-        Parameter('track_laser_power_photodiode2',
-                  [
-                      Parameter('on/off', False, bool, 'If true, measure and save laser power drifts during daq_read_counter on this photodiode. Cant use both simultaneously'),
-                      Parameter('ai_channel', 'ai4', ['ai0', 'ai1', 'ai2', 'ai3', 'ai4'], 'channel to use for photodiode 2, cant be the same as the track_laser_power photodiode')
-                  ])
+        Parameter('total_int_time', 3.0, float, 'Total time to integrate (s) (if -1 then it will go indefinitely)')
     ]
 
     _DEVICES = {'daq': PXI6733}
@@ -56,17 +44,17 @@ If you want to use it make sure that the right instrument is defined in _DEVICES
     _EXPERIMENTS = {
     }
 
-    def __init__(self, instruments, experiments=None, name=None, settings=None, log_function=None, data_path=None):
+    def __init__(self, devices, experiments=None, name=None, settings=None, log_function=None, data_path=None):
         """
         Example of a experiment that emits a QT signal for the gui
         Args:
             name (optional): name of experiment, if empty same as class name
             settings (optional): settings for this experiment, if empty same as default settings
         """
-        Experiment.__init__(self, name, settings=settings, experiments=experiments, instruments=instruments,
+        Experiment.__init__(self, name, settings=settings, sub_experiments=experiments,devices=devices,
                         log_function=log_function, data_path=data_path)
 
-        self.data = {'counts': deque(), 'laser_power': deque(), 'normalized_counts': deque(), 'laser_power2': deque()}
+        self.data = {'counts': deque(),  'normalized_counts': deque()}
 
 
     def _function(self):
@@ -75,43 +63,27 @@ If you want to use it make sure that the right instrument is defined in _DEVICES
         will be overwritten in the __init__
         """
 
-        if self.settings['track_laser_power_photodiode1']['on/off'] and self.settings['track_laser_power_photodiode2']['on/off']:
-            print('cant use both photodiodes at the same time - only use one AI channel at a time, unfortunately :-(')
-            return
+
 
         sample_rate = float(2) / self.settings['integration_time']
         normalization = self.settings['integration_time']/.001
-        self.instruments['daq']['instance'].settings['digital_input'][self.settings['counter_channel']]['sample_rate'] = sample_rate
+        self.devices['daq']['instance'].settings['digital_input'][self.settings['counter_channel']]['sample_rate'] = sample_rate
         self.data = {'counts': deque(), 'laser_power': deque(), 'normalized_counts': deque(), 'laser_power2': deque()}
         self.last_value = 0
         sample_num = 2
 
-        task = self.instruments['daq']['instance'].setup_counter(self.settings['counter_channel'], sample_num, continuous_acquisition=True)
+        task = self.devices['daq']['instance'].setup_counter(self.settings['counter_channel'], sample_num, continuous_acquisition=True)
 
-        if self.settings['track_laser_power_photodiode1']['on/off'] == True:
-            aitask = self.instruments['daq']['instance'].setup_AI(self.settings['track_laser_power_photodiode1']['ai_channel'], sample_num,
-                                          continuous=True, # continuous sampling still reads every clock tick, here set to the clock of the counter
-                                          clk_source=task)
-
-        if self.settings['track_laser_power_photodiode2']['on/off'] == True:
-            aitask2 = self.instruments['daq']['instance'].setup_AI(self.settings['track_laser_power_photodiode2']['ai_channel'], sample_num,
-                                          continuous=True, # continuous sampling still reads every clock tick, here set to the clock of the counter
-                                          clk_source=task)
-            print('aitask2: ', aitask2)
 
         # maximum number of samples if total_int_time > 0
         if self.settings['total_int_time'] > 0:
             max_samples = np.floor(self.settings['total_int_time']/self.settings['integration_time'])
 
-        # start counter and scanning sequence
-        if (self.settings['track_laser_power_photodiode1']['on/off'] and not self.settings['track_laser_power_photodiode2']['on/off']):
-            self.instruments['daq']['instance'].run(aitask)
-        elif (self.settings['track_laser_power_photodiode2']['on/off'] and not self.settings['track_laser_power_photodiode1']['on/off']):
-            self.instruments['daq']['instance'].run(aitask2)
 
-        self.instruments['daq']['instance'].run(task)
 
-        # ER 20180827 wait for at least one clock tick to go by to start with a full clock tick of acquisition time for the first bin
+        self.devices['daq']['instance'].run(task)
+
+        # GD 20230803 wait for at least one clock tick to go by to start with a full clock tick of acquisition time for the first bin
         time.sleep(self.settings['integration_time'])
 
         sample_index = 0 # keep track of samples made to know when to stop if finite integration time
@@ -120,14 +92,9 @@ If you want to use it make sure that the right instrument is defined in _DEVICES
             if self._abort:
                 break
 
-            # TODO: this is currently a nonblocking read so we add a time.sleep at the end so it doesn't read faster
-            # than it acquires, this should be replaced with a blocking read in the future
-            if self.settings['track_laser_power_photodiode1']['on/off'] == True:
-                raw_data_laser, num_read_laser = self.instruments['daq']['instance'].read(aitask)
-            if self.settings['track_laser_power_photodiode2']['on/off'] == True:
-                raw_data_laser2, num_read_laser2 = self.instruments['daq']['instance'].read(aitask2)
 
-            raw_data, num_read = self.instruments['daq']['instance'].read(task)
+
+            raw_data, num_read = self.devices['daq']['instance'].read(task)
 
             #skip first read, which gives an anomolous value
             if num_read.value == 1:
@@ -140,10 +107,7 @@ If you want to use it make sure that the right instrument is defined in _DEVICES
                 new_val = ((float(value) - self.last_value) / normalization)
                 self.data['counts'].append(new_val)
                 self.last_value = value
-                if self.settings['track_laser_power_photodiode1']['on/off'] == True:
-                    self.data['laser_power'].append(raw_data_laser[tmp_count])
-                if self.settings['track_laser_power_photodiode2']['on/off'] == True:
-                    self.data['laser_power2'].append(raw_data_laser2[tmp_count])
+
 
                 tmp_count = tmp_count + 1
 
@@ -159,19 +123,12 @@ If you want to use it make sure that the right instrument is defined in _DEVICES
                 self._abort = True # tell the experiment to abort
 
         # clean up APD tasks
-        self.instruments['daq']['instance'].stop(task)
-        if self.settings['track_laser_power_photodiode1']['on/off'] == True:
-            self.instruments['daq']['instance'].stop(aitask)
-        if self.settings['track_laser_power_photodiode2']['on/off'] == True:
-            self.instruments['daq']['instance'].stop(aitask2)
+        self.devices['daq']['instance'].stop(task)
+
 
         self.data['counts'] = list(self.data['counts'])
 
-        if self.settings['track_laser_power_photodiode1']['on/off'] == True:
-            self.data['laser_power'] = list(self.data['laser_power'])
-            self.data['normalized_counts'] = list(np.divide(np.multiply(self.data['counts'], np.mean(self.data['laser_power'])), self.data['laser_power']))
-        if self.settings['track_laser_power_photodiode2']['on/off'] == True:
-            self.data['laser_power2'] = list(self.data['laser_power2'])
+
 
     def plot(self, figure_list):
         super(Daq_Read_Counter, self).plot([figure_list[1]])
@@ -183,10 +140,7 @@ If you want to use it make sure that the right instrument is defined in _DEVICES
             data = self.data
 
         if len(data['counts']) > 0:
-            if self.settings['track_laser_power_photodiode1']['on/off'] == True:
-                array_to_plot = np.delete(np.divide(np.multiply(self.data['counts'], np.mean(self.data['laser_power'])), self.data['laser_power']),0)
-            else:
-                array_to_plot = np.delete(data['counts'], 0)
+            array_to_plot = np.delete(data['counts'], 0)
 
             plot_counts(axes_list[0], array_to_plot)
 
@@ -195,10 +149,7 @@ If you want to use it make sure that the right instrument is defined in _DEVICES
             data = self.data
 
         if data:
-            if self.settings['track_laser_power_photodiode1']['on/off'] == True:
-                array_to_plot = np.delete(np.divide(np.multiply(self.data['counts'], np.mean(self.data['laser_power'])), self.data['laser_power']), 0)
-            else:
-                array_to_plot = np.delete(data['counts'], 0)
+            array_to_plot = np.delete(data['counts'], 0)
 
             update_counts_vs_pos(axes_list[0], array_to_plot, np.linspace(0, len(array_to_plot), len(array_to_plot)))
 
@@ -212,7 +163,7 @@ If you want to use it make sure that the right instrument is defined in _DEVICES
 #
 # WARNING: Only implemented either for the PCI DAQ (NI6259) or cDAQ (PXI6733) !!!!
 #
-# If you want to use it make sure that the right instrument is defined in _DEVICES = {'daq': PXI6733} in the python code.
+# If you want to use it make sure that the right device is defined in _DEVICES = {'daq': PXI6733} in the python code.
 #
 #     """
 #     _DEFAULT_SETTINGS = [
@@ -251,14 +202,14 @@ If you want to use it make sure that the right instrument is defined in _DEVICES
 #
 #     _EXPERIMENTS = {'find_nv': FindNV}
 #
-#     def __init__(self, instruments, experiments=None, name=None, settings=None, log_function=None, data_path=None):
+#     def __init__(self, devices, experiments=None, name=None, settings=None, log_function=None, data_path=None):
 #         """
 #         Example of a experiment that emits a QT signal for the gui
 #         Args:
 #             name (optional): name of experiment, if empty same as class name
 #             settings (optional): settings for this experiment, if empty same as default settings
 #         """
-#         Experiment.__init__(self, name, settings=settings, experiments=experiments, instruments=instruments,
+#         Experiment.__init__(self, name, settings=settings, experiments=experiments, devices=devices,
 #                         log_function=log_function, data_path=data_path)
 #
 #         self.data = {'counts_a': deque(), 'counts_b': deque(), 'counts_diff': deque(), 'mw_freq': deque(), 'attocube_voltage': deque()}
@@ -281,12 +232,12 @@ If you want to use it make sure that the right instrument is defined in _DEVICES
 #         sample_rate = float(sample_num) / self.settings['integration_time']
 #         normalization = self.settings['integration_time']/.001/float(sample_num)
 #
-#         self.instruments['daq']['instance'].settings['digital_input'][self.settings['counter_channel_a']]['sample_rate'] = sample_rate
-#         self.instruments['daq']['instance'].settings['digital_input'][self.settings['counter_channel_b']]['sample_rate'] = sample_rate
+#         self.devices['daq']['instance'].settings['digital_input'][self.settings['counter_channel_a']]['sample_rate'] = sample_rate
+#         self.devices['daq']['instance'].settings['digital_input'][self.settings['counter_channel_b']]['sample_rate'] = sample_rate
 #
-#         mw_gen = self.instruments['microwave_generator']['instance']
-#         self.instruments['piezo_controller']['instance'].axis = 'z'
-#         self.attocube_voltage = self.instruments['piezo_controller']['instance'].read_probes('voltage')
+#         mw_gen = self.devices['microwave_generator']['instance']
+#         self.devices['piezo_controller']['instance'].axis = 'z'
+#         self.attocube_voltage = self.devices['piezo_controller']['instance'].read_probes('voltage')
 #         self.attocube_voltage_initial = self.attocube_voltage
 #
 #         self.data = {'counts_a': deque(), 'counts_b': deque(), 'counts_diff': deque(), 'mw_freq': deque(), 'attocube_voltage': deque()}
@@ -297,14 +248,14 @@ If you want to use it make sure that the right instrument is defined in _DEVICES
 #         if self.settings['total_int_time'] > 0:
 #             max_samples = np.floor(self.settings['total_int_time']/self.settings['integration_time'])
 #
-#         self.task_a = self.instruments['daq']['instance'].setup_counter(self.settings['counter_channel_a'], sample_num,
+#         self.task_a = self.devices['daq']['instance'].setup_counter(self.settings['counter_channel_a'], sample_num,
 #                                                                    continuous_acquisition=True)
 #         # Task b only requires a counter and uses the clock from task a. .run() is used to start the clock; the
 #         # counter starts with just setup_counter(), so there's no need to call .run() here
-#         existing_clock_channel = self.instruments['daq']['instance'].settings['digital_input'][self.settings['counter_channel_a']]['clock_counter_channel']
-#         self.task_b = self.instruments['daq']['instance'].setup_counter(self.settings['counter_channel_b'], sample_num,
+#         existing_clock_channel = self.devices['daq']['instance'].settings['digital_input'][self.settings['counter_channel_a']]['clock_counter_channel']
+#         self.task_b = self.devices['daq']['instance'].setup_counter(self.settings['counter_channel_b'], sample_num,
 #                                                                    continuous_acquisition=True,existing_clock_channel=existing_clock_channel)
-#         self.instruments['daq']['instance'].run(self.task_a)
+#         self.devices['daq']['instance'].run(self.task_a)
 #
 #
 #         # ER 20180827 wait for at least one clock tick to go by to start with a full clock tick of acquisition time for the first bin
@@ -327,8 +278,8 @@ If you want to use it make sure that the right instrument is defined in _DEVICES
 #             # TODO: this is currently a nonblocking read so we add a time.sleep at the end so it doesn't read faster
 #             # than it acquires, this should be replaced with a blocking read in the future
 #
-#             raw_data_a, num_read_a = self.instruments['daq']['instance'].read(self.task_a)
-#             raw_data_b, num_read_b = self.instruments['daq']['instance'].read(self.task_b)
+#             raw_data_a, num_read_a = self.devices['daq']['instance'].read(self.task_a)
+#             raw_data_b, num_read_b = self.devices['daq']['instance'].read(self.task_b)
 #             #print(num_read_a.value, list(raw_data_a))
 #             #print(num_read_b.value, list(raw_data_b))
 #             #print()
@@ -399,11 +350,11 @@ If you want to use it make sure that the right instrument is defined in _DEVICES
 #
 #
 #                 if np.abs(err_voltage) < .5 and np.all(np.abs(np.array(self.data['counts_diff'])[-6:]) < 0.03) and np.average(np.array(self.data['counts_diff'])[-6:]) < .006:
-#                     self.instruments['piezo_controller']['instance'].axis = 'z'
-#                     self.attocube_voltage = self.instruments['piezo_controller']['instance'].read_probes('voltage')
+#                     self.devices['piezo_controller']['instance'].axis = 'z'
+#                     self.attocube_voltage = self.devices['piezo_controller']['instance'].read_probes('voltage')
 #                     self.attocube_voltage = float(self.attocube_voltage - err_voltage)
 #                     if np.abs(self.attocube_voltage_initial - self.attocube_voltage) < 8 and np.abs(err_freq) > 2e6:  # Restrict total range of Attocube movement
-#                         self.instruments['piezo_controller']['instance'].voltage = self.attocube_voltage
+#                         self.devices['piezo_controller']['instance'].voltage = self.attocube_voltage
 #                         self.data['attocube_voltage'].append(self.attocube_voltage)
 #                         print('New voltage: ' + str(self.attocube_voltage))
 #                         print('Initial voltage: ' + str(self.attocube_voltage_initial))
@@ -420,12 +371,12 @@ If you want to use it make sure that the right instrument is defined in _DEVICES
 #                 self._abort = True # tell the experiment to abort
 #
 #             def restart_loop():
-#                 self.task_a = self.instruments['daq']['instance'].setup_counter(self.settings['counter_channel_a'],
+#                 self.task_a = self.devices['daq']['instance'].setup_counter(self.settings['counter_channel_a'],
 #                                                                            sample_num, continuous_acquisition=True)
-#                 self.task_b = self.instruments['daq']['instance'].setup_counter(self.settings['counter_channel_b'],
+#                 self.task_b = self.devices['daq']['instance'].setup_counter(self.settings['counter_channel_b'],
 #                                                                            sample_num, continuous_acquisition=True,
 #                                                                            existing_clock_channel=existing_clock_channel)
-#                 self.instruments['daq']['instance'].run(self.task_a)
+#                 self.devices['daq']['instance'].run(self.task_a)
 #                 time.sleep(self.settings['integration_time'])
 #                 self.last_value_a = 0
 #                 self.last_value_b = 0
@@ -434,8 +385,8 @@ If you want to use it make sure that the right instrument is defined in _DEVICES
 #             if self.loop_iteration > 200000 / sample_rate:
 #                 print(self.loop_iteration)
 #                 self.loop_iteration = 0
-#                 self.instruments['daq']['instance'].stop(self.task_a)
-#                 self.instruments['daq']['instance'].stop(self.task_b)
+#                 self.devices['daq']['instance'].stop(self.task_a)
+#                 self.devices['daq']['instance'].stop(self.task_b)
 #                 restart_loop()
 #
 #             if self.settings['nv_tracking']['on/off'] and \
@@ -443,15 +394,15 @@ If you want to use it make sure that the right instrument is defined in _DEVICES
 #                      self.new_val_b < self.threshold_counts/2):
 #                 print(self.loop_iteration)
 #                 self.loop_iteration = 0
-#                 self.instruments['daq']['instance'].stop(self.task_a)
-#                 self.instruments['daq']['instance'].stop(self.task_b)
+#                 self.devices['daq']['instance'].stop(self.task_a)
+#                 self.devices['daq']['instance'].stop(self.task_b)
 #                 self.experiments['find_nv'].run()
 #                 self.experiments['find_nv'].settings['initial_point'] = self.experiments['find_nv'].data['maximum_point']
 #                 restart_loop()
 #
 #         # clean up APD tasks
-#         self.instruments['daq']['instance'].stop(self.task_a)
-#         self.instruments['daq']['instance'].stop(self.task_b)
+#         self.devices['daq']['instance'].stop(self.task_a)
+#         self.devices['daq']['instance'].stop(self.task_b)
 #
 #         self.data['counts_a'] = list(self.data['counts_a'])
 #         self.data['counts_b'] = list(self.data['counts_b'])
@@ -459,7 +410,7 @@ If you want to use it make sure that the right instrument is defined in _DEVICES
 #         self.data['mw_freq'] = list(self.data['mw_freq'])
 #         self.data['attocube_voltage'] = list(self.data['attocube_voltage'])
 #
-#         self.instruments['microwave_generator']['instance'].update({'enable_modulation': False})
+#         self.devices['microwave_generator']['instance'].update({'enable_modulation': False})
 #         self.settings['microwaves']['tracking']['freq_start'] = self.data['mw_freq'][-1]
 #         print('Next MW start freq: ' + str(self.settings['microwaves']['tracking']['freq_start']))
 #
@@ -532,9 +483,13 @@ If you want to use it make sure that the right instrument is defined in _DEVICES
 
 if __name__ == '__main__':
     experiment = {}
-    instr = {}
-    experiment, failed, instr = Experiment.load_and_append({'Daq_Read_Counter': 'Daq_Read_Counter'}, experiment, instr)
+    instr = {'daq': PXI6733}
+    #experiment, failed, instr = Experiment.load_and_append({'Daq_Read_Counter': 'Daq_Read_Counter'}, experiment, instr)
+    expt = Daq_Read_Counter(instr,name='daq_read_ctr')
+    print(expt.data)
+    expt.run()
+    print(expt.data)
 
-    print(experiment)
-    print(failed)
-    print(instr)
+    # print(experiment)
+    # print(failed)
+    # print(instr)
