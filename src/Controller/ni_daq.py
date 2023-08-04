@@ -954,7 +954,7 @@ class PXI6733(NIDAQ):
                                     # changed the PFI for clock channel out to PFI5, which should be ok according to NIMAX routing diagram
                                     # testing the clock out with my scratch_2 file and the NIMAX, I see a waveform
                                     Parameter('clock_PFI_channel', 5, list(range(0, 32)), 'PFI for clock channel output'),
-                                    Parameter('clock_counter_channel', 0, [0, 1], 'channel for clock output'),
+                                    Parameter('clock_counter_channel', 1, [0, 1], 'channel for clock output'),
                                     Parameter('sample_rate', 1000.0, float, 'input sample rate (Hz)')
                                 ]
                                 ),
@@ -965,7 +965,7 @@ class PXI6733(NIDAQ):
                                     Parameter('gate_PFI_channel', 4, list(range(0, 32)), 'PFI for counter channel input'),
                                     # changed the PFI for clock channel out to PFI6, which should be ok according to NIMAX routing diagram
                                     Parameter('clock_PFI_channel', 6, list(range(0, 32)), 'PFI for clock channel output'),
-                                    Parameter('clock_counter_channel', 1, [0, 1], 'channel for clock output'),
+                                    Parameter('clock_counter_channel', 0, [0, 1], 'channel for clock output'),
                                     Parameter('sample_rate', 1000.0, float, 'input sample rate (Hz)')
                                 ]
                                 )
