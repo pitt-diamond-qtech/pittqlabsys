@@ -125,6 +125,7 @@ def test_pxi6733_ao_ctr_read(capsys, get_pxi6733,ext_clock):
     daq.run(ao_task)
     daq.run(ctr_task)
     time.sleep(0.1)
+    daq.wait_to_finish(ao_task)
     data, nums = daq.read(ctr_task)
     daq.stop(ao_task)
     daq.stop(ctr_task)
