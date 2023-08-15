@@ -1175,7 +1175,7 @@ class Experiment(QObject):
                     class_creation_string += ', log_function = log_function'
                 if data_path:
                     class_creation_string += ', data_path = data_path'
-                class_creation_string = 'class_of_experiment(name=experiment_name{:s})'.format(class_creation_string)
+                class_creation_string = '{:s}(name=experiment_name{:s})'.format(experiment_class_name,class_creation_string)
 
                 if verbose:
                     print(('class_creation_string', class_creation_string))
@@ -1489,7 +1489,7 @@ class Experiment(QObject):
 if __name__ == '__main__':
     expt = {}
     instr = {}
-    expt,failed,instr = Experiment.load_and_append({"DummyExpt":"ExampleExperiment"},experiments=expt,devices=instr)
+    expt,failed,instr = Experiment.load_and_append({"DummyExpt":"ExampleExperiment"},experiments=expt,devices=instr,verbose=True)
     if failed:
         print("Expt failed to load")
     else:

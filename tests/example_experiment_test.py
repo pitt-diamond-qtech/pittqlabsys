@@ -13,13 +13,13 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
-from src.Model.experiments.example_experiment import ExampleExperimentWrapper
+from src.Model.experiments.example_experiment import ExampleExperiment,ExampleExperimentWrapper
 from src.Controller import ExampleDevice,Plant
 import pytest
 
-@pytest.mark.xfail
+#@pytest.mark.xfail
 def test_example_experiment():
     expt = {}
     instr = {"DummyDev":Plant}
-    expt,failed,instr = ExampleExperimentWrapper.load_and_append({'Example_Expt':'ExampleExperimentWrapper'},expt,instr)
+    expt,failed,instr = ExampleExperimentWrapper.load_and_append({'Example_Expt':'ExampleExperiment'},expt,instr)
     assert failed == False

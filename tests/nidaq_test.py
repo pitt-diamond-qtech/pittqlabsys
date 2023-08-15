@@ -18,6 +18,8 @@ import pytest
 import matplotlib.pyplot as plt
 import time
 import numpy as np
+from scipy import signal
+import math
 
 
 # @pytest.mark.run_this
@@ -75,6 +77,41 @@ def test_pxi6733_ctr_read(capsys, get_pxi6733,ext_clock):
     daq.run(ctr_task)
     time.sleep(0.1)
     data, nums = daq.read(ctr_task)
+    daq.stop(ctr_task)
+    avg_counts_per_bin = np.diff(data).mean()
+    # daq.wait_to_finish(ctr_task)
+
+
+    with capsys.disabled():
+        print('ctrtask: ', ctr_task)
+        print(data)
+        print('the sampling rate was {}'.format(samp_rate))
+        print("The avg counts per bin was {}".format(avg_counts_per_bin))
+        print("The counting rate is {} cts/sec".format(avg_counts_per_bin * samp_rate))
+
+@pytest.mark.parametrize("ext_clock", [True, False])
+def test_pxi6733_ao_ctr_read(capsys, get_pxi6733,ext_clock):
+    daq = get_pxi6733
+    ctr_task = daq.setup_counter('ctr0', 50, use_external_clock=ext_clock)
+
+    samp_rate = 20000.0
+
+    period = 1e-3
+    t_end = period
+
+    num_samples = math.ceil(t_end * samp_rate / 2.) * 2  # for AO, it appears only even sample numbers allowed
+    t_array = np.linspace(0, t_end, num_samples)
+    waveform = np.sin(2 * np.pi * t_array / period)
+    waveform2 = signal.sawtooth(2 * np.pi * t_array / period, 0.5) + 1
+
+    ao_task = daq.setup_AO(["ao0"],waveform2,clk_source=ctr_task)
+    samp_rate = daq.tasklist[ctr_task]['sample_rate']
+    time.sleep(0.1)
+    daq.run(ao_task)
+    daq.run(ctr_task)
+    time.sleep(0.1)
+    data, nums = daq.read(ctr_task)
+    daq.stop(ao_task)
     daq.stop(ctr_task)
     avg_counts_per_bin = np.diff(data).mean()
     # daq.wait_to_finish(ctr_task)
