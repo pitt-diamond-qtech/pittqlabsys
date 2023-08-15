@@ -706,8 +706,19 @@ class NIDAQ(Device):
 
         """
         task = self.tasklist[task_name]
-        while not task['task_handle'].is_task_done():
-            time.sleep(0.1)
+        task["timeout"] = float(task['sample_num']/task['sample_rate']*10 + 1)
+        t1 = time.perf_counter()
+        try:
+            while not task['task_handle'].is_task_done():
+                time.sleep(0.1)
+                t2 = time.perf_counter()
+                if (t2 - t1) > task["timeout"]:
+                    raise TimeoutError("Task {} has exceeded max. timeout {}".format(task_name,task["timeout"]))
+
+        except TimeoutError as e:
+            print("Timeout Error {0}".format(e))
+            self.stop(task_name)
+            raise
         # self._check_error(self.nidaq.DAQmxWaitUntilTaskDone(task['task_handle'],
         #                                                     float64(task['sample_num'] / task['sample_rate'] * 4 + 1)))
 
@@ -1144,7 +1155,7 @@ class PXI6733(NIDAQ):
                 the column in the order given in channels
             clk_source: the task name of the clock, if none it will use the default on-board clock.
             for 1d or 2d AO scans with counter read, this will be the name of the counter task , e.g. ctr000.
-            in this case, the ctr output task will have to use CONTINUOUS generation
+
         """
         if 'analog_output' not in list(self.settings.keys()):
             raise ValueError('This DAQ does not support analog output')

@@ -25,7 +25,7 @@ import math
 # @pytest.mark.run_this
 
 @pytest.fixture
-def get_daq() -> NIDAQ:
+def get_nidaq() -> NIDAQ:
     return NIDAQ()
 
 
@@ -34,32 +34,23 @@ def get_pxi6733() -> PXI6733:
     return PXI6733()
 
 
-def test_nidaq(capsys):
-    daq = NIDAQ()
+def test_nidaq(capsys,get_nidaq):
+    daq = get_nidaq
     dev_list = daq.get_connected_devices()
     for d in dev_list:
         with capsys.disabled():
             print(d)
 
 
-def test_pxi6733_connection():
-    daq = PXI6733()
-    assert daq.is_connected
 
-def test_pxi6733_connection2(get_pxi6733):
+
+def test_pxi6733_connection(get_pxi6733):
+    """This test checks if pxi6733 is connected"""
     assert get_pxi6733.is_connected
-@pytest.mark.run_this
-def test_pxi6733_ctrout():
-    daq = PXI6733()
-    clk_task = daq.setup_clock('ctr0', 1000)
-    print('clktask: ', clk_task)
-    time.sleep(0.1)
-    daq.run(clk_task)
-    daq.wait_to_finish(clk_task)
-    daq.stop(clk_task)
 
 @pytest.mark.run_this
 def test_pxi6733_ctrout(get_pxi6733):
+    """This test has passed successfully. It outputs a waveform on the ctr0 output"""
     daq = get_pxi6733
     clk_task = daq.setup_clock('ctr0', 1000)
     print('clktask: ', clk_task)
@@ -70,6 +61,8 @@ def test_pxi6733_ctrout(get_pxi6733):
 
 @pytest.mark.parametrize("ext_clock", [True, False])
 def test_pxi6733_ctr_read(capsys, get_pxi6733,ext_clock):
+    """This test has passed successfully. It reads finite samples from ctr0 using either internal hardware timed clock
+    or external hardware timed clock"""
     daq = get_pxi6733
     ctr_task = daq.setup_counter('ctr0', 50, use_external_clock=ext_clock)
     samp_rate = daq.tasklist[ctr_task]['sample_rate']
@@ -91,6 +84,7 @@ def test_pxi6733_ctr_read(capsys, get_pxi6733,ext_clock):
 
 @pytest.mark.parametrize("channel",["ao0","ao1"])
 def test_pxi6733_analog_out(get_pxi6733,channel):
+    """This test has passed successfully for both AO0 and Ao1. it outputs AO voltages on a single channel"""
     daq = get_pxi6733
     samp_rate = 20000.0
 
@@ -107,6 +101,9 @@ def test_pxi6733_analog_out(get_pxi6733,channel):
     daq.stop(ao_task)
 
 def test_pxi6733_multi_analog_out(get_pxi6733):
+    """This test has passed successfully. it successively outputs the same waveform on ao0 and ao1
+    I would like to rewrite it also to pass with a 2-D waveform, but that will be done later.
+        """
     daq = get_pxi6733
     samp_rate = 20000.0
 
@@ -122,12 +119,20 @@ def test_pxi6733_multi_analog_out(get_pxi6733):
     daq.wait_to_finish(ao_task)
     daq.stop(ao_task)
 
-@pytest.mark.parametrize("ext_clock", [True, False])
-def test_pxi6733_ao_ctr_read(capsys, get_pxi6733,ext_clock):
+@pytest.mark.parametrize("ext_clock",[True, False])
+@pytest.mark.parametrize("channel",["ao0","ao1"])
+def test_pxi6733_ao_ctr_read(capsys, get_pxi6733,ext_clock,channel):
+    """This test has passed successfully. equivalent to a 1d AO scan with counter reading
+    However, note the bug below that prevents the wait to finish function from executing correctly
+    TODO: fix the error that prevents us from waiting to finish either ctr or ao task here.
+    """
     daq = get_pxi6733
-    ctr_task = daq.setup_counter('ctr0', 50, use_external_clock=ext_clock)
-    samp_rate = daq.tasklist[ctr_task]['sample_rate']
 
+    samp_rate = 20000
+    # we need to set the sample rate correctly otherwise it uses the default sample rate for the clock
+    # this will result in an error in the number of counts/sec reported.
+    daq.settings["digital_input"]["ctr0"]["sample_rate"] = samp_rate
+    daq.settings["digital_input"]["ctr1"]["sample_rate"] = samp_rate
     period = 1e-3
     t_end = period
 
@@ -135,14 +140,19 @@ def test_pxi6733_ao_ctr_read(capsys, get_pxi6733,ext_clock):
     t_array = np.linspace(0, t_end, num_samples)
     waveform = np.sin(2 * np.pi * t_array / period)
     waveform2 = signal.sawtooth(2 * np.pi * t_array / period, 0.5) + 1
-
-    ao_task = daq.setup_AO(["ao0"],waveform2,clk_source=ctr_task)
+    ctr_task = daq.setup_counter('ctr0', num_samples, use_external_clock=ext_clock)
+    daq.tasklist[ctr_task]['sample_rate'] =samp_rate
+    ao_task = daq.setup_AO([channel],waveform2,clk_source=ctr_task)
 
     time.sleep(0.1)
     daq.run(ao_task)
     daq.run(ctr_task)
     time.sleep(0.1)
+    # I am a little puzzled why the test hangs if we wait to finish, it reports the timeout was exceeded
+    # skipping this litte bug for now.
+    # TODO: fix the bug that prevents us from waiting to finish the task in this code alone.
     #daq.wait_to_finish(ao_task)
+    #daq.wait_to_finish(ctr_task)
     data, nums = daq.read(ctr_task)
     daq.stop(ao_task)
     daq.stop(ctr_task)
@@ -159,9 +169,16 @@ def test_pxi6733_ao_ctr_read(capsys, get_pxi6733,ext_clock):
 
 @pytest.mark.parametrize("ext_clock", [True, False])
 def test_pxi6733_multi_ao_ctr_read(capsys, get_pxi6733,ext_clock):
+    """This test fails because I have only prepared 1d data in the waveform2, need to rewrite for 2d data
+    DO NOT RUN THIS !
+    """
     daq = get_pxi6733
-    ctr_task = daq.setup_counter('ctr0', 50, use_external_clock=ext_clock)
-    samp_rate = daq.tasklist[ctr_task]['sample_rate']
+
+    samp_rate = 20000
+    # we need to set the sample rate correctly otherwise it uses the default sample rate for the clock
+    # this will result in an error in the number of counts/sec reported.
+    daq.settings["digital_input"]["ctr0"]["sample_rate"] = samp_rate
+    daq.settings["digital_input"]["ctr1"]["sample_rate"] = samp_rate
 
     period = 1e-3
     t_end = period
