@@ -421,7 +421,7 @@ class NIDAQ(Device):
         task_ctr.ci_channels[0].ci_ctr_timebase_src = counter_out_PFI_str_gated
         # set the terminal for the gate to the pulseblaster source
         # in B103, due to crosstalk issues when we use the default PFI9 which is adjacent to the ctr0 source, we set this
-        # to the non-default value PFI14
+        # to the non-default value PFI5
         task_ctr.ci_channels[0].ci_pulse_width_term = gate_PFI_str
         # turn on duplicate count prevention (allows 0 counts to be a valid count for clock ticks during a gate, even
         # though the timebase never went high and thus nothing would normally progress, by also referencing to the internal
@@ -461,12 +461,7 @@ class NIDAQ(Device):
 
         samples_read = reader.read_many_sample_double(data,
                                                       number_of_samples_per_channel=task['num_samples_per_channel'])
-        # self._check_error(self.nidaq.DAQmxReadCounterF64(task_handle_ctr,
-        #                                                  int32(task['num_samples_per_channel']), float(-1),
-        #                                                  ctypes.byref(data),
-        #                                                  uInt32(task['sample_num']),
-        #                                                  ctypes.byref(samplesPerChanRead),
-        #                                                  None))
+
 
         return data, samples_read
 
@@ -740,9 +735,10 @@ class NIDAQ(Device):
             task_ctr.close()
             # self.nidaq.DAQmxStopTask(task['task_handle_ctr'])
             # self.nidaq.DAQmxClearTask(task['task_handle_ctr'])
-        task_h = task['task_handle']
-        task_h.stop()
-        task_h.close()
+        else:
+            task_h = task['task_handle']
+            task_h.stop()
+            task_h.close()
         # self.nidaq.DAQmxStopTask(task['task_handle'])
         # self.nidaq.DAQmxClearTask(task['task_handle'])
 
@@ -902,12 +898,14 @@ def int_to_voltage(integer):
 
 class PXI6733(NIDAQ):
     """This class implements the PXIe6733 DAQ, which includes 8 analog outputs, 8 DIO channels, 2 counters, 1 frequency scaler
-    and inherits basic input/output functionality from NIDAQ. A subset of these channels are accessible here, but more can added up to the above limits
+    and inherits basic input/output functionality from NIDAQ. A subset of these channels are accessible here, but more
+    can added up to the above limits
     """
     _DEFAULT_SETTINGS = Parameter([
         Parameter('device',"PXI1Slot8",["PXI1Slot8"],"Name of DAQ device"),
         Parameter('override_buffer_size', -1, int, 'Buffer size for manual override (unused if -1)'),
         Parameter('ao_read_offset', .005, float, 'Empirically determined offset for reading ao voltages internally'),
+        Parameter('external_daq',"Dev1",["Dev1","Dev2"],"Name of external DAQ device for clock"),
         Parameter('analog_output',
                   [
                       Parameter('ao0',
@@ -964,7 +962,225 @@ class PXI6733(NIDAQ):
                                     Parameter('counter_PFI_channel', 3, list(range(0, 32)), 'PFI for counter channel input'),
                                     Parameter('gate_PFI_channel', 4, list(range(0, 32)), 'PFI for counter channel input'),
                                     # changed the PFI for clock channel out to PFI6, which should be ok according to NIMAX routing diagram
-                                    Parameter('clock_PFI_channel', 6, list(range(0, 32)), 'PFI for clock channel output'),
+                                    Parameter('clock_PFI_channel', 12, list(range(0, 32)), 'PFI for clock channel output'),
+                                    Parameter('clock_counter_channel', 0, [0, 1], 'channel for clock output'),
+                                    Parameter('sample_rate', 1000.0, float, 'input sample rate (Hz)')
+                                ]
+                                )
+                  ]
+                  ),
+        Parameter('external_daq_clock',
+                  [
+                      Parameter('ctr0',
+                            [
+                                Parameter('channel', 0, list(range(0, 8)), 'channel'),
+                                Parameter('sample_rate', 1000.0, float, 'output sample rate (Hz)'),
+                                Parameter('clock_PFI_channel',0,list(range(0,2)),"PFI for external clock input")
+                            ]
+                            )
+
+                   ]
+                  ),
+        Parameter('digital_output',
+                  [
+                      Parameter('do0',
+                                [
+                                    Parameter('channel', 0, list(range(0, 8)), 'channel'),
+                                    # Parameter('value', False, bool, 'value')
+                                    Parameter('sample_rate', 1000.0, float, 'output sample rate (Hz)')
+                                    # Parameter('min_voltage', -10.0, float, 'minimum output voltage (V)'),
+                                    # Parameter('max_voltage', 10.0, float, 'maximum output voltage (V)')
+                                ]
+                                ),
+                      Parameter('do7',
+                                [
+                                    Parameter('channel', 7, list(range(0, 8)), 'channel'),
+                                    # Parameter('value', False, bool, 'value')
+                                    Parameter('sample_rate', 1000.0, float, 'output sample rate (Hz)')
+                                    # Parameter('min_voltage', -10.0, float, 'minimum output voltage (V)'),
+                                    # Parameter('max_voltage', 10.0, float, 'maximum output voltage (V)')
+                                ]
+                                )
+                  ]
+                  )
+
+    ])
+
+    def setup_counter(self, channel, sample_num, continuous_acquisition=False,use_external_clock=True):
+        """
+        Initializes a hardware-timed digital counter, bound to a hardware clock.
+        Finally, we add a parameter to allow us to supply an external clock channel from another device, and require that
+        the other board must be connected to PFI0 on this board.
+        Args:
+            channel: digital channel to initialize for read in
+            sample_num: number of samples to read in for finite operation, or number of samples between
+                       reads for continuous operation (to set buffer size)
+            continuous_acquisition: run in continuous acquisition mode (ex for a continuous counter) or
+                                    finite acquisition mode (ex for a scan, where the number of samples needed
+                            is known a priori)
+            use_external_clock: decide if an external clock may be supplied
+
+        Returns: source of clock that this method sets up, which can be given to another function to synch that
+        input or output to the same clock
+
+        """
+
+        # Note that for this counter, we have two tasks. The normal 'task_handle' corresponds to the clock, and this
+        # is the task which is started when run is called. The second 'task_handle_ctr' corresponds to the counter,
+        # and this waits for the clock and will be started simultaneously.
+        task = {
+            'task_handle': None,
+            'task_handle_ctr': None,
+            'counter_out_PFI_str': None,
+            'sample_num': None,
+            'sample_rate': None,
+            'num_samples_per_channel': None,
+            'timeout': None
+        }
+
+        task_name = self._add_to_tasklist('ctr', task)
+
+        if 'digital_input' not in list(self.settings.keys()):
+            raise ValueError('This DAQ does not support digital input')
+        if not channel in list(self.settings['digital_input'].keys()):
+            raise KeyError('This is not a valid digital input channel')
+
+        channel_settings = self.settings['digital_input'][channel]
+        ext_clock_channel_settings = self.settings['external_daq_clock']['ctr0']
+        ext_clock_channel = ext_clock_channel_settings['channel']
+        ext_clock_pfi_channel = ext_clock_channel_settings['clock_PFI_channel']
+        #external_daq_channel_settings = self.settings['external_daq'][channel]
+        self.running = True
+        task['sample_num'] = sample_num
+        task['sample_rate'] = float(channel_settings['sample_rate'])
+        if not continuous_acquisition:
+            task['num_samples_per_channel'] = task['sample_num']
+        else:
+            task['num_samples_per_channel'] = -1
+        # set the timeout to be 5 times the amount of time required
+        task['timeout'] = float(5 * (1 / task['sample_rate']) * task['sample_num'])
+        input_channel_str = (self.settings['device'] + '/' + channel).encode('ascii')
+
+        """
+        Due to the board limitations, when finite pulse train generation
+        are requested, both ctr0 and ctr1 get occupied as one is used to gate the other.
+        So, we used the internal output of the clock counter as timing source for the input counter, but must use CONTINUOUS 
+        generation mode. The other option is to use the external clock using PFI0
+        """
+
+
+        if use_external_clock:
+            #we read in the external daq board clock
+            counter_out_str = (self.settings['external_daq'] + "/ctr" + str(ext_clock_channel)).encode('ascii')
+            task['counter_out_PFI_str'] = ("/" + self.settings['device'] + "/PFI" + str(ext_clock_pfi_channel)).encode('ascii')
+        else:
+            # we use the internal output of the other counter
+            counter_out_str = (self.settings['device'] + '/ctr'+ str(channel_settings['clock_counter_channel'])).encode('ascii')
+            task['counter_out_PFI_str'] = ("/" +
+                        self.settings['device'] + '/Ctr' + str(channel_settings['clock_counter_channel'])+"InternalOutput").encode(
+                'ascii')
+            RuntimeWarning("You are requesting a hardware generated clock in finite sampling mode.")
+            RuntimeWarning("This board uses up both counters in finite sampling mode, so you need to supply external clock")
+            RuntimeWarning("Switching the internal clock to continuous mode, samples beyond those requested will be ignored...")
+
+
+
+        # with ni.Task() as clock_task, ni.Task() as counter_task:
+        clock_task = ni.Task()
+        counter_task = ni.Task()
+        task['task_handle'] = clock_task
+        task['task_handle_ctr'] = counter_task
+        clock_task.co_channels.add_co_pulse_chan_freq(counter_out_str, freq=float(task['sample_rate']),
+                                                      duty_cycle=0.5)
+
+
+        counter_task.ci_channels.add_ci_count_edges_chan(input_channel_str)
+
+        # set up clock
+        if use_external_clock:
+            clock_task.timing.cfg_implicit_timing(samps_per_chan=int(task['sample_num']))
+        else:
+            # if we want to use the 2nd counter, we must choose continuous freq generation
+            clock_task.timing.cfg_implicit_timing(sample_mode=AcquisitionType.CONTINUOUS)
+        # set up counter using clock as reference
+        if not continuous_acquisition:
+
+            counter_task.timing.cfg_samp_clk_timing(float(task['sample_rate']), source=task['counter_out_PFI_str'],
+                                                    samps_per_chan=task['sample_num'])
+        else:
+
+            counter_task.timing.cfg_samp_clk_timing(float(task['sample_rate']), source=task['counter_out_PFI_str'],
+                                                    sample_mode=AcquisitionType.CONTINUOUS)
+
+        # self._check_error(self.nidaq.DAQmxStartTask(task['task_handle_ctr']))
+        counter_task.start()
+        # clock_task.start()
+
+        return task_name
+
+
+
+
+
+
+
+class NI6281(NIDAQ): # yet to be implemented
+    """This class implements the PCI6281 DAQ, which includes 16 analog inputs (8 differential), 24 DIO channels, 2 analog outs, 2 counter/timers
+        and inherits basic input/output functionality from NIDAQ. A subset of these channels are accessible here, but more can added up to the above limits
+        """
+    _DEFAULT_SETTINGS = Parameter([
+        Parameter('device', "Dev1", ["Dev1","PXI1Slot8"], "Name of DAQ device"),
+        Parameter('override_buffer_size', -1, int, 'Buffer size for manual override (unused if -1)'),
+        Parameter('ao_read_offset', .005, float, 'Empirically determined offset for reading ao voltages internally'),
+        Parameter('analog_output',
+                  [
+                      Parameter('ao0',
+                                [
+                                    Parameter('channel', 0, [0, 1, 2, 3], 'output channel'),
+                                    Parameter('sample_rate', 1000.0, float, 'output sample rate (Hz)'),
+                                    Parameter('min_voltage', -10.0, float, 'minimum output voltage (V)'),
+                                    Parameter('max_voltage', 10.0, float, 'maximum output voltage (V)')
+                                ]
+                                ),
+                      Parameter('ao1',
+                                [
+                                    Parameter('channel', 1, [0, 1, 2, 3], 'output channel'),
+                                    Parameter('sample_rate', 1000.0, float, 'output sample rate (Hz)'),
+                                    Parameter('min_voltage', -10.0, float, 'minimum output voltage (V)'),
+                                    Parameter('max_voltage', 10.0, float, 'maximum output voltage (V)')
+                                ]
+                                )
+                  ]
+                  ),
+        Parameter('digital_input',
+                  [
+                      Parameter('ctr0',
+                                [
+                                    Parameter('input_channel', 0, list(range(0, 32)),
+                                              'channel for counter signal input'),
+                                    Parameter('counter_PFI_channel', 8, list(range(0, 32)),
+                                              'PFI for counter channel input'),
+                                    Parameter('gate_PFI_channel', 9, list(range(0, 32)),
+                                              'PFI for counter channel input'),
+                                    # changed the PFI for clock channel out to PFI5, which should be ok according to NIMAX routing diagram
+                                    # testing the clock out with my scratch_2 file and the NIMAX, I see a waveform
+                                    Parameter('clock_PFI_channel', 5, list(range(0, 32)),
+                                              'PFI for clock channel output'),
+                                    Parameter('clock_counter_channel', 1, [0, 1], 'channel for clock output'),
+                                    Parameter('sample_rate', 1000.0, float, 'input sample rate (Hz)')
+                                ]
+                                ),
+                      Parameter('ctr1',
+                                [
+                                    Parameter('input_channel', 1, list(range(0, 32)),
+                                              'channel for counter signal input'),
+                                    Parameter('counter_PFI_channel', 3, list(range(0, 32)),
+                                              'PFI for counter channel input'),
+                                    Parameter('gate_PFI_channel', 4, list(range(0, 32)),
+                                              'PFI for counter channel input'),
+                                    # changed the PFI for clock channel out to PFI6, which should be ok according to NIMAX routing diagram
+                                    Parameter('clock_PFI_channel', 6, list(range(0, 32)),
+                                              'PFI for clock channel output'),
                                     Parameter('clock_counter_channel', 0, [0, 1], 'channel for clock output'),
                                     Parameter('sample_rate', 1000.0, float, 'input sample rate (Hz)')
                                 ]
@@ -995,9 +1211,6 @@ class PXI6733(NIDAQ):
                   )
 
     ])
-
-class NI6281(NIDAQ): # yet to be implemented
-    pass
 
 def voltage_to_int(voltage):
     """

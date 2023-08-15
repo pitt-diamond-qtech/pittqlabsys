@@ -17,6 +17,7 @@ from src.Controller.ni_daq import NIDAQ,PXI6733
 import pytest
 import matplotlib.pyplot as plt
 import time
+import numpy as np
 
 #@pytest.mark.run_this
 def test_nidaq(capsys):
@@ -39,4 +40,27 @@ def test_pxi6733_ctrout():
     daq.run(clk_task)
     daq.wait_to_finish(clk_task)
     daq.stop(clk_task)
+
+@pytest.mark.parametrize("ext_clock",[True,False])
+def test_pxi6733_ctr_read(capsys,ext_clock):
+    daq = PXI6733()
+    ctr_task = daq.setup_counter('ctr0', 50, use_external_clock=ext_clock)
+    samp_rate = daq.tasklist[ctr_task]['sample_rate']
+    avg_counts_per_bin = np.diff(data).mean()
+    time.sleep(0.1)
+    daq.run(ctr_task)
+    time.sleep(0.1)
+    # daq.wait_to_finish(ctr_task)
+    data, nums = daq.read(ctr_task)
+    daq.stop(ctr_task)
+
+
+    with capsys.disabled():
+        print('ctrtask: ', ctr_task)
+        print(data)
+        print('the sampling rate was {}'.format(samp_rate))
+        print("The avg counts per bin was {}".format(avg_counts_per_bin))
+        print("The counting rate is {} cts/sec".format(avg_counts_per_bin * samp_rate))
+
+
 
