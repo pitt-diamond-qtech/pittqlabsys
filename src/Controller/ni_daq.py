@@ -18,8 +18,8 @@ from src.core.read_write_functions import get_config_value
 from PyQt5.QtCore import QThread
 import nidaqmx as ni
 from nidaqmx.constants import AcquisitionType, UnitsPreScaled, Edge, LineGrouping
-from nidaqmx.stream_writers import DigitalMultiChannelWriter, AnalogMultiChannelWriter
-from nidaqmx.stream_readers import CounterReader, AnalogMultiChannelReader
+from nidaqmx.stream_writers import DigitalMultiChannelWriter, AnalogMultiChannelWriter,AnalogSingleChannelWriter
+from nidaqmx.stream_readers import CounterReader, AnalogMultiChannelReader,AnalogSingleChannelReader
 import numpy as np
 import time
 
@@ -500,7 +500,9 @@ class NIDAQ(Device):
         channel_list = ''.encode('ascii')
         for c in channels:
             channel_list += (self.settings['device'] + '/' + c + ',').encode('ascii')
-        channel_list = channel_list[:-1]
+        # this line below has been modified to fix a bug where channel_list ended up as a string
+        # channel_list = channel_list[:-1]
+        channel_list = channel_list[:-1].split(b",")
         self.running = True
         # special case 1D waveform since length(waveform[0]) is undefined
         if (len(np.shape(waveform)) == 2):
@@ -532,7 +534,10 @@ class NIDAQ(Device):
             task_ao.ao_channels.add_ao_voltage_chan(chan, min_val=-10.0, max_val=10.0)
         task_ao.timing.cfg_samp_clk_timing(task['sample_rate'], source=clk_source,
                                            samps_per_chan=task['sample_num'])
-        writer = AnalogMultiChannelWriter(task_ao.in_stream, auto_start=True)
+        if len(np.shape(waveform)) == 2:
+            writer = AnalogMultiChannelWriter(task_ao.in_stream)
+        else:
+            writer = AnalogSingleChannelWriter(task_ao.in_stream)
         samples_to_write = task['sample_num']
         samples_written = writer.write_many_sample(data)
         assert samples_written == samples_to_write
@@ -1166,7 +1171,9 @@ class PXI6733(NIDAQ):
         channel_list = ''.encode('ascii')
         for c in channels:
             channel_list += (self.settings['device'] + '/' + c + ',').encode('ascii')
-        channel_list = channel_list[:-1]
+        # this line below has been modified to fix a bug where channel_list ended up as a string
+        # channel_list = channel_list[:-1]
+        channel_list = channel_list[:-1].split(b",")
         self.running = True
         # special case 1D waveform since length(waveform[0]) is undefined
         if (len(np.shape(waveform)) == 2):
@@ -1203,7 +1210,10 @@ class PXI6733(NIDAQ):
 
         # task_ao.timing.cfg_samp_clk_timing(task['sample_rate'], source=clk_source,
         #                                    samps_per_chan=task['sample_num'])
-        writer = AnalogMultiChannelWriter(task_ao.in_stream, auto_start=True)
+        if len(np.shape(waveform)) == 2:
+            writer = AnalogMultiChannelWriter(task_ao.in_stream)
+        else:
+            writer = AnalogSingleChannelWriter(task_ao.in_stream)
         samples_to_write = task['sample_num']
         samples_written = writer.write_many_sample(data)
         assert samples_written == samples_to_write
