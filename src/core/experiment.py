@@ -1368,7 +1368,9 @@ class Experiment(QObject):
             class_creation_string += ', log_function = log_function'
         if data_path is not None:
             class_creation_string += ', data_path = data_path'
-        class_creation_string = 'class_of_experiment(name=experiment_name{:s})'.format(class_creation_string)
+        #class_creation_string = 'class_of_experiment(name=experiment_name{:s})'.format(class_creation_string)
+        class_creation_string = '{:s}(name={:s}{:s})'.format(experiment_class_name, experiment_name,
+                                                             class_creation_string)
         # create instance
         experiment_instance = eval(class_creation_string)
 

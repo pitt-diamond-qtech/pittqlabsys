@@ -40,7 +40,8 @@ Minimal Example Experiment that has only a single parameter (execution time)
             name (optional): name of experiment, if empty same as class name
             settings (optional): settings for this experiment, if empty same as default settings
         """
-        Experiment.__init__(self, name, settings, log_function= log_function, data_path = data_path)
+        #Experiment.__init__(self, name, settings, log_function= log_function, data_path = data_path)
+        super().__init__(name, settings, log_function= log_function, data_path = data_path)
 
 
     def _function(self):
@@ -79,7 +80,8 @@ Example Experiment that has all different types of parameters (integer, str, flo
             name (optional): name of experiment, if empty same as class name
             settings (optional): settings for this experiment, if empty same as default settings
         """
-        Experiment.__init__(self, name, settings, log_function=log_function, data_path=data_path)
+        #Experiment.__init__(self, name, settings, log_function=log_function, data_path=data_path)
+        super().__init__(name,settings,log_function= log_function, data_path = data_path)
 
     def _function(self):
         """
@@ -246,13 +248,15 @@ def test_example_experiment(capsys):
         plt.show()
 
 def test_example_experiment_wrapper(capsys):
-    expt = {'ExptDummy':ExampleExperiment}
+    expt = {'ExptDummy':ExampleExperiment()}
     instr = {"DummyDev":Plant}
-    #expt,failed,instr = ExampleExperimentWrapper.load_and_append({'Example_Expt':'ExampleExperiment'},expt,instr)
-    expt = ExampleExperimentWrapper(devices=instr,sub_experiments=expt)
+    #ew,failed,instr = ExampleExperimentWrapper.load_and_append({'Example_Expt':MinimalExperiment},expt,instr)
+    ew = ExampleExperimentWrapper(devices=instr,sub_experiments=expt)
+    assert ew is not None
+    #assert failed != {}
     fig, ax = plt.subplots(2, 1)
-    expt.settings['plot_style'] = "2D"
+    ew.settings['plot_style'] = "2D"
     with capsys.disabled():
-        expt.run()
-        expt._plot(axes_list=[ax[0], ax[1]])
+        ew.run()
+        ew._plot(axes_list=[ax[0], ax[1]])
         plt.show()
