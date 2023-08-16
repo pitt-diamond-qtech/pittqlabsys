@@ -24,7 +24,7 @@ from src.core import Parameter, Experiment
 #from src.Model.experiments import FindNV
 
 
-class Daq_Read_Counter(Experiment):
+class PXI6733_Read_Counter(Experiment):
     """
 This experiment reads the Counter input from the DAQ and plots it.
 
@@ -41,8 +41,7 @@ If you want to use it make sure that the right device is defined in _DEVICES = {
 
     _DEVICES = {'daq': PXI6733}
 
-    _EXPERIMENTS = {
-    }
+    _EXPERIMENTS = {}
 
     def __init__(self, devices, experiments=None, name=None, settings=None, log_function=None, data_path=None):
         """
@@ -161,7 +160,7 @@ if __name__ == '__main__':
     experiment = {}
     instr = {'daq': PXI6733}
     #experiment, failed, instr = Experiment.load_and_append({'Daq_Read_Counter': 'Daq_Read_Counter'}, experiment, instr)
-    expt = Daq_Read_Counter(instr,name='daq_read_ctr')
+    expt = PXI6733_Read_Counter(instr,name='daq_read_ctr')
     print(expt.data)
     expt.run()
     print(expt.data)

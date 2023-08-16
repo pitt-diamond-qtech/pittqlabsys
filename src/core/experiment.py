@@ -961,7 +961,7 @@ class Experiment(QObject):
 
     @staticmethod
     def load_and_append(experiment_dict, experiments=None, devices=None, log_function=None, data_path=None,
-                        raise_errors=False, package='src.Model', verbose=False):
+                        raise_errors=False, verbose=False, package=None):
         """
         load experiment from experiment_dict and append to experiments, if additional devices are required create them and add them to devices
 
@@ -1006,6 +1006,7 @@ class Experiment(QObject):
             data_path: absolute path where data is saved, in case the path in the experiment is definded as a relative path
 
             raise_errors: if True errors are raised
+            package: package where experiment will be found
         Returns:
                 dictionary of form
                 experiment_dict = { name_of_experiment_1 : experiment_1_instance, name_of_experiment_2 : experiment_2_instance, ...}
@@ -1017,6 +1018,8 @@ class Experiment(QObject):
             experiments = {}
         if devices is None:
             devices = {}
+        if package is None:
+            package = "src.Model"
 
         load_failed = {}
         updated_experiments = {}
@@ -1175,7 +1178,7 @@ class Experiment(QObject):
                     class_creation_string += ', log_function = log_function'
                 if data_path:
                     class_creation_string += ', data_path = data_path'
-                class_creation_string = '{:s}(name=experiment_name{:s})'.format(experiment_class_name,class_creation_string)
+                class_creation_string = '{:s}(name={:s}{:s})'.format(experiment_class_name,experiment_name,class_creation_string)
 
                 if verbose:
                     print(('class_creation_string', class_creation_string))
@@ -1183,6 +1186,7 @@ class Experiment(QObject):
                     print(('experiments', sub_experiments))
 
                 try:
+
                     experiment_instance = eval(class_creation_string)
                 except Exception as err:
                     print('loading ' + experiment_name + ' failed:')
@@ -1452,6 +1456,8 @@ class Experiment(QObject):
         if self._plot_refresh is True:
             for fig in figure_list:
                 fig.clf()
+                # expecting an axis object here not a figure object
+                #ax.cla()
                 axes_list.append(fig.add_subplot(111))
 
         else:
