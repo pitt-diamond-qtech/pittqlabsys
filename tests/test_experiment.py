@@ -260,3 +260,18 @@ def test_example_experiment_wrapper(capsys):
         ew.run()
         ew._plot(axes_list=[ax[0], ax[1]])
         plt.show()
+
+def test_load_and_append(capsys):
+    expt = {'ExptDummy':ExampleExperiment()}
+    instr = {"DummyDev":Plant}
+    ew,failed,instr = Experiment.load_and_append({'Example_Expt':MinimalExperiment})
+    with capsys.disabled():
+        print(failed)
+        print(ew)
+    assert failed == {}
+    # fig, ax = plt.subplots(2, 1)
+    # ew.settings['plot_style'] = "2D"
+    # with capsys.disabled():
+    #     ew.run()
+    #     ew._plot(axes_list=[ax[0], ax[1]])
+    #     plt.show()

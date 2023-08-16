@@ -19,30 +19,32 @@ import numpy as np
 import time
 
 from src.Controller import Plant, PIController
+import matplotlib.pyplot as plt
 
 
-
-class ExampleMinimalExperiment(Experiment):
+class MinimalExperiment(Experiment):
     """
 Minimal Example Experiment that has only a single parameter (execution time)
     """
 
     _DEFAULT_SETTINGS = [
-        Parameter('execution_time', 0.1, float, 'execution time of Experiment (s)')
+        Parameter('execution_time', 0.1, float, 'execution time of experiment (s)'),
+        Parameter('p1', 0.1, float, 'dummy param')
     ]
 
     _DEVICES = {}
     _EXPERIMENTS = {}
 
-    def __init__(self, name=None, settings=None,
-                 log_function=None, data_path=None):
+    def __init__(self, name=None, settings=None, log_function = None, data_path = None):
         """
         Example of a experiment
         Args:
             name (optional): name of experiment, if empty same as class name
             settings (optional): settings for this experiment, if empty same as default settings
         """
-        Experiment.__init__(self, name, settings, log_function=log_function, data_path=data_path)
+        #Experiment.__init__(self, name, settings, log_function= log_function, data_path = data_path)
+        super().__init__(name, settings, log_function= log_function, data_path = data_path)
+
 
     def _function(self):
         """
@@ -50,10 +52,9 @@ Minimal Example Experiment that has only a single parameter (execution time)
         will be overwritten in the __init__
         """
         import time
-
+        print("Experiment test is running...")
         self.data = {'empty_data': []}
         time.sleep(self.settings['execution_time'])
-
 
 class ExampleExperiment(Experiment):
     """
@@ -81,7 +82,8 @@ Example Experiment that has all different types of parameters (integer, str, flo
             name (optional): name of experiment, if empty same as class name
             settings (optional): settings for this experiment, if empty same as default settings
         """
-        Experiment.__init__(self, name, settings, log_function=log_function, data_path=data_path)
+        #Experiment.__init__(self, name, settings, log_function=log_function, data_path=data_path)
+        super().__init__(name,settings,log_function= log_function, data_path = data_path)
 
     def _function(self):
         """
@@ -134,11 +136,13 @@ Example Experiment that has all different types of parameters (integer, str, flo
             if plot_type in ('main', 'two'):
                 if not data['random data'] is None:
                     axes_list[0].plot(data['random data'])
-                    axes_list[0].hold(False)
+                    # 20230816 GD : next line removed because hold has been deprecated
+                    #axes_list[0].hold(False)
             if plot_type in ('aux', 'two', '2D'):
                 if not data['random data'] is None:
                     axes_list[1].plot(data['random data'])
-                    axes_list[1].hold(False)
+                    # 20230816 GD : next line removed because hold has been deprecated
+                    #axes_list[1].hold(False)
             if plot_type == '2D':
                 if 'image data' in data and not data['image data'] is None:
                     fig = axes_list[0].get_figure()
@@ -171,16 +175,16 @@ Example Experiment that has all different types of parameters (integer, str, flo
             # fall back to default behaviour
             Experiment._update(self, axes_list)
 
-
 class ExampleExperimentWrapper(Experiment):
     """
 Example Experiment that has all different types of parameters (integer, str, fload, point, list of parameters). Plots 1D and 2D data.
     """
 
-    _DEFAULT_SETTINGS = []
+    _DEFAULT_SETTINGS = [Parameter('plot_style', 'main', ['main', 'aux', '2D', 'two'])]
 
     _DEVICES = {}
     _EXPERIMENTS = {'ExptDummy':ExampleExperiment}
+    #_EXPERIMENTS = {}
 
     def __init__(self,  name=None, settings=None, devices=None, sub_experiments=None, log_function=None, data_path=None):
         """
@@ -198,7 +202,7 @@ Example Experiment that has all different types of parameters (integer, str, flo
         will be overwritten in the __init__
         """
 
-        self.experiments['ExperimentDummy'].run()
+        self.experiments['ExptDummy'].run()
 
     def _plot(self, axes_list, data=None):
         """
@@ -223,16 +227,19 @@ Example Experiment that has all different types of parameters (integer, str, flo
         """
         self.experiments['ExptDummy']._update(axes_list)
 
-
 if __name__ == '__main__':
 
-    instr = {"DummyDev": ExampleDevice}
-    sub_expts = {'ExptDummy': ExampleExperiment}
-    # expt, failed, instr = ExampleExperimentWrapper.load_and_append({'Example_Expt': 'ExampleExperimentWrapper'}, experiments=expt,
-    #                                                                devices = instr)
-    #expt = ExampleExperimentWrapper(name="silly",devices=instr)
+
     expt = ExampleExperiment(name="silly")
     expt.run()
     time.sleep(1)
-    # expt2 = ExampleExperimentWrapper(name="silly2",sub_experiments=sub_expts)
-    # expt2.run()
+    expt = {'ExptDummy': ExampleExperiment()}
+    instr = {"DummyDev": Plant}
+
+    ew = ExampleExperimentWrapper(devices=instr, sub_experiments=expt)
+    assert ew is not None
+    fig, ax = plt.subplots(2, 1)
+    ew.settings['plot_style'] = "2D"
+    ew.run()
+    ew._plot(axes_list=[ax[0], ax[1]])
+    plt.show()
