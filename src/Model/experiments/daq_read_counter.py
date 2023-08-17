@@ -65,7 +65,7 @@ If you want to use it make sure that the right device is defined in _DEVICES = {
 
 
 
-        sample_rate = float(2) / self.settings['integration_time']
+        sample_rate = 1.0 / self.settings['integration_time']
         normalization = self.settings['integration_time']/.001
         #print("the devices dict is", self.devices)
         dev_instance = self.devices['daq']

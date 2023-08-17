@@ -17,6 +17,7 @@ from src.Model.experiments.daq_read_counter import Pxi6733ReadCounter
 from src.Controller.ni_daq import PXI6733
 import pytest
 import matplotlib.pyplot as plt
+import numpy as np
 
 
 @pytest.fixture
@@ -36,6 +37,8 @@ def test_read_counter(capsys, get_pxi6733):
         expt.settings['plot_style'] = "main"
         expt.run()
         #print(expt.data)
+        dat = expt.data['counts']
+        print("The average counting rate is {} kcts/sec".format(np.mean(dat)))
         expt.plot(figure_list=[fig])
         plt.show()
 
