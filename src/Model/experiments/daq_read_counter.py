@@ -24,7 +24,7 @@ from src.core import Parameter, Experiment
 #from src.Model.experiments import FindNV
 
 
-class PXI6733_Read_Counter(Experiment):
+class Pxi6733readcounter(Experiment):
     """
 This experiment reads the Counter input from the DAQ and plots it.
 
@@ -36,7 +36,8 @@ If you want to use it make sure that the right device is defined in _DEVICES = {
     _DEFAULT_SETTINGS = [
         Parameter('integration_time', .25, float, 'Time per data point (s)'),
         Parameter('counter_channel', 'ctr0', ['ctr0', 'ctr2'], 'Daq channel used for counter'),
-        Parameter('total_int_time', 3.0, float, 'Total time to integrate (s) (if -1 then it will go indefinitely)')
+        Parameter('total_int_time', 3.0, float, 'Total time to integrate (s) (if -1 then it will go indefinitely)'),
+        Parameter('plot_style',"main",['main', 'aux', '2D', 'two'])
     ]
 
     _DEVICES = {'daq': PXI6733}
@@ -50,7 +51,7 @@ If you want to use it make sure that the right device is defined in _DEVICES = {
             name (optional): name of experiment, if empty same as class name
             settings (optional): settings for this experiment, if empty same as default settings
         """
-        Experiment.__init__(self, name, settings=settings, sub_experiments=experiments,devices=devices,
+        super().__init__(name, settings=settings, sub_experiments=experiments,devices=devices,
                         log_function=log_function, data_path=data_path)
 
         self.data = {'counts': deque(),  'normalized_counts': deque()}
@@ -130,7 +131,7 @@ If you want to use it make sure that the right device is defined in _DEVICES = {
 
 
     def plot(self, figure_list):
-        super(Daq_Read_Counter, self).plot([figure_list[1]])
+        super(Pxi6733readcounter, self).plot([figure_list[1]])
 
     def _plot(self, axes_list, data = None):
         # COMMENT_ME
@@ -160,7 +161,7 @@ if __name__ == '__main__':
     experiment = {}
     instr = {'daq': PXI6733}
     #experiment, failed, instr = Experiment.load_and_append({'Daq_Read_Counter': 'Daq_Read_Counter'}, experiment, instr)
-    expt = PXI6733_Read_Counter(instr,name='daq_read_ctr')
+    expt = Pxi6733readcounter(instr, name='daq_read_ctr')
     print(expt.data)
     expt.run()
     print(expt.data)

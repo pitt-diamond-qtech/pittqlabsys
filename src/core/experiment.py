@@ -85,11 +85,11 @@ class Experiment(QObject):
             devices = {}
         else:
             assert isinstance(devices, dict)
-            assert set(self._devices.keys()) <= set(devices.keys())
+            assert set(self._DEVICES.keys()) <= set(devices.keys())
 
         self.data_path = data_path
 
-        self.devices = {key: devices[key] for key in list(self._devices.keys())}
+        self.devices = {key: devices[key] for key in list(devices.keys())}
 
         self._experiments = {}
         if sub_experiments is None:
@@ -269,11 +269,11 @@ class Experiment(QObject):
     @devices.setter
     def devices(self, device_dict):
         assert isinstance(device_dict, dict)
-        # checks if all the keys in _deviceS are contained in device_dict
-        assert set(self._devices.keys()) <= set(
+        # checks if all the keys in _DEVICES are contained in device_dict
+        assert set(self._DEVICES.keys()) <= set(
             device_dict.keys()), "{:s}: needs devices {:s} but received {:s}".format(self.name, str(list(
-            self._devices.keys())), str(list(device_dict.keys())))
-        for key, value in self._devices.items():
+            self._DEVICES.keys())), str(list(device_dict.keys())))
+        for key, value in self._DEVICES.items():
             self._devices.update({key: device_dict[key]})
 
     @property
@@ -1369,9 +1369,9 @@ class Experiment(QObject):
             class_creation_string += ', log_function = log_function'
         if data_path is not None:
             class_creation_string += ', data_path = data_path'
-        #class_creation_string = 'class_of_experiment(name=experiment_name{:s})'.format(class_creation_string)
-        class_creation_string = '{:s}(name={:s}{:s})'.format(experiment_class_name, experiment_name,
-                                                             class_creation_string)
+        class_creation_string = 'class_of_experiment(name=experiment_name{:s})'.format(class_creation_string)
+        # class_creation_string = '{:s}(name={:s}{:s})'.format(experiment_class_name, experiment_name,
+        #                                                      class_creation_string)
         # create instance
         experiment_instance = eval(class_creation_string)
 
