@@ -14,6 +14,7 @@
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 from src.core.device import Device
+#from src.Controller import ExampleDevice
 from collections import deque
 from src.core.read_write_functions import save_aqs_file
 
@@ -187,10 +188,10 @@ class Probe(object):
 
 if __name__ == '__main__':
     pass
-    # device load and append still has bugs....could this be an issue?
     # probe_dict = {'DummyDevice': 'internal,value1'}
-    # devices, __ = Device.load_and_append({'DummyDevice': 'Device'})
-    #
+    # devices, __ = Device.load_and_append({'DummyDevice': ExampleDevice})
+    # print(devices)
+    # # probe load and append still has bugs....could this be an issue?
     # probes_obj, failed, devices = Probe.load_and_append(
     #     probe_dict=probe_dict,
     #     probes={},

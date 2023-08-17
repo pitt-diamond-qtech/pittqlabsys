@@ -45,7 +45,8 @@ def update_fluorescence(image_data, axes_image, max_counts = -1):
         colorbar_max = np.max(image_data)
         colorbar_labels = [np.floor(x) for x in np.linspace(colorbar_min, colorbar_max, 5, endpoint=True)]
         colorbar.set_ticks(colorbar_labels)
-        colorbar.set_clim(colorbar_min, colorbar_max)
+        #colorbar.set_clim(colorbar_min, colorbar_max)
+        colorbar.mappable.set_clim(colorbar_min, colorbar_max)
         colorbar.update_normal(implot)
 
 
@@ -103,11 +104,11 @@ def plot_fluorescence(image_data, extent, axes_image, max_counts = -1, colorbar 
     if colorbar is None:
         colorbar = fig.colorbar(implot, label=cbar_label)
         colorbar.set_ticks(colorbar_labels)
-        colorbar.set_clim(colorbar_min, colorbar_max)
+        colorbar.mappable.set_clim(colorbar_min, colorbar_max)
     else:
         colorbar = fig.colorbar(implot, cax=colorbar.ax, label=cbar_label)
         colorbar.set_ticks(colorbar_labels)
-        colorbar.set_clim(colorbar_min, colorbar_max)
+        colorbar.mappable.set_clim(colorbar_min, colorbar_max)
 
 def plot_fluorescence_pos(image_data, extent, axes_image, max_counts = -1, colorbar = None):
     """

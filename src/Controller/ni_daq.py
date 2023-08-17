@@ -1190,10 +1190,21 @@ class PXI6733(NIDAQ):
         # special case 1D waveform since length(waveform[0]) is undefined
         if (len(np.shape(waveform)) == 2):
             num_channels = len(waveform)
-            task['sample_num'] = len(waveform[0])
+            # for the PXI6733 the AO buffer has to be an even number
+            if len(waveform[0]) % 2 == 0:
+                task['sample_num'] = len(waveform[0])
+            else:
+                task['sample_num'] = len(waveform[0]) - 1
+                RuntimeWarning("The waveform must have an even number of points, dropping the last point")
         else:
             task['sample_num'] = len(waveform)
             num_channels = 1
+            # for the PXI6733 the AO buffer has to be an even number
+            if len(waveform) % 2 == 0:
+                task['sample_num'] = len(waveform)
+            else:
+                task['sample_num'] = len(waveform) - 1
+                RuntimeWarning("The waveform must have an even number of points, dropping the last point")
 
         # special case 1D waveform since length(waveform[0]) is undefined
         # converts python array to numpy array
@@ -1206,6 +1217,8 @@ class PXI6733(NIDAQ):
             data = np.zeros((task['sample_num']), dtype=np.float64)
             for i in range(task['sample_num']):
                 data[i] = waveform[i]
+
+
 
         if not (clk_source == ""):
             clk_source = self.tasklist[clk_source]['counter_out_PFI_str']
@@ -1241,9 +1254,9 @@ class NI6281(NIDAQ):  # yet to be implemented
         Parameter('device', "Dev1", ["Dev1", "PXI1Slot8"], "Name of DAQ device"),
         Parameter('override_buffer_size', -1, int, 'Buffer size for manual override (unused if -1)'),
         Parameter('ao_read_offset', .005, float, 'Empirically determined offset for reading ao voltages internally'),
-        Parameter('analog_output',
+        Parameter('analog_input',
                   [
-                      Parameter('ao0',
+                      Parameter('ai0',
                                 [
                                     Parameter('channel', 0, [0, 1, 2, 3], 'output channel'),
                                     Parameter('sample_rate', 1000.0, float, 'output sample rate (Hz)'),
@@ -1251,7 +1264,7 @@ class NI6281(NIDAQ):  # yet to be implemented
                                     Parameter('max_voltage', 10.0, float, 'maximum output voltage (V)')
                                 ]
                                 ),
-                      Parameter('ao1',
+                      Parameter('ai1',
                                 [
                                     Parameter('channel', 1, [0, 1, 2, 3], 'output channel'),
                                     Parameter('sample_rate', 1000.0, float, 'output sample rate (Hz)'),
@@ -1296,28 +1309,7 @@ class NI6281(NIDAQ):  # yet to be implemented
                                 )
                   ]
                   ),
-        Parameter('digital_output',
-                  [
-                      Parameter('do0',
-                                [
-                                    Parameter('channel', 0, list(range(0, 8)), 'channel'),
-                                    # Parameter('value', False, bool, 'value')
-                                    Parameter('sample_rate', 1000.0, float, 'output sample rate (Hz)')
-                                    # Parameter('min_voltage', -10.0, float, 'minimum output voltage (V)'),
-                                    # Parameter('max_voltage', 10.0, float, 'maximum output voltage (V)')
-                                ]
-                                ),
-                      Parameter('do7',
-                                [
-                                    Parameter('channel', 7, list(range(0, 8)), 'channel'),
-                                    # Parameter('value', False, bool, 'value')
-                                    Parameter('sample_rate', 1000.0, float, 'output sample rate (Hz)')
-                                    # Parameter('min_voltage', -10.0, float, 'minimum output voltage (V)'),
-                                    # Parameter('max_voltage', 10.0, float, 'maximum output voltage (V)')
-                                ]
-                                )
-                  ]
-                  )
+
 
     ])
 
