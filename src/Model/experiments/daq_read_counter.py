@@ -24,7 +24,7 @@ from src.core import Parameter, Experiment
 #from src.Model.experiments import FindNV
 
 
-class Pxi6733readcounter(Experiment):
+class Pxi6733ReadCounter(Experiment):
     """
 This experiment reads the Counter input from the DAQ and plots it.
 
@@ -34,14 +34,14 @@ If you want to use it make sure that the right device is defined in _DEVICES = {
 
     """
     _DEFAULT_SETTINGS = [
-        Parameter('integration_time', .25, float, 'Time per data point (s)'),
+        Parameter('integration_time', .1, float, 'Time per data point (s)'),
         Parameter('counter_channel', 'ctr0', ['ctr0', 'ctr2'], 'Daq channel used for counter'),
-        Parameter('total_int_time', 3.0, float, 'Total time to integrate (s) (if -1 then it will go indefinitely)'),
+        Parameter('total_int_time', 5.0, float, 'Total time to integrate (s) (if -1 then it will go indefinitely)'),
         Parameter('plot_style',"main",['main', 'aux', '2D', 'two'])
     ]
 
-    _DEVICES = {'daq': PXI6733}
-
+    #_DEVICES = {'daq': PXI6733}
+    _DEVICES = {}
     _EXPERIMENTS = {}
 
     def __init__(self, devices, experiments=None, name=None, settings=None, log_function=None, data_path=None):
@@ -67,12 +67,19 @@ If you want to use it make sure that the right device is defined in _DEVICES = {
 
         sample_rate = float(2) / self.settings['integration_time']
         normalization = self.settings['integration_time']/.001
-        self.devices['daq']['instance'].settings['digital_input'][self.settings['counter_channel']]['sample_rate'] = sample_rate
+        #print("the devices dict is", self.devices)
+        dev_instance = self.devices['daq']
+        #print("Device instance is ",dev_instance)
+        dig_input = dev_instance.settings['digital_input']
+        #print("Digital input is ",dig_input)
+        counter_chan = dig_input[self.settings['counter_channel']]
+        #print("counter chan is", counter_chan)
+        counter_chan['sample_rate'] = sample_rate
         self.data = {'counts': deque(), 'laser_power': deque(), 'normalized_counts': deque(), 'laser_power2': deque()}
         self.last_value = 0
         sample_num = 2
 
-        task = self.devices['daq']['instance'].setup_counter(self.settings['counter_channel'], sample_num, continuous_acquisition=True)
+        task = dev_instance.setup_counter(self.settings['counter_channel'], sample_num, continuous_acquisition=True,use_external_clock=False)
 
 
         # maximum number of samples if total_int_time > 0
@@ -81,7 +88,7 @@ If you want to use it make sure that the right device is defined in _DEVICES = {
 
 
 
-        self.devices['daq']['instance'].run(task)
+        dev_instance.run(task)
 
         # GD 20230803 wait for at least one clock tick to go by to start with a full clock tick of acquisition time for the first bin
         time.sleep(self.settings['integration_time'])
@@ -94,10 +101,10 @@ If you want to use it make sure that the right device is defined in _DEVICES = {
 
 
 
-            raw_data, num_read = self.devices['daq']['instance'].read(task)
+            raw_data, num_read = dev_instance.read(task)
 
             #skip first read, which gives an anomolous value
-            if num_read.value == 1:
+            if num_read == 1:
                 self.last_value = raw_data[0] #update running value to last measured value to prevent count spikes
                 time.sleep(2.0 / sample_rate)
                 continue
@@ -123,7 +130,7 @@ If you want to use it make sure that the right device is defined in _DEVICES = {
                 self._abort = True # tell the experiment to abort
 
         # clean up APD tasks
-        self.devices['daq']['instance'].stop(task)
+        dev_instance.stop(task)
 
 
         self.data['counts'] = list(self.data['counts'])
@@ -131,7 +138,7 @@ If you want to use it make sure that the right device is defined in _DEVICES = {
 
 
     def plot(self, figure_list):
-        super(Pxi6733readcounter, self).plot([figure_list[1]])
+        super(Pxi6733ReadCounter, self).plot([figure_list[0]])
 
     def _plot(self, axes_list, data = None):
         # COMMENT_ME
@@ -159,9 +166,9 @@ If you want to use it make sure that the right device is defined in _DEVICES = {
 
 if __name__ == '__main__':
     experiment = {}
-    instr = {'daq': PXI6733}
+    instr = {'daq': PXI6733()}
     #experiment, failed, instr = Experiment.load_and_append({'Daq_Read_Counter': 'Daq_Read_Counter'}, experiment, instr)
-    expt = Pxi6733readcounter(instr, name='daq_read_ctr')
+    expt = Pxi6733ReadCounter(instr, name='daq_read_ctr')
     print(expt.data)
     expt.run()
     print(expt.data)

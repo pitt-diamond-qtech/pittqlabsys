@@ -67,7 +67,7 @@ class Experiment(QObject):
         Args:
             name (optional):  name of experiment, if not provided take name of function
             settings (optional): a Parameter object that contains all the information needed in the experiment
-            devices (optional): devices used in the experiment
+            devices (optional): pass in a dictionary with instances of the devices used in the experiment, e.g. {"mw":SRS386()}
             sub_experiments (optional):  sub_experiments used in the experiment
             log_function(optional): function reference that takes a string
         """

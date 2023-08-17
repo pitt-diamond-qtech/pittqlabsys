@@ -13,7 +13,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
-from src.Model.experiments.daq_read_counter import Pxi6733readcounter
+from src.Model.experiments.daq_read_counter import Pxi6733ReadCounter
 from src.Controller.ni_daq import PXI6733
 import pytest
 import matplotlib.pyplot as plt
@@ -28,11 +28,14 @@ def get_pxi6733() -> PXI6733:
 def test_read_counter(capsys, get_pxi6733):
     daq = get_pxi6733
     instr = {"daq":daq}
-    expt = Pxi6733readcounter(instr, name='daq_read_ctr')
+
     fig, ax = plt.subplots(2, 1)
-    expt.settings['plot_style'] = "2D"
+
     with capsys.disabled():
+        expt = Pxi6733ReadCounter(instr, name='daq_read_ctr')
+        expt.settings['plot_style'] = "main"
         expt.run()
+        #print(expt.data)
         expt.plot(figure_list=[fig])
         plt.show()
 

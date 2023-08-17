@@ -455,12 +455,13 @@ class NIDAQ(Device):
         # data = (float * task['sample_num'])()
         # samplesPerChanRead = int32()
         # initialize a numpy array and subtract 10 so we know if the value returned was 0 or never updated.
-        data = np.zeros(task['num_samples_per_channel']) - 10
+        #data = np.zeros(task['num_samples_per_channel']) - 10
+        data = np.zeros(task['sample_num']) -10
 
         reader = CounterReader(task_handle_ctr.in_stream)
 
         samples_read = reader.read_many_sample_double(data,
-                                                      number_of_samples_per_channel=task['num_samples_per_channel'])
+                                                      number_of_samples_per_channel=task['sample_num'])
 
         return data, samples_read
 
