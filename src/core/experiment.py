@@ -88,8 +88,13 @@ class Experiment(QObject):
             assert set(self._DEVICES.keys()) <= set(devices.keys())
 
         self.data_path = data_path
-
-        self.devices = {key: devices[key] for key in list(devices.keys())}
+        # GD 20230817: had to change the line below to directly assign to self._devices rather than self.devices
+        # self.devices = {key: devices[key] for key in list(devices.keys())}
+        self._devices = {key: devices[key] for key in list(devices.keys())}
+        # debugging lines below , commented out after it looks like things are working
+        # debug_devs = {key: devices[key] for key in list(devices.keys())}
+        # print("Debugging devices....",debug_devs)
+        #self.devices = devices
 
         self._experiments = {}
         if sub_experiments is None:
@@ -220,7 +225,7 @@ class Experiment(QObject):
         if there is not device it should return an empty dict
 
         """
-        raise NotImplementedError("Subclass did not implement _deviceS")
+        raise NotImplementedError("Subclass did not implement _DEVICES")
 
     @property
     def _EXPERIMENTS(self):
@@ -1057,7 +1062,7 @@ class Experiment(QObject):
 
                 if len(device) == 0:
                     # create new instance of device
-                    devices_updated, __ = device.load_and_append({device_name: device_class},
+                    devices_updated, __ = Device.load_and_append({device_name: device_class},
                                                                          devices_updated, raise_errors)
 
                 if experiment_devices is not None and device_name in experiment_devices:

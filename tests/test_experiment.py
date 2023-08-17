@@ -205,7 +205,8 @@ also loads an instrument.
             settings (optional): settings for this experiment, if empty same as default settings
         """
         #Experiment.__init__(self, name, settings, log_function=log_function, data_path=data_path)
-        super().__init__(name,settings,devices,log_function= log_function, data_path = data_path)
+        super().__init__(name,settings,devices=devices,log_function= log_function, data_path = data_path)
+        self.devices = devices
 
     def _function(self):
         """
@@ -399,4 +400,4 @@ def test_load_experiment_device(capsys):
     assert ew is not None
     assert len(ew.devices) != 0
     with capsys.disabled():
-        print(ew.devices)
+        print("Example experiment device has devices",ew.devices)
