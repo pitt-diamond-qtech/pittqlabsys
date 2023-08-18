@@ -53,7 +53,7 @@
           <property name="tabsClosable">
            <bool>false</bool>
           </property>
-          <widget class="QWidget" name="tab_scripts">
+          <widget class="QWidget" name="tab_experiments">
            <attribute name="title">
             <string>Experiments</string>
            </attribute>
@@ -76,7 +76,7 @@
                  </spacer>
                 </item>
                 <item>
-                 <widget class="QPushButton" name="btn_store_script_data">
+                 <widget class="QPushButton" name="btn_store_experiment_data">
                   <property name="font">
                    <font>
                     <pointsize>10</pointsize>
@@ -88,14 +88,14 @@
                  </widget>
                 </item>
                 <item>
-                 <widget class="QPushButton" name="btn_load_scripts">
+                 <widget class="QPushButton" name="btn_load_experiments">
                   <property name="font">
                    <font>
                     <pointsize>10</pointsize>
                    </font>
                   </property>
                   <property name="text">
-                   <string>import script</string>
+                   <string>import experiment</string>
                   </property>
                  </widget>
                 </item>
@@ -112,7 +112,7 @@
                </layout>
               </item>
               <item>
-               <widget class="QTreeWidget" name="tree_scripts">
+               <widget class="QTreeWidget" name="tree_experiments">
                 <property name="enabled">
                  <bool>true</bool>
                 </property>
@@ -219,7 +219,7 @@
               <item>
                <layout class="QHBoxLayout" name="horizontalLayout_5">
                 <item>
-                 <widget class="QPushButton" name="btn_start_script">
+                 <widget class="QPushButton" name="btn_start_experiment">
                   <property name="font">
                    <font>
                     <pointsize>10</pointsize>
@@ -231,7 +231,7 @@
                  </widget>
                 </item>
                 <item>
-                 <widget class="QPushButton" name="btn_stop_script">
+                 <widget class="QPushButton" name="btn_stop_experiment">
                   <property name="font">
                    <font>
                     <pointsize>10</pointsize>
@@ -243,7 +243,7 @@
                  </widget>
                 </item>
                 <item>
-                 <widget class="QPushButton" name="btn_skip_subscript">
+                 <widget class="QPushButton" name="btn_skip_subexperiment">
                   <property name="enabled">
                    <bool>false</bool>
                   </property>
@@ -258,7 +258,7 @@
                  </widget>
                 </item>
                 <item>
-                 <widget class="QPushButton" name="btn_validate_script">
+                 <widget class="QPushButton" name="btn_validate_experiment">
                   <property name="font">
                    <font>
                     <pointsize>10</pointsize>
@@ -775,7 +775,7 @@
   </action>
   <action name="actionExport">
    <property name="text">
-    <string>Convert script or device .py files to .aqs files</string>
+    <string>Convert experiment or device .py files to .aqs files</string>
    </property>
   </action>
   <action name="actionGo_to_AQuISS_GitHub_page">

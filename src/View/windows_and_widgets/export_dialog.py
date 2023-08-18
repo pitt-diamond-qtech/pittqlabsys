@@ -19,7 +19,7 @@ import traceback, os
 from PyQt5 import QtGui, QtWidgets
 from PyQt5.uic import loadUiType
 
-from src.core.helper_functions import find_scripts_in_python_files, python_file_to_b26, find_instruments_in_python_files
+from src.tools.export_default import find_experiments_in_python_files, python_file_to_aqs, find_devices_in_python_files
 from src.core.helper_functions import module_name_from_path
 
 # load the basic old_gui either from .ui file or from precompiled .py file
@@ -27,7 +27,7 @@ try:
     ui_file_path = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir, 'ui_files', 'import_window.ui'))
     Ui_Dialog, QDialog = loadUiType(ui_file_path) # with this we don't have to convert the .ui file into a python file!
 except (ImportError, IOError):
-    from src.gui.compiled_ui_files import Ui_Dialog
+    from src.View.compiled_ui_files import Ui_Dialog
     from PyQt5.QtWidgets import QMainWindow
     from PyQt5.QtWidgets import QDialog
     print('Warning: on the fly conversion of load_dialog.ui file failed, loaded .py file instead!!\n')
@@ -90,9 +90,9 @@ class ExportDialog(QDialog, Ui_Dialog):
         try:
             self.list_script_model.removeRows(0, self.list_script_model.rowCount())
             if self.cmb_select_type.currentText() == 'Script':
-                self.avaliable = find_scripts_in_python_files(folder)
+                self.avaliable = find_experiments_in_python_files(folder)
             elif self.cmb_select_type.currentText() == 'Instrument':
-                self.avaliable = find_instruments_in_python_files(folder)
+                self.avaliable = find_devices_in_python_files(folder)
             self.fill_list(self.list_script, self.avaliable.keys())
             for key in self.avaliable.keys():
                 self.error_array.update({key: ''})
@@ -152,7 +152,7 @@ class ExportDialog(QDialog, Ui_Dialog):
             name = str(item.text())
             target_path = self.target_path.text()
             try:
-                python_file_to_b26({name: self.avaliable[name]}, target_path, str(self.cmb_select_type.currentText()), raise_errors = True)
+                python_file_to_aqs({name: self.avaliable[name]}, target_path, str(self.cmb_select_type.currentText()), raise_errors = True)
                 self.error_array.update({name: 'export successful!'})
                 item.setBackground(QtGui.QColor('green'))
             except Exception:

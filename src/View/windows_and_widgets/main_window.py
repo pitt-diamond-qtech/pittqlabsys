@@ -150,7 +150,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
             self.actionSave.triggered.connect(self.btn_clicked)
             self.actionExport.triggered.connect(self.btn_clicked)
-            self.actionGo_to_src_GitHub_page.triggered.connect(self.btn_clicked)
+            self.actionGo_to_AQuISS_GitHub_page.triggered.connect(self.btn_clicked)
 
             self.btn_load_devices.clicked.connect(self.btn_clicked)
             self.btn_load_experiments.clicked.connect(self.btn_clicked)
