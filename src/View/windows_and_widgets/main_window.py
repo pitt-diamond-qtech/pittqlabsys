@@ -58,7 +58,7 @@ class CustomEventFilter(QtCore.QObject):
 
 
 class MainWindow(QMainWindow, Ui_MainWindow):
-    application_path = os.path.abspath(os.path.join(os.path.expanduser("~"), 'src_default_save_location'))
+    application_path = os.path.abspath(os.path.join(os.path.expanduser("~"), 'Experiments\\AQuISS_default_save_location'))
 
     _DEFAULT_CONFIG = {
         "data_folder": os.path.join(application_path, "data"),
@@ -842,8 +842,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.refresh_tree(self.tree_settings, self.devices)
         elif sender is self.actionSave:
             self.save_config(self.gui_settings['gui_settings'])
-        elif sender is self.actionGo_to_src_GitHub_page:
-            webbrowser.open('https://github.com/LISE-AQuISS/src')
+        elif sender is self.actionGo_to_AQuISS_GitHub_page:
+            webbrowser.open('https://github.com/gurudevdutt/AQuISS')
         elif sender is self.actionExport:
             export_dialog = ExportDialog()
             export_dialog.target_path.setText(self.gui_settings['experiments_folder'])
@@ -1385,7 +1385,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
 
 
-        print('JG tmp filepath', filepath)
+        print('GD tmp filepath', filepath)
         try:
             filepath = str(filepath)
             if not os.path.exists(os.path.dirname(filepath)):

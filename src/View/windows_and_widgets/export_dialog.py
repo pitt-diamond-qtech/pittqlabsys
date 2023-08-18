@@ -35,7 +35,7 @@ except (ImportError, IOError):
 
 class ExportDialog(QDialog, Ui_Dialog):
     """
-    This launches a dialog to allow exporting of scripts to .b26 files.
+    This launches a dialog to allow exporting of experiments to .b26 files.
     QDialog, Ui_Dialog: Define the UI and PyQt files to be used to define the dialog box
     """
 
@@ -44,11 +44,11 @@ class ExportDialog(QDialog, Ui_Dialog):
         self.setupUi(self)
 
         # create models for tree structures, the models reflect the data
-        self.list_script_model = QtGui.QStandardItemModel()
-        self.list_script.setModel(self.list_script_model)
+        self.list_experiment_model = QtGui.QStandardItemModel()
+        self.list_experiment.setModel(self.list_experiment_model)
         self.error_array = {}
 
-        self.list_script.selectionModel().selectionChanged.connect(self.display_info)
+        self.list_experiment.selectionModel().selectionChanged.connect(self.display_info)
         self.cmb_select_type.currentIndexChanged.connect(self.class_type_changed)
 
         #
@@ -61,8 +61,8 @@ class ExportDialog(QDialog, Ui_Dialog):
 
         # package = get_python_package(os.getcwd())
         # package, path = module_name_from_path(os.getcwd())
-        # self.source_path.setText(os.path.normpath(os.path.join(path + '\\' + package.split('.')[0] + '\\scripts')))
-        # self.target_path.setText(os.path.normpath(os.path.join(path + '\\' + package.split('.')[0] + '\\user_data\\scripts_auto_generated')))
+        # self.source_path.setText(os.path.normpath(os.path.join(path + '\\' + package.split('.')[0] + '\\experiments')))
+        # self.target_path.setText(os.path.normpath(os.path.join(path + '\\' + package.split('.')[0] + '\\user_data\\experiments_auto_generated')))
         # self.reset_avaliable(self.source_path.text())
 
     def open_file_dialog(self):
@@ -84,26 +84,26 @@ class ExportDialog(QDialog, Ui_Dialog):
 
     def reset_avaliable(self, folder):
         """
-        Resets the dialog box by finding all avaliable scripts that can be imported in the input folder
-        :param folder: folder in which to find scripts
+        Resets the dialog box by finding all available experiments that can be imported in the input folder
+        :param folder: folder in which to find experiments
         """
         try:
-            self.list_script_model.removeRows(0, self.list_script_model.rowCount())
-            if self.cmb_select_type.currentText() == 'Script':
-                self.avaliable = find_experiments_in_python_files(folder)
-            elif self.cmb_select_type.currentText() == 'Instrument':
-                self.avaliable = find_devices_in_python_files(folder)
-            self.fill_list(self.list_script, self.avaliable.keys())
-            for key in self.avaliable.keys():
+            self.list_experiment_model.removeRows(0, self.list_experiment_model.rowCount())
+            if self.cmb_select_type.currentText() == 'experiment':
+                self.available = find_experiments_in_python_files(folder)
+            elif self.cmb_select_type.currentText() == 'Device':
+                self.available = find_devices_in_python_files(folder)
+            self.fill_list(self.list_experiment, self.available.keys())
+            for key in self.available.keys():
                 self.error_array.update({key: ''})
         except Exception:
             msg = QtWidgets.QMessageBox()
-            msg.setText("Unable to parse all of the files in this folder to find possible scripts and instruments. There are non-python files or python files that are unreadable. Please select a folder that contains only src style python files.")
+            msg.setText("Unable to parse all of the files in this folder to find possible experiments and devices. There are non-python files or python files that are unreadable. Please select a folder that contains only src style python files.")
             msg.exec_()
 
     def class_type_changed(self):
         """
-        Forces a reset if the class type is changed from instruments to scripts or vice versa
+        Forces a reset if the class type is changed from devices to experiments or vice versa
         """
         if self.source_path.text():
             self.reset_avaliable(self.source_path.text())
@@ -128,42 +128,42 @@ class ExportDialog(QDialog, Ui_Dialog):
         """
         Clears all selected values
         """
-        self.list_script.clearSelection()
+        self.list_experiment.clearSelection()
 
     def select_all(self):
         """
         Selects all values
         """
-        self.list_script.selectAll()
+        self.list_experiment.selectAll()
 
     def export(self):
         """
-        Exports the selected instruments or scripts to .b26 files. If successful, script is highlighted in green. If
-        failed, script is highlighted in red and error is printed to the error box.
+        Exports the selected devices or experiments to .b26 files. If successful, experiment is highlighted in green. If
+        failed, experiment is highlighted in red and error is printed to the error box.
         """
         if not self.source_path.text() or not self.target_path.text():
             msg = QtWidgets.QMessageBox()
             msg.setText("Please set a target path for this export.")
             msg.exec_()
             return
-        selected_index = self.list_script.selectedIndexes()
+        selected_index = self.list_experiment.selectedIndexes()
         for index in selected_index:
-            item = self.list_script.model().itemFromIndex(index)
+            item = self.list_experiment.model().itemFromIndex(index)
             name = str(item.text())
             target_path = self.target_path.text()
             try:
-                python_file_to_aqs({name: self.avaliable[name]}, target_path, str(self.cmb_select_type.currentText()), raise_errors = True)
+                python_file_to_aqs({name: self.available[name]}, target_path, str(self.cmb_select_type.currentText()), raise_errors = True)
                 self.error_array.update({name: 'export successful!'})
                 item.setBackground(QtGui.QColor('green'))
             except Exception:
                 self.error_array.update({name: str(traceback.format_exc())})
                 item.setBackground(QtGui.QColor('red'))
             QtWidgets.QApplication.processEvents()
-        self.list_script.clearSelection()
+        self.list_experiment.clearSelection()
 
     def display_info(self):
         """
-        Displays the script info and, if it has been attempted to be exported, the error for a given script. Creates
+        Displays the experiment info and, if it has been attempted to be exported, the error for a given experiment. Creates
         hyperlinks in the traceback to the appropriate .py files (to be opened in the default .py editor).
         """
         sender = self.sender()
@@ -188,18 +188,18 @@ class ExportDialog(QDialog, Ui_Dialog):
             #         # would like to use insertPlainText here, but this is broken and ends up being inserted as more
             #         # HTML linked to the previous insertHtml, so need to insert this as HTML instead
             #         self.text_error.insertHtml(error)
-            if(self.avaliable[name]['info'] == None):
-                self.text_info.setText('No information avaliable')
+            if(self.available[name]['info'] == None):
+                self.text_info.setText('No information available')
             else:
-                self.text_info.setText(self.avaliable[name]['info'])
+                self.text_info.setText(self.available[name]['info'])
 
 
 if __name__ == '__main__':
     import sys
 
     app = QtWidgets.QApplication(sys.argv)
-    # ex = LoadDialog(elements_type = 'instruments', elements_old=instuments, filename="Z:\Lab\Cantilever\Measurements\\__tmp\\test.b26")
-    # ex = LoadDialog(elements_type='scripts', elements_old=instuments)
+    # ex = LoadDialog(elements_type = 'devices', elements_old=instuments, filename="Z:\Lab\Cantilever\Measurements\\__tmp\\test.b26")
+    # ex = LoadDialog(elements_type='experiments', elements_old=instuments)
     ex = ExportDialog()
 
     ex.show()

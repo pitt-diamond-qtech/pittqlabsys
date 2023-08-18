@@ -66,12 +66,12 @@ def find_experiments_in_python_files(folder_name, verbose = False):
     return find_exportable_in_python_files(folder_name, 'Experiment', verbose)
 
 def find_devices_in_python_files(folder_name, verbose = False):
-    return find_exportable_in_python_files(folder_name, 'device', verbose)
+    return find_exportable_in_python_files(folder_name, 'Device', verbose)
 
 def python_file_to_aqs(list_of_python_files, target_folder, class_type, raise_errors = False):
     if class_type == 'Experiment':
         loaded, failed, loaded_devices = Experiment.load_and_append(list_of_python_files, raise_errors=raise_errors)
-    elif class_type == 'device':
+    elif class_type == 'Device':
         loaded, failed = Device.load_and_append(list_of_python_files, raise_errors=raise_errors)
 
     print('loaded', loaded)
