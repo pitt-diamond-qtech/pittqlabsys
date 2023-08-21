@@ -42,10 +42,10 @@ try:
     ui_file_path = thisdir / 'View/ui_files/main_window.ui'
     Ui_MainWindow, QMainWindow = loadUiType(ui_file_path) # with this we don't have to convert the .ui file into a python file!
 except (ImportError, IOError):
-    # load precompiled old_gui, to complite run pyqt_uic basic_application_window.ui -o basic_application_window.py
-    from src.View.compiled_ui_files.basic_application_window import Ui_MainWindow
+    # load precompiled old_gui, to complite run pyqt_uic main_window.ui -o main_window.py
+    from src.View.compiled_ui_files.main_window import Ui_MainWindow
     from PyQt5.QtWidgets import QMainWindow
-    print('Warning: on-the-fly conversion of basic_application_window.ui file failed, loaded .py file instead.\n')
+    print('Warning: on-the-fly conversion of main_window.ui file failed, loaded .py file instead.\n')
 
 
 class CustomEventFilter(QtCore.QObject):
