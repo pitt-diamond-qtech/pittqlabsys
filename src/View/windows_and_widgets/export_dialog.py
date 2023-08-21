@@ -35,7 +35,7 @@ except (ImportError, IOError):
 
 class ExportDialog(QDialog, Ui_Dialog):
     """
-    This launches a dialog to allow exporting of experiments to .b26 files.
+    This launches a dialog to allow exporting of experiments to .aqs files.
     QDialog, Ui_Dialog: Define the UI and PyQt files to be used to define the dialog box
     """
 
@@ -138,7 +138,7 @@ class ExportDialog(QDialog, Ui_Dialog):
 
     def export(self):
         """
-        Exports the selected devices or experiments to .b26 files. If successful, experiment is highlighted in green. If
+        Exports the selected devices or experiments to .aqs files. If successful, experiment is highlighted in green. If
         failed, experiment is highlighted in red and error is printed to the error box.
         """
         if not self.source_path.text() or not self.target_path.text():
@@ -198,7 +198,7 @@ if __name__ == '__main__':
     import sys
 
     app = QtWidgets.QApplication(sys.argv)
-    # ex = LoadDialog(elements_type = 'devices', elements_old=instuments, filename="Z:\Lab\Cantilever\Measurements\\__tmp\\test.b26")
+    # ex = LoadDialog(elements_type = 'devices', elements_old=instuments, filename="Z:\Lab\Cantilever\Measurements\\__tmp\\test.aqs")
     # ex = LoadDialog(elements_type='experiments', elements_old=instuments)
     ex = ExportDialog()
 

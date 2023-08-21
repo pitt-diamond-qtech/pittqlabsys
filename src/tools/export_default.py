@@ -69,6 +69,8 @@ def find_devices_in_python_files(folder_name, verbose = False):
     return find_exportable_in_python_files(folder_name, 'Device', verbose)
 
 def python_file_to_aqs(list_of_python_files, target_folder, class_type, raise_errors = False):
+    loaded = {}
+    failed = {}
     if class_type == 'Experiment':
         loaded, failed, loaded_devices = Experiment.load_and_append(list_of_python_files, raise_errors=raise_errors)
     elif class_type == 'Device':
@@ -79,3 +81,4 @@ def python_file_to_aqs(list_of_python_files, target_folder, class_type, raise_er
     for name, value in loaded.items():
         filename = os.path.join(target_folder, '{:s}.aqs'.format(name))
         value.save_aqs(filename)
+    return loaded,failed
