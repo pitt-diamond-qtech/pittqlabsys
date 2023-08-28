@@ -30,8 +30,8 @@ class MicrowaveGenerator(Device):
         # SHOULD BE 4
     ## GD: watch out for the ports this might be different on each computer and might cause issues when running export default
     _DEFAULT_SETTINGS = Parameter([
-        Parameter('connection_type', 'RS232', ['GPIB', 'RS232'], 'type of connection to open to controller'),
-        Parameter('port', 5, list(range(0, 31)), 'GPIB or COM port on which to connect'),
+        Parameter('connection_type', 'GPIB', ['GPIB', 'RS232'], 'type of connection to open to controller'),
+        Parameter('port', 19, list(range(0, 31)), 'GPIB or COM port on which to connect'),
         Parameter('GPIB_num', 0, int, 'GPIB device on which to connect'),
         Parameter('enable_output', False, bool, 'Type-N output enabled'),
         Parameter('frequency', 3e9, float, 'frequency in Hz, or with label in other units ex 300 MHz'),
@@ -75,8 +75,8 @@ class MicrowaveGenerator(Device):
         self.srs.query('*IDN?')
 
     #Doesn't appear to be necessary, can't manually make two sessions conflict, rms may share well
-    # def __del__(self):
-    #     self.srs.close()
+    def __del__(self):
+        self.srs.close()
 
     def update(self, settings):
         """
@@ -168,6 +168,12 @@ class MicrowaveGenerator(Device):
         except pyvisa.errors.VisaIOError:
             return False
 
+    def close(self):
+        try:
+            self.srs.close()
+            return True
+        except pyvisa.errors.VisaIOError:
+            return False
     def _param_to_internal(self, param):
         """
         Converts settings parameters to the corresponding key used for GPIB commands in the SRS.
@@ -306,8 +312,8 @@ class RFGenerator(MicrowaveGenerator):
     """
 
     _DEFAULT_SETTINGS = Parameter([
-        Parameter('connection_type', 'RS232', ['GPIB', 'RS232'], 'type of connection to open to controller'),
-        Parameter('port', 11, list(range(0, 31)), 'GPIB or COM port on which to connect'),
+        Parameter('connection_type', 'GPIB', ['GPIB', 'RS232'], 'type of connection to open to controller'),
+        Parameter('port', 19, list(range(0, 31)), 'GPIB or COM port on which to connect'),
         ## JG: what out for the ports this might be different on each computer and might cause issues when running export default
         Parameter('GPIB_num', 0, int, 'GPIB device on which to connect'),
         Parameter('enable_rf_output', False, bool, 'BNC output enabled'),
@@ -343,4 +349,4 @@ if __name__ == '__main__':
 
     mw = MicrowaveGenerator()
 
-    print((mw.srs))
+    print("Frequency is {} Hz".format(mw.read_probes('frequency')))
