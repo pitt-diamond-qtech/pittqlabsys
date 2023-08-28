@@ -50,6 +50,7 @@ class MicrowaveGenerator(Device):
     def __init__(self, name=None, settings=None):
 
         super(MicrowaveGenerator, self).__init__(name, settings)
+        #super().__init__(name,settings)
 
         # XXXXX MW ISSUE = START
         #===========================================
@@ -86,6 +87,7 @@ class MicrowaveGenerator(Device):
             settings: a dictionary in the standard settings format
         """
         super(MicrowaveGenerator, self).update(settings)
+        #super().update(settings)
         # XXXXX MW ISSUE = START
         # ===========================================
         for key, value in settings.items():

@@ -28,7 +28,7 @@ class Device:
         - default_settings => parameter object, that is alist of parameters that can be set to configure the device
         - update => function that sends parameter changes to the device
         - values => dictionary that contains all the values that can be read from the device
-        - get_values => function that actually requests the values from the device
+        - read_probes => function that actually requests the values from the device
         - is_connected => property that checks if the device is actually connected
 
     """
@@ -123,7 +123,7 @@ class Device:
     # ========================================================================================
     # ======= Following old_functions are generic ================================================
     # ========================================================================================
-    # do not override this, override get_values instead
+    # do not override this, override read_probes instead
     def __getattr__(self, name):
         """
         allows to read device inputs in the form value = device.input
