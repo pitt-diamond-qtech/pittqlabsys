@@ -12,5 +12,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
-from .experiments.example_experiment import ExampleExperiment
+#from .experiments.example_experiment import ExampleExperiment
+from src.Model.experiments.example_experiment import ExampleExperimentWrapper,ExampleExperiment,MinimalExperiment
+from src.Model.experiments.daq_read_counter import Pxi6733ReadCounter
+from src.Model.experiments.galvo_scan import GalvoScan,GalvoScanGeneric
 
