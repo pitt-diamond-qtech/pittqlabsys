@@ -693,12 +693,12 @@ class Experiment(QObject):
             for item in self.log_data:
                 outfile.write("%s\n" % item)
 
-    def save_aq(self, filename=None):
+    def save_aqs(self, filename=None):
         """
         saves the experiment settings to a file: filename is filename is not provided, it is created from internal function
         """
         if filename is None:
-            filename = self.filename('.aq')
+            filename = self.filename('.aqs')
         filename = self.check_filename(filename)
         # if platform.system() == 'Windows':
         #     # windows can't deal with long filenames so we have to use the prefix '\\\\?\\'
@@ -936,7 +936,7 @@ class Experiment(QObject):
         loads the settings that has been save with experiment.save_aq.
         Args:
             path: path to folder saved by experiment.save_aq
-            setttings_only: if true returns only the settings if the .aq file contains only a single experiment
+            setttings_only: if true returns only the settings if the .aqs file contains only a single experiment
         Returns:
             a dictionary with the settings
         """
@@ -948,12 +948,12 @@ class Experiment(QObject):
 
         tag = '_'.join(os.path.basename(os.path.dirname(os.path.abspath(path) + '/')).split('_')[3:])
 
-        search_str = os.path.abspath(path) + '/*' + tag + '.aq'
+        search_str = os.path.abspath(path) + '/*' + tag + '.aqs'
         fname = glob.glob(search_str)
         if len(fname) > 1:
-            print(('warning more than one .aq file found, loading ', fname[0]))
+            print(('warning more than one .aqs file found, loading ', fname[0]))
         elif len(fname) == 0:
-            print(('no .aq file found in folder {:s},  check path !'.format(search_str)))
+            print(('no .aqs file found in folder {:s},  check path !'.format(search_str)))
             return
         fname = fname[0]
         fname = Experiment.check_filename(fname)
@@ -1054,16 +1054,22 @@ class Experiment(QObject):
             device_dict = {}
             devices_updated = {}
             devices_updated.update(devices)
+
             # check if devices needed by experiment already exist, if not create an instance
-            for device_name, device_class in default_devices.items():
+            for device_name, device_instance in default_devices.items():
                 # check if devices needed by experiment already exist
-                device = [instance for name, instance in devices_updated.items() if
-                              isinstance(instance, device_class) and name == device_name]
+                # device = [instance for name, instance in devices_updated.items() if
+                #               isinstance(instance, device_instance) and name == device_name]
+                device = [instance for name,instance in devices_updated.items() if name == device_name and type(instance) == type(device_instance)]
 
                 if len(device) == 0:
                     # create new instance of device
-                    devices_updated, __ = Device.load_and_append({device_name: device_class},
+                    devices_updated, __ = Device.load_and_append({device_name: device_instance},
                                                                          devices_updated, raise_errors)
+                    # MODIFIED to see if I can get rid of the errors in loading galvoscan from the main app
+                    # has not worked so far.
+                    # GD : 20230828
+                    #devices_updated,__ = Device.load_and_append({device_name:device_instance.__class__},devices_updated,raise_errors)
 
                 if experiment_devices is not None and device_name in experiment_devices:
                     device_settings_dict = experiment_devices[device_name]['settings']
@@ -1184,6 +1190,7 @@ class Experiment(QObject):
                 if data_path:
                     class_creation_string += ', data_path = data_path'
                 class_creation_string = 'class_of_experiment(name=experiment_name{:s})'.format(class_creation_string)
+                #print("Will create instance of",class_creation_string)
                 #class_creation_string = '{:s}(name={:s}{:s})'.format(experiment_class_name,experiment_name,class_creation_string)
 
                 if verbose:
@@ -1195,9 +1202,11 @@ class Experiment(QObject):
 
                     experiment_instance = eval(class_creation_string)
                 except Exception as err:
-                    print('loading ' + experiment_name + ' failed:')
+                    #print('loading ' + experiment_name + ' failed:')
+                    print(('loading experiment {0} failed. Could not create instance from {1} from experiment!'.format(
+                        experiment_name,class_of_experiment)))
                     print(traceback.format_exc())
-                    # print(('loading experiment {:s} failed. Could not create instance of experiment!'.format(experiment_name)))
+
                     load_failed[experiment_name] = err
                     if raise_errors:
                         raise err
@@ -1205,8 +1214,12 @@ class Experiment(QObject):
 
                 if experiment_doc:
                     experiment_instance.__doc__ = experiment_doc
-
-                updated_experiments.update({experiment_name: experiment_instance})
+                # added below 2 lines because original update was breaking updated_experiments in debugging mode?
+                if updated_experiments:
+                    updated_experiments.update({experiment_name: experiment_instance})
+                else:
+                    updated_experiments[experiment_name] = experiment_instance
+                print(updated_experiments)
 
         return updated_experiments, load_failed, updated_devices
 
@@ -1244,7 +1257,7 @@ class Experiment(QObject):
             if 'package' in experiment_information:
                 package = experiment_information['package']
             else:
-                assert 'filepath' in experiment_information  # there should be a filepath if we load form a aq file
+                assert 'filepath' in experiment_information  # there should be a filepath if we load form a aqs file
                 # in the case that we generate the experiment_information from a .py file the package is given by the name of the highest module
                 if 'filepath' in experiment_information:
                     package = module_path.split('.')[0]

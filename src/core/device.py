@@ -313,12 +313,10 @@ class Device:
                             raise e
                         continue
                 elif isinstance(device_class_name, Device):
-                    device_class_name = device_class_name.__class__
-                    device_filepath = os.path.dirname(inspect.getfile(device_class_name))
-
-                    # here we should also create an device instance at some point as in the other cases...
-                    # device_instance =
-                    raise NotImplementedError
+                    class_of_device = device_class_name.__class__
+                    device_filepath = os.path.dirname(inspect.getfile(class_of_device))
+                    device_instance = device_class_name
+                    #raise NotImplementedError
                 elif issubclass(device_class_name, Device):
                     class_of_device = device_class_name
                     try:
@@ -337,6 +335,7 @@ class Device:
                         if raise_errors:
                             raise e
                         continue
+
 
                 updated_devices[device_name] = device_instance
 

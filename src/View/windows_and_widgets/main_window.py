@@ -850,7 +850,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             if self.gui_settings_hidden['experiments_source_folder']:
                 export_dialog.source_path.setText(self.gui_settings_hidden['experiments_source_folder'])
             if export_dialog.source_path.text():
-                export_dialog.reset_avaliable(export_dialog.source_path.text())
+                export_dialog.reset_available(export_dialog.source_path.text())
             #exec_() blocks while export dialog is used, subsequent code will run on dialog closing
             export_dialog.exec_()
             self.gui_settings.update({'experiments_folder': export_dialog.target_path.text()})

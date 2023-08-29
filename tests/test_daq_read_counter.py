@@ -15,6 +15,7 @@
 
 from src.Model.experiments.daq_read_counter import Pxi6733ReadCounter
 from src.Controller.ni_daq import PXI6733
+from src.core import Experiment
 import pytest
 import matplotlib.pyplot as plt
 import numpy as np
@@ -42,3 +43,15 @@ def test_read_counter(capsys, get_pxi6733):
         expt.plot(figure_list=[fig])
         plt.show()
 
+
+def test_load_append_read_counter(capsys,get_pxi6733):
+    """Wrote this test to verify if Experiment load and append works
+    with Daq read counter. Test PASSED
+    --- GD 08/28/2023"""
+    daq = get_pxi6733
+    instr = {"daq":daq}
+    ew, failed, instr = Experiment.load_and_append({'ReadCtr': 'Pxi6733ReadCounter'})
+    assert failed == {}
+    with capsys.disabled():
+        print(failed)
+        print(ew)

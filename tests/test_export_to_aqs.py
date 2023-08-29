@@ -76,12 +76,30 @@ def test_find_exportable_expts(capsys,cls,get_expt_dir):
             for k,v in val.items():
                 print(f"{k:12}:{v:25}")
 
+
+@pytest.mark.xfail(sys.platform == "darwin",reason="will fail on Mac bcos NIDAQ does not load")
+def test_find_expts_python_files(capsys,get_expt_dir):
+    """
+    This test has passed successfully
+    -- GD 08/28/2023
+    """
+    folder = get_expt_dir
+    expt_dict = find_experiments_in_python_files(folder)
+    assert expt_dict != {}
+    with capsys.disabled():
+        print("Expts Available:")
+        for key,val in expt_dict.items():
+            print("######")
+            print(key)
+            for k,v in val.items():
+                print(f"{k:12}:{v:25}")
 @pytest.mark.xfail(sys.platform == "darwin",reason="will fail on Mac bcos NIDAQ does not load")
 @pytest.mark.parametrize("cls",["Device"])
 def test_export_pyfile_to_aqs(capsys,cls,get_save_dir,get_dev_dir,get_expt_dir):
     """
-    This test has NOT passed successfully because the NI DAQ was not connected to my Mac.
-    -- GD 08/21/2023
+    This test has passed successfully but throws crazy Windows error when the Microwave generator is being loaded in B103 PC,
+    see the test function for microwave generator to understand this issue.
+    -- GD 08/28/2023
     """
     folder = get_save_dir
     folder2 = get_dev_dir

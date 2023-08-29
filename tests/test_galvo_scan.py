@@ -13,6 +13,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 from src.Controller.ni_daq import PXI6733,NI6281
+from src.core import Experiment
 from src.Model.experiments.galvo_scan import GalvoScan
 import pytest
 import matplotlib.pyplot as plt
@@ -46,3 +47,17 @@ def test_galvo_scan(capsys,get_pxi6733,get_ni6281):
         print("The average counting rate is {} kcts/sec".format(np.mean(dat)))
         expt.plot(figure_list=[fig])
         plt.show()
+
+
+def test_load_append_galvo_scan(capsys,get_pxi6733,get_ni6281):
+    """Wrote this test to verify if Experiment load and append works
+    with Galvo scan. Test PASSED but then FAILED...weird !
+    --- GD 08/28/2023"""
+    daq = get_pxi6733
+    daq2 = get_ni6281
+    instr = {"daq": daq, "daq2": daq2}
+    ew, failed, instr = Experiment.load_and_append({'Galvo': 'GalvoScan'})
+    assert failed == {}
+    with capsys.disabled():
+        print(failed)
+        print(ew)

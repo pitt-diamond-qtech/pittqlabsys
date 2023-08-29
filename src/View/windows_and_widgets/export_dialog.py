@@ -80,16 +80,16 @@ class ExportDialog(QDialog, Ui_Dialog):
             textbox.setText(folder)
             # load elements from file and display in tree
             if sender == self.btn_open_source:
-                self.reset_avaliable(folder)
+                self.reset_available(folder)
 
-    def reset_avaliable(self, folder):
+    def reset_available(self, folder):
         """
         Resets the dialog box by finding all available experiments that can be imported in the input folder
         :param folder: folder in which to find experiments
         """
         try:
             self.list_experiment_model.removeRows(0, self.list_experiment_model.rowCount())
-            if self.cmb_select_type.currentText() == 'experiment':
+            if self.cmb_select_type.currentText() == 'Experiment':
                 self.available = find_experiments_in_python_files(folder)
             elif self.cmb_select_type.currentText() == 'Device':
                 self.available = find_devices_in_python_files(folder)
@@ -106,7 +106,7 @@ class ExportDialog(QDialog, Ui_Dialog):
         Forces a reset if the class type is changed from devices to experiments or vice versa
         """
         if self.source_path.text():
-            self.reset_avaliable(self.source_path.text())
+            self.reset_available(self.source_path.text())
 
 
     def fill_list(self, list, input_list):
@@ -152,12 +152,26 @@ class ExportDialog(QDialog, Ui_Dialog):
             name = str(item.text())
             target_path = self.target_path.text()
             try:
-                python_file_to_aqs({name: self.available[name]}, target_path, str(self.cmb_select_type.currentText()), raise_errors = True)
-                self.error_array.update({name: 'export successful!'})
-                item.setBackground(QtGui.QColor('green'))
-            except Exception:
+                loaded,failed = python_file_to_aqs({name: self.available[name]}, target_path, str(self.cmb_select_type.currentText()), raise_errors = True)
+                # Due to the windows exceptions being thrown, I have to change this code to ignore them
+                # TODO: figure out what is causing the windows exceptions and fix them instead of ignoring
+                if failed == {}:
+                    self.error_array.update({name:'export successful!'})
+                    item.setBackground(QtGui.QColor('green'))
+                else:
+                    self.error_array.update({name: str(traceback.format_exc())})
+                    item.setBackground(QtGui.QColor('red'))
+            except Exception as e:
                 self.error_array.update({name: str(traceback.format_exc())})
-                item.setBackground(QtGui.QColor('red'))
+                print(str(traceback.format_exc()))
+                raise e
+            # try:
+            #     loaded,failed = python_file_to_aqs({name: self.available[name]}, target_path, str(self.cmb_select_type.currentText()), raise_errors = True)
+            #     self.error_array.update({name: 'export successful!'})
+            #     item.setBackground(QtGui.QColor('green'))
+            # except Exception:
+            #     self.error_array.update({name: str(traceback.format_exc())})
+            #     item.setBackground(QtGui.QColor('red'))
             QtWidgets.QApplication.processEvents()
         self.list_experiment.clearSelection()
 
