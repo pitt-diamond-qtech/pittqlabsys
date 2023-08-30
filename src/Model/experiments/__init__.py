@@ -14,4 +14,6 @@
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 from src.Model.experiments.example_experiment import ExampleExperimentWrapper,ExampleExperiment,MinimalExperiment
 from src.Model.experiments.daq_read_counter import Pxi6733ReadCounter
-from src.Model.experiments.galvo_scan import GalvoScan,GalvoScanGeneric
+from src.Model.experiments.galvo_scan import GalvoScan
+from .galvo_scan_generic import GalvoScanGeneric
+from .select_points import SelectPoints

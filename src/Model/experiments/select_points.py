@@ -14,7 +14,7 @@
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 import numpy as np
-import scipy.spatial
+from scipy.spatial import KDTree
 import time
 import matplotlib
 from matplotlib import patches
@@ -31,8 +31,8 @@ Experiment to select points on an image. The selected points are saved and can b
         Parameter('Ny', 5, int, 'number of points along y (type: square)'),
         Parameter('randomize', False, bool, 'Determines if points should be randomized')
     ]
-    _INSTRUMENTS = {}
-    _SCRIPTS = {}
+    _DEVICES = {}
+    _EXPERIMENTS = {}
     def __init__(self, devices = None, experiments = None, name = None, settings = None, log_function = None, data_path = None):
         """
         Select points by clicking on an image
@@ -113,6 +113,9 @@ Experiment to select points on an image. The selected points are saved and can b
                             color='white'
                             )
                     self.text.append(text)
+                else:
+                    print("Cannot select more than 400 locations in image!")
+                    raise RuntimeError("Cannot select more than 400 locations in image!")
             #patch collection used here instead of adding individual patches for speed
             self.patch_collection = matplotlib.collections.PatchCollection(patch_list)
             axes.add_collection(self.patch_collection)
@@ -129,7 +132,7 @@ Experiment to select points on an image. The selected points are saved and can b
             self.data['image_data'] = None # clear image data
         else:
             # use KDTree to find NV closest to mouse click
-            tree = scipy.spatial.KDTree(self.data['nv_locations'])
+            tree = KDTree(self.data['nv_locations'])
             #does a search with k=1, that is a search for the nearest neighbor, within distance_upper_bound
             d, i = tree.query(pt,k = 1, distance_upper_bound = self.settings['patch_size'])
 
