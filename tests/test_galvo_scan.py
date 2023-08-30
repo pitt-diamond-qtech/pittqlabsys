@@ -51,8 +51,8 @@ def test_galvo_scan(capsys,get_pxi6733,get_ni6281):
 
 def test_load_append_galvo_scan(capsys,get_pxi6733,get_ni6281):
     """Wrote this test to verify if Experiment load and append works
-    with Galvo scan. Test PASSED but then FAILED...weird !
-    --- GD 08/28/2023"""
+    with Galvo scan. Test PASSED !
+    --- GD 08/30/2023"""
     daq = get_pxi6733
     daq2 = get_ni6281
     instr = {"daq": daq, "daq2": daq2}

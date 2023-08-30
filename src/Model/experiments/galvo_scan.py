@@ -110,11 +110,11 @@ class GalvoScan(GalvoScanGeneric):
         self.y_array = np.linspace(y_vmin, y_vmax, self.settings['num_points']['y'], endpoint=True)
         sample_rate = float(1) / self.settings['settle_time']
 
-        self.dev_instance.settings['analog_output'][
+        self.dev_instance['instance'].settings['analog_output'][
             self.settings['DAQ_channels']['x_ao_channel']]['sample_rate'] = sample_rate
-        self.dev_instance.settings['analog_output'][
+        self.dev_instance['instance'].settings['analog_output'][
             self.settings['DAQ_channels']['y_ao_channel']]['sample_rate'] = sample_rate
-        self.dev_instance.settings['digital_input'][
+        self.dev_instance['instance'].settings['digital_input'][
             self.settings['DAQ_channels']['counter_channel']]['sample_rate'] = sample_rate
 
     def get_galvo_location(self):
