@@ -230,10 +230,10 @@
     </rect>
    </property>
    <property name="text">
-    <string>Script Sequence</string>
+    <string>Experiment Sequence</string>
    </property>
   </widget>
-  <widget class="QTreeView" name="tree_script_sequence">
+  <widget class="QTreeView" name="tree_experiment_sequence">
    <property name="geometry">
     <rect>
      <x>10</x>
@@ -258,7 +258,7 @@
     <enum>Qt::MoveAction</enum>
    </property>
   </widget>
-  <widget class="QPushButton" name="btn_script_sequence">
+  <widget class="QPushButton" name="btn_experiment_sequence">
    <property name="geometry">
     <rect>
      <x>280</x>
@@ -268,7 +268,7 @@
     </rect>
    </property>
    <property name="text">
-    <string>Add Script Sequence</string>
+    <string>Add Expt Sequence</string>
    </property>
   </widget>
   <widget class="QComboBox" name="cmb_looping_variable">
@@ -298,7 +298,7 @@ p, li { white-space: pre-wrap; }
 &lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:8pt;&quot;&gt;Enter docstring here&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
    </property>
   </widget>
-  <widget class="QLineEdit" name="txt_script_sequence_name">
+  <widget class="QLineEdit" name="txt_experiment_sequence_name">
    <property name="geometry">
     <rect>
      <x>280</x>

@@ -299,7 +299,7 @@ if __name__ == '__main__':
     app = QtWidgets.QApplication(sys.argv)
     # ex = LoadDialog(elements_type = 'devices', elements_old=instuments, filename="Z:\Lab\Cantilever\Measurements\\__tmp\\test.aqs")
     # ex = LoadDialog(elements_type='experiments', elements_old=instuments)
-    ex = LoadDialog(elements_type='experiments', filename='/Users/rettentulla/Projects/Python/user_data')
+    ex = LoadDialog(elements_type='experiments', filename='C:\\Users\\l00055843\\Experiments\\AQuISS_default_save_location\\aqs_tmp\\plant.aqs')
 
     ex.show()
     ex.raise_()
