@@ -35,7 +35,7 @@ def test_mw_gen(capsys,get_mw_gen):
     definition file, everything works with no error. i.e. running the definition file works perfectly.
     the error only occurs here during the creation of the fixture. I have tried also creating the instance inside
     the test function instead of using the fixture, and the same error results
-    -- GD 20230828
+    -- GD 08/28/2023
     """
     mwgen = get_mw_gen
     assert mwgen.is_connected
