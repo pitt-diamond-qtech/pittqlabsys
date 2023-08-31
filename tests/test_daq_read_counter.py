@@ -29,7 +29,7 @@ def get_pxi6733() -> PXI6733:
 
 def test_read_counter(capsys, get_pxi6733):
     daq = get_pxi6733
-    instr = {"daq":daq}
+    instr = {"daq":{'instance':daq}}
 
     fig, ax = plt.subplots(2, 1)
 

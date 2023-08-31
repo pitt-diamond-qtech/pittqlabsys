@@ -68,7 +68,9 @@ If you want to use it make sure that the right device is defined in _DEVICES = {
         sample_rate = 1.0 / self.settings['integration_time']
         normalization = self.settings['integration_time']/.001
         #print("the devices dict is", self.devices)
-        dev_instance = self.devices['daq']
+        # added this line on 08/31/2023 to make GUI work
+        # modified test function as well to pass the right dictionary
+        dev_instance = self.devices['daq']['instance']
         #print("Device instance is ",dev_instance)
         dig_input = dev_instance.settings['digital_input']
         #print("Digital input is ",dig_input)
