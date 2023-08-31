@@ -423,7 +423,7 @@ class Experiment(QObject):
 
         # saves standard to disk
         if self.settings['save']:
-            self.save_aq()
+            self.save_aqs()
 
         self.started.emit()
 
@@ -933,9 +933,9 @@ class Experiment(QObject):
     @staticmethod
     def load_settings(path, setttings_only=True):
         """
-        loads the settings that has been save with experiment.save_aq.
+        loads the settings that has been save with experiment.save_aqs.
         Args:
-            path: path to folder saved by experiment.save_aq
+            path: path to folder saved by experiment.save_aqs
             setttings_only: if true returns only the settings if the .aqs file contains only a single experiment
         Returns:
             a dictionary with the settings
@@ -1083,7 +1083,12 @@ class Experiment(QObject):
 
                 # now update parameter object with new values
                 device_settings.update(device_settings_dict)
-
+                #
+                # Essentially, the logic of this statement is that it returns a dictionary
+                # of form {device_name: {"instance": device_instance, "settings": device_settings"}
+                # in that case, when we pass devices directly to the experiment
+                # for instance by creating an instance of that device we will need to supply it in a dictionary
+                # of this same form for any code that uses that instance to correctly execute.
                 device_dict.update(
                     {device_name: {"instance": device_instance, "settings": device_settings}})
 

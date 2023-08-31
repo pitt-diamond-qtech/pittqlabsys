@@ -32,10 +32,20 @@ def get_ni6281() -> NI6281:
 
 def test_galvo_scan(capsys,get_pxi6733,get_ni6281):
     """Test passed success to generate a confocal image
-    --- GD 20230817"""
+    --- GD 20230817
+    ----- UPDATE GD 08/31/2023
+    To get Experiment load and append to work, I had to modify galvo scan class
+    which has now broken this test. If I modify it again, I will break the Experiment
+    load and append test function given below.
+    -------- FINAL APPROACH-----------
+    If testing the Galvo scan class separately, you must give it the instruments in the
+    form {'dev_1": {'instance':instance_of_dev_1},'dev_2": {'instance':instance_of_dev_2}} etc.
+    --- TEST PASSED for both this function and Load and append test function below
+    --- GD 08/31/2023
+    """
     daq = get_pxi6733
     daq2 = get_ni6281
-    instr = {"daq": daq,"daq2":daq2}
+    instr = {"daq": {'instance':daq},"daq2":{'instance':daq2}}
     fig, ax = plt.subplots(2, 1)
 
     with capsys.disabled():
@@ -52,7 +62,12 @@ def test_galvo_scan(capsys,get_pxi6733,get_ni6281):
 def test_load_append_galvo_scan(capsys,get_pxi6733,get_ni6281):
     """Wrote this test to verify if Experiment load and append works
     with Galvo scan. Test PASSED !
-    --- GD 08/30/2023"""
+    --- GD 08/30/2023
+    -- UPDATE GD 08/31/2023
+    Because we have made the GalvoScan class work with Load and Append,
+    we now seem to have an issue with the actual execution of the setup_scan
+    function.
+    """
     daq = get_pxi6733
     daq2 = get_ni6281
     instr = {"daq": daq, "daq2": daq2}

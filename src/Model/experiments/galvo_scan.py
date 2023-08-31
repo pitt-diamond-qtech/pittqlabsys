@@ -88,8 +88,8 @@ class GalvoScan(GalvoScanGeneric):
         #     self.devices = {'daq': NI6281()}
         # I should probably add the instances to a dictionary and keep track of them, but would have to re-implement
         # that in the Experiment class first. doing it by hand for now
-        self.dev_instance = self.devices['daq']
-        self.dev_instance2 = self.devices['daq2']
+        self.dev_instance = self.devices['daq']['instance']
+        self.dev_instance2 = self.devices['daq2']['instance']
         self.setup_scan()
 
     def setup_scan(self):
@@ -110,11 +110,11 @@ class GalvoScan(GalvoScanGeneric):
         self.y_array = np.linspace(y_vmin, y_vmax, self.settings['num_points']['y'], endpoint=True)
         sample_rate = float(1) / self.settings['settle_time']
 
-        self.dev_instance['instance'].settings['analog_output'][
+        self.dev_instance.settings['analog_output'][
             self.settings['DAQ_channels']['x_ao_channel']]['sample_rate'] = sample_rate
-        self.dev_instance['instance'].settings['analog_output'][
+        self.dev_instance.settings['analog_output'][
             self.settings['DAQ_channels']['y_ao_channel']]['sample_rate'] = sample_rate
-        self.dev_instance['instance'].settings['digital_input'][
+        self.dev_instance.settings['digital_input'][
             self.settings['DAQ_channels']['counter_channel']]['sample_rate'] = sample_rate
 
     def get_galvo_location(self):
