@@ -1274,6 +1274,26 @@ class NI6281(NIDAQ):  # yet to be implemented
                                 )
                   ]
                   ),
+        Parameter('analog_output',
+                  [
+                      Parameter('ao0',
+                                [
+                                    Parameter('channel', 0, [0, 1, 2, 3], 'output channel'),
+                                    Parameter('sample_rate', 1000.0, float, 'output sample rate (Hz)'),
+                                    Parameter('min_voltage', -10.0, float, 'minimum output voltage (V)'),
+                                    Parameter('max_voltage', 10.0, float, 'maximum output voltage (V)')
+                                ]
+                                ),
+                      Parameter('ao1',
+                                [
+                                    Parameter('channel', 1, [0, 1, 2, 3], 'output channel'),
+                                    Parameter('sample_rate', 1000.0, float, 'output sample rate (Hz)'),
+                                    Parameter('min_voltage', -10.0, float, 'minimum output voltage (V)'),
+                                    Parameter('max_voltage', 10.0, float, 'maximum output voltage (V)')
+                                ]
+                                )
+                  ]
+                  ),
         Parameter('digital_input',
                   [
                       Parameter('ctr0',
