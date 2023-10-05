@@ -67,5 +67,13 @@ def test_ni6281_analog_out(get_ni6281,channel):
     daq.stop(ao_task)
 
 @pytest.mark.parametrize("channel",["ao0","ao1"])
-def test_ni6281_analog_dcvoltage(get_ni6281,channel):
-    pass
+@pytest.mark.parametrize("voltage",[-1.0,0.0,1.0])
+def test_ni6281_analog_dcvoltage(capsys,get_ni6281,channel,voltage):
+    """This test has passed successfully for both AO0 and Ao1. it outputs a single DC voltage on a single channel
+        - GD 10/05/2023"""
+    daq = get_ni6281
+    with capsys.disabled():
+        print("NI6281 AOchannel  = {0} , voltage = {1} ".format(channel,voltage))
+        time.sleep(1.0)
+    daq.set_analog_voltages({channel:voltage})
+
