@@ -77,3 +77,33 @@ def test_ni6281_analog_dcvoltage(capsys,get_ni6281,channel,voltage):
         time.sleep(1.0)
     daq.set_analog_voltages({channel:voltage})
 
+def test_ni6281_ctrout(get_ni6281):
+    """This test has passed successfully. It outputs a waveform on the ctr0 output
+    - GD 10/05/2023"""
+    daq = get_ni6281
+    clk_task = daq.setup_clock('ctr1', 100)
+    print('clktask: ', clk_task)
+    time.sleep(0.1)
+    daq.run(clk_task)
+    daq.wait_to_finish(clk_task)
+    daq.stop(clk_task)
+def test_ni6281_ctr_read(capsys, get_ni6281):
+    """This test reads finite samples from ctr0 using internal hardware timed clock
+    Test has passed successfully !
+    - GD 10/06/2023"""
+    daq = get_ni6281
+    ctr_task = daq.setup_counter('ctr0', 50)
+    samp_rate = daq.tasklist[ctr_task]['sample_rate']
+    time.sleep(0.1)
+    daq.run(ctr_task)
+    time.sleep(0.1)
+    data, nums = daq.read(ctr_task)
+    #daq.wait_to_finish(ctr_task)
+    avg_counts_per_bin = np.diff(data).mean()
+    daq.stop(ctr_task)
+    with capsys.disabled():
+        print('ctrtask: ', ctr_task)
+        print(data)
+        print('the sampling rate was {}'.format(samp_rate))
+        print("The avg counts per bin was {}".format(avg_counts_per_bin))
+        print("The counting rate is {} cts/sec".format(avg_counts_per_bin * samp_rate))

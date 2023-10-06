@@ -148,7 +148,7 @@ class NIDAQ(Device):
                 Parameter('input_channel', 0, list(range(0, 32)), 'channel for counter signal input'),
                 Parameter('counter_PFI_channel', 8, list(range(0, 32)), 'PFI for counter channel input'),
                 Parameter('gate_PFI_channel', 9, list(range(0, 32)), 'PFI for counter channel input'),
-                Parameter('clock_PFI_channel', 12, list(range(0, 32)), 'PFI for clock channel output'),
+                Parameter('clock_PFI_channel', 13, list(range(0, 32)), 'PFI for clock channel output'),
                 Parameter('clock_counter_channel', 1, [0, 1], 'channel for clock output'),
                 Parameter('sample_rate', 1000.0, float, 'input sample rate (Hz)', units="Hz")
             ]),
@@ -159,7 +159,7 @@ class NIDAQ(Device):
                           'PFI for counter channel input'),
                 Parameter('gate_PFI_channel', 4, list(range(0, 32)),
                           'PFI for counter channel input'),
-                Parameter('clock_PFI_channel', 13, list(range(0, 32)), 'PFI for clock channel output'),
+                Parameter('clock_PFI_channel', 12, list(range(0, 32)), 'PFI for clock channel output'),
                 Parameter('clock_counter_channel', 0, [0, 1], 'channel for clock output'),
                 Parameter('sample_rate', 1000.0, float, 'input sample rate (Hz)', units="Hz")
             ])
@@ -289,12 +289,12 @@ class NIDAQ(Device):
         else:
             task['num_samples_per_channel'] = -1
         task['timeout'] = float(5 * (1 / task['sample_rate']) * task['sample_num'])
-        input_channel_str = (self.settings['device'] + '/' + channel).encode('ascii')
+        input_channel_str = ('/' +self.settings['device'] + '/' + channel).encode('ascii')
         task['counter_out_PFI_str'] = ('/' + self.settings['device'] + '/PFI' + str(
             channel_settings['clock_PFI_channel'])).encode(
             'ascii')  # initial / required only here, see NIDAQ documentation
-        counter_out_str = (self.settings['device'] + '/ctr' + str(channel_settings['clock_counter_channel'])).encode(
-            'utf-8')
+        counter_out_str = ('/' +self.settings['device'] + '/ctr' + str(channel_settings['clock_counter_channel'])).encode(
+            'ascii')
         # with ni.Task() as clock_task, ni.Task() as counter_task:
         clock_task = ni.Task()
         counter_task = ni.Task()
@@ -355,7 +355,7 @@ class NIDAQ(Device):
 
         channel_settings = self.settings['digital_input'][channel]
         counter_out_str = (self.settings['device'] + '/ctr' + str(channel_settings['clock_counter_channel'])).encode(
-            'utf-8')
+            'ascii')
         task['sample_num'] = sample_num
         task['sample_rate'] = float(channel_settings['sample_rate'])
 
@@ -1306,7 +1306,7 @@ class NI6281(NIDAQ):  # yet to be implemented
                                               'PFI for counter channel input'),
                                     # changed the PFI for clock channel out to PFI5, which should be ok according to NIMAX routing diagram
                                     # testing the clock out with my scratch_2 file and the NIMAX, I see a waveform
-                                    Parameter('clock_PFI_channel', 5, list(range(0, 32)),
+                                    Parameter('clock_PFI_channel', 13, list(range(0, 32)),
                                               'PFI for clock channel output'),
                                     Parameter('clock_counter_channel', 1, [0, 1], 'channel for clock output'),
                                     Parameter('sample_rate', 1000.0, float, 'input sample rate (Hz)')
@@ -1321,7 +1321,7 @@ class NI6281(NIDAQ):  # yet to be implemented
                                     Parameter('gate_PFI_channel', 4, list(range(0, 32)),
                                               'PFI for counter channel input'),
                                     # changed the PFI for clock channel out to PFI6, which should be ok according to NIMAX routing diagram
-                                    Parameter('clock_PFI_channel', 6, list(range(0, 32)),
+                                    Parameter('clock_PFI_channel', 12, list(range(0, 32)),
                                               'PFI for clock channel output'),
                                     Parameter('clock_counter_channel', 0, [0, 1], 'channel for clock output'),
                                     Parameter('sample_rate', 1000.0, float, 'input sample rate (Hz)')
@@ -1332,6 +1332,95 @@ class NI6281(NIDAQ):  # yet to be implemented
 
 
     ])
+    def setup_counter(self, channel, sample_num, continuous_acquisition=False):
+        """
+        We must reimplement the setup_counter function due to board limitations. Initializes a hardware-timed digital
+        counter, bound to a hardware clock.
+
+        Args:
+            channel: digital channel to initialize for read in
+            sample_num: number of samples to read in for finite operation, or number of samples between
+                       reads for continuous operation (to set buffer size)
+            continuous_acquisition: run in continuous acquisition mode (ex for a continuous counter) or
+                                    finite acquisition mode (ex for a scan, where the number of samples needed
+                            is known a priori)
+
+
+        Returns: source of clock that this method sets up, which can be given to another function to synch that
+        input or output to the same clock
+
+        """
+
+        # Note that for this counter, we have two tasks. The normal 'task_handle' corresponds to the clock, and this
+        # is the task which is started when run is called. The second 'task_handle_ctr' corresponds to the counter,
+        # and this waits for the clock and will be started simultaneously.
+        task = {
+            'task_handle': None,
+            'task_handle_ctr': None,
+            'counter_out_PFI_str': None,
+            'sample_num': None,
+            'sample_rate': None,
+            'num_samples_per_channel': None,
+            'timeout': None
+        }
+
+        task_name = self._add_to_tasklist('ctr', task)
+
+        if 'digital_input' not in list(self.settings.keys()):
+            raise ValueError('This DAQ does not support digital input')
+        if not channel in list(self.settings['digital_input'].keys()):
+            raise KeyError('This is not a valid digital input channel')
+
+        channel_settings = self.settings['digital_input'][channel]
+
+        self.running = True
+        task['sample_num'] = sample_num
+        task['sample_rate'] = float(channel_settings['sample_rate'])
+        if not continuous_acquisition:
+            task['num_samples_per_channel'] = task['sample_num']
+        else:
+            task['num_samples_per_channel'] = -1
+        # set the timeout to be 5 times the amount of time required
+        task['timeout'] = float(5 * (1 / task['sample_rate']) * task['sample_num'])
+        input_channel_str = ('/' + self.settings['device'] + '/' + channel).encode('ascii')
+        task['counter_out_PFI_str'] = ('/' + self.settings['device'] + '/PFI' + str(
+            channel_settings['clock_PFI_channel'])).encode(
+            'ascii')  # initial / required only here, see NIDAQ documentation
+        counter_out_str = (
+                    '/' + self.settings['device'] + '/ctr' + str(channel_settings['clock_counter_channel'])).encode(
+            'ascii')
+
+
+        # with ni.Task() as clock_task, ni.Task() as counter_task:
+        clock_task = ni.Task()
+        counter_task = ni.Task()
+        task['task_handle'] = clock_task
+        task['task_handle_ctr'] = counter_task
+        clock_task.co_channels.add_co_pulse_chan_freq(counter_out_str, freq=float(task['sample_rate']),
+                                                      duty_cycle=0.5)
+
+        counter_task.ci_channels.add_ci_count_edges_chan(input_channel_str)
+
+        # set up clock
+        """
+        Due to the board limitations, the clock must always be run in CONTINUOUS mode
+        """
+        clock_task.timing.cfg_implicit_timing(sample_mode=AcquisitionType.CONTINUOUS)
+        # set up counter using clock as reference
+        if not continuous_acquisition:
+
+            counter_task.timing.cfg_samp_clk_timing(float(task['sample_rate']), source=task['counter_out_PFI_str'],
+                                                    samps_per_chan=task['sample_num'])
+        else:
+
+            counter_task.timing.cfg_samp_clk_timing(float(task['sample_rate']), source=task['counter_out_PFI_str'],
+                                                    sample_mode=AcquisitionType.CONTINUOUS)
+
+        # self._check_error(self.nidaq.DAQmxStartTask(task['task_handle_ctr']))
+        counter_task.start()
+        # clock_task.start()
+
+        return task_name
 
 
 def voltage_to_int(voltage):
