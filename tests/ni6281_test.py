@@ -107,3 +107,31 @@ def test_ni6281_ctr_read(capsys, get_ni6281):
         print('the sampling rate was {}'.format(samp_rate))
         print("The avg counts per bin was {}".format(avg_counts_per_bin))
         print("The counting rate is {} cts/sec".format(avg_counts_per_bin * samp_rate))
+
+
+def test_ni6281_ai_read(capsys, get_ni6281):
+    """This test reads finite samples from AI0, using a hardware
+    timed clock from ctr0
+    Test has passed successfully !
+    - GD 10/06/2023"""
+    daq = get_ni6281
+    clk_task = daq.setup_clock('ctr1', 1000)
+    ai_task = daq.setup_AI('ai0', clk_source=clk_task, num_samples_to_acquire=50)
+    samp_rate = daq.tasklist[clk_task]['sample_rate']
+    time.sleep(0.1)
+    t1 = time.perf_counter()
+    daq.run([ai_task, clk_task])
+    daq.wait_to_finish(clk_task)
+    data, num_samples = daq.read(ai_task)
+
+    X = np.arange(0, num_samples)
+    avg_volts_per_bin = np.mean(data)
+
+    with capsys.disabled():
+        print('AItask: ', ai_task)
+        print(num_samples)
+        print(data)
+        print("The avg volts read was {}".format(avg_volts_per_bin))
+        plt.plot(X, data[0], color='r', label='AI0')
+        # plt.plot(X, data[1, :], color='g', label='AI1')
+        plt.show()

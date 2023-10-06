@@ -358,7 +358,8 @@ class NIDAQ(Device):
             'ascii')
         task['sample_num'] = sample_num
         task['sample_rate'] = float(channel_settings['sample_rate'])
-
+        task['counter_out_PFI_str'] = ('/' + self.settings['device'] + '/PFI' + str(
+            channel_settings['clock_PFI_channel'])).encode('ascii')
         # self._dig_pulse_train_cont(task, .5, counter_out_str)
         # with ni.Task() as clk_task:
         #     task['task_handle'] = clk_task
@@ -545,11 +546,11 @@ class NIDAQ(Device):
 
         return task_name
 
-    def setup_AI(self, channel, num_samples_to_acquire, continuous=False, clk_source=""):
+    def setup_AI(self, channels, num_samples_to_acquire, continuous=False, clk_source=""):
         """
-        Initializes an input channel to read on
+        Initializes a single or multiple analog input channels to read on
         Args:
-            channel: Channel to read input
+            channels: List of Channels to read input, eg ['ai0','ai1'] or a string 'ai0'
             num_samples_to_acquire: number of samples to acquire on that channel
         """
 
@@ -558,22 +559,32 @@ class NIDAQ(Device):
             'sample_num': None,
             'sample_rate': None,
             'num_samples_per_channel': None,
+            'num_channels': None,
             'timeout': None
         }
 
         task_name = self._add_to_tasklist('ai', task)
-
+        num_channels = 0
         channel_list = ''
-        # channel_list += self.settings['device'] + '/' + channel + ','
+        if type(channels) == str:
+            channels = [channels]
+        elif type(channels) == list:
+            pass
+        else:
+            RuntimeError("AI channel must be of type list of strings or string")
 
-        channel_list = (self.settings['device'] + '/' + channel).encode('ascii')  # ER 20180626
-        #   print('channel_list')
-        #   print(channel_list)
+        for chan in channels:
+            assert type(chan) == str
+            channel_list += ('/' + self.settings['device'] + '/' + chan + ',')
+            num_channels += 1
+        channel_list = channel_list.encode('ascii')
+        print(channel_list)
         if 'analog_input' not in list(self.settings.keys()):
             raise ValueError('This DAQ does not support analog input')
 
         task['sample_num'] = num_samples_to_acquire
-        data = np.zeros((task['sample_num'],))
+        task['num_channels'] = num_channels
+        #data = np.zeros((num_channels,task['sample_num']))
         # now, on with the program
 
         if not (clk_source == ""):
@@ -581,13 +592,15 @@ class NIDAQ(Device):
         # with ni.Task() as task_ai:
         task_ai = ni.Task()
         task['task_handle'] = task_ai
-        for chan in channel_list:
-            task_ai.ai_channels.add_ai_voltage_chan(chan, min_val=-10.0, max_val=10.0)
-        # self._check_error(self.nidaq.DAQmxCreateAIVoltageChan(task['task_handle'], channel_list, '',
-        #                                                       DAQmx_Val_Cfg_Default,
-        #                                                       float64(-10.0), float64(10.0),
-        #                                                       DAQmx_Val_Volts, None))
-        sample_rate = self.settings['analog_input'][chan]['sample_rate']
+        task_ai.ai_channels.add_ai_voltage_chan(channel_list,min_val=-10.0, max_val=10.0)
+        # # this line below has been modified to fix a bug where channel_list ended up as a string
+        # # channel_list = channel_list[:-1]
+        # channel_list = channel_list[:-1].split(b",")
+        # for chan in channel_list:
+        #     # TODO: I think it would be fine to just pass the channel list as a string
+        #     # in fact my scratch_19 file shows that this works fine.
+        #     task_ai.ai_channels.add_ai_voltage_chan(chan, min_val=-10.0, max_val=10.0)
+        sample_rate = self.settings['analog_input'][channels[0]]['sample_rate']
         if not continuous:
             task_ai.timing.cfg_samp_clk_timing(sample_rate, source=clk_source, samps_per_chan=task['sample_num'])
 
@@ -661,10 +674,14 @@ class NIDAQ(Device):
         """
         task = self.tasklist[task_name]
         # data = (float64 * task['sample_num'])()
-        data = np.zeros(task['sample_num'])
+
         sample_num = task['sample_num']
+        num_channels = task['num_channels']
+        data = np.zeros((num_channels,task['sample_num']))
         # samples_per_channel_read = int32()
+        #reader = AnalogSingleChannelReader(task['task_handle'].in_stream)
         reader = AnalogMultiChannelReader(task['task_handle'].in_stream)
+        reader.verify_array_shape = True
         samples_read = reader.read_many_sample(data, number_of_samples_per_channel=sample_num)
         assert samples_read == sample_num
         # self._check_error(self.nidaq.DAQmxReadAnalogF64(task['task_handle'], task['sample_num'], float64(10.0),
@@ -674,6 +691,7 @@ class NIDAQ(Device):
         #                                                 None))
 
         return data, samples_read
+
 
     # run the task specified by task_name
     # todo: GD - should this be threaded?  is this actually blocking? Is the threading actually doing anything? see nidaq cookbook
@@ -1335,7 +1353,7 @@ class NI6281(NIDAQ):  # yet to be implemented
     def setup_counter(self, channel, sample_num, continuous_acquisition=False):
         """
         We must reimplement the setup_counter function due to board limitations. Initializes a hardware-timed digital
-        counter, bound to a hardware clock.
+        counter, bound to a hardware clock. The clock must be run in CONTINUOUS mode.
 
         Args:
             channel: digital channel to initialize for read in
