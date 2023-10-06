@@ -76,3 +76,25 @@ def test_load_append_galvo_scan(capsys,get_pxi6733,get_ni6281):
     with capsys.disabled():
         print(failed)
         print(ew)
+
+
+def test_galvo_scan_NI6281(capsys,get_pxi6733,get_ni6281):
+    """Test passed success to generate a confocal image with
+    NI6281 as the primary board, and connections
+
+    --- GD 08/31/2023
+    """
+    daq = get_ni6281
+    daq2 = get_pxi6733
+    instr = {"daq": {'instance':daq},"daq2":{'instance':daq2}}
+    fig, ax = plt.subplots(2, 1)
+
+    with capsys.disabled():
+        expt = GalvoScan( name='galvo_scan',devices=instr)
+        expt.settings['plot_style'] = "main"
+        expt.run()
+        #print(expt.data)
+        dat = expt.data['image_data']
+        print("The average counting rate is {} kcts/sec".format(np.mean(dat)))
+        expt.plot(figure_list=[fig])
+        plt.show()
