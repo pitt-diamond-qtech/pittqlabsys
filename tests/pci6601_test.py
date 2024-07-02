@@ -1,4 +1,4 @@
-from src.Controller.nidaq_with6601 import NIDAQ, PCI6601
+from src.Controller.ni_daq import NIDAQ, PCI6601
 import pytest
 import matplotlib.pyplot as plt
 import time
