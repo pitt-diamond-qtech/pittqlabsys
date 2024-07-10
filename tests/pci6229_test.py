@@ -22,7 +22,6 @@ def test_pci6229_connection(get_pci6229):
     """
     assert get_pci6229.is_connected
 
-'''
 @pytest.mark.parametrize("channel", ["ao0", "ao1", "ao2", "ao3"])
 def test_pci6229_analog_out(get_pci6229, channel):
     """This test outputs AO voltages on a single channel
@@ -109,4 +108,3 @@ def test_pci6601_digital_output(capsys, get_pci6229, channel, voltage):
     daq.set_digital_output(channel, voltage)
     daq.run()
     daq.stop() 
-'''
