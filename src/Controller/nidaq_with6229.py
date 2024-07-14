@@ -1507,6 +1507,19 @@ class PCI6229(NIDAQ):
                                 )
                   ]
                   ),
+        Parameter('external_daq_clock',
+                  [
+                      Parameter('ctr0',
+                                [
+                                    Parameter('channel', 0, list(range(0, 8)), 'channel'),
+                                    Parameter('sample_rate', 1000.0, float, 'output sample rate (Hz)'),
+                                    Parameter('clock_PFI_channel', 0, list(range(0, 2)), "PFI for external clock input")
+                                ]
+                                )
+
+                  ]
+                  ),
+  
         Parameter('digital_input', 
                   [
                       Parameter('ctr0', 
