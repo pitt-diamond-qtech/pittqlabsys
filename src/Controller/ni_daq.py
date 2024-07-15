@@ -1446,9 +1446,10 @@ class PCI6229(NIDAQ):
     NIDAQ. A subset of these channels are accessible here, but more can be added up to the above limits.
     """
     _DEFAULT_SETTINGS = Parameter([
-        Parameter('device', "Dev2", ["Dev2"], "Name of DAQ device"),
+        Parameter('device', "Dev1", ["Dev1"], "Name of DAQ device"),
         Parameter('override_buffer_size', -1, int, 'Buffer size for manual override (unused if -1)'),
-        Parameter('ao_read_offset', Offset, float, 'Empirically determined offset for reading ao voltages internally')
+        Parameter('ao_read_offset', Offset, float, 'Empirically determined offset for reading ao voltages internally'),
+        Parameter('external_daq', "Dev1", ["Dev1", "Dev2"], "Name of external DAQ device for clock"),
         Parameter('analog_input', 
                   [
                       Parameter('ai0', 
@@ -1507,6 +1508,18 @@ class PCI6229(NIDAQ):
                                 )
                   ]
                   ),
+        Parameter('external_daq_clock',
+                  [
+                      Parameter('ctr0',
+                                [
+                                    Parameter('channel', 0, list(range(0, 8)), 'channel'),
+                                    Parameter('sample_rate', 1000.0, float, 'output sample rate (Hz)'),
+                                    Parameter('clock_PFI_channel', 0, list(range(0, 2)), "PFI for external clock input")
+                                ]
+                                )
+
+                  ]
+                  ),
         Parameter('digital_input', 
                   [
                       Parameter('ctr0', 
@@ -1538,7 +1551,7 @@ class PCI6229(NIDAQ):
                                 ]
                                 )
                       ]
-                      ),
+                      )
         Parameter('digital_output', 
                   [
                       Parameter('do0', 
@@ -1557,6 +1570,7 @@ class PCI6229(NIDAQ):
                   )
     ]
     )
+
 
     def setup_counter(self, channel, sample_num, continuous_acquisition=False, use_external_clock=True):
         """
