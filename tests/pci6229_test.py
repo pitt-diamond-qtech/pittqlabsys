@@ -87,17 +87,15 @@ def test_pci6601_dio_read(capsys, get_pci6229):
     """This test reads digital inputs from the specified channel
     """
     daq = get_pci6229
-
-    with nidaqmx.Task() as dio_task:
-        dio_task.di_channels.add_di_channel('ctr0')
-        time.sleep(0.1)
-        daq.run(dio_task)
-        data = daq.read(dio_task)
-        daq.stop(dio_task)
-        
+    dio_task = daq.read('ctr0')
+    time.sleep(0.1)
+    daq.run(dio_task)
+    data = daq.read(dio_task)
+    daq.stop(dio_task)
     with capsys.disabled():
         print('diotask', dio_task)
         print(data)
+
 
 @pytest.mark.parametrize("channel", ["do0", "do47"])
 @pytest.mark.parametrize("voltage", [0, 1])
