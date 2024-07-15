@@ -19,12 +19,14 @@ def get_pci6229() -> PCI6229:
 def test_pci6229_connection(get_pci6229):
     """This test checks if the pci6229 is connected
     returns true if connected, AssertionError if not
+    passed 07/11/2024
     """
     assert get_pci6229.is_connected
 
 @pytest.mark.parametrize("channel", ["ao0", "ao1", "ao2", "ao3"])
 def test_pci6229_analog_out(get_pci6229, channel):
     """This test outputs AO voltages on a single channel
+    passed 7/12/2024
     """
     daq = get_pci6229
     samp_rate = 20000.0
@@ -40,18 +42,44 @@ def test_pci6229_analog_out(get_pci6229, channel):
     daq.run(ao_task)
     daq.wait_to_finish(ao_task)
     daq.stop(ao_task)
-    
-@pytest.mark.parametrize("channel", ["ai0", "ai1"])
-def test_pci6229_analog_in(get_pci6229, channel):
+
+def test_pci6229_ai_read(capsys, get_pci6229):
+    """This test reads finite samples from AI0, using a hardware
+    timed clock from ctr0
+    """
     daq = get_pci6229
-    samp_rate = 1000.0
-    samp_num = 100
-    ai_task = daq.setup_AI(channel, samp_rate, samp_num)
-    daq.run(ai_task)
-    time.sleep(0.1) 
-    data, nums = daq.read(ai_task)
-    daq.stop(ai_task)
-    assert len(data) == samp_num
+    clk_task = daq.setup_clock('ctr1', 1000)
+    ai_task = daq.setup_AI('ai0', clk_source=clk_task, num_samples_to_acquire=50)
+    samp_rate = daq.tasklist[clk_task]['sample_rate']
+    time.sleep(0.1)
+    t1 = time.perf_counter()
+    daq.run([ai_task, clk_task])
+    daq.wait_to_finish(clk_task)
+    data, num_samples = daq.read(ai_task)
+
+    X = np.arange(0, num_samples)
+    avg_volts_per_bin = np.mean(data)
+
+    with capsys.disabled():
+        print('AItask: ', ai_task)
+        print(num_samples)
+        print(data)
+        print("The avg volts read was {}".format(avg_volts_per_bin))
+        plt.plot(X, data[0], color='r', label='AI0')
+        # plt.plot(X, data[1, :], color='g', label='AI1')
+        plt.show()
+
+    assert len(data) == 50
+
+@pytest.mark.parametrize("channel", ["ao0", "ao1", "ao2", "ao3"])
+@pytest.mark.parametrize("voltage", [-1.0, 0.0, 1.0, 0.0])
+def test_pci6229_analog_dcvoltage(capsys, get_pci6229, channel, voltage):
+    """This test outputs a single DC voltage on a specified analog output channel for the PCI6229 DAQ device."""
+    daq = get_pci6229
+    with capsys.disabled():
+        print(f"PCI6229 AO channel = {channel}, voltage = {voltage}")
+        time.sleep(1.0)
+    daq.set_analog_voltages({channel: voltage})
 
 def test_pci6229_ctrout(get_pci6229):
     """This test outputs a waveform on the specified counter output channel
@@ -82,30 +110,3 @@ def test_pci6229_ctr_read(capsys, get_pci6229):
         print('The sampling rate was {}'.format(samp_rate))
         print("The avg counts per bin was {}".format(avg_counts_per_bin))
         print("The counting rate is {} cts/sec".format(avg_counts_per_bin * samp_rate))
-
-def test_pci6601_dio_read(capsys, get_pci6229):
-    """This test reads digital inputs from the specified channel
-    """
-    daq = get_pci6229
-    dio_task = daq.read('ctr0')
-    time.sleep(0.1)
-    daq.run(dio_task)
-    data = daq.read(dio_task)
-    daq.stop(dio_task)
-    with capsys.disabled():
-        print('diotask', dio_task)
-        print(data)
-
-
-@pytest.mark.parametrize("channel", ["do0", "do47"])
-@pytest.mark.parametrize("voltage", [0, 1])
-def test_pci6601_digital_output(capsys, get_pci6229, channel, voltage):
-    """This test outputs a digital signal on the specified channel
-    """
-    daq = get_pci6229
-    with capsys.disabled():
-        print(f"PCI6229 DIO channel = {channel}, voltage = {voltage}")
-        time.sleep(1.0)
-    daq.set_digital_output(channel, voltage)
-    daq.run()
-    daq.stop() 
