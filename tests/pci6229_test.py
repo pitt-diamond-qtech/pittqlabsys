@@ -58,8 +58,6 @@ def test_pci6229_ai_read(capsys, get_pci6229):
     time.sleep(2.0)
     daq.wait_to_finish(clk_task)
     data, num_samples = daq.read(ai_task)
-    daq.stop([ai_task, clk_task])
-    daq.close([ai_task, clk_task])
 
     X = np.arange(0, num_samples)
     avg_volts_per_bin = np.mean(data)
@@ -73,6 +71,8 @@ def test_pci6229_ai_read(capsys, get_pci6229):
         # plt.plot(X, data[1, :], color='g', label='AI1')
         plt.show()
 
+    daq.stop([ai_task, clk_task])
+    daq.close([ai_task, clk_task])
     assert len(data) == 50
 
 @pytest.mark.parametrize("channel", ["ao0", "ao1", "ao2", "ao3"])
