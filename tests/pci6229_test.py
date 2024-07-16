@@ -72,7 +72,6 @@ def test_pci6229_ai_read(capsys, get_pci6229):
         plt.show()
 
     daq.stop([ai_task, clk_task])
-    daq.close([ai_task, clk_task])
     assert len(data) == 50
 
 @pytest.mark.parametrize("channel", ["ao0", "ao1", "ao2", "ao3"])
