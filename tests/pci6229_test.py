@@ -46,7 +46,7 @@ def test_pci6229_analog_out(get_pci6229, channel):
 def test_pci6229_ai_read(capsys, get_pci6229):
     """This test reads finite samples from AI0, using a hardware
     timed clock from ctr0
-    error getting all data points before task stopped, not all tasks closed properly
+    error getting all data points before task stopped
     """
     daq = get_pci6229
     clk_task = daq.setup_clock('ctr0', 1000)
@@ -59,6 +59,7 @@ def test_pci6229_ai_read(capsys, get_pci6229):
     daq.wait_to_finish(clk_task)
     data, num_samples = daq.read(ai_task)
     daq.stop([ai_task, clk_task])
+    daq.close([ai_task, clk_task])
 
     X = np.arange(0, num_samples)
     avg_volts_per_bin = np.mean(data)
