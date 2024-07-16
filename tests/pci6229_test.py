@@ -46,16 +46,19 @@ def test_pci6229_analog_out(get_pci6229, channel):
 def test_pci6229_ai_read(capsys, get_pci6229):
     """This test reads finite samples from AI0, using a hardware
     timed clock from ctr0
+    error getting all data points before task stopped, not all tasks closed properly
     """
     daq = get_pci6229
-    clk_task = daq.setup_clock('ctr1', 1000)
+    clk_task = daq.setup_clock('ctr0', 1000)
     ai_task = daq.setup_AI('ai0', clk_source=clk_task, num_samples_to_acquire=50)
     samp_rate = daq.tasklist[clk_task]['sample_rate']
+    # samp_rate not used
     time.sleep(0.1)
-    t1 = time.perf_counter()
     daq.run([ai_task, clk_task])
+    time.sleep(2.0)
     daq.wait_to_finish(clk_task)
     data, num_samples = daq.read(ai_task)
+    daq.stop([ai_task, clk_task])
 
     X = np.arange(0, num_samples)
     avg_volts_per_bin = np.mean(data)
@@ -74,7 +77,9 @@ def test_pci6229_ai_read(capsys, get_pci6229):
 @pytest.mark.parametrize("channel", ["ao0", "ao1", "ao2", "ao3"])
 @pytest.mark.parametrize("voltage", [-1.0, 0.0, 1.0, 0.0])
 def test_pci6229_analog_dcvoltage(capsys, get_pci6229, channel, voltage):
-    """This test outputs a single DC voltage on a specified analog output channel for the PCI6229 DAQ device."""
+    """This test outputs a single DC voltage on a specified analog output channel for the PCI6229 DAQ device.
+    passed 7/16/2024
+    """
     daq = get_pci6229
     with capsys.disabled():
         print(f"PCI6229 AO channel = {channel}, voltage = {voltage}")
@@ -83,6 +88,7 @@ def test_pci6229_analog_dcvoltage(capsys, get_pci6229, channel, voltage):
 
 def test_pci6229_ctrout(get_pci6229):
     """This test outputs a waveform on the specified counter output channel
+    passed 7/12/2024
     """
     daq = get_pci6229
     clk_task = daq.setup_clock('ctr1', 100)
@@ -94,6 +100,7 @@ def test_pci6229_ctrout(get_pci6229):
 
 def test_pci6229_ctr_read(capsys, get_pci6229):
     """This test reads finite samples from the specified counter channel using internal hardware timed clock
+    error avg counts per bin & counting rate both returning 0, sampling rate returning 1000
     """
     daq = get_pci6229
     ctr_task = daq.setup_counter('ctr0', 50)
