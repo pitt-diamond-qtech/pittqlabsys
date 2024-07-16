@@ -18,6 +18,7 @@ def get_pci6601() -> PCI6601:
 
 def test_pci6601_connection(get_pci6601):
     """This test checks if pci6601 is connected
+    passed 7/16/2024
     """
     assert get_pci6601.is_connected
 
