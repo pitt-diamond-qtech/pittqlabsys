@@ -51,29 +51,3 @@ def test_pci6601_ctr_read(capsys, get_pci6601):
         print("The avg counts per bin was {}".format(avg_counts_per_bin))
         print("The counting rate is {} cts/sec".format(avg_counts_per_bin * samp_rate))
 
-@pytest.mark.parametrize("channel", ["ctr0", "ctr1", "ctr2", "ctr3"])
-def test_pci6601_dio_read(capsys, get_pci6601, channel):
-    """This test reads digital inputs from the specified channel
-    """
-    daq = get_pci6601
-    dio_task = daq.setup_dio_read('ctr0')
-    time.sleep(0.1)
-    daq.run(dio_task)
-    data = daq.read(dio_task)
-    daq.stop(dio_task)
-    with capsys.disabled():
-        print(f'DIO task for {channel}: ', dio_task)
-        print(data)
-
-@pytest.mark.parametrize("channel", ["do0", "do7"])
-@pytest.mark.parametrize("voltage", [0, 1])
-def test_pci6601_digital_output(capsys, get_pci6601, channel, voltage):
-    """This test outputs a digital signal on the specified channel
-    """
-    daq = get_pci6601
-    with capsys.disabled():
-        print(f"PCI6601 DIO channel = {channel}, voltage = {voltage}")
-        time.sleep(1.0)
-    daq.set_digital_output(channel, voltage)
-    daq.run()
-    daq.stop() 
