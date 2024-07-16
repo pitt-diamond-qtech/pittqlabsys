@@ -1655,6 +1655,160 @@ class PCI6229(NIDAQ):
         return task_name
 
 
+class PCI6601(NIDAQ):
+    """This class implements the PCI6601 DAQ, which includes 32 DIO channels and 4 counters
+    and inherits basic input/output functionality from NIDAQ. A subset of these channels are
+    accessible here, but more can be added up to the above limits.
+    """
+    _DEFAULT_SETTINGS = Parameter([
+        Parameter('device', "Dev2", ["Dev2"], "Name of DAQ device"),
+        Parameter('override_buffer_size', -1, int, 'Buffer size for manual override (unused if -1)'),
+        Parameter('digital_input', 
+                  [
+                      Parameter('ctr0', 
+                                [
+                                    Parameter('input_channel', 0, list(range(0, 32)), 
+                                              'channel for counter signal input'),
+                                    Parameter('counter_PFI_channel', 11, list(range(8, 25)), 
+                                              'PFI for counter channel input'),
+                                    Parameter('gate_PFI_channel', 10, list(range(8, 25)), 
+                                              'PFI for counter channel input'),
+                                    Parameter('clock_PFI_channel', 15, list(range(8, 35)), 
+                                              'PFI for clock channel input'),
+                                    Parameter('clock_counter_channel', 1, [0, 1], 'channel for clock output'),
+                                    Parameter('sample_rate', 1000.0, float, 'sample rate (Hz)')
+                                ]
+                                ),
+                      Parameter('ctr1', 
+                                [
+                                    Parameter('input_channel', 1, list(range(0, 32)), 
+                                            'channel for counter signal input'),
+                                    Parameter('counter_PFI_channel', 19, list(range(8, 25)), 
+                                            'PFI for counter channel input'),
+                                    Parameter('gate_PFI_channel', 18, list(range(8, 25)), 
+                                            'PFI for counter channel input'),
+                                    Parameter('clock_PFI_channel', 23, list(range(8, 25)), 
+                                            'PFI for clock channel input'),
+                                    Parameter('clock_counter_channel', 0, [0, 1], 'channel for clock output'),
+                                    Parameter('sample_rate', 1000.0, float, 'input sample rate (Hz)')
+                                ]
+                                )
+                  ]
+                  ),
+        Parameter('digital_output', 
+                  [
+                      Parameter('do0', 
+                                [
+                                    Parameter('channel', 0, list(range(0, 32)), 'channel'),
+                                    Parameter('sample_rate', 1000.0, float, 'output sample rate(Hz)'),
+                                ]
+                                ), 
+                      Parameter('do31', 
+                                [
+                                    Parameter('channel', 31, list(range(0, 32)), 'channel'),
+                                    Parameter('sample_rate', 1000.0, float, 'output sample rate(Hz)')
+                                ]
+                                )
+                  ]
+                  ) 
+   
+    ])
+    
+    def setup_counter(self, channel, sample_num, continuous_acquisition = False):
+        """
+        We must reimplement the setup_counter function due to board limitations. Initializes a hardware-timed digital
+        counter, bound to a hardware clock.
+
+        Args:
+            channel: digital channel to initialize for read in
+            sample_num: number of samples to read in for finite operation, or number of samples between
+                       reads for continuous operation (to set buffer size)
+            continuous_acquisition: run in continuous acquisition mode (ex for a continuous counter) or
+                                    finite acquisition mode (ex for a scan, where the number of samples needed
+                            is known a priori)
+
+
+        Returns: source of clock that this method sets up, which can be given to another function to synch that
+        input or output to the same clock
+
+        """
+        # Note that for this counter, we have two tasks. The normal 'task_handle' corresponds to the clock, and this
+        # is the task which is started when run is called. The second 'task_handle_ctr' corresponds to the counter,
+        # and this waits for the clock and will be started simultaneously.
+        task = {
+            'task_handle': None,
+            'task_handle_ctr': None,
+            'counter_out_PFI_str': None,
+            'sample_num': None,
+            'sample_rate': None,
+            'num_samples_per_channel': None,
+            'timeout': None
+        }
+        
+        task_name = self._add_to_tasklist('ctr', task)
+        
+        if 'digital_input' not in list(self.settings.keys()):
+            raise ValueError('This DAQ does not support digital input')
+        if not channel in list(self.settings['digital_input'].keys()):
+            raise KeyError('This is not a valid digital input channel')
+
+        channel_settings = self.settings['digital_input'][channel]
+        
+        self.running = True
+        task['sample_num'] = sample_num
+        task['sample_rate'] = float(channel_settings['sample_rate'])
+        if not continuous_acquisition:
+            task['num_samples_per_channel'] = task['sample_num']
+        else:
+            task['num_samples_per_channel'] = -1
+        # set the timeout to be 5 times the amount of time required
+        task['timeout'] = float(5 * (1/task['sample_rate']) * task['sample_num'])
+        input_channel_str = ('/' + self.settings['device'] + '/' + channel).encode('ascii')
+        task['counter_out_PFI_str'] = ('/' + self.settings['device'] + '/PFI' + str(
+            channel_settings['clock_PFI_channel'])).encode(
+            'ascii')
+        counter_out_str = (
+                    '/' + self.settings['device'] + '/ctr' + str(channel_settings['clock_counter_channel'])).encode(
+            'ascii')
+
+
+        # with ni.Task() as clock_task, ni.Task() as counter_task:
+        clock_task = ni.Task()
+        counter_task = ni.Task()
+        task['task_handle'] = clock_task
+        task['task_handle_ctr'] = counter_task
+        clock_task.co_channels.add_co_pulse_chan_freq(counter_out_str, freq=float(task['sample_rate']), 
+                                                      duty_cycle=0.5)
+        
+        counter_task.ci_channels.add_ci_count_edges_chan(input_channel_str)
+
+        # set up clock
+        """
+        The board can run in CONTINUOUS mode or FINITE mode
+        """
+        if continuous_acquisition:
+
+            clock_task.timing.cfg_implicit_timing(sample_mode = AcquisitionType.CONTINUOUS)
+        
+        else:
+
+            clock_task.timing.cfg_implicit_timing(samps_per_chan = int(task['sample_num']))
+        
+        # set up counter using clock as reference
+        if not continuous_acquisition:
+
+            counter_task.timing.cfg_samp_clk_timing(float(task['sample_rate']), source=task['counter_out_PFI_str'], samps_per_chan=task['sample_num'])
+       
+        else:
+    
+            counter_task.timing.cfg_samp_clk_timing(float(task['sample_rate']), source=task['counter_out_PFI_str'], sample_mode=AcquisitionType.CONTINUOUS)
+
+
+        counter_task.start()
+
+        return task_name
+
+
 def voltage_to_int(voltage):
     """
     convert voltage to integer value
