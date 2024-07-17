@@ -51,12 +51,10 @@ def test_pci6229_ai_read(capsys, get_pci6229):
     daq = get_pci6229
     clk_task = daq.setup_clock('ctr0', 1000)
     ai_task = daq.setup_AI('ai0', clk_source=clk_task, num_samples_to_acquire=50)
-    samp_rate = daq.tasklist[clk_task]['sample_rate']
-    # samp_rate not used
+    # samp_rate = daq.tasklist[clk_task]['sample_rate']
     time.sleep(0.1)
     daq.run([ai_task, clk_task])
-    time.sleep(2.0)
-    daq.wait_to_finish(clk_task)
+    time.sleep(1.0)
     data, num_samples = daq.read(ai_task)
 
     X = np.arange(0, num_samples)
