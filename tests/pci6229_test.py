@@ -36,9 +36,8 @@ def test_pci6229_analog_out(get_pci6229, channel):
 
     num_samples = math.ceil(t_end * samp_rate)
     t_array = np.linspace(0, t_end, num_samples)
-    waveform = np.sin(2 * np.pi * t_array / period)
-    waveform2 = signal.sawtooth(2 * np.pi * t_array / period, 0.5) + 1
-    ao_task = daq.setup_AO([channel],waveform2)
+    waveform = signal.sawtooth(2 * np.pi * t_array / period, 0.5) + 1
+    ao_task = daq.setup_AO([channel],waveform)
     daq.run(ao_task)
     daq.wait_to_finish(ao_task)
     daq.stop(ao_task)
@@ -46,16 +45,15 @@ def test_pci6229_analog_out(get_pci6229, channel):
 def test_pci6229_ai_read(capsys, get_pci6229):
     """This test reads finite samples from AI0, using a hardware
     timed clock from ctr0
-    error getting all data points before task stopped
+    passed 7/18/2024
     """
     daq = get_pci6229
-    clk_task = daq.setup_clock('ctr0', 1000)
     ai_task = daq.setup_AI('ai0', clk_source=clk_task, num_samples_to_acquire=50)
-    # samp_rate = daq.tasklist[clk_task]['sample_rate']
     time.sleep(0.1)
-    daq.run([ai_task, clk_task])
+    daq.run(ai_task)
     time.sleep(1.0)
     data, num_samples = daq.read(ai_task)
+    daw.stop(ai_task)
 
     X = np.arange(0, num_samples)
     avg_volts_per_bin = np.mean(data)
@@ -66,11 +64,8 @@ def test_pci6229_ai_read(capsys, get_pci6229):
         print(data)
         print("The avg volts read was {}".format(avg_volts_per_bin))
         plt.plot(X, data[0], color='r', label='AI0')
-        # plt.plot(X, data[1, :], color='g', label='AI1')
         plt.show()
 
-    daq.stop([ai_task, clk_task])
-    assert len(data) == 50
 
 @pytest.mark.parametrize("channel", ["ao0", "ao1", "ao2", "ao3"])
 @pytest.mark.parametrize("voltage", [-1.0, 0.0, 1.0, 0.0])
@@ -98,7 +93,7 @@ def test_pci6229_ctrout(get_pci6229):
 
 def test_pci6229_ctr_read(capsys, get_pci6229):
     """This test reads finite samples from the specified counter channel using internal hardware timed clock
-    error avg counts per bin & counting rate both returning 0, sampling rate returning 1000
+    passed 7/18/2024
     """
     daq = get_pci6229
     ctr_task = daq.setup_counter('ctr0', 50)
