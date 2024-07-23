@@ -1449,7 +1449,6 @@ class PCI6229(NIDAQ):
         Parameter('device', "Dev1", ["Dev1"], "Name of DAQ device"),
         Parameter('override_buffer_size', -1, int, 'Buffer size for manual override (unused if -1)'),
         Parameter('ao_read_offset', 0.005, float, 'Empirically determined offset for reading ao voltages internally'),
-        Parameter('external_daq', "Dev1", ["Dev1", "Dev2"], "Name of external DAQ device for clock"),
         Parameter('analog_input', 
                   [
                       Parameter('ai0', 
@@ -1665,32 +1664,32 @@ class PCI6601(NIDAQ):
         Parameter('override_buffer_size', -1, int, 'Buffer size for manual override (unused if -1)'),
         Parameter('digital_input', 
                   [
-                      Parameter('ctr0', 
+                      Parameter('ctr0',
                                 [
-                                    Parameter('input_channel', 0, list(range(0, 32)), 
+                                    Parameter('input_channel', 0, list(range(0, 32)),
                                               'channel for counter signal input'),
-                                    Parameter('counter_PFI_channel', 11, list(range(8, 25)), 
+                                    Parameter('counter_PFI_channel', 39, list(range(8, 40)),
                                               'PFI for counter channel input'),
-                                    Parameter('gate_PFI_channel', 10, list(range(8, 25)), 
+                                    Parameter('gate_PFI_channel', 38, list(range(8, 40)),
                                               'PFI for counter channel input'),
-                                    Parameter('clock_PFI_channel', 15, list(range(8, 35)), 
+                                    Parameter('clock_PFI_channel', 31, list(range(8, 40)),
                                               'PFI for clock channel input'),
                                     Parameter('clock_counter_channel', 1, [0, 1], 'channel for clock output'),
                                     Parameter('sample_rate', 1000.0, float, 'sample rate (Hz)')
                                 ]
                                 ),
-                      Parameter('ctr1', 
+                      Parameter('ctr1',
                                 [
-                                    Parameter('input_channel', 1, list(range(0, 32)), 
-                                            'channel for counter signal input'),
-                                    Parameter('counter_PFI_channel', 19, list(range(8, 25)), 
-                                            'PFI for counter channel input'),
-                                    Parameter('gate_PFI_channel', 18, list(range(8, 25)), 
-                                            'PFI for counter channel input'),
-                                    Parameter('clock_PFI_channel', 23, list(range(8, 25)), 
-                                            'PFI for clock channel input'),
+                                    Parameter('input_channel', 1, list(range(0, 32)),
+                                              'channel for counter signal input'),
+                                    Parameter('counter_PFI_channel', 35, list(range(8, 40)),
+                                              'PFI for counter channel input'),
+                                    Parameter('gate_PFI_channel', 34, list(range(8, 40)),
+                                              'PFI for counter channel input'),
+                                    Parameter('clock_PFI_channel', 27, list(range(8, 40)),
+                                              'PFI for clock channel input'),
                                     Parameter('clock_counter_channel', 0, [0, 1], 'channel for clock output'),
-                                    Parameter('sample_rate', 1000.0, float, 'input sample rate (Hz)')
+                                    Parameter('sample_rate', 1000.0, float, 'input sample rate (Hz)')                                
                                 ]
                                 )
                   ]
@@ -1781,30 +1780,6 @@ class PCI6601(NIDAQ):
                                                       duty_cycle=0.5)
         
         counter_task.ci_channels.add_ci_count_edges_chan(input_channel_str)
-
-        # set up clock
-        """
-        The board can run in CONTINUOUS mode or FINITE mode
-        """
-        if continuous_acquisition:
-
-            clock_task.timing.cfg_implicit_timing(sample_mode = AcquisitionType.CONTINUOUS)
-        
-        else:
-
-            clock_task.timing.cfg_implicit_timing(samps_per_chan = int(task['sample_num']))
-        
-        # set up counter using clock as reference
-        if not continuous_acquisition:
-
-            counter_task.timing.cfg_samp_clk_timing(float(task['sample_rate']), source=task['counter_out_PFI_str'], samps_per_chan=task['sample_num'])
-       
-        else:
-    
-            counter_task.timing.cfg_samp_clk_timing(float(task['sample_rate']), source=task['counter_out_PFI_str'], sample_mode=AcquisitionType.CONTINUOUS)
-
-
-        counter_task.start()
 
         return task_name
 
