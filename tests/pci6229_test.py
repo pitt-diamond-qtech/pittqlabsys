@@ -19,14 +19,14 @@ def get_pci6229() -> PCI6229:
 def test_pci6229_connection(get_pci6229):
     """This test checks if the pci6229 is connected
     returns true if connected, AssertionError if not
-    passed 07/11/2024
+    passed 07/11/2024, Abby Bakkenist
     """
     assert get_pci6229.is_connected
 
 @pytest.mark.parametrize("channel", ["ao0", "ao1", "ao2", "ao3"])
 def test_pci6229_analog_out(get_pci6229, channel):
     """This test outputs AO voltages on a single channel
-    passed 7/12/2024
+    passed 7/12/2024, Abby Bakkenist
     """
     daq = get_pci6229
     samp_rate = 20000.0
@@ -45,7 +45,7 @@ def test_pci6229_analog_out(get_pci6229, channel):
 def test_pci6229_ai_read(capsys, get_pci6229):
     """This test reads finite samples from AI0, using a hardware
     timed clock from ctr0
-    passed 7/18/2024
+    passed 7/18/2024, Abby Bakkenist
     """
     daq = get_pci6229
     ai_task = daq.setup_AI('ai0', clk_source=clk_task, num_samples_to_acquire=50)
@@ -71,7 +71,7 @@ def test_pci6229_ai_read(capsys, get_pci6229):
 @pytest.mark.parametrize("voltage", [-1.0, 0.0, 1.0, 0.0])
 def test_pci6229_analog_dcvoltage(capsys, get_pci6229, channel, voltage):
     """This test outputs a single DC voltage on a specified analog output channel for the PCI6229 DAQ device.
-    passed 7/16/2024
+    passed 7/16/2024, Abby Bakkenist
     """
     daq = get_pci6229
     with capsys.disabled():
@@ -81,7 +81,7 @@ def test_pci6229_analog_dcvoltage(capsys, get_pci6229, channel, voltage):
 
 def test_pci6229_ctrout(get_pci6229):
     """This test outputs a waveform on the specified counter output channel
-    passed 7/12/2024
+    passed 7/12/2024, Abby Bakkenist
     """
     daq = get_pci6229
     clk_task = daq.setup_clock('ctr1', 100)
@@ -93,7 +93,7 @@ def test_pci6229_ctrout(get_pci6229):
 
 def test_pci6229_ctr_read(capsys, get_pci6229):
     """This test reads finite samples from the specified counter channel using internal hardware timed clock
-    passed 7/18/2024
+    passed 7/18/2024, Abby Bakkenist
     """
     daq = get_pci6229
     ctr_task = daq.setup_counter('ctr0', 50)
