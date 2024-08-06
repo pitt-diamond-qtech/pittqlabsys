@@ -1641,7 +1641,7 @@ class PCI6229(NIDAQ):
             RuntimeWarning(
                 "Switching the internal clock to continuous mode, samples beyond those requested will be ignored...")
             
-        # with ni.Task() as clock_task, ni.Task() as couter_task:
+        # with ni.Task() as clock_task, ni.Task() as counter_task:
         clock_task = ni.Task()
         counter_task = ni.Task()
         task['task_handle'] = clock_task
