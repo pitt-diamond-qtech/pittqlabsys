@@ -37,7 +37,7 @@ class GalvoScan(GalvoScanGeneric):
                    ]),
         Parameter('RoI_mode', 'center', ['corner', 'center'], 'mode to calculate region of interest.\n \
                                                                corner: pta and ptb are diagonal corners of rectangle.\n \
-                                                               center: pta is center and pta is extend or rectangle'),
+                                                               center: pta is center and ptb is extend or rectangle'),
         Parameter('num_points',
                   [Parameter('x', 64, int, 'number of x points to scan'),
                    Parameter('y', 64, int, 'number of y points to scan')
