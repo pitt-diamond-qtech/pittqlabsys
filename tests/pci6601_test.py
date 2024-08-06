@@ -18,15 +18,13 @@ def get_pci6601() -> PCI6601:
 
 def test_pci6601_connection(get_pci6601):
     """This test checks if pci6601 is connected
-    passed 7/16/2024
+    passed 7/16/2024, Abby Bakkenist
     """
     assert get_pci6601.is_connected
 
-"""where is ctr0 on BNC2121"""
-
 def test_pci6601_ctrout(get_pci6601):
     """This test outputs a waveform on the specified counter output channel
-    passed 7/22/2024
+    passed 7/22/2024, Abby Bakkenist
     """
     daq = get_pci6601
     clk_task = daq.setup_clock('ctr1', 100)
@@ -38,7 +36,7 @@ def test_pci6601_ctrout(get_pci6601):
 
 def test_pci6601_ctr_read(capsys, get_pci6601):
     """This test reads finite samples from the specified counter channel using internal hardware timed clock
-    passed 7/22/2024
+    passed 7/22/2024, Abby Bakkenist
     """
     daq = get_pci6601
     ctr_task = daq.setup_counter('ctr1', 50)
