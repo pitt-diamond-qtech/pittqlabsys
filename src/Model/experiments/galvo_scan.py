@@ -16,7 +16,7 @@
 import numpy as np
 import time
 from src.core import Parameter, Experiment
-from src.Controller import PXI6733, NI6281, MicrowaveGenerator, NIDAQ
+from src.Controller import PXI6733, NI6281, PCI6229, MicrowaveGenerator, NIDAQ
 from src.Model.experiments.galvo_scan_generic import GalvoScanGeneric
 
 
@@ -64,7 +64,7 @@ class GalvoScan(GalvoScanGeneric):
         Parameter('plot_style', "main", ['main', 'aux', '2D', 'two'])
     ]
 
-    _DEVICES = {'daq': PXI6733(),'daq2': NI6281()}
+    _DEVICES = {'daq': PXI6733(),'daq2': NI6281(), 'daq3': PCI6229()}
 
     def __init__(self, devices=None, name=None, settings=None, log_function=None, data_path=None):
         '''
@@ -90,6 +90,13 @@ class GalvoScan(GalvoScanGeneric):
         # that in the Experiment class first. doing it by hand for now
         self.dev_instance = self.devices['daq']['instance']
         self.dev_instance2 = self.devices['daq2']['instance']
+        self.dev_instance3 = self.devices['daq3']['instance']
+
+        # use PCI6229
+        device_list = NIDAQ.get_connected_devices()
+        if not (self.devices['daq'].settings['device'] in device_list):
+            self.settings['daq_type'] = 'PCI'
+            self.devices = {'daq': PCI6229()}
         self.setup_scan()
 
     def setup_scan(self):
