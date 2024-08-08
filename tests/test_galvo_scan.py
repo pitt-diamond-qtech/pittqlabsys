@@ -12,7 +12,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
-from src.Controller.ni_daq import PXI6733,NI6281, PCI6229
+from src.Controller.ni_daq import PXI6733,NI6281,PCI6229,PCI6601
 from src.core import Experiment
 from src.Model.experiments.galvo_scan import GalvoScan
 import pytest
@@ -35,6 +35,10 @@ def get_pci6229() -> PCI6229:
     # create a fixture for the PCI6229
     return PCI6229()
 
+@pytest.fixture
+def get_pci6601() -> PCI6601:
+    # create a fixture for the PCI6601
+    return PCI6601()
 
 def test_galvo_scan(capsys,get_pxi6733,get_ni6281):
     """Test passed success to generate a confocal image
@@ -106,9 +110,10 @@ def test_galvo_scan_NI6281(capsys,get_pxi6733,get_ni6281):
         plt.show()
 
 
-def test_galvo_scan_PCI6229(capsys, get_pci6229):
+def test_galvo_scan_PCI6229(capsys, get_pci6229, get_pci6601):
     daq = get_pci6229
-    instr = {"daq": {'instance':daq}}
+    daq2 = get_pci6601
+    instr = {"daq": {'instance':daq}, "daq2":{'instance':daq2}}
     fig, ax = plt.subplots(2, 1)
 
     with capsys.disabled():
