@@ -93,8 +93,8 @@ class GalvoScan(GalvoScanGeneric):
         self.dev_instance3 = self.devices['daq3']['instance']
         self.dev_instance4 = self.devices['daq4']['instance']
 
-        # use PCI6229
         device_list = NIDAQ.get_connected_devices()
+        # use PCI6229
         if not (self.devices['daq'].settings['device'] in device_list):
             self.settings['daq_type'] = 'PCI'
             self.devices = {'daq': PCI6229()}
