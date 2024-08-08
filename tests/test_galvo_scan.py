@@ -12,7 +12,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
-from src.Controller.ni_daq import PXI6733,NI6281
+from src.Controller.ni_daq import PXI6733,NI6281, PCI6229
 from src.core import Experiment
 from src.Model.experiments.galvo_scan import GalvoScan
 import pytest
@@ -29,6 +29,12 @@ def get_pxi6733() -> PXI6733:
 def get_ni6281() -> NI6281:
     # create a fixture for the PXI6733
     return NI6281()
+
+@pytest.fixture
+def get_pci6229() -> PCI6229:
+    # create a fixture for the PCI6229
+    return PCI6229()
+
 
 def test_galvo_scan(capsys,get_pxi6733,get_ni6281):
     """Test passed success to generate a confocal image
@@ -94,6 +100,22 @@ def test_galvo_scan_NI6281(capsys,get_pxi6733,get_ni6281):
         expt.settings['plot_style'] = "main"
         expt.run()
         #print(expt.data)
+        dat = expt.data['image_data']
+        print("The average counting rate is {} kcts/sec".format(np.mean(dat)))
+        expt.plot(figure_list=[fig])
+        plt.show()
+
+
+def test_galvo_scan_PCI6229(capsys, get_pci6229):
+    daq = get_pci6229
+    instr = {"daq": {'instance':daq}}
+    fig, ax = plt.subplots(2, 1)
+
+    with capsys.disabled():
+        expt = GalvoScan( name='galvo_scan',devices=instr)
+        expt.settings['plot_style'] = "main"
+        expt.run()
+        print(expt.data)
         dat = expt.data['image_data']
         print("The average counting rate is {} kcts/sec".format(np.mean(dat)))
         expt.plot(figure_list=[fig])
