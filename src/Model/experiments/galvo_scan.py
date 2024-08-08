@@ -173,7 +173,7 @@ class GalvoScan(GalvoScanGeneric):
         Args:
             y_pos: y position of the scan
 
-        Returns:
+        Returns: an array of the data collected during a single line scan of the galvo
 
         """
         # initialize APD thread
