@@ -64,7 +64,8 @@ class GalvoScan(GalvoScanGeneric):
         Parameter('plot_style', "main", ['main', 'aux', '2D', 'two'])
     ]
 
-    _DEVICES = {'daq': PXI6733(),'daq2': NI6281(), 'daq3': PCI6229(), 'daq4': PCI6601()}
+    #_DEVICES = {'daq': PXI6733(),'daq2': NI6281()}
+    _DEVICES = {'daq': PCI6229(), 'daq2': PCI6601()}
 
     def __init__(self, devices=None, name=None, settings=None, log_function=None, data_path=None):
         '''
@@ -90,19 +91,6 @@ class GalvoScan(GalvoScanGeneric):
         # that in the Experiment class first. doing it by hand for now
         self.dev_instance = self.devices['daq']['instance']
         self.dev_instance2 = self.devices['daq2']['instance']
-        self.dev_instance3 = self.devices['daq3']['instance']
-        self.dev_instance4 = self.devices['daq4']['instance']
-
-        device_list = NIDAQ.get_connected_devices()
-        # use PCI6229
-        if not (self.devices['daq'].settings['device'] in device_list):
-            self.settings['daq_type'] = 'PCI'
-            self.devices = {'daq': PCI6229()}
-
-        # use PCI6601
-        if not (self.devices['daq'].settings['device'] in device_list):
-            self.settings['daq_type'] = 'PCI'
-            self.devices = {'daq': PCI6601()}
             
         self.setup_scan()
 
