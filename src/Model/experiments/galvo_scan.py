@@ -116,7 +116,7 @@ class GalvoScan(GalvoScanGeneric):
             self.settings['DAQ_channels']['x_ao_channel']]['sample_rate'] = sample_rate
         self.dev_instance.settings['analog_output'][
             self.settings['DAQ_channels']['y_ao_channel']]['sample_rate'] = sample_rate
-        self.dev_instance.settings['digital_input'][
+        self.dev_instance2.settings['digital_input'][
             self.settings['DAQ_channels']['counter_channel']]['sample_rate'] = sample_rate
 
     def get_galvo_location(self):
@@ -152,7 +152,7 @@ class GalvoScan(GalvoScanGeneric):
         ao_task = self.dev_instance.setup_AO(
             [self.settings['DAQ_channels']['x_ao_channel'], self.settings['DAQ_channels']['y_ao_channel']], pt)
         self.dev_instance.run(ao_task)
-        # self.dev_instance.AO_waitToFinish()
+        self.dev_instance.AO_waitToFinish()
         self.dev_instance.stop(ao_task)
 
     def read_line(self, y_pos):
@@ -167,7 +167,7 @@ class GalvoScan(GalvoScanGeneric):
         # initialize APD thread
         # ctr_task = self.dev_instance.setup_counter(self.settings['DAQ_channels']['counter_channel'],
         #                                            len(self.x_array) + 1,use_external_clock=False)
-        ctr_task = self.dev_instance.setup_counter(self.settings['DAQ_channels']['counter_channel'],
+        ctr_task = self.dev_instance2.setup_counter(self.settings['DAQ_channels']['counter_channel'],
                                                    len(self.x_array) + 1)
         self.init_pt = np.transpose(np.column_stack((self.x_array[0], y_pos)))
         self.init_pt = (np.repeat(self.init_pt, 2, axis=1))
@@ -185,11 +185,11 @@ class GalvoScan(GalvoScanGeneric):
                                              clk_source=ctr_task)
         # start counter and scanning sequence
         self.dev_instance.run(ao_task)
-        self.dev_instance.run(ctr_task)
+        self.dev_instance2.run(ctr_task)
 
         self.dev_instance.stop(ao_task)
-        x_line_data, _ = self.dev_instance.read(ctr_task)
-        self.dev_instance.stop(ctr_task)
+        x_line_data, _ = self.dev_instance2.read(ctr_task)
+        self.dev_instance2.stop(ctr_task)
         diff_data = np.diff(x_line_data)
 
         summed_data = np.zeros(int(len(self.x_array) / self.clock_adjust))
