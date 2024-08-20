@@ -120,7 +120,7 @@ def test_galvo_scan_PCI6229(capsys, get_pci6229, get_pci6601):
         expt = GalvoScan( name='galvo_scan',devices=instr)
         expt.settings['plot_style'] = "main"
         expt.run()
-        print(expt.data)
+        # print(expt.data)
         dat = expt.data['image_data']
         print("The average counting rate is {} kcts/sec".format(np.mean(dat)))
         expt.plot(figure_list=[fig])
