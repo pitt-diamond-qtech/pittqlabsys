@@ -54,3 +54,16 @@ def test_pci6601_ctr_read(capsys, get_pci6601):
         print("The avg counts per bin was {}".format(avg_counts_per_bin))
         print("The counting rate is {} cts/sec".format(avg_counts_per_bin * samp_rate))
 
+def test_pci6601_signal_passing(get_pci6601):
+    daq = get_pci6601
+    sample_num = 1000
+    ctr_task = daq.setup_counter('ctr0', sample_num, continuous_acquisition = False)
+    clk_task = daq.setup_clock('ctr0', sample_num)
+
+    daq.run(ctr_task)
+    daq.run(clk_task)
+    time.sleep(0.1)
+    daq.stop(ctr_task)
+    daq.stop(clk_task)
+
+
