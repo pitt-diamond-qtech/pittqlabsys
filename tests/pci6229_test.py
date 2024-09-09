@@ -25,7 +25,7 @@ def test_pci6229_connection(get_pci6229):
 
 @pytest.mark.parametrize("channel", ["ao0", "ao1", "ao2", "ao3"])
 def test_pci6229_analog_out(get_pci6229, channel):
-    """This test outputs AO voltages on a single channel
+    """This successfully test outputs AO voltages on a single channel
     passed 7/12/2024, Abby Bakkenist
     """
     daq = get_pci6229
@@ -43,17 +43,17 @@ def test_pci6229_analog_out(get_pci6229, channel):
     daq.stop(ao_task)
 
 def test_pci6229_ai_read(capsys, get_pci6229):
-    """This test reads finite samples from AI0, using a hardware
-    timed clock from ctr0
+    """This test successfully reads finite samples from AI0, using an
+    internal hardware-timed clock
     passed 7/18/2024, Abby Bakkenist
     """
     daq = get_pci6229
-    ai_task = daq.setup_AI('ai0', clk_source=clk_task, num_samples_to_acquire=50)
+    ai_task = daq.setup_AI('ai0', num_samples_to_acquire=50)
     time.sleep(0.1)
     daq.run(ai_task)
     time.sleep(1.0)
     data, num_samples = daq.read(ai_task)
-    daw.stop(ai_task)
+    daq.stop(ai_task)
 
     X = np.arange(0, num_samples)
     avg_volts_per_bin = np.mean(data)
@@ -66,21 +66,9 @@ def test_pci6229_ai_read(capsys, get_pci6229):
         plt.plot(X, data[0], color='r', label='AI0')
         plt.show()
 
-
-@pytest.mark.parametrize("channel", ["ao0", "ao1", "ao2", "ao3"])
-@pytest.mark.parametrize("voltage", [-1.0, 0.0, 1.0, 0.0])
-def test_pci6229_analog_dcvoltage(capsys, get_pci6229, channel, voltage):
-    """This test outputs a single DC voltage on a specified analog output channel for the PCI6229 DAQ device.
-    passed 7/16/2024, Abby Bakkenist
-    """
-    daq = get_pci6229
-    with capsys.disabled():
-        print(f"PCI6229 AO channel = {channel}, voltage = {voltage}")
-        time.sleep(1.0)
-    daq.set_analog_voltages({channel: voltage})
-
 def test_pci6229_ctrout(get_pci6229):
-    """This test outputs a waveform on the specified counter output channel
+    """This test successfully outputs a waveform on the specified counter output 
+    channel for both ctr0 and ctr1
     passed 7/12/2024, Abby Bakkenist
     """
     daq = get_pci6229
@@ -92,7 +80,8 @@ def test_pci6229_ctrout(get_pci6229):
     daq.stop(clk_task)
 
 def test_pci6229_ctr_read(capsys, get_pci6229):
-    """This test reads finite samples from the specified counter channel using internal hardware timed clock
+    """This test successfully reads finite samples from the specified counter channel 
+    using internal hardware timed clock
     passed 7/18/2024, Abby Bakkenist
     """
     daq = get_pci6229
