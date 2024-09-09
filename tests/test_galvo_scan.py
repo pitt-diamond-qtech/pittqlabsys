@@ -111,6 +111,11 @@ def test_galvo_scan_NI6281(capsys,get_pxi6733,get_ni6281):
 
 
 def test_galvo_scan_PCI6229(capsys, get_pci6229, get_pci6601):
+    """Test generates a successful confocal image using the internal
+    hardware timed clock from PCI6229
+    Test passed for PCI6229 8/27/2204, Abby Bakkenist
+    """
+    
     daq = get_pci6229
     daq2 = get_pci6601
     instr = {"daq": {'instance':daq}, "daq2":{'instance':daq2}}
