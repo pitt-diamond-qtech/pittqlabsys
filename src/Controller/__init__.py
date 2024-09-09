@@ -14,5 +14,5 @@
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 from .example_device import ExampleDevice,Plant,PIController
-from .ni_daq import PXI6733,NIDAQ,NI6281, PCI6229, PCI6601
+from .ni_daq import PXI6733,NIDAQ,NI6281,PCI6229,PCI6601
 from .microwave_generator import MicrowaveGenerator
