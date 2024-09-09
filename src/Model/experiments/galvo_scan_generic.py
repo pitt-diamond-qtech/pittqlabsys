@@ -15,7 +15,7 @@
 
 import numpy as np
 import time
-from src.Controller.ni_daq import PXI6733, NI6281, PCI6229
+from src.Controller.ni_daq import PXI6733, NI6281, PCI6229, PCI6601
 from src.View.plotting.plots_2d import plot_fluorescence, update_fluorescence
 from src.core import Experiment, Parameter
 
