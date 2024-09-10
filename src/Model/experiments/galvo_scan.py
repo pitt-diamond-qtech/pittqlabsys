@@ -165,10 +165,10 @@ class GalvoScan(GalvoScanGeneric):
 
         """
         # initialize APD thread
-        # ctr_task = self.dev_instance.setup_counter(self.settings['DAQ_channels']['counter_channel'],
-        #                                            len(self.x_array) + 1,use_external_clock=False)
         ctr_task = self.dev_instance2.setup_counter(self.settings['DAQ_channels']['counter_channel'],
-                                                   len(self.x_array) + 1)
+                                                    len(self.x_array) + 1,use_external_clock=True)
+        #ctr_task = self.dev_instance2.setup_counter(self.settings['DAQ_channels']['counter_channel'],
+        #                                           len(self.x_array) + 1)
         self.init_pt = np.transpose(np.column_stack((self.x_array[0], y_pos)))
         self.init_pt = (np.repeat(self.init_pt, 2, axis=1))
 
