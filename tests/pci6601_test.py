@@ -35,11 +35,11 @@ def test_pci6601_ctrout(get_pci6601):
     daq.stop(clk_task)
 
 def test_pci6601_ctr_read(capsys, get_pci6601):
-    """This test successfully reads finite samples from the specified counter channel using internal hardware timed clock
+    """This test successfully reads finite samples from the specified counter channel using external hardware timed clock
     passed 7/22/2024, Abby Bakkenist
     """
     daq = get_pci6601
-    ctr_task = daq.setup_counter('ctr1', 50)
+    ctr_task = daq.setup_counter('ctr1', 50, use_external_clock=True)
     samp_rate = daq.tasklist[ctr_task]['sample_rate']
     time.sleep(0.1)
     daq.run(ctr_task)
