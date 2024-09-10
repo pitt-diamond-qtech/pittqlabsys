@@ -111,7 +111,7 @@ def test_galvo_scan_NI6281(capsys,get_pxi6733,get_ni6281):
 
 
 def test_galvo_scan_PCI6229(capsys, get_pci6229, get_pci6601):
-    """Test generates a successful confocal image using the internal
+    """Test generates a successful confocal image using an internal
     hardware timed clock and external hardware timed clock
     Test passed for PCI6229 8/27/2204, Abby Bakkenist
     Test passed with PCI6601 9/9/2024, Abby Bakkenist
