@@ -1622,12 +1622,10 @@ class PCI6229(NIDAQ):
         input_channel_str = (self.settings['device'] + '/' + channel).encode('ascii')
 
         if use_external_clock:
-            # we use the internal output of the other counter
             counter_out_str = (self.settings['external_daq'] + "/ctr" + str(ext_clock_channel)).encode('ascii')
             task['counter_out_PFI_str'] = ("/" + self.settings['device'] + "/PFI" + str(ext_clock_pfi_channel)).encode(
                 'ascii')
         else:
-            # we use the internal output of the other counter
             counter_out_str = (
                                self.settings['device'] + '/ctr' + str(channel_settings['clock_counter_channel'])).encode(
                 'ascii')
@@ -1714,7 +1712,7 @@ class PCI6601(NIDAQ):
    
     ])
     
-    def setup_counter(self, channel, sample_num, continuous_acquisition = False):
+    def setup_counter(self, channel, sample_num, continuous_acquisition = False, use_external_clock=False):
         """
         We must reimplement the setup_counter function due to board limitations. Initializes a hardware-timed digital
         counter, bound to a hardware clock.
@@ -1726,15 +1724,13 @@ class PCI6601(NIDAQ):
             continuous_acquisition: run in continuous acquisition mode (ex for a continuous counter) or
                                     finite acquisition mode (ex for a scan, where the number of samples needed
                             is known a priori)
+            use_external_clock: decide if an external clock may be supplied
 
 
         Returns: source of clock that this method sets up, which can be given to another function to synch that
         input or output to the same clock
 
         """
-        # Note that for this counter, we have two tasks. The normal 'task_handle' corresponds to the clock, and this
-        # is the task which is started when run is called. The second 'task_handle_ctr' corresponds to the counter,
-        # and this waits for the clock and will be started simultaneously.
         task = {
             'task_handle': None,
             'task_handle_ctr': None,
@@ -1757,10 +1753,12 @@ class PCI6601(NIDAQ):
         self.running = True
         task['sample_num'] = sample_num
         task['sample_rate'] = float(channel_settings['sample_rate'])
+        
         if not continuous_acquisition:
             task['num_samples_per_channel'] = task['sample_num']
         else:
             task['num_samples_per_channel'] = -1
+            
         # set the timeout to be 5 times the amount of time required
         task['timeout'] = float(5 * (1/task['sample_rate']) * task['sample_num'])
         input_channel_str = ('/' + self.settings['device'] + '/' + channel).encode('ascii')
@@ -1771,17 +1769,29 @@ class PCI6601(NIDAQ):
                     '/' + self.settings['device'] + '/ctr' + str(channel_settings['clock_counter_channel'])).encode(
             'ascii')
 
-
         # with ni.Task() as clock_task, ni.Task() as counter_task:
         clock_task = ni.Task()
         counter_task = ni.Task()
         task['task_handle'] = clock_task
         task['task_handle_ctr'] = counter_task
+        
         clock_task.co_channels.add_co_pulse_chan_freq(counter_out_str, freq=float(task['sample_rate']), 
                                                       duty_cycle=0.5)
-        
+        if use_external_clock:
+            clock_task.timing.cfg_implicit_timing(samps_per_chan=int(task['sample_num']))
+            counter_task.timing.cfg_samp_clk_timing(float(task['sample_rate']), source=task['counter_out_PFI_str'],
+                                                samps_per_chan=task['sample_num'])
+        else:
+            internal_timebase = '100kHz' # can also set to 20 MHz
+            clock_task.timing.cfg_implicit_timing()
+            counter_task.timing.cfg_samp_clk_timing(float(task['sample_rate']), source=('/' + self.settings['device'] +'/' + internal_timebase),
+                                                    sample_mode=AcquisitionType.CONTINUOUS if continuous_acquisition else AcquisitionType.FINITE)
+                                                
         counter_task.ci_channels.add_ci_count_edges_chan(input_channel_str)
 
+        counter_task.start()
+        clock_task.start()
+        
         return task_name
 
 
