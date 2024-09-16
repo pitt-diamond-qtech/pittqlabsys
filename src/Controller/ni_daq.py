@@ -1449,7 +1449,7 @@ class PCI6229(NIDAQ):
         Parameter('device', "Dev1", ["Dev1"], "Name of DAQ device"),
         Parameter('override_buffer_size', -1, int, 'Buffer size for manual override (unused if -1)'),
         Parameter('ao_read_offset', 0.005, float, 'Empirically determined offset for reading ao voltages internally'),
-        Parameter('external_daq', "Dev2", ["Dev2], "Name of external daq device for clock"),
+        Parameter('external_daq', "Dev2", ["Dev2"], "Name of external daq device for clock"),
         Parameter('analog_input', 
                   [
                       Parameter('ai0', 
@@ -1551,7 +1551,7 @@ class PCI6229(NIDAQ):
                                 ]
                                 )
                       ]
-                      )
+                      ),
         Parameter('digital_output', 
                   [
                       Parameter('do0', 
