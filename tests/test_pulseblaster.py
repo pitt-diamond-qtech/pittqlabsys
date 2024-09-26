@@ -3,7 +3,8 @@ import time
 import sys
 import struct
 
-"""Run with command line arguments clock (MHz) and runtime (s)"""
+"""This script will initalize the PulseBlaster board and begin running the instructions loaded onto the command line.
+Command line arguments are clock (MHz) and runtime (s)"""
 
 input_params = sys.argv
 try:
@@ -23,7 +24,7 @@ else:
         libraryFileName = 'spinapi64.dll'
     else:
         libraryFileName = 'spinapi.dll'
-    pb = PulseBlaster(libraryFile = libraryFileName)
+    pb = PulseBlaster(library_file = libraryFileName)
     try:
         pb.close()
     except RuntimeError:
