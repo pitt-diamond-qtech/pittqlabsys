@@ -16,3 +16,4 @@
 from .example_device import ExampleDevice,Plant,PIController
 from .ni_daq import PXI6733,NIDAQ,NI6281,PCI6229,PCI6601
 from .microwave_generator import MicrowaveGenerator
+from .pulse_blaster import PulseBlaster
