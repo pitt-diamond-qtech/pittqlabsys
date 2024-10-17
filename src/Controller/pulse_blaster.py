@@ -13,7 +13,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
-from src.core import Device
+from src.core import Device, Parameter
 import numpy as np
 import ctypes
 
@@ -38,15 +38,25 @@ _CHANNELS = 21
 
 class PulseBlaster(Device):
     """This class creates a SpinCorePulseBlaster object. This class initalizes the board, sends
-    instructions to it, startS/stopS the sequence, closes the board, etc.
+    instructions to it, starts/stops the sequence, closes the board, etc.
     """
 
-    def __init__(self, library_file='spinapi64.dll', library_header='spinapi.h'):
+    _DEFAULT_SETTINGS = Parameter([
+        Parameter('clock_frequency', 400e6, float, 'clock frequency (Hz)', units="Hz"),
+        Parameter('min_pulse', 2.5e-6, float, 'shortest pulse (s)', units="s"),
+        Parameter('max_pulse', 1.123e7, float, 'longest pulse (s)', units="s"),
+        Parameter('min_interval', 1.5e-7, float, 'shortest interval (s)', units='s'),
+        Parameter('max_interval', 1.123e7, float, 'longest pulse (s)', units="s"),
+        Parameter('instructions', 4096, float, 'number of instructions')
+    ])
+
+    def __init__(self, name=None, settings=None, library_file='spinapi64.dll', library_header='spinapi.h'):
         self.libraryFile = library_file
         self.libraryHeader = library_header
 
         try:
             self._dll = ctypes.cdll.LoadLibrary(library_file)
+            super(PulseBlaster, self).__init__(name, settings)
         except OSError:
             raise
 
@@ -156,8 +166,18 @@ class PulseTrain(PulseBlaster):
     """This class creates PulseTrains, which belong to a PulseChannel. This class inherits basic
     functionality from PulseBlaster.
     """
-    def __init__(self, time_on=1e-6, width=1e-7, separation=0.0, pulses_in_train=1, pulse_train_index=0):
-        super().__init__()  # added call to parent __init__
+
+    _DEFAULT_SETTINGS = Parameter([
+        Parameter('clock_frequency', 400e6, float, 'clock frequency (Hz)', units="Hz"),
+        Parameter('min_pulse', 2.5e-6, float, 'shortest pulse (s)', units="s"),
+        Parameter('max_pulse', 1.123e7, float, 'longest pulse (s)', units="s"),
+        Parameter('min_interval', 1.5e-7, float, 'shortest interval (s)', units='s'),
+        Parameter('max_interval', 1.123e7, float, 'longest pulse (s)', units="s"),
+        Parameter('instructions', 4096, float, 'number of instructions')
+    ])
+
+    def __init__(self, name=None, settings=None, time_on=1e-6, width=1e-7, separation=0.0, pulses_in_train=1, pulse_train_index=0):
+        super(PulseBlaster, self).__init__(name, settings)  # added call to parent __init__
         self.time_on = time_on
         self.width = round(width, 10)
         self.separation = separation
@@ -173,11 +193,22 @@ class PulseTrain(PulseBlaster):
         self.first_pulse_train_event = np.amin(np.array(self.pulse_on_times))
 
 
-class PulseChannel(PulseBlaster, PulseTrain):
+class PulseChannel(PulseTrain):
     """This class creates Pulse Channel objects, which contains PulseTrains. This class inherits basic
     functionality from PulseTrain and PulseBlaster.
     """
-    def __init__(self, num_of_pulse_trains=0, delay_on=0.0, delay_off=0.0, pulse_channel_index=0):
+
+    _DEFAULT_SETTINGS = Parameter([
+        Parameter('clock_frequency', 400e6, float, 'clock frequency (Hz)', units="Hz"),
+        Parameter('min_pulse', 2.5e-6, float, 'shortest pulse (s)', units="s"),
+        Parameter('max_pulse', 1.123e7, float, 'longest pulse (s)', units="s"),
+        Parameter('min_interval', 1.5e-7, float, 'shortest interval (s)', units='s'),
+        Parameter('max_interval', 1.123e7, float, 'longest pulse (s)', units="s"),
+        Parameter('instructions', 4096, float, 'number of instructions')
+    ])
+
+    def __init__(self, name=None, settings=None, num_of_pulse_trains=0, delay_on=0.0, delay_off=0.0, pulse_channel_index=0):
+        super(PulseTrain, self).__init__(name, settings)  # added call to parent __init__
         self.num_pulses = 0
         self.delay_on = delay_on
         self.delay_off = delay_off
@@ -238,13 +269,24 @@ class PulseChannel(PulseBlaster, PulseTrain):
                 self.latest_channel_event = self.pulse_trains[i].latest_pulse_train_event
 
 
-class PulseSequence(PulseBlaster, PulseChannel):
+class PulseSequence(PulseChannel):
     """This class creates a Pulse Sequence, which contains PulseChannels. A PulseSequence object has the ability to
     add, remove, or edit thePulseTrains that belong to a PulseChannel. It can also convert the user-created
     PulseSequence (created via the PulseSequenceUI gui) into instructions for the PulseBlaster. This class inherits
     basic functionality from PulseTrain and PulseChannel.
     """
-    def __init__(self, num_of_channels=0):
+
+    _DEFAULT_SETTINGS = Parameter([
+        Parameter('clock_frequency', 400e6, float, 'clock frequency (Hz)', units="Hz"),
+        Parameter('min_pulse', 2.5e-6, float, 'shortest pulse (s)', units="s"),
+        Parameter('max_pulse', 1.123e7, float, 'longest pulse (s)', units="s"),
+        Parameter('min_interval', 1.5e-7, float, 'shortest interval (s)', units='s'),
+        Parameter('max_interval', 1.123e7, float, 'longest pulse (s)', units="s"),
+        Parameter('instructions', 4096, float, 'number of instructions')
+    ])
+
+    def __init__(self, name=None, settings=None, num_of_channels=0):
+        super(PulseChannel, self).__init__(name, settings)  # added call to parent __init__
         self.num_of_channels = num_of_channels
         self.num_of_wait_events = 0
         self.channels = []
