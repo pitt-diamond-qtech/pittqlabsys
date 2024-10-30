@@ -7,11 +7,7 @@ import struct
 """This script will initiailize the PB board and begin running whatever instructions have been loaded into the
 parameters. Parameters are PB clock speed (MHz) and run time (s)"""
 
-@pytest.mark.parametrize("clock", "run_time", [
-    (10.0, 5.0)
-])
-
-
+@pytest.mark.parametrize("clock", "run_time", [(10.0, 5.0)])
 def test_pulse_sequence(clock, run_time):
     if struct.calcsize("P") * 8 == 64:
         libraryFileName = 'spinapi64.dll'
@@ -38,24 +34,3 @@ def test_pulse_sequence(clock, run_time):
     if pb.close() == None:
         print('Board closed')
     print('Pulse sequence finished')
-
-
-
-
-
-"""This script will initalize the PulseBlaster board and begin running the instructions loaded onto the command line.
-Command line arguments are clock (MHz) and runtime (s)"""
-
-input_params = sys.argv
-try:
-    clock = float(input_params[1])
-    run_time = float(input_params[2])
-except IndexError:
-    print('input_params')
-    print('NOT ENOUGH INPUT PARAMETERS! SEQUENCE NOT STARTED.')
-except ValueError:
-    print('input_params')
-    print('ERROR PARSING INPUT PARAMETERS! INPUTS SHOULD BE NUMBER VALUES.')
-else:
-    print('clock: ', clock)
-    print('run_time: ', run_time)
