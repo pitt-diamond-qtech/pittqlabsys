@@ -66,7 +66,7 @@ class MicrowaveGenerator(Device):
                 raise
             except Exception as e:
                 raise (e)
-        elif self.settings['connection_type'] == 'GPIB' or self.settings['connection_type'] == 'RS232':
+        else: #elif self.settings['connection_type'] == 'GPIB' or self.settings['connection_type'] == 'RS232':
             try:
                 self._connect()
             except pyvisa.errors.VisaIOError:
@@ -85,7 +85,7 @@ class MicrowaveGenerator(Device):
             if self.settings['connection_type'] == 'GPIB':
                 self.srs = rm.open_resource(
                     'GPIB' + str(self.settings['GPIB_num']) + '::' + str(self.settings['port']) + '::INSTR')
-            elif self.settings['connection_type'] == 'RS232':
+            else: #elif self.settings['connection_type'] == 'RS232':
                 self.srs = rm.open_resource('COM' + str(self.settings['port']))
                 self.srs.baud_rate = 115200
             self.srs.query('*IDN?')
@@ -109,7 +109,7 @@ class MicrowaveGenerator(Device):
     def __del__(self):
         if self.settings['connection_type'] == 'LAN':
             pass    #LAN closes soket connection after each command is sent
-        elif self.settings['connection_type'] == 'GPIB' or self.settings['connection_type'] == 'RS232':
+        else: #elif self.settings['connection_type'] == 'GPIB' or self.settings['connection_type'] == 'RS232':
             self.srs.close()
 
     def update(self, settings):
@@ -147,7 +147,7 @@ class MicrowaveGenerator(Device):
                 if self._settings_initialized:
                     if self.settings['connection_type'] == 'LAN':
                         self._lan_command(key + ' ' + str(value))
-                    elif self.settings['connection_type'] == 'GPIB' or self.settings['connection_type'] == 'RS232':
+                    else: #elif self.settings['connection_type'] == 'GPIB' or self.settings['connection_type'] == 'RS232':
                         self.srs.write(key + ' ' + str(value))  # frequency change operation timed using timeit.timeit and
                         # completion confirmed by query('*OPC?'), found delay of <10ms
                     # ER 20180904
@@ -183,7 +183,7 @@ class MicrowaveGenerator(Device):
             key_internal = self._param_to_internal(key)
             if self.settings['connection_type'] == 'LAN':
                 value = int(self._lan_command(key_internal + '?'))
-            elif self.settings['connection_type'] == 'GPIB' or self.settings['connection_type'] == 'RS232':
+            else: #elif self.settings['connection_type'] == 'GPIB' or self.settings['connection_type'] == 'RS232':
                 value = int(self.srs.query(key_internal + '?'))
             if value == 1:
                 value = True
@@ -193,7 +193,7 @@ class MicrowaveGenerator(Device):
             key_internal = self._param_to_internal(key)
             if self.settings['connection_type'] == 'LAN':
                 value = int(self._lan_command(key_internal + '?'))
-            elif self.settings['connection_type'] == 'GPIB' or self.settings['connection_type'] == 'RS232':
+            else: #elif self.settings['connection_type'] == 'GPIB' or self.settings['connection_type'] == 'RS232':
                 value = int(self.srs.query(key_internal + '?'))
             if key == 'modulation_type':
                 value = self._internal_to_mod_type(value)
@@ -205,7 +205,7 @@ class MicrowaveGenerator(Device):
             key_internal = self._param_to_internal(key)
             if self.settings['connection_type'] == 'LAN':
                 value = float(self._lan_command(key_internal + '?'))
-            elif self.settings['connection_type'] == 'GPIB' or self.settings['connection_type'] == 'RS232':
+            else: #elif self.settings['connection_type'] == 'GPIB' or self.settings['connection_type'] == 'RS232':
                 value = float(self.srs.query(key_internal + '?'))
 
         return value
@@ -218,7 +218,7 @@ class MicrowaveGenerator(Device):
                 return True
             except socket.error:
                 return False
-        elif self.settings['connection_type'] == 'GPIB' or self.settings['connection_type'] == 'RS232':
+        else: #elif self.settings['connection_type'] == 'GPIB' or self.settings['connection_type'] == 'RS232':
             try:
                 self.srs.query('*IDN?')  # arbitrary call to check connection, throws exception on failure to get response
                 return True
@@ -228,7 +228,7 @@ class MicrowaveGenerator(Device):
     def close(self):  # dont need close for ethernet connection
         if self.settings['connection_type'] == 'LAN':
             pass
-        elif self.settings['connection_type'] == 'GPIB' or self.settings['connection_type'] == 'RS232':
+        else: #elif self.settings['connection_type'] == 'GPIB' or self.settings['connection_type'] == 'RS232':
             try:
                 self.srs.close()
                 return True
