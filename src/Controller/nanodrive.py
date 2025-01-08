@@ -1,9 +1,9 @@
 from src.core import Device,Parameter
-
 from ctypes import *
 import os
 
-class MCL_NanoDrive(Device):
+
+class MCLNanoDrive(Device):
     """
     This class implements the Mad City Labs NanoDrive. The class loads the madlib.dll library to communicate with the device.
     """
@@ -18,9 +18,10 @@ class MCL_NanoDrive(Device):
                                    Parameter('load_waveform',[0],list, 'waveform to be loaded to nanodrive'),
                                    Parameter('read_waveform',[0],list,'waveform read from nanodrive'),
                                    Parameter('mult_ax',[
-                                        Parameter('waveform',[[0],[0],[0]],list,'lists for multi axis waveform. Ex: [[x_wf],0,[z_wf]]. Input trigger("arbitrary key", mult_ax_stop=True) to stop'),
+                                        Parameter('waveform',[[0],[0],[0]],list,'lists for multi axis waveform. Ex: [[x_wf],0,[z_wf]].'),
                                         Parameter('time_step',1.0,[0.267,0.5,1.0,2.0],'time step between datapoints in ms'),
-                                        Parameter('iterations',1,int,'Number of iterations to run through multi axis waveform. 0 = infinite')
+                                        Parameter('iterations',1,int,'Number of iterations to run through multi axis waveform. 0 = infinite; input trigger("arbitrary key", '
+                                                                     'mult_ax_stop=True) to stop')
                                              ]),
                                    #4 clocks on the back of Nanodrive. Note binding is not setup to work with GUI as clocks can be bound to multiple events
                                    Parameter('Pixel',[
@@ -50,12 +51,12 @@ class MCL_NanoDrive(Device):
                                    ])
 
     def __init__(self, name=None, settings=None):
-        try:            #Loads DLL file. Should be in same folder as nanodrive.py
-            self.DLL = windll.LoadLibrary(os.path.join(os.path.dirname(__file__),'madlib.dll'))
+        try:            #Loads DLL file. Should be in 'binary_files' folder in 'Controller' folder that houses nanodrive.py
+            self.DLL = windll.LoadLibrary(os.path.join(os.path.dirname(__file__),'binary_files','madlib.dll'))
         except (OSError, WindowsError) as error:
             print('Unable to load Mad City Labs DLL')
             raise
-        super(MCL_NanoDrive, self).__init__(name, settings)
+        super(MCLNanoDrive, self).__init__(name, settings)
 
         self.empty_waveform = [0]       #arbitray empty waveform to be used in 'read_waveform':MCL_NanoDrive.empty_waveform. Proper size is created in appropriate method
         self.set_read_waveform = False  #setup status to false so that a trigger doesnt occur without a setup
@@ -99,11 +100,12 @@ class MCL_NanoDrive(Device):
             update({'axis':'x', 'num_datapoints':len(waveform), 'load_waveform':waveform}) for running a waveform
             update({'Pixel':{'mode':'low','pulse':True}}) for setting pixel clock to low and triggering a pulse
         '''
-
-        super(MCL_NanoDrive, self).update(settings) #updates settings as per entered with method
+        #print('triggering nd update with: ',settings)
+        super(MCLNanoDrive, self).update(settings) #updates settings as per entered with method
 
         if self._settings_initialized:
             for key, value in settings.items():     #goes through inputed settings to see what commands to send ot update parameters
+                #print('nd updating: ',key,'to: ',value)
                 if key == 'serial':
                     self._initilize_handle()    #changes handle under control
 
@@ -129,8 +131,8 @@ class MCL_NanoDrive(Device):
                             mode = self._mode_to_internal(param_value)
                             error = self._check_error(self.DLL.MCL_IssSetClock(clock_num, mode, self.handle))
                         if param == 'polarity': #low-to-high pulses (__|‾|__) or high-to-low pulses (‾‾|_|‾‾)
-                            '''Binding removed from update method: Hard to track and crashed GUI frequently
-                            if param_value == 'unbind':
+                            #Binding removed from update method: Hard to track and crashed GUI frequently
+                            '''if param_value == 'unbind':
                                 #unbind by setting polarity to unbind so that code 'remembers' bound to axis
                                 unbind = self._bind_axis_to_internal(self.settings[key]['binding'])
                                 error = self._check_error(self.DLL.MCL_IssBindClockToAxis(clock_num, unbind, c_int(4), self.handle))
@@ -156,7 +158,7 @@ class MCL_NanoDrive(Device):
                 -waveforms can be made using numpy arrays but inputs should be lists ie. wf = list(np.arrange(x,x,x))
             axis: specific axis to move (can also specify in settings dictionary). If not specified sets up last interacted with axis
         '''
-        super(MCL_NanoDrive, self).update(settings)
+        super(MCLNanoDrive, self).update(settings)
         if axis != None:
             self.settings['axis'] = axis
         axis = self._axis_to_internal(self.settings['axis'])
@@ -247,12 +249,12 @@ class MCL_NanoDrive(Device):
             self.settings['axis'] = axis
         if num_datapoints != None:
             self.settings['num_datapoints'] = num_datapoints
-        else:
-            axis = self._axis_to_internal(self.settings['axis'])
-            ArrayType = c_double * self.settings['num_datapoints']
-            empty_wf = ArrayType()  # creates empty array for read data
-            error = self._check_error(self.DLL.MCL_TriggerWaveformAcquisition(axis, c_uint(self.settings['num_datapoints']),byref(empty_wf), self.handle))
-            return list(empty_wf)
+
+        axis = self._axis_to_internal(self.settings['axis'])
+        ArrayType = c_double * self.settings['num_datapoints']
+        empty_wf = ArrayType()  # creates empty array for read data
+        error = self._check_error(self.DLL.MCL_TriggerWaveformAcquisition(axis, c_uint(self.settings['num_datapoints']),byref(empty_wf), self.handle))
+        return list(empty_wf)
 
     def clock_functions(self, clock, mode=None, polarity=None, binding=None, reset=False, pulse=False):
         '''
@@ -270,8 +272,9 @@ class MCL_NanoDrive(Device):
         '''
         if reset:
             error = self._check_error(self.DLL.MCL_IssResetDefaults(self.handle))
-            reset_settings = {'Pixel':{'mode':0,'polarity':0,'binding':'read'}, 'Line':{'mode': 0,'polarity': 0,'binding':'load'}, 'Frame':{'mode':0,'polarity': 0,'binding':'none'}, 'Aux':{'mode':0,'polarity':0,'binding':'none'}}
-            super(MCL_NanoDrive, self).update(reset_settings)
+            reset_settings = {'Pixel':{'mode':'low','polarity':'low-to-high','binding':'read'}, 'Line':{'mode':'low','polarity':'low-to-high','binding':'load'},
+                              'Frame':{'mode':'low','polarity':'low-to-high','binding':'none'}, 'Aux':{'mode':'low','polarity':'low-to-high','binding':'none'}}
+            super(MCLNanoDrive, self).update(reset_settings)
             return None
         clock_name = self._clocks_to_internal(clock, cap=True)  #needed for pulse command and to update settings
         clock = self._clocks_to_internal(clock_name)
@@ -320,11 +323,11 @@ class MCL_NanoDrive(Device):
             error = self._check_error(self.DLL.MCL_ReadWaveFormN(axis,c_uint(self.settings['num_datapoints']),read_rate,byref(empty_wf),self.handle))
             value = list(empty_wf)
             #Note to read must be triggered within ~3ms otherwise returns list with every value equal to the current position.
-            #Should be good if load and read lines are consecutive. Or use wavefrom_acquisition for simultaneous load and read.
+            #Should be good if load and read lines are consecutive. Recommended to use wavefrom_acquisition for simultaneous load and read.
 
         elif key == 'mult_ax_waveform':     #reading waits for mult_ax waveform to stop triggering or stops an infinite loop
             '''
-            !Issue reading multi axes waveform as read array value are all zero! - Seems to be falut of Nanodrive not of code
+            !Issue reading multi axes waveform as read array value are all zero! - Seems to be fault of Nanodrive not of code
             '''
             empty_waveform = self._multiaxis_waveform([0], empty=True)
             self._check_error(self.DLL.MCL_WfmaRead(byref(empty_waveform[0]),byref(empty_waveform[1]),byref(empty_waveform[2]),self.handle))
@@ -441,7 +444,7 @@ class MCL_NanoDrive(Device):
             if input_list[0] != [0]:
                 x_waveform = ArrayType(*input_list[0])
             if input_list[1] != [0]:
-                y_waveform = ArrayType(*list[1])
+                y_waveform = ArrayType(*input_list[1])
             if input_list[0] != [0]:
                 z_waveform = ArrayType(*input_list[2])
             return [x_waveform, y_waveform, z_waveform]
@@ -509,6 +512,6 @@ class MCL_NanoDrive(Device):
             raise KeyError
 
 if __name__ == '__main__':
-    nd = MCL_NanoDrive()
+    nd = MCLNanoDrive()
     print(nd.is_connected)
     nd.close()
