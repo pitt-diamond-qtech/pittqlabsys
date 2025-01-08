@@ -3,7 +3,8 @@ import ADwin
 from ADwin import ADwinError
 #from ctypes import *
 
-class ADwin_Gold(Device):
+
+class ADwinGold(Device):
     '''
     This class implements the ADwin Gold II by booting it with the T11 processor. It does not yet implement TiCO processes.
     Processes should be written in an ADbasic script and then loaded using this controller (note the inital processes delay set in each script).
@@ -13,68 +14,58 @@ class ADwin_Gold(Device):
     _DEFAULT_SETTINGS = Parameter([
         Parameter('process_1',[
             Parameter('load','',str,'Filename to load (should end with .__1 for process 1). Input empty string to clear process'),
-            Parameter('delay',3000.0,float,'Time interval between 2 events (delay = value x 3.3ns)'), #Initial delay set in ADbasic file
-            Parameter('start',False,bool,'Trigger to start process'),
-            Parameter('stop',False,bool,'Trigger to stop process')
+            Parameter('delay',3000,int,'Time interval between executions of the event section (time = delay x 3.3ns)'),
+            Parameter('running',False,bool,'Start and stop process')
             ]),
         Parameter('process_2', [
             Parameter('load', '', str, 'Filename to load (should end with .__2 for process 2). Input empty string to clear process'),
-            Parameter('delay', 3000.0, float,'Time interval between 2 events (delay = value x 3.3ns)'),
-            Parameter('start', False, bool, 'Trigger to start process'),
-            Parameter('stop', False, bool, 'Trigger to stop process')
+            Parameter('delay',3000,int,'Time interval between executions of the event section (time = delay x 3.3ns)'),
+            Parameter('running',False,bool,'Start and stop process')
             ]),
         Parameter('process_3', [
             Parameter('load', '', str, 'Filename to load (should end with .__3  for process 3). Input empty string to clear process'),
-            Parameter('delay', 3000.0, float,'Time interval between 2 events (delay = value x 3.3ns)'),
-            Parameter('start', False, bool, 'Trigger to start process'),
-            Parameter('stop', False, bool, 'Trigger to stop process')
+            Parameter('delay',3000,int,'Time interval between executions of the event section (time = delay x 3.3ns)'),
+            Parameter('running',False,bool,'Start and stop process')
         ]),
         Parameter('process_4', [
             Parameter('load', '', str, 'Filename to load (should end with .__4 for process 4). Input empty string to clear process'),
-            Parameter('delay', 3000.0, float,'Time interval between 2 events (delay = value x 3.3ns)'),
-            Parameter('start', False, bool, 'Trigger to start process'),
-            Parameter('stop', False, bool, 'Trigger to stop process')
+            Parameter('delay',3000,int,'Time interval between executions of the event section (time = delay x 3.3ns)'),
+            Parameter('running',False,bool,'Start and stop process')
         ]),
         Parameter('process_5', [
             Parameter('load', '', str, 'Filename to load (should end with .__5 for process 5). Input empty string to clear process'),
-            Parameter('delay', 3000.0, float,'Time interval between 2 events (delay = value x 3.3ns)'),
-            Parameter('start', False, bool, 'Trigger to start process'),
-            Parameter('stop', False, bool, 'Trigger to stop process')
+            Parameter('delay',3000,int,'Time interval between executions of the event section (time = delay x 3.3ns)'),
+            Parameter('running',False,bool,'Start and stop process')
         ]),
         Parameter('process_6', [
             Parameter('load', '', str, 'Filename to load (should end with .__6 for process 6). Input empty string to clear process'),
-            Parameter('delay', 3000.0, float,'Time interval between 2 events (delay = value x 3.3ns)'),
-            Parameter('start', False, bool, 'Trigger to start process'),
-            Parameter('stop', False, bool, 'Trigger to stop process')
+            Parameter('delay',3000,int,'Time interval between executions of the event section (time = delay x 3.3ns)'),
+            Parameter('running',False,bool,'Start and stop process')
         ]),
         Parameter('process_7', [
             Parameter('load', '', str, 'Filename to load (should end with .__7 for process 7). Input empty string to clear process'),
-            Parameter('delay', 3000.0, float,'Time interval between 2 events (delay = value x 3.3ns)'),
-            Parameter('start', False, bool, 'Trigger to start process'),
-            Parameter('stop', False, bool, 'Trigger to stop process')
+            Parameter('delay',3000,int,'Time interval between executions of the event section (time = delay x 3.3ns)'),
+            Parameter('running',False,bool,'Start and stop process')
         ]),
         Parameter('process_8', [
             Parameter('load', '', str, 'Filename to load (should end with .__8 for process 8). Input empty string to clear process'),
-            Parameter('delay', 3000.0, float,'Time interval between 2 events (delay = value x 3.3ns)'),
-            Parameter('start', False, bool, 'Trigger to start process'),
-            Parameter('stop', False, bool, 'Trigger to stop process')
+            Parameter('delay',3000,int,'Time interval between executions of the event section (time = delay x 3.3ns)'),
+            Parameter('running',False,bool,'Start and stop process')
         ]),
         Parameter('process_9', [
             Parameter('load', '', str, 'Filename to load (should end with .__9 for process 9). Input empty string to clear process'),
-            Parameter('delay', 3000.0, float,'Time interval between 2 events (delay = value x 3.3ns)'),
-            Parameter('start', False, bool, 'Trigger to start process'),
-            Parameter('stop', False, bool, 'Trigger to stop process')
+            Parameter('delay',3000,int,'Time interval between executions of the event section (time = delay x 3.3ns)'),
+            Parameter('running',False,bool,'Start and stop process')
         ]),
         Parameter('process_10', [
             Parameter('load', '', str, 'Filename to load (should end with .__10 for process 10). Input empty string to clear process'),
-            Parameter('delay', 3000.0, float,'Time interval between 2 events (delay = value x 3.3ns)'),
-            Parameter('start', False, bool, 'Trigger to start process'),
-            Parameter('stop', False, bool, 'Trigger to stop process')
+            Parameter('delay',3000,int,'Time interval between executions of the event section (time = delay x 3.3ns)'),
+            Parameter('running',False,bool,'Start and stop process')
         ]),
     ])
 
     def __init__(self, name=None, settings=None, boot=True, num_devices=1):
-        super(ADwin_Gold, self).__init__(name, settings)
+        super(ADwinGold, self).__init__(name, settings)
 
         self.adw = ADwin.ADwin(DeviceNo=num_devices, raiseExceptions=1)
         #boots the ADwin which resets processes and global variables. Input boot = False if ADwin is already initilized
@@ -93,7 +84,7 @@ class ADwin_Gold(Device):
         Args:
             settings: a dictionary in the standard settings format
         """
-        super(ADwin_Gold, self).update(settings)
+        super(ADwinGold, self).update(settings)
 
         if self._settings_initialized:
             for key, value in settings.items():
@@ -107,12 +98,12 @@ class ADwin_Gold(Device):
                             #may want to add some way to make sure a process isnt loaded over another as it can cause memory fragmenting
                     elif param == 'delay':
                         self.adw.Set_Processdelay(process_number, param_value)
-                    elif param == 'start' and param_value == True:      #only triggers if true. For GUI need to check and uncheck box
-                        self.start_process(process_number)
-                        self.settings[key]['start'] = False
-                    elif param == 'stop' and param_value == True:
-                        self.stop_process(process_number)
-                        self.settings[key]['stop'] = False
+                    elif param == 'running':
+                        if param_value == True:
+                            self.start_process(process_number)
+                        elif param_value == False:
+                            self.stop_process(process_number)
+
 
     def load_process(self, filepath):
         '''
@@ -143,6 +134,7 @@ class ADwin_Gold(Device):
     def start_process(self, number):
         '''
         Starts a loaded process
+        Note: Starting a process executes init section of process
         Args:
             number: number corresponding to process defined in file path ex. test_process.TB3 is process 3
         '''
@@ -151,6 +143,7 @@ class ADwin_Gold(Device):
     def stop_process(self, number):
         '''
         Stops a running process. Can use read_probes('process_status', {process number}) to see if process is running, stoping, or not running
+        Note: stoping a process executes finish section of process
         Args:
             number: number corresponding to process defined in file path ex. test_process.TB4 is process 4
         '''
@@ -158,10 +151,35 @@ class ADwin_Gold(Device):
 
     def close(self):
         '''
-        Stops all processes. If some are not running commands do nothing.
+        Stops and clears all processes. If some are not running/not loaded commands do nothing.
         '''
         for i in range(1,11):
             self.stop_process(i)
+            self.clear_process(i)
+
+    def set_int_var(self, Par_id, value):
+        '''
+        Changes value of specified global parameter Par_#
+        Args:
+            Par_id: index of global integer variable (range Par_1 to Par_80)
+            value: integer value to write to parameter (32-bit integer)
+        '''
+        value = int(value)
+        if (Par_id < 1) or (Par_id > 80):
+            raise KeyError
+        self.adw.Set_Par(Par_id, value)
+
+    def set_float_var(self, FPar_id, value):
+        '''
+        Changes value of specified global parameter FPar_#
+        Args:
+            FPar_id: index of global float variable (range FPar_1 to FPar_80)
+            value: float value to write to parameter
+        '''
+        value = float(value)
+        if (FPar_id < 1) or (FPar_id > 80):
+            raise KeyError
+        self.adw.Set_FPar(FPar_id, value)
 
     def __del__(self):  #should stop all processes when ADwin is closed or a crash occures
         self.close()
@@ -226,6 +244,8 @@ class ADwin_Gold(Device):
             value = self._internal_to_status(rawvalue)
         elif key == 'last_error':
             value = self.adw.Get_Error_Text(self.adw.Get_Last_Error())
+        elif key == 'workload':
+            value = self.adw.Workload()
 
         return value
 
@@ -251,7 +271,8 @@ class ADwin_Gold(Device):
             'str_length':'length of string array',
             'process_delay':'checks delay between events of a process',
             'process_status':'checks status of a process',
-            'last_error':'checks last error encountered'
+            'last_error':'checks last error encountered',
+            'workload':'returns workload of adwin as a percent of max'
 
         }
 
