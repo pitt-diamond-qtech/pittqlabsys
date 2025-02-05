@@ -1,12 +1,14 @@
-from src.Controller.nanodrive import MCL_NanoDrive
+from src.Controller.nanodrive import MCLNanoDrive
 import pytest
 import numpy as np
 import matplotlib.pyplot as plt
 from time import sleep
 
+#@pytest.mark.skip(reason='not currently testing')
+
 @pytest.fixture
-def get_nanodrive() -> MCL_NanoDrive:
-    return MCL_NanoDrive()
+def get_nanodrive() -> MCLNanoDrive:
+    return MCLNanoDrive()
 
 def test_connection(get_nanodrive):
     assert get_nanodrive.is_connected
@@ -19,11 +21,12 @@ def test_position(get_nanodrive):
     '''
     nd = get_nanodrive
     ax_range = nd.read_probes('axis_range')
-    nd.update(settings={'position':5})
+    nd.update(settings={'x_pos':5})
     sleep(0.1)
-    pos = nd.read_probes('position',axis='x')
+    pos = nd.read_probes('x_pos')
     assert isinstance(ax_range, float)
-    assert 4.99 <= pos <= 5.01 #check to make sure atleast within 10 nm. Usally closer than 10nm to inputed position but not at exactly 5
+    assert 4.99 <= pos <= 5.01 #check to make sure atleast within 10 nm. Usally closer than 10nm to inputed position but not exact
+
 
 @pytest.mark.parametrize('clock',['Pixel','Line','Frame','Aux'])
 @pytest.mark.parametrize('mode',[0,1])
@@ -102,17 +105,17 @@ def test_single_ax_waveform(capsys,get_nanodrive):
     '''
     wf = list(np.arange(0,10.1,0.1)) #wavefrom must be a list for internal conversion/checks
     nd = get_nanodrive
-    nd.update(settings={'position':0}, axis='x')
-    nd.update(settings={'position': 0}, axis='y')
+    nd.update(settings={'x_pos': 0, 'y_pos': 0})
+
     sleep(0.5)
-    nd.update(settings={'num_datapoints':len(wf),'load_waveform':wf},axis='x')
+    nd.update(settings={'axis':'x','num_datapoints':len(wf),'load_waveform':wf})
     sleep(1/1000)
     #no sleep here makes read_probes have same reading as waveform_acquistion
     #sleep of a very small time gives a slightly more accurate reading of shifted up from inputed by ~0.1
     x_read = nd.read_probes('read_waveform',axis='x')
     sleep(1)    #sleep may not be neccesary but I dont want/need to trigger both axes at once
 
-    nd.setup(settings={'num_datapoints':len(wf),'load_waveform':wf,'read_waveform':nd.empty_waveform},axis='y')
+    nd.setup(settings={'axis':'y','num_datapoints':len(wf),'load_waveform':wf,'read_waveform':nd.empty_waveform})
     y_read = nd.waveform_acquisition(axis='y')
     #sleeps added so NanoDrive finishs processing one command before another is sent
 
@@ -141,9 +144,7 @@ def test_mult_ax_waveform(capsys,get_nanodrive):
     '''
     mult_wf = [list(np.arange(0,10.1,0.1)),list(np.arange(0,10.1,0.1)),[0]]
     nd = get_nanodrive
-    nd.update(settings={'position': 0}, axis='x')
-    nd.update(settings={'position': 0}, axis='y')
-    nd.update(settings={'position': 0}, axis='z')
+    nd.update(settings={'x_pos': 0, 'y_pos': 0, 'z_pos': 0})
 
     nd.setup(settings={'num_datapoints':len(mult_wf[0]),'mult_ax':{'waveform':mult_wf,'time_step':1,'iterations':1}})
     nd.trigger('mult_ax')
@@ -184,9 +185,8 @@ def test_continuos_mult_ax_waveform(get_nanodrive):
     '''
     mult_wf = [list(np.arange(0, 10.1, 0.1)), list(np.arange(0, 10.1, 0.1)), [0]]
     nd = get_nanodrive
-    nd.update(settings={'position': 0}, axis='x')
-    nd.update(settings={'position': 0}, axis='y')
-    nd.update(settings={'position': 0}, axis='z')
+    nd.update(settings={'x_pos': 0, 'y_pos': 0, 'z_pos': 0})
+
     #iterations = 0 is for infinite loop
     nd.setup(settings={'num_datapoints':len(mult_wf[0]),'mult_ax': {'waveform': mult_wf, 'time_step': 1, 'iterations': 0}})
     nd.trigger('mult_ax')
