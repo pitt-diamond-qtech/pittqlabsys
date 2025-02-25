@@ -20,7 +20,7 @@ from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as Navigatio
 from src.core import Parameter, Device, Experiment, Probe
 from src.core.experiment_iterator import ExperimentIterator
 from src.core.read_probes import ReadProbes
-from src.View.windows_and_widgets import AQuISSQTreeItem, MatplotlibWidget, LoadDialog, LoadDialogProbes, ExportDialog
+from src.View.windows_and_widgets import AQuISSQTreeItem, MatplotlibWidget, LoadDialog, LoadDialogProbes, ExportDialog, PyQtgraphWidget
 from src.Model.experiments.select_points import SelectPoints
 from src.core.read_write_functions import load_aqs_file
 from src.core.helper_functions import get_project_root
@@ -451,6 +451,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.history.append(msg)
         self.history_model.insertRow(0, QtGui.QStandardItem(msg))
 
+    '''
     def create_figures(self):
         """
         creates the maplotlib figures]
@@ -499,6 +500,50 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         self.matplotlibwidget_1.figure.set_tight_layout(True)
         self.matplotlibwidget_2.figure.set_tight_layout(True)
+    '''
+
+    def create_figures(self):
+
+        try:
+            self.horizontalLayout_14.removeWidget(self.pyqtgraphwidget_1)
+            self.pyqtgraphwidget_1.close()
+        except AttributeError:
+            pass
+        try:
+            self.horizontalLayout_15.removeWidget(self.pyqtgraphwidget_2)
+            self.pyqtgraphwidget_2.close()
+        except AttributeError:
+            pass
+
+        self.pyqtgraphwidget_2 = PyQtgraphWidget(self.plot_2)
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(self.pyqtgraphwidget_2.sizePolicy().hasHeightForWidth())
+        self.pyqtgraphwidget_2.setSizePolicy(sizePolicy)
+        self.pyqtgraphwidget_2.setMinimumSize(QtCore.QSize(200, 200))
+        self.pyqtgraphwidget_2.setObjectName("pyqtgraphwidget_2")
+        self.horizontalLayout_16.addWidget(self.pyqtgraphwidget_2)
+        self.pyqtgraphwidget_1 = PyQtgraphWidget(parent=self.plot_1)
+        self.pyqtgraphwidget_1.setMinimumSize(QtCore.QSize(200, 200))
+        self.pyqtgraphwidget_1.setObjectName("pyqtgraphwidget_1")
+        self.horizontalLayout_15.addWidget(self.pyqtgraphwidget_1)
+
+        '''
+        self.matplotlibwidget_1.mpl_connect('button_press_event', self.plot_clicked)
+        self.matplotlibwidget_2.mpl_connect('button_press_event', self.plot_clicked)
+
+        # adds a toolbar to the plots
+        self.mpl_toolbar_1 = NavigationToolbar(self.matplotlibwidget_1.canvas, self.toolbar_space_1)
+        self.mpl_toolbar_2 = NavigationToolbar(self.matplotlibwidget_2.canvas, self.toolbar_space_2)
+        self.horizontalLayout_9.addWidget(self.mpl_toolbar_2)
+        self.horizontalLayout_14.addWidget(self.mpl_toolbar_1)
+
+        self.matplotlibwidget_1.figure.set_tight_layout(True)
+        self.matplotlibwidget_2.figure.set_tight_layout(True)
+        '''
+
+
 
     def load_experiments(self):
             """
@@ -634,7 +679,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 experiment, path_to_experiment, experiment_item = item.get_experiment()
                 self.update_experiment_from_item(experiment_item)
                 experiment.is_valid()
-                experiment.plot_validate([self.matplotlibwidget_1.figure, self.matplotlibwidget_2.figure])
+                experiment.plot_validate([self.pyqtgraphwidget_1.graph, self.pyqtgraphwidget_2.graph])
                 self.matplotlibwidget_1.draw()
                 self.matplotlibwidget_2.draw()
 
@@ -956,9 +1001,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             experiment: experiment to be plotted
         """
 
-        experiment.plot([self.matplotlibwidget_1.figure, self.matplotlibwidget_2.figure])
-        self.matplotlibwidget_1.draw()
-        self.matplotlibwidget_2.draw()
+        experiment.plot([self.pyqtgraphwidget_1.graph, self.pyqtgraphwidget_2.graph])
+        #self.matplotlibwidget_1.draw()
+        #self.matplotlibwidget_2.draw()
 
 
     @pyqtSlot(int)
@@ -1018,9 +1063,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         """
 
-        experiment.plot_validate([self.matplotlibwidget_1.figure, self.matplotlibwidget_2.figure])
-        self.matplotlibwidget_1.draw()
-        self.matplotlibwidget_2.draw()
+        experiment.plot_validate([self.pyqtgraphwidget_1.graph, self.pyqtgraphwidget_2.graph])
+        #self.matplotlibwidget_1.draw()
+        #self.matplotlibwidget_2.draw()
 
     def update_probes(self, progress):
         """
