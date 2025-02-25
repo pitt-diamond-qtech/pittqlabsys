@@ -11,6 +11,7 @@ from src.Controller import MCLNanoDrive, ADwinGold
 from src.core import Parameter, Experiment
 import os
 from time import sleep
+import pyqtgraph as pg
 
 
 class ConfocalScan_OldMethod(Experiment):
@@ -41,7 +42,7 @@ class ConfocalScan_OldMethod(Experiment):
     ]
 
     #For actual experiment use LP100 [MCL_NanoDrive({'serial':2849})]. For testing using HS3 ['serial':2850]
-    _DEVICES = {'nanodrive': MCLNanoDrive(settings={'serial':2850}), 'adwin':ADwinGold()}
+    _DEVICES = {'nanodrive': MCLNanoDrive(settings={'serial':2849}), 'adwin':ADwinGold()}
     _EXPERIMENTS = {}
 
     def __init__(self, devices, experiments=None, name=None, settings=None, log_function=None, data_path=None):
@@ -126,6 +127,8 @@ class ConfocalScan_OldMethod(Experiment):
         x = x_min
 
         while x <= x_max:
+            if self._abort == True:
+                break
             self.nd.update({'x_pos':x,'y_pos':y_min})     #goes to x position
             sleep(0.01)
             x_pos = self.nd.read_probes('x_pos')
@@ -174,15 +177,14 @@ class ConfocalScan_OldMethod(Experiment):
         #convert list to square matrix of count/sec data
         Nx = int(np.sqrt(len(self.data['count_rate'])))
         count_img = np.array(self.data['count_rate'][0:Nx**2])      #converts to numpy array
-        count_img = count_img.reshape((Nx, Nx)).T               #reshapes array to square matrix. Transpose to have x as horizontail
+        count_img = count_img.reshape((Nx, Nx))               #reshapes array to square matrix. Transpose to have x as horizontail (old did this but i dont think we want)
 
-        # line to call update function in experiment parent class and triggers _plot in this class
         self.data.update({'count_img':count_img})
         #print('All data: ',self.data)
 
 
 
-    def _plot(self, axes_list, data=None):
+    def _plot(self, plots_list, data=None):
         '''
         This function plots the data. It is triggered when the updateProgress signal is emited and when after the _function is executed.
         For the scan, image can only be plotted once all data is gathered so self.running prevents a plotting call for the updateProgress signal.
@@ -194,24 +196,30 @@ class ConfocalScan_OldMethod(Experiment):
                 data = self.data
 
             if data is not None and data is not{}:
-                #use axes_list[0] which is bottom graphing section
-                fig_counts = axes_list[0].get_figure()
                 extent = [self.settings['point_a']['x'],self.settings['point_b']['x'],self.settings['point_a']['y'],self.settings['point_b']['y']]
-                implot = axes_list[0].imshow(data['count_img'],cmap='cividis', interpolation='nearest', extent=extent)
-                fig_counts.colorbar(implot, label='kcounts/sec')
+                levels = [np.min(data['count_img']),np.max(data['count_img'])]
 
-                axes_list[0].set_xlabel('x (µm)')
-                axes_list[0].set_ylabel('y (µm)')
-                #could use top graphing section for position data
-                #fig_pos = axes_list[1].get_figure()
+                image = pg.ImageItem(data['count_img'], interpolation='nearest', extent=extent)
+                image.setLevels(levels)
+                image.setRect(pg.QtCore.QRectF(extent[0],extent[2],extent[1]-extent[0],extent[3]-extent[2]))
+                plots_list[0].addItem(image)
+
+                plots_list[0].addColorBar(image, values=(levels[0],levels[1]), label='kcounts/sec', colorMap='viridis')
+                plots_list[0].setAspectLocked(True)
+                plots_list[0].setLabel('left', 'y (µm)')
+                plots_list[0].setLabel('bottom', 'x (µm)')
 
 
+    def _update(self,plots_list):
+        all_plot_items = plots_list[0].getViewBox().allChildren()
+        image = None
+        for item in all_plot_items:
+            if isinstance(item, pg.ImageItem):
+                image = item
+                break
 
-    def _update(self,axes_list):
-        implot = axes_list[0].get_images()[0]
-        implot.set_data(self.data['count_img'])
-
-        colorbar = implot.colorbar
+        image.setImage(self.data['count_img'])
+        image.setLevels([np.min(self.data['count_img']),np.max(self.data['count_img'])])
 
 
 
@@ -236,12 +244,12 @@ class ConfocalPoint(Experiment):
                   [Parameter('refresh_rate',0.01,float,'For continuous counting this is the refresh rate of the graph in seconds (= 1/frames per second)'),
                    Parameter('length_data',2500,int,'After so many data points matplotlib freezes GUI. Data dic will be cleared after this many entries'),
                    #BOTH graph_params above effect the stability of GUI. The values here should be optimized and then left unchanged
-                   Parameter('font_size',18,int,'font size to make it easier to see on the fly if needed')
+                   Parameter('font_size',32,int,'font size to make it easier to see on the fly if needed')
                    ])
     ]
 
     #For actual experiment use LP100 [MCL_NanoDrive({'serial':2849})]. For testing using HS3 ['serial':2850]
-    _DEVICES = {'nanodrive': MCLNanoDrive(settings={'serial':2850}), 'adwin':ADwinGold()}
+    _DEVICES = {'nanodrive': MCLNanoDrive(settings={'serial':2849}), 'adwin':ADwinGold()}
     _EXPERIMENTS = {}
 
     def __init__(self, devices, experiments=None, name=None, settings=None, log_function=None, data_path=None):
@@ -312,7 +320,7 @@ class ConfocalPoint(Experiment):
                     self.data['counts'].clear()
 
 
-    def _plot(self, axes_list, data=None):
+    def _plot(self, plots_list, data=None):
         '''
         This function plots the data. It is triggered when the updateProgress signal is emited and when after the _function is executed.
         '''
@@ -320,30 +328,147 @@ class ConfocalPoint(Experiment):
             data = self.data
 
         if data is not None and data is not {}:
-            #clear axes_list after each plot to get rid of previous data and legend
-            axes_list[1].clear()
-            axes_list[1].plot(data['counts'], label=f'{data["counts"][-1]/1000:.3f} kcounts/sec', color='blue')
-            axes_list[1].set_ylabel('count rate')
-            axes_list[1].grid(True)
-            #legend displays current counts in top left
-            axes_list[1].legend(loc='upper left',fontsize=self.settings['graph_params']['font_size'])
+            plots_list[0].clear()
+            plots_list[0].plot(data['counts'])
+            plots_list[0].showGrid(x=True,y=True)
+            plots_list[0].setLabel('left','Count Rate')  #units='counts/sec'
+            plots_list[0].setXRange(0,self.settings['graph_params']['length_data']+100)
 
-            #annotate can display current counts anywhere on screen; could be used instead of legend
-            #latest_value = data['counts'][-1]
-            #axes_list[1].annotate(f'{latest_value/1000:.3f} kcounts/sec',xy=(len(data['counts']) - 1, latest_value),xytext=(len(data['counts']) - 5, latest_value + 100),
-            # fontsize=10)
+            plots_list[1].setText(f'{data["counts"][-1]/1000:.3f} kcounts/sec')
+
+
 
             '''
-            Might be useful to include a max count number display. This could be done with the legend/annotate while current count is displayed using the other option
-            change latest_value to max_value but need to define max_value from entire run of experiment above
+            Might be useful to include a max count number display
             '''
 
+    def get_axes_layout(self, graphics_list):
+        """
+        Overwrites default get_axes_layout. Adds a plot to bottom graph and label that displays a number to top graph.
+        Args:
+            graphics_list: a list of bottom and top PyQtgraphWidget objects
+        Returns:
+            plots_list: a list of item objects
+            plots_list = [<Plot item>,<Label item>]
+        """
+        plots_list = []
+        if self._plot_refresh is True:
+            for graph in graphics_list:
+                graph.clear()
+            plots_list.append(graphics_list[0].addPlot(row=0,col=0))
 
-    def _update(self, axes_list):
-        Experiment._update(self, axes_list)
+            label = pg.LabelItem(text='',size=f'{self.settings["graph_params"]["font_size"]}pt',bold=True)
+            graphics_list[1].addItem(label, row=0,col=0)
+            plots_list.append(label)
+        else:
+            for graph in graphics_list:
+                plots_list.append(graph.getItem(row=0,col=0))
+
+        return plots_list
+
+    def _update(self, plots_list):
+        Experiment._update(self, plots_list)
 
 
 
+class FocusObjective(Experiment):
+    '''
+    This class sweeps the MCL Nanodrive in small steps to find the focal point of the Olympus 100x/1.30NA objective.
+    This is for quality of life (and hopfully ease of reproducability) as this could be done by hand.
+    '''
+
+    _DEFAULT_SETTINGS = [
+        Parameter('z_start',0,float,'z position start point'),
+        Parameter('z_stop',100,float,'z position end point'),
+        Parameter('step',0.1,float,'increment z position increases'),
+        Parameter('dwell_time',1,float,'time in seconds at each z value'),
+        Parameter('font_size',32,int,'font size to make it easier to see on the fly if needed')
+    ]
+
+    #For actual experiment use LP100 [MCL_NanoDrive({'serial':2849})]. For testing using HS3 ['serial':2850]
+    _DEVICES = {'nanodrive': MCLNanoDrive(settings={'serial':2849})}
+    _EXPERIMENTS = {}
+
+    def __init__(self, devices, experiments=None, name=None, settings=None, log_function=None, data_path=None):
+        """
+        Initializes and connects to devices
+        Args:
+            name (optional): name of experiment, if empty same as class name
+            settings (optional): settings for this experiment, if empty same as default settings
+        """
+        super().__init__(name, settings=settings, sub_experiments=experiments, devices=devices, log_function=log_function, data_path=data_path)
+        #get instances of devices
+        self.nd = self.devices['nanodrive']['instance']
+
+
+    def _function(self):
+        """
+        This is the actual function that will be executed. It uses only information that is provided in the settings property
+        will be overwritten in the __init__
+        """
+        self.data['z_pos'] = None
+        pos_data = []
+
+        z_min = self.settings['z_start']
+        z_max = self.settings['z_stop']
+        step = self.settings['step']
+        dwell_time = self.settings['dwell_time']
+
+        self.nd.update({'z_pos':z_min})
+        z = z_min
+        total_interations = (z_max-z_min)/step
+        interation_num = 0
+        sleep(0.1)
+
+        while z <= z_max:
+            if self._abort == True:
+                break
+
+            self.nd.update({'z_pos':z})
+            z_pos = self.nd.read_probes('z_pos')
+            pos_data.append(z_pos)
+            self.data['z_pos'] = pos_data
+
+            interation_num = interation_num + 1
+            z = z + step
+            self.progress = 100. * (interation_num+1)/total_interations
+            self.updateProgress.emit(self.progress)
+
+            sleep(dwell_time)
+
+    def _plot(self, plots_list, data=None):
+        '''
+        This function plots the data. It is triggered when the updateProgress signal is emited and when after the _function is executed.
+        '''
+        if data is None:
+            data = self.data
+
+        if data is not None and data is not {}:
+            plots_list[1].setText(f'{data["z_pos"][-1]:.4f} um')
+
+    def get_axes_layout(self, graphics_list):
+        """
+        Overwrites default get_axes_layout. Adds a plot to bottom graph and label that displays a number to top graph.
+        Args:
+            graphics_list: a list of bottom and top PyQtgraphWidget objects
+        Returns:
+            plots_list: a list of item objects
+            plots_list = [<Plot item>,<Label item>]
+        """
+        plots_list = []
+        if self._plot_refresh is True:
+            for graph in graphics_list:
+                graph.clear()
+            plots_list.append(graphics_list[0].addPlot(row=0,col=0))
+
+            label = pg.LabelItem(text='',size=f'{self.settings["font_size"]}pt',bold=True)
+            graphics_list[1].addItem(label, row=0,col=0)
+            plots_list.append(label)
+        else:
+            for graph in graphics_list:
+                plots_list.append(graph.getItem(row=0,col=0))
+
+        return plots_list
 
 
 '''
@@ -368,4 +493,8 @@ to be random.
 
 In theory this method should work given my understanding of the Nanodrive and Adwin. I will continue to try and get the method to work, but if it is a task for 
 someone else my lab notebook will have more information on the idea and my testing of it. - Dylan Staples    
+
+
+Add macro and have nanodrive send pulse prior to first point. Macro will clear clock and then process procedes as normal with the time and point windows aligned. 
 '''
+
