@@ -19,7 +19,7 @@ import numpy as np
 import time
 
 from src.Controller import Plant, PIController
-import matplotlib.pyplot as plt
+import pyqtgraph as pg
 
 
 class MinimalExperiment(Experiment):
@@ -55,6 +55,38 @@ Minimal Example Experiment that has only a single parameter (execution time)
         print("Experiment test is running...")
         self.data = {'empty_data': []}
         time.sleep(self.settings['execution_time'])
+
+    def get_axes_layout(self, graphics_list):
+        """
+        Overrides method in parent Experiment class.
+        Creates 1 plot in top graph and 2 plots (columns) in bottom graph.
+        Args:
+            graphics_list = [<bottom graph object>,<top graph object>]
+        Returns:
+            plots_list = [<bottom graph left plot>,<bottom graph right plot>,<top graph plot>]
+        """
+        plots_list = []
+        if self._plot_refresh is True:
+            for graph in graphics_list:
+                graph.clear()
+            plots_list.append(graphics_list[0].addPlot(row=0,col=0))
+            plots_list.append(graphics_list[0].addPlot(row=0,col=1))
+            plots_list.append(graphics_list[1].addPlot(row=0,col=0))
+
+        else:
+            plots_list.append(graphics_list[0].getItem(row=0,col=0))
+            plots_list.append(graphics_list[0].getItem(row=0,col=1))
+            plots_list.append(graphics_list[1].getItem(row=0,col=0))
+
+        return plots_list
+
+    def _plot(self, plots_list):
+        x = np.linspace(-10,10,100)
+        print(plots_list)
+        plots_list[2].plot(x)     #plots x on top plot
+        plots_list[0].plot(x**2)  #plots x**2 on bottom left plot
+        plots_list[1].plot(x**3)  #plots x**3 on bottom right plot
+
 
 class ExampleExperiment(Experiment):
     """
@@ -118,7 +150,7 @@ Example Experiment that has all different types of parameters (integer, str, flo
         img = img.reshape((Nx, Nx))
         self.data.update({'image data': img})
 
-    def _plot(self, axes_list, data=None):
+    def _plot(self, plots_list, data=None):
         """
         plots the data only the axes objects that are provided in axes_list
         Args:
@@ -135,22 +167,24 @@ Example Experiment that has all different types of parameters (integer, str, flo
         if data is not None and data is not {}:
             if plot_type in ('main', 'two'):
                 if not data['random data'] is None:
-                    axes_list[0].plot(data['random data'])
-                    # 20230816 GD : next line removed because hold has been deprecated
-                    #axes_list[0].hold(False)
+                    plots_list[0].plot(data['random data'])
             if plot_type in ('aux', 'two', '2D'):
                 if not data['random data'] is None:
-                    axes_list[1].plot(data['random data'])
-                    # 20230816 GD : next line removed because hold has been deprecated
-                    #axes_list[1].hold(False)
+                    plots_list[1].plot(data['random data'])
             if plot_type == '2D':
                 if 'image data' in data and not data['image data'] is None:
-                    fig = axes_list[0].get_figure()
-                    implot = axes_list[0].imshow(data['image data'], cmap='pink', interpolation="nearest",
-                                                 extent=[-1, 1, 1, -1])
-                    fig.colorbar(implot, label='kcounts/sec')
+                    extent=[-1, 1, 1, -1]
+                    levels = [np.min(data['image data']),np.max(data['image data'])]
 
-    def _update(self, axes_list):
+                    image = pg.ImageItem(data['image data'], interpolation='nearest', extent=extent)
+                    image.setLevels(levels)
+                    image.setRect(pg.QtCore.QRectF(extent[0],extent[2],extent[1]-extent[0],extent[3]-extent[2]))
+                    plots_list[0].addItem(image)
+
+                    plots_list[0].addColorBar(image, values=(levels[0],levels[1]), label='kcounts/sec', colorMap='viridis')
+
+
+    def _update(self, plots_list):
         """
         updates the data in already existing plots. the axes objects are provided in axes_list
         Args:
@@ -162,18 +196,21 @@ Example Experiment that has all different types of parameters (integer, str, flo
         plot_type = self.settings['plot_style']
         if plot_type == '2D':
             # we expect exactely one image in the axes object (see ExperimentDummy.plot)
-            implot = axes_list[1].get_images()[0]
+            all_plot_items = plots_list[0].getViewBox().allChildren()
+            image = None
+            for item in all_plot_items:
+                if isinstance(item, pg.ImageItem):
+                    image = item
+                    break
+
             # now update the data
-            implot.set_data(self.data['random data'])
+            image.setImage(self.data['random data'])
+            image.setLevels([np.min(self.data['random data']),np.max(self.data['random data'])])
 
-            colorbar = implot.colorbar
-
-            if not colorbar is None:
-                colorbar.update_bruteforce(implot)
 
         else:
             # fall back to default behaviour
-            Experiment._update(self, axes_list)
+            Experiment._update(self, plots_list)
 
 class ExampleExperimentWrapper(Experiment):
     """
@@ -204,7 +241,7 @@ Example Experiment that has all different types of parameters (integer, str, flo
 
         self.experiments['ExptDummy'].run()
 
-    def _plot(self, axes_list, data=None):
+    def _plot(self, plots_list, data=None):
         """
         plots the data only the axes objects that are provided in axes_list
         Args:
@@ -214,9 +251,9 @@ Example Experiment that has all different types of parameters (integer, str, flo
 
         """
 
-        self.experiments['ExptDummy']._plot(axes_list)
+        self.experiments['ExptDummy']._plot(plots_list)
 
-    def _update(self, axes_list):
+    def _update(self, plots_list):
         """
         updates the data in already existing plots. the axes objects are provided in axes_list
         Args:
@@ -225,7 +262,7 @@ Example Experiment that has all different types of parameters (integer, str, flo
         Returns: None
 
         """
-        self.experiments['ExptDummy']._update(axes_list)
+        self.experiments['ExptDummy']._update(plots_list)
 
 if __name__ == '__main__':
 
