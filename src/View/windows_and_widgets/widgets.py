@@ -17,7 +17,8 @@ from PyQt5 import QtCore, QtWidgets
 from src.core import Parameter, Device, Experiment
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as Canvas
 from matplotlib.figure import Figure
-
+import pyqtgraph as pg
+from PyQt5.QtGui import QPen
 
 # ======== AQuISSQTreeItem ==========
 class AQuISSQTreeItem(QtWidgets.QTreeWidgetItem):
@@ -407,6 +408,40 @@ class MatplotlibWidget(Canvas):
         gives qt a starting point for widget size during window resizing
         """
         w, h = self.get_width_height()
+        return QtCore.QSize(w, h)
+
+    def minimumSizeHint(self):
+        """
+        minimum widget size during window resizing
+        Returns: QSize object that specifies the size of widget
+        """
+        return QtCore.QSize(10, 10)
+
+class PyQtgraphWidget(QtWidgets.QWidget):
+    '''
+    GraphicsView is parent class of GraphicsLayoutWidget
+    '''
+
+    def __init__(self,parent=None):
+        super().__init__()
+
+        self.layout = QtWidgets.QVBoxLayout(self)
+        self.graph = pg.GraphicsLayoutWidget(parent=parent)
+        #self.graph.setBackground('lightgray')
+        self.layout.addWidget(self.graph)
+
+        self.plot_items = self.graph.addPlot()   #adds a plot item to next available cell
+
+
+        self.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
+        self.updateGeometry()
+
+    def sizeHint(self):
+        """
+        gives qt a starting point for widget size during window resizing
+        """
+        w = self.width()
+        h = self.height()
         return QtCore.QSize(w, h)
 
     def minimumSizeHint(self):
