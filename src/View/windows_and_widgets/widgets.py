@@ -432,7 +432,6 @@ class PyQtgraphWidget(QtWidgets.QWidget):
 
         self.plot_items = self.graph.addPlot()   #adds a plot item to next available cell
 
-
         self.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
         self.updateGeometry()
 
@@ -450,5 +449,18 @@ class PyQtgraphWidget(QtWidgets.QWidget):
         Returns: QSize object that specifies the size of widget
         """
         return QtCore.QSize(10, 10)
+
+    @property
+    def get_graph(self):
+        return self.graph
+
+
+class PyQtNavigationBar(QtWidgets.QWidget):
+
+    def __init__(self):
+        pass
+
+    def savePlot(self):
+        pass
 
 

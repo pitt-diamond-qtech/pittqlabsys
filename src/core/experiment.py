@@ -1406,11 +1406,9 @@ class Experiment(QObject):
 
         return experiment_instance
 
-    '''
-    In general changing axes_list to plots_list and figure_list to graphics_list. I belive functionally they are similar
-    '''
 
-    def _plot(self, plots_list):
+
+    def _plot(self, axes_list):
         """
         plots the data only the axes objects that are provided in axes_list
         Args:
@@ -1423,7 +1421,7 @@ class Experiment(QObject):
         # not sure if to raise a not implemented error or just give a warning. For now just warning
         print(('INFO: {:s} called _plot even though it is not implemented'.format(self.name)))
 
-    def _update_plot(self, plots_list):
+    def _update_plot(self, axes_list):
         """
         updates the data in already existing plots. the axes objects are provided in axes_list
         Args:
@@ -1436,7 +1434,7 @@ class Experiment(QObject):
         # default behaviour just calls the standard plot function that creates a new image everytime it is called
         # for heavier plots such as images implement a function here that updates only the date of the plot
         # but doesn't create a whole new image
-        self._plot(plots_list)
+        self._plot(axes_list)
 
     def force_update(self):
         """
@@ -1446,7 +1444,7 @@ class Experiment(QObject):
         """
         self._plot_refresh = True
 
-    def plot(self, graphics_list):
+    def plot(self, figure_list):
         """
         plots the data contained in self.data, which should be a dictionary or a deque of dictionaries
         for the latter use the last entry
@@ -1461,9 +1459,9 @@ class Experiment(QObject):
         if not self.is_running:
             self._plot_refresh = True
 
-        plots_list = self.get_axes_layout(graphics_list)
+        axes_list = self.get_axes_layout(figure_list)
         if self._plot_refresh is True:
-            self._plot(plots_list)
+            self._plot(axes_list)
             self._plot_refresh = False
             '''
             for figure in figure_list:
@@ -1471,10 +1469,10 @@ class Experiment(QObject):
                     figure.set_tight_layout(True)
             '''
         else:
-            self._update_plot(plots_list)
+            self._update_plot(axes_list)
 
     #changed this method
-    def get_axes_layout(self, graphics_list):
+    def get_axes_layout(self, figure_list):
         """
         returns the axes objects the experiment needs to plot its data
         the default creates a single axes object on each figure
@@ -1485,29 +1483,29 @@ class Experiment(QObject):
             axes_list: a list of axes objects
 
         """
-        plots_list = []
+        axes_list = []
         if self._plot_refresh is True:
-            for graph in graphics_list:
+            for graph in figure_list:
                 graph.clear()
-                plots_list.append(graph.addPlot(row=0,col=0))
+                axes_list.append(graph.addPlot(row=0,col=0))
 
 
         else:
-            for graph in graphics_list:
-                plots_list.append(graph.getItem(row=0,col=0))
+            for graph in figure_list:
+                axes_list.append(graph.getItem(row=0,col=0))
 
-        return plots_list
+        return axes_list
 
-    def plot_validate(self, graphics_list):
+    def plot_validate(self, figure_list):
         """
         plots the data contained in self.data, which should be a dictionary or a deque of dictionaries
         for the latter use the last entry
 
         """
-        plots_list = self.get_axes_layout_validate(graphics_list)
-        self._plot_validate(plots_list)
+        axes_list = self.get_axes_layout_validate(figure_list)
+        self._plot_validate(axes_list)
 
-    def _plot_validate(self, plots_list):
+    def _plot_validate(self, axes_list):
         """
         plot some visual output as a result of the validation (see self.validate)
         This will most likely be removed in future version: instead preview function, maybe
@@ -1515,13 +1513,13 @@ class Experiment(QObject):
         """
         pass
 
-    def get_axes_layout_validate(self, graphics_list):
+    def get_axes_layout_validate(self, figure_list):
         """
         creates the axes layout for the validation plots
         :param figure_list: list of figures
         :return: list of axes objects
         """
-        return self.get_axes_layout(graphics_list)
+        return self.get_axes_layout(figure_list)
 
 
 if __name__ == '__main__':

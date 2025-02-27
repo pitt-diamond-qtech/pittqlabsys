@@ -12,7 +12,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
-from .widgets import AQuISSQTreeItem,MatplotlibWidget
+from .widgets import AQuISSQTreeItem,MatplotlibWidget,PyQtgraphWidget
 from .load_dialog import LoadDialog
 from .load_dialog_probes import LoadDialogProbes
 from .export_dialog import ExportDialog

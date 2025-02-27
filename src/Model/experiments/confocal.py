@@ -184,7 +184,7 @@ class ConfocalScan_OldMethod(Experiment):
 
 
 
-    def _plot(self, plots_list, data=None):
+    def _plot(self, axes_list, data=None):
         '''
         This function plots the data. It is triggered when the updateProgress signal is emited and when after the _function is executed.
         For the scan, image can only be plotted once all data is gathered so self.running prevents a plotting call for the updateProgress signal.
@@ -202,16 +202,16 @@ class ConfocalScan_OldMethod(Experiment):
                 image = pg.ImageItem(data['count_img'], interpolation='nearest', extent=extent)
                 image.setLevels(levels)
                 image.setRect(pg.QtCore.QRectF(extent[0],extent[2],extent[1]-extent[0],extent[3]-extent[2]))
-                plots_list[0].addItem(image)
+                axes_list[0].addItem(image)
 
-                plots_list[0].addColorBar(image, values=(levels[0],levels[1]), label='kcounts/sec', colorMap='viridis')
-                plots_list[0].setAspectLocked(True)
-                plots_list[0].setLabel('left', 'y (µm)')
-                plots_list[0].setLabel('bottom', 'x (µm)')
+                axes_list[0].addColorBar(image, values=(levels[0],levels[1]), label='kcounts/sec', colorMap='viridis')
+                axes_list[0].setAspectLocked(True)
+                axes_list[0].setLabel('left', 'y (µm)')
+                axes_list[0].setLabel('bottom', 'x (µm)')
 
 
-    def _update(self,plots_list):
-        all_plot_items = plots_list[0].getViewBox().allChildren()
+    def _update(self,axes_list):
+        all_plot_items = axes_list[0].getViewBox().allChildren()
         image = None
         for item in all_plot_items:
             if isinstance(item, pg.ImageItem):
@@ -320,7 +320,7 @@ class ConfocalPoint(Experiment):
                     self.data['counts'].clear()
 
 
-    def _plot(self, plots_list, data=None):
+    def _plot(self, axes_list, data=None):
         '''
         This function plots the data. It is triggered when the updateProgress signal is emited and when after the _function is executed.
         '''
@@ -328,46 +328,45 @@ class ConfocalPoint(Experiment):
             data = self.data
 
         if data is not None and data is not {}:
-            plots_list[0].clear()
-            plots_list[0].plot(data['counts'])
-            plots_list[0].showGrid(x=True,y=True)
-            plots_list[0].setLabel('left','Count Rate')  #units='counts/sec'
-            plots_list[0].setXRange(0,self.settings['graph_params']['length_data']+100)
+            axes_list[0].clear()
+            axes_list[0].plot(data['counts'])
+            axes_list[0].showGrid(x=True,y=True)
+            axes_list[0].setLabel('left','Count Rate')  #units='counts/sec'
+            axes_list[0].setXRange(0,self.settings['graph_params']['length_data']+100)
 
-            plots_list[1].setText(f'{data["counts"][-1]/1000:.3f} kcounts/sec')
-
+            axes_list[1].setText(f'{data["counts"][-1]/1000:.3f} kcounts/sec')
 
 
             '''
             Might be useful to include a max count number display
             '''
 
-    def get_axes_layout(self, graphics_list):
+    def get_axes_layout(self, figure_list):
         """
         Overwrites default get_axes_layout. Adds a plot to bottom graph and label that displays a number to top graph.
         Args:
-            graphics_list: a list of bottom and top PyQtgraphWidget objects
+            figure_list: a list of bottom and top PyQtgraphWidget objects
         Returns:
-            plots_list: a list of item objects
-            plots_list = [<Plot item>,<Label item>]
+            axes_list: a list of item objects
+            axes_list = [<Plot item>,<Label item>]
         """
-        plots_list = []
+        axes_list = []
         if self._plot_refresh is True:
-            for graph in graphics_list:
+            for graph in figure_list:
                 graph.clear()
-            plots_list.append(graphics_list[0].addPlot(row=0,col=0))
+            axes_list.append(figure_list[0].addPlot(row=0,col=0))
 
             label = pg.LabelItem(text='',size=f'{self.settings["graph_params"]["font_size"]}pt',bold=True)
-            graphics_list[1].addItem(label, row=0,col=0)
-            plots_list.append(label)
+            figure_list[1].addItem(label, row=0,col=0)
+            axes_list.append(label)
         else:
-            for graph in graphics_list:
-                plots_list.append(graph.getItem(row=0,col=0))
+            for graph in figure_list:
+                axes_list.append(graph.getItem(row=0,col=0))
 
-        return plots_list
+        return axes_list
 
-    def _update(self, plots_list):
-        Experiment._update(self, plots_list)
+    def _update(self, axes_list):
+        Experiment._update(self, axes_list)
 
 
 
@@ -446,29 +445,29 @@ class FocusObjective(Experiment):
         if data is not None and data is not {}:
             plots_list[1].setText(f'{data["z_pos"][-1]:.4f} um')
 
-    def get_axes_layout(self, graphics_list):
+    def get_axes_layout(self, figure_list):
         """
         Overwrites default get_axes_layout. Adds a plot to bottom graph and label that displays a number to top graph.
         Args:
-            graphics_list: a list of bottom and top PyQtgraphWidget objects
+            figure_list: a list of bottom and top PyQtgraphWidget objects
         Returns:
-            plots_list: a list of item objects
+            axes_list: a list of item objects
             plots_list = [<Plot item>,<Label item>]
         """
-        plots_list = []
+        axes_list = []
         if self._plot_refresh is True:
-            for graph in graphics_list:
+            for graph in figure_list:
                 graph.clear()
-            plots_list.append(graphics_list[0].addPlot(row=0,col=0))
+            axes_list.append(figure_list[0].addPlot(row=0,col=0))
 
             label = pg.LabelItem(text='',size=f'{self.settings["font_size"]}pt',bold=True)
-            graphics_list[1].addItem(label, row=0,col=0)
-            plots_list.append(label)
+            figure_list[1].addItem(label, row=0,col=0)
+            axes_list.append(label)
         else:
-            for graph in graphics_list:
-                plots_list.append(graph.getItem(row=0,col=0))
+            for graph in figure_list:
+                axes_list.append(graph.getItem(row=0,col=0))
 
-        return plots_list
+        return axes_list
 
 
 '''
