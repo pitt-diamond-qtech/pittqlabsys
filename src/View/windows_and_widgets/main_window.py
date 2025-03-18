@@ -20,7 +20,7 @@ from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as Navigatio
 from src.core import Parameter, Device, Experiment, Probe
 from src.core.experiment_iterator import ExperimentIterator
 from src.core.read_probes import ReadProbes
-from src.View.windows_and_widgets import AQuISSQTreeItem, MatplotlibWidget, LoadDialog, LoadDialogProbes, ExportDialog, PyQtgraphWidget
+from src.View.windows_and_widgets import AQuISSQTreeItem, LoadDialog, LoadDialogProbes, ExportDialog, PyQtgraphWidget, PyQtCoordinatesBar
 from src.Model.experiments.select_points import SelectPoints
 from src.core.read_write_functions import load_aqs_file
 from src.core.helper_functions import get_project_root
@@ -515,6 +515,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         except AttributeError:
             pass
 
+        #adds 2 graphics layout widgets
         self.pyqtgraphwidget_2 = PyQtgraphWidget(self.plot_2)
         sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
         sizePolicy.setHorizontalStretch(0)
@@ -529,6 +530,21 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.pyqtgraphwidget_1.setObjectName("pyqtgraphwidget_1")
         self.horizontalLayout_15.addWidget(self.pyqtgraphwidget_1)
 
+        #adds 2 coordinate bars (1 for each graphics widget)
+        self.cordbar_2 = PyQtCoordinatesBar(self.pyqtgraphwidget_2.get_graph)
+        self.cordbar_1 = PyQtCoordinatesBar(self.pyqtgraphwidget_1.get_graph)
+        self.horizontalLayout_9.addWidget(self.cordbar_2)
+        self.horizontalLayout_14.addWidget(self.cordbar_1)
+
+        sizePolicy.setHeightForWidth(self.cordbar_2.sizePolicy().hasHeightForWidth())
+        self.cordbar_2.setSizePolicy(sizePolicy)
+        self.cordbar_2 .setMinimumSize(QtCore.QSize(200, 125))
+        self.cordbar_2 .setObjectName('cordinatebar_2')
+
+        sizePolicy.setHeightForWidth(self.cordbar_1.sizePolicy().hasHeightForWidth())
+        self.cordbar_1.setSizePolicy(sizePolicy)
+        self.cordbar_1.setMinimumSize(QtCore.QSize(200, 125))
+        self.cordbar_1.setObjectName('cordinatebar_1')
         '''
         self.matplotlibwidget_1.mpl_connect('button_press_event', self.plot_clicked)
         self.matplotlibwidget_2.mpl_connect('button_press_event', self.plot_clicked)
@@ -539,8 +555,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.horizontalLayout_9.addWidget(self.mpl_toolbar_2)
         self.horizontalLayout_14.addWidget(self.mpl_toolbar_1)
 
-        self.matplotlibwidget_1.figure.set_tight_layout(True)
-        self.matplotlibwidget_2.figure.set_tight_layout(True)
+
         '''
 
 

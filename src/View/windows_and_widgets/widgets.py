@@ -455,12 +455,50 @@ class PyQtgraphWidget(QtWidgets.QWidget):
         return self.graph
 
 
-class PyQtNavigationBar(QtWidgets.QWidget):
+class PyQtCoordinatesBar(QtWidgets.QWidget):
 
-    def __init__(self):
+    def __init__(self,connected_graph,parent=None):
+        super().__init__()
+
+        self.layout = QtWidgets.QVBoxLayout(self)
+        self.graph = pg.GraphicsLayoutWidget(parent=parent)
+        self.graph.setBackground((255, 255, 255))
+        self.layout.addWidget(self.graph)
+
+        self.label = pg.LabelItem(justify='right')
+        self.label.setPos(0, 0)
+        self.graph.addItem(self.label, row=0,col=0)  # adds a label
+
+        self.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
+        self.updateGeometry()
+
+        self.connected_graph = connected_graph   #gets graphics layoutwidget of connected widget
+        self.update()
+
+    def update(self):
+        self.connected_plot_item = self.connected_graph.getItem(row=0, col=0)  # gets a plot item
+        self.viewbox = self.connected_plot_item.vb
+
+        self.proxy = pg.SignalProxy(self.connected_graph.scene().sigMouseMoved, rateLimit=20, slot=self.mouseMoved)
+
+    def mouseMoved(self,event):
+        mousePoint = self.viewbox.mapSceneToView(event[0])
+        self.label.setText("<span style='font-size: 10pt; color: black'> x = %0.2f, <span style='color: black'> y = %0.2f</span>" % (mousePoint.x(), mousePoint.y()))
+
+    def mouseClicked(self,event):
         pass
 
-    def savePlot(self):
-        pass
+    def sizeHint(self):
+        """
+        gives qt a starting point for widget size during window resizing
+        """
+        w = self.width()
+        h = self.height()
+        return QtCore.QSize(w, h)
 
-
+    def minimumSizeHint(self):
+        """
+        minimum widget size during window resizing
+        Returns: QSize object that specifies the size of widget
+        """
+        return QtCore.QSize(10, 10)
