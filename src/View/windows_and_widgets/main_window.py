@@ -538,26 +538,13 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         sizePolicy.setHeightForWidth(self.cordbar_2.sizePolicy().hasHeightForWidth())
         self.cordbar_2.setSizePolicy(sizePolicy)
-        self.cordbar_2 .setMinimumSize(QtCore.QSize(200, 125))
+        self.cordbar_2 .setMinimumSize(QtCore.QSize(200, 50))
         self.cordbar_2 .setObjectName('cordinatebar_2')
 
         sizePolicy.setHeightForWidth(self.cordbar_1.sizePolicy().hasHeightForWidth())
         self.cordbar_1.setSizePolicy(sizePolicy)
-        self.cordbar_1.setMinimumSize(QtCore.QSize(200, 125))
+        self.cordbar_1.setMinimumSize(QtCore.QSize(200, 50))
         self.cordbar_1.setObjectName('cordinatebar_1')
-        '''
-        self.matplotlibwidget_1.mpl_connect('button_press_event', self.plot_clicked)
-        self.matplotlibwidget_2.mpl_connect('button_press_event', self.plot_clicked)
-
-        # adds a toolbar to the plots
-        self.mpl_toolbar_1 = NavigationToolbar(self.matplotlibwidget_1.canvas, self.toolbar_space_1)
-        self.mpl_toolbar_2 = NavigationToolbar(self.matplotlibwidget_2.canvas, self.toolbar_space_2)
-        self.horizontalLayout_9.addWidget(self.mpl_toolbar_2)
-        self.horizontalLayout_14.addWidget(self.mpl_toolbar_1)
-
-
-        '''
-
 
 
     def load_experiments(self):
@@ -695,8 +682,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 self.update_experiment_from_item(experiment_item)
                 experiment.is_valid()
                 experiment.plot_validate([self.pyqtgraphwidget_1.graph, self.pyqtgraphwidget_2.graph])
-                self.matplotlibwidget_1.draw()
-                self.matplotlibwidget_2.draw()
+                #the following 2 lines dont seem to do what I want ie they dont change the viewbox so that mouse position tracking updates for the new plots
+                self.pyqtgraphwidget_1.update()
+                self.pyqtgraphwidget_2.update()
+                print('validate button presss triggered')
 
         def store_experiment_data():
             """

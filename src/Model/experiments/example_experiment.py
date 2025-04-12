@@ -24,7 +24,7 @@ import pyqtgraph as pg
 
 class MinimalExperiment(Experiment):
     """
-Minimal Example Experiment that has only a single parameter (execution time)
+    Minimal Example Experiment that has only a single parameter (execution time)
     """
 
     _DEFAULT_SETTINGS = [
@@ -265,7 +265,6 @@ Example Experiment that has all different types of parameters (integer, str, flo
         self.experiments['ExptDummy']._update(axes_list)
 
 if __name__ == '__main__':
-
 
     expt = ExampleExperiment(name="silly")
     expt.run()
