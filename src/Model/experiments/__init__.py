@@ -17,3 +17,4 @@ from src.Model.experiments.daq_read_counter import Pxi6733ReadCounter
 from src.Model.experiments.galvo_scan import GalvoScan
 from .galvo_scan_generic import GalvoScanGeneric
 from .select_points import SelectPoints
+from .confocal import ConfocalScan_OldMethod, ConfocalPoint, ConfocalScan_PointByPoint
