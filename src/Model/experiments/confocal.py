@@ -488,6 +488,10 @@ class ConfocalScan_PointByPoint(Experiment):
         raw_counts_data = []
         count_rate_data = []
 
+        Nx = len(x_array)
+        Ny = len(y_array)
+        self.data['count_img'] = np.zeros((Nx, Ny))
+
 
         interation_num = 0 #number to track progress
         total_interations = ((x_max - x_min)/step + 1)*((y_max - y_min)/step + 1)       #plus 1 because in total_iterations range is inclusive ie. [0,10]
@@ -505,11 +509,13 @@ class ConfocalScan_PointByPoint(Experiment):
         self.nd.update({'x_pos': x_min, 'y_pos': y_min})
         sleep(0.1)  # time for stage to move and adwin process to initilize
 
+        self.first_plot = True #used to first create pg.image
         forward = True #used to rasterize more efficently going forward then back
-        for x in x_array:
+        for i, x in enumerate(x_array):
             if self._abort:  #halts loop (and experiment) if stop button is pressed
                 break
             x = float(x)
+            img_row = []  #used for tracking image rows and adding to count_img; list not saved
             self.nd.update({'x_pos':x})
             if forward == True:
                 print('going forward')
@@ -529,18 +535,13 @@ class ConfocalScan_PointByPoint(Experiment):
                     raw_counts = self.adw.read_probes('int_var',id=1)   #raw number of counter triggers
                     count_rate = raw_counts*1e3/self.settings['time_per_pt'] # in units of counts/second
 
+                    img_row.append(count_rate)
                     raw_counts_data.append(raw_counts)
                     count_rate_data.append(count_rate)
                     self.data['raw_counts'] = raw_counts_data
                     self.data['counts'] = count_rate_data
 
-                    forward = False
-                    interation_num = interation_num + 1
-                    self.progress = 100. * (interation_num + 1) / total_interations
-                    self.updateProgress.emit(self.progress)
-                continue #goes to the next x value
-
-            if forward == False:
+            else:
                 print('reverse reverse')
                 for y in reversed_y_array:
                     y = float(y)
@@ -558,20 +559,19 @@ class ConfocalScan_PointByPoint(Experiment):
                     raw_counts = self.adw.read_probes('int_var', id=1)  # raw number of counter triggers
                     count_rate = raw_counts*1e3/self.settings['time_per_pt'] # in units of counts/second
 
+                    img_row.append(count_rate)
                     raw_counts_data.append(raw_counts)
                     count_rate_data.append(count_rate)
                     self.data['raw_counts'] = raw_counts_data
                     self.data['counts'] = count_rate_data
+                img_row.reverse() #reversed since going from y_max --> y_min
 
-                    forward = True
-                    interation_num = interation_num + 1
-                    self.progress = 100. * (interation_num + 1) / total_interations
-                    self.updateProgress.emit(self.progress)
-                continue #goes to the next x value
+            self.data['count_img'][i, :] = img_row
+            forward = not forward
 
-            #interation_num = interation_num + len(y_array)
-            #self.progress = 100. * (interation_num + 1) / total_interations
-            #self.updateProgress.emit(self.progress)
+            interation_num = interation_num + len(y_array)
+            self.progress = 100. * (interation_num + 1) / total_interations
+            self.updateProgress.emit(self.progress)
 
         print('Data collected')
         self.running = False
@@ -581,13 +581,6 @@ class ConfocalScan_PointByPoint(Experiment):
         self.data['raw_counts'] = raw_counts_data
         self.data['counts'] = count_rate_data
 
-
-        #convert list to square matrix of count/sec data
-        Nx = int(np.sqrt(len(self.data['counts'])))
-        count_img = np.array(self.data['counts'][0:Nx**2])      #converts to numpy array
-        count_img = count_img.reshape((Nx, Nx))               #reshapes array to square matrix. Transpose to have x as horizontail (old did this but i dont think we want)
-
-        self.data.update({'count_img':count_img})
         print('All data: ',self.data)
 
 
@@ -597,25 +590,30 @@ class ConfocalScan_PointByPoint(Experiment):
         This function plots the data. It is triggered when the updateProgress signal is emited and when after the _function is executed.
         For the scan, image can only be plotted once all data is gathered so self.running prevents a plotting call for the updateProgress signal.
         '''
-        if self.running == True:
-            pass        #does not try to plot until all data is collected
-        else:
-            if data is None:
-                data = self.data
+        if data is None:
+            data = self.data
+        if data is not None or data is not {}:
 
-            if data is not None and data is not{}:
-                extent = [self.settings['point_a']['x'],self.settings['point_b']['x'],self.settings['point_a']['y'],self.settings['point_b']['y']]
-                levels = [np.min(data['count_img']),np.max(data['count_img'])]
+            extent = [self.settings['point_a']['x'], self.settings['point_b']['x'], self.settings['point_a']['y'],self.settings['point_b']['y']]
+            levels = [np.min(data['count_img']), np.max(data['count_img'])]
 
-                image = pg.ImageItem(data['count_img'], interpolation='nearest', extent=extent)
-                image.setLevels(levels)
-                image.setRect(pg.QtCore.QRectF(extent[0],extent[2],extent[1]-extent[0],extent[3]-extent[2]))
-                axes_list[0].addItem(image)
+            if self.first_plot == True:
+                self.image = pg.ImageItem(data['count_img'], interpolation='nearest')
+                self.image.setLevels(levels)
+                self.image.setRect(pg.QtCore.QRectF(extent[0], extent[2],extent[1] - extent[0], extent[3] - extent[2]))
+                axes_list[0].addItem(self.image)
+                #self.colorbar = axes_list[0].addColorBar(self.image,values=(levels[0], levels[1]),label='counts/sec',colorMap='viridis')
 
-                axes_list[0].addColorBar(image, values=(levels[0],levels[1]), label='counts/sec', colorMap='viridis')
                 axes_list[0].setAspectLocked(True)
                 axes_list[0].setLabel('left', 'y (µm)')
                 axes_list[0].setLabel('bottom', 'x (µm)')
+
+                self.first_plot = False  # flip the flag so future updates use the else
+            else:
+                self.image.setImage(data['count_img'], autoLevels=False)
+                self.image.setLevels(levels)
+
+                axes_list[0].addColorBar(self.image, values=(levels[0], levels[1]), label='counts/sec', colorMap='viridis')
 
 
     def _update(self,axes_list):
