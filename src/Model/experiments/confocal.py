@@ -151,7 +151,7 @@ class ConfocalScan_OldMethod(Experiment):
             self.data['raw_counts'] = raw_count_data
 
             #units of count/seconds
-            count_rate = list(np.array(raw_counts)*self.settings['time_per_pt']*1e-3)
+            count_rate = list(np.array(raw_counts)*1e-3/self.settings['time_per_pt'])
             count_rate_data.extend(count_rate)
             self.data['counts'] = count_rate_data
 
@@ -202,7 +202,7 @@ class ConfocalScan_OldMethod(Experiment):
                 image.setRect(pg.QtCore.QRectF(extent[0],extent[2],extent[1]-extent[0],extent[3]-extent[2]))
                 axes_list[0].addItem(image)
 
-                axes_list[0].addColorBar(image, values=(levels[0],levels[1]), label='kcounts/sec', colorMap='viridis')
+                axes_list[0].addColorBar(image, values=(levels[0],levels[1]), label='counts/sec', colorMap='viridis')
                 axes_list[0].setAspectLocked(True)
                 axes_list[0].setLabel('left', 'y (µm)')
                 axes_list[0].setLabel('bottom', 'x (µm)')
@@ -422,7 +422,7 @@ class ConfocalScan_PointByPoint(Experiment):
                    ]),
         Parameter('resolution', 0.1, float, 'Resolution of each pixel in microns'),
         Parameter('time_per_pt', 2.0, float, 'Time in ms at each point to get counts'),
-        Parameter('settle_time',1,float,'Time in seconds to allow NanoDrive to settle to correct position'),
+        Parameter('settle_time',0.2,float,'Time in seconds to allow NanoDrive to settle to correct position'),
         Parameter('correlate_clock', 'Aux', ['Pixel','Line','Frame','Aux'], 'Nanodrive clock'),
         Parameter('laser_clock', 'Pixel', ['Pixel','Line','Frame','Aux'], 'Nanodrive clock used for turning laser on and off')
     ]
@@ -497,18 +497,13 @@ class ConfocalScan_PointByPoint(Experiment):
         #formula to set adwin to count for correct time frame. The event section is run every delay*3.3ns so the counter increments for that time then is read and clear
         #time_per_pt is in millisecond and the adwin delay time is delay_value*3.3ns
         adwin_delay = round((self.settings['time_per_pt']*1e6) / (3.3))
-        #print('adwin delay: ',delay)
+        #print('adwin delay: ',adwin_delay)  606061 for 2ms and 606061*3.3 ns ~= 2 ms
 
-
-
-        #set inital x and y and set nanodrive stage to that position
-        self.nd.update({'x_pos':x_min,'y_pos':y_min})
-        #load_rate is time_per_pt; 2.0ms = 5000Hz
-        self.adw.update({'process_2':{'delay':adwin_delay}})
-        #print('nd and adwin setup')
-
-        sleep(0.1)  #time for stage to move to starting posiition and adwin process to initilize
-        self.adw.update({'process_2': {'running': True}})
+        self.adw.update({'process_1': {'delay': adwin_delay, 'running': True}})
+        # print(adwin_delay * 3.3 * 1e-9)
+        # set inital x and y and set nanodrive stage to that position
+        self.nd.update({'x_pos': x_min, 'y_pos': y_min})
+        sleep(0.1)  # time for stage to move and adwin process to initilize
 
         forward = True #used to rasterize more efficently going forward then back
         for x in x_array:
@@ -532,7 +527,7 @@ class ConfocalScan_PointByPoint(Experiment):
                     self.data['y_pos'] = y_data  # adds y postion to data
 
                     raw_counts = self.adw.read_probes('int_var',id=1)   #raw number of counter triggers
-                    count_rate = raw_counts * adwin_delay*3.3*1e-9     #in units of counts/second
+                    count_rate = raw_counts*1e3/self.settings['time_per_pt'] # in units of counts/second
 
                     raw_counts_data.append(raw_counts)
                     count_rate_data.append(count_rate)
@@ -540,6 +535,9 @@ class ConfocalScan_PointByPoint(Experiment):
                     self.data['counts'] = count_rate_data
 
                     forward = False
+                    interation_num = interation_num + 1
+                    self.progress = 100. * (interation_num + 1) / total_interations
+                    self.updateProgress.emit(self.progress)
                 continue #goes to the next x value
 
             if forward == False:
@@ -558,7 +556,7 @@ class ConfocalScan_PointByPoint(Experiment):
                     self.data['y_pos'] = y_data  # adds y postion to data
 
                     raw_counts = self.adw.read_probes('int_var', id=1)  # raw number of counter triggers
-                    count_rate = raw_counts * adwin_delay * 3.3 * 1e-9  # in units of counts/second
+                    count_rate = raw_counts*1e3/self.settings['time_per_pt'] # in units of counts/second
 
                     raw_counts_data.append(raw_counts)
                     count_rate_data.append(count_rate)
@@ -566,11 +564,14 @@ class ConfocalScan_PointByPoint(Experiment):
                     self.data['counts'] = count_rate_data
 
                     forward = True
+                    interation_num = interation_num + 1
+                    self.progress = 100. * (interation_num + 1) / total_interations
+                    self.updateProgress.emit(self.progress)
                 continue #goes to the next x value
 
-            interation_num = interation_num + len(y_array)
-            self.progress = 100. * (interation_num + 1) / total_interations
-            self.updateProgress.emit(self.progress)
+            #interation_num = interation_num + len(y_array)
+            #self.progress = 100. * (interation_num + 1) / total_interations
+            #self.updateProgress.emit(self.progress)
 
         print('Data collected')
         self.running = False
@@ -611,7 +612,7 @@ class ConfocalScan_PointByPoint(Experiment):
                 image.setRect(pg.QtCore.QRectF(extent[0],extent[2],extent[1]-extent[0],extent[3]-extent[2]))
                 axes_list[0].addItem(image)
 
-                axes_list[0].addColorBar(image, values=(levels[0],levels[1]), label='kcounts/sec', colorMap='viridis')
+                axes_list[0].addColorBar(image, values=(levels[0],levels[1]), label='counts/sec', colorMap='viridis')
                 axes_list[0].setAspectLocked(True)
                 axes_list[0].setLabel('left', 'y (µm)')
                 axes_list[0].setLabel('bottom', 'x (µm)')
