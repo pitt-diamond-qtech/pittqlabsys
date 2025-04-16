@@ -158,15 +158,13 @@ class ConfocalScan_OldMethod(Experiment):
             self.data['raw_counts'] = raw_count_data
 
             #units of count/seconds
-            count_rate = list(np.array(raw_counts)*1e-3/self.settings['time_per_pt'])
+            count_rate = list(np.array(raw_counts)*1e3/self.settings['time_per_pt'])
             count_rate_data.extend(count_rate)
             img_row.extend(count_rate)
             self.data['counts'] = count_rate_data
 
             self.data[('count_img')][i, :] = img_row #add previous scan data so image plots
             interation_num = interation_num + len_wf
-            x = x + step
-            i = i + 1
             #updates process bar to see experiment is running
             self.progress = 100. * (interation_num +1) / total_interations
             self.updateProgress.emit(self.progress)
@@ -181,7 +179,7 @@ class ConfocalScan_OldMethod(Experiment):
         #print('Counts: ','\n',self.count_data)
 
         #print('All data: ',self.data)
-
+        self.nd.update({'x_pos':x_min,'y_pos':y_min})
 
 
     def _plot(self, axes_list, data=None):
@@ -604,6 +602,7 @@ class ConfocalScan_PointByPoint(Experiment):
         self.data['counts'] = count_rate_data
 
         print('All data: ',self.data)
+        self.nd.update({'x_pos': x_min, 'y_pos': y_min})
 
 
 
