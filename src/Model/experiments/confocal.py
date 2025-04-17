@@ -89,6 +89,7 @@ class ConfocalScan_OldMethod(Experiment):
         #array form point_a x,y to point_b x,y with step of resolution
         x_array = np.arange(x_min, x_max + step, step)
         y_array = np.arange(y_min, y_max+step, step)
+        reversed_y_array = y_array[::-1]
 
         x_inital = self.nd.read_probes('x_pos')
         y_inital = self.nd.read_probes('y_pos')
@@ -122,6 +123,7 @@ class ConfocalScan_OldMethod(Experiment):
         #print('adwin delay: ',delay)
 
         wf = list(y_array)
+        wf_reversed = list(reversed_y_array)
         len_wf = len(y_array)
         #print(len_wf,wf)
 
@@ -130,46 +132,74 @@ class ConfocalScan_OldMethod(Experiment):
         self.nd.update({'x_pos':x_min,'y_pos':y_min,'read_rate':self.settings['read_rate'],'num_datapoints':len_wf,'load_rate':self.settings['time_per_pt']})
         #load_rate is time_per_pt; 2.0ms = 5000Hz
         self.adw.update({'process_2':{'delay':adwin_delay}})
-        #print('nd and adwin setup')
-
         sleep(0.1)  #time for stage to move to starting posiition and adwin process to initilize
 
-        self._first_plot = True
+        self._first_plot = True #useed to create pg.image only once
+        forward = True #used to rasterize more efficently
         for i, x in enumerate(x_array):
             if self._abort == True:
                 break
             img_row = []
             x = float(x)
-            self.nd.update({'x_pos':x,'y_pos':y_min})     #goes to x position
-            sleep(0.1)
-            x_pos = self.nd.read_probes('x_pos')
-            x_data.append(x_pos)
-            self.data['x_pos'] = x_data     #adds x postion to data
+            if forward == True:
+                self.nd.update({'x_pos':x,'y_pos':y_min})     #goes to x position
+                sleep(0.1)
+                x_pos = self.nd.read_probes('x_pos')
+                x_data.append(x_pos)
+                self.data['x_pos'] = x_data     #adds x postion to data
 
-            self.adw.update({'process_2':{'running':True}})
+                self.adw.update({'process_2':{'running':True}})
+                #trigger waveform on y-axis and record position data
+                self.nd.setup(settings={'read_waveform':self.nd.empty_waveform,'load_waveform':wf},axis='y')
+                y_pos = self.nd.waveform_acquisition(axis='y')
+                sleep(self.settings['time_per_pt']*len_wf/1000)
+                y_data.append(y_pos)
+                self.data['y_pos'] = y_data
+                self.adw.update({'process_2':{'running':False}})
 
-            #trigger waveform on y-axis and record position data
-            self.nd.setup(settings={'read_waveform':self.nd.empty_waveform,'load_waveform':wf},axis='y')
-            y_pos = self.nd.waveform_acquisition(axis='y')
-            y_data.append(y_pos)
-            self.data['y_pos'] = y_data
+                # get count data from adwin and record it
+                raw_counts = list(self.adw.read_probes('int_array', id=1, length=len(y_array)))
+                raw_count_data.extend(raw_counts)
+                self.data['raw_counts'] = raw_count_data
 
-            self.adw.update({'process_2':{'running':False}})
+                # units of count/seconds
+                count_rate = list(np.array(raw_counts) * 1e3 / self.settings['time_per_pt'])
+                count_rate_data.extend(count_rate)
+                img_row.extend(count_rate)
+                self.data['counts'] = count_rate_data
 
-            #get count data from adwin and record it
-            raw_counts = list(self.adw.read_probes('int_array',id=1,length=len(y_array)))
-            raw_count_data.extend(raw_counts)
-            self.data['raw_counts'] = raw_count_data
+            else:
+                self.nd.update({'x_pos': x, 'y_pos': y_max})  # goes to x position
+                sleep(0.1)
+                x_pos = self.nd.read_probes('x_pos')
+                x_data.append(x_pos)
+                self.data['x_pos'] = x_data  # adds x postion to data
 
-            #units of count/seconds
-            count_rate = list(np.array(raw_counts)*1e3/self.settings['time_per_pt'])
-            count_rate_data.extend(count_rate)
-            img_row.extend(count_rate)
-            self.data['counts'] = count_rate_data
+                self.adw.update({'process_2': {'running': True}})
+                # trigger waveform on y-axis and record position data
+                self.nd.setup(settings={'read_waveform': self.nd.empty_waveform, 'load_waveform': wf_reversed}, axis='y')
+                y_pos = self.nd.waveform_acquisition(axis='y')
+                y_data.append(y_pos)
+                self.data['y_pos'] = y_data
+                self.adw.update({'process_2': {'running': False}})
+
+                # get count data from adwin and record it
+                raw_counts = list(self.adw.read_probes('int_array', id=1, length=len(y_array)))
+                raw_count_data.extend(raw_counts)
+                self.data['raw_counts'] = raw_count_data
+
+                # units of count/seconds
+                count_rate = list(np.array(raw_counts) * 1e3 / self.settings['time_per_pt'])
+                count_rate.reverse()
+                count_rate_data.extend(count_rate)
+                img_row.extend(count_rate)
+                self.data['counts'] = count_rate_data
 
             self.data[('count_img')][i, :] = img_row #add previous scan data so image plots
+            #forward = not forward
+
+            # updates process bar to see experiment is running
             interation_num = interation_num + len_wf
-            #updates process bar to see experiment is running
             self.progress = 100. * (interation_num +1) / total_interations
             self.updateProgress.emit(self.progress)
 
@@ -183,7 +213,7 @@ class ConfocalScan_OldMethod(Experiment):
         #print('Counts: ','\n',self.count_data)
 
         #print('All data: ',self.data)
-        if self.setting['return_to_start'] == True:
+        if self.settings['return_to_start'] == True:
             self.nd.update({'x_pos':x_inital,'y_pos':y_inital})
 
 
@@ -547,7 +577,6 @@ class ConfocalScan_PointByPoint(Experiment):
             img_row = []  #used for tracking image rows and adding to count_img; list not saved
             self.nd.update({'x_pos':x})
             if forward == True:
-                print('going forward')
                 for y in y_array:
                     y = float(y)
                     print(x,y)
@@ -571,7 +600,6 @@ class ConfocalScan_PointByPoint(Experiment):
                     self.data['counts'] = count_rate_data
 
             else:
-                print('reverse reverse')
                 for y in reversed_y_array:
                     y = float(y)
                     print(x,y)
@@ -609,8 +637,8 @@ class ConfocalScan_PointByPoint(Experiment):
         self.data['raw_counts'] = raw_counts_data
         self.data['counts'] = count_rate_data
 
-        print('All data: ',self.data)
-        if self.setting['return_to_start'] == True:
+        #print('All data: ',self.data)
+        if self.settings['return_to_start'] == True:
             self.nd.update({'x_pos': x_inital, 'y_pos': y_inital})
 
 
