@@ -36,6 +36,7 @@ class ConfocalScan_OldMethod(Experiment):
         Parameter('resolution', 0.1, float, 'Resolution of each pixel in microns'),
         Parameter('time_per_pt', 2.0, float, 'Time in ms at each point to get counts; same as load_rate for nanodrive. Valid values 1/6-5 ms'),
         Parameter('read_rate',2.0,[0.267,0.5,1.0,2.0,10.0,17.0,20.0],'Time in ms. Same as read_rate for nanodrive. Should match with time_per_pt for accurate position data'),
+        Parameter('return_to_start',True,bool,'If true will return to position of stage before scan started'),
         #clocks currently not implemented
         Parameter('correlate_clock', 'Aux', ['Pixel','Line','Frame','Aux'], 'Nanodrive clocked used for correlating points with counts (Connected to Digital Input 1 on Adwin)'),
         Parameter('laser_clock', 'Pixel', ['Pixel','Line','Frame','Aux'], 'Nanodrive clocked used for turning laser on and off')
@@ -88,6 +89,9 @@ class ConfocalScan_OldMethod(Experiment):
         #array form point_a x,y to point_b x,y with step of resolution
         x_array = np.arange(x_min, x_max + step, step)
         y_array = np.arange(y_min, y_max+step, step)
+
+        x_inital = self.nd.read_probes('x_pos')
+        y_inital = self.nd.read_probes('y_pos')
 
         #makes sure data is getting recorded. If still equal none after running experiment data is not being stored or measured
         self.data['x_pos'] = None
@@ -179,7 +183,9 @@ class ConfocalScan_OldMethod(Experiment):
         #print('Counts: ','\n',self.count_data)
 
         #print('All data: ',self.data)
-        self.nd.update({'x_pos':x_min,'y_pos':y_min})
+        if self.setting['return_to_start'] == True:
+            self.nd.update({'x_pos':x_inital,'y_pos':y_inital})
+
 
 
     def _plot(self, axes_list, data=None):
@@ -442,6 +448,7 @@ class ConfocalScan_PointByPoint(Experiment):
         Parameter('resolution', 0.1, float, 'Resolution of each pixel in microns'),
         Parameter('time_per_pt', 5.0, float, 'Time in ms at each point to get counts'),
         Parameter('settle_time',0.2,float,'Time in seconds to allow NanoDrive to settle to correct position'),
+        Parameter('return_to_start', True, bool, 'If true will return to position of stage before scan started'),
         Parameter('correlate_clock', 'Aux', ['Pixel','Line','Frame','Aux'], 'Nanodrive clock'),
         Parameter('laser_clock', 'Pixel', ['Pixel','Line','Frame','Aux'], 'Nanodrive clock used for turning laser on and off')
     ]
@@ -484,7 +491,6 @@ class ConfocalScan_PointByPoint(Experiment):
         This is the actual function that will be executed. It uses only information that is provided in the settings property
         will be overwritten in the __init__
         """
-        self.running = True #use to not trigger plotting but still update progress bar
         x_min = self.settings['point_a']['x']
         x_max = self.settings['point_b']['x']
         y_min = self.settings['point_a']['y']
@@ -494,6 +500,9 @@ class ConfocalScan_PointByPoint(Experiment):
         x_array = np.arange(x_min, x_max+step, step)
         y_array = np.arange(y_min, y_max + step, step)
         reversed_y_array = y_array[::-1]
+
+        x_inital = self.nd.read_probes('x_pos')
+        y_inital = self.nd.read_probes('y_pos')
 
         #makes sure data is getting recorded. If still equal none after running experiment data is not being stored or measured
         self.data['x_pos'] = None
@@ -594,7 +603,6 @@ class ConfocalScan_PointByPoint(Experiment):
             self.updateProgress.emit(self.progress)
 
         print('Data collected')
-        self.running = False
 
         self.data['x_pos'] = x_data
         self.data['y_pos'] = y_data
@@ -602,7 +610,8 @@ class ConfocalScan_PointByPoint(Experiment):
         self.data['counts'] = count_rate_data
 
         print('All data: ',self.data)
-        self.nd.update({'x_pos': x_min, 'y_pos': y_min})
+        if self.setting['return_to_start'] == True:
+            self.nd.update({'x_pos': x_inital, 'y_pos': y_inital})
 
 
 
