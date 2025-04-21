@@ -209,7 +209,7 @@ class ConfocalScan_OldMethod(Experiment):
         self.data['y_pos'] = y_data
         self.data['raw_counts'] = raw_count_data
         self.data['counts'] = count_rate_data
-        #print('Position Data: ','\n',self.x_data,'\n',self.y_data)
+        print('Position Data: ','\n',self.data['x_pos'],'\n',self.data['y_pos'],'\n','Max x: ',np.max(self.data['x_pos']),'Max y: ',np.max(self.data['y_pos']))
         #print('Counts: ','\n',self.count_data)
 
         #print('All data: ',self.data)
@@ -229,7 +229,8 @@ class ConfocalScan_OldMethod(Experiment):
 
             levels = [np.min(data['count_img']), np.max(data['count_img'])]
             if self._first_plot == True:
-                extent = [self.settings['point_a']['x'], self.settings['point_b']['x'], self.settings['point_a']['y'],self.settings['point_b']['y']]
+                #extent = [self.settings['point_a']['x'], self.settings['point_b']['x'], self.settings['point_a']['y'],self.settings['point_b']['y']]
+                extent = [np.min(data['x_pos']), np.max(data['x_pos']), np.min(data['y_pos']), np.max(data['y_pos'])]
                 self.image = pg.ImageItem(data['count_img'], interpolation='nearest')
                 self.image.setLevels(levels)
                 self.image.setRect(pg.QtCore.QRectF(extent[0], extent[2], extent[1] - extent[0], extent[3] - extent[2]))
@@ -246,6 +247,10 @@ class ConfocalScan_OldMethod(Experiment):
                 self.image.setLevels(levels)
                 self.colorbar.setLevels(levels)
 
+                extent = [np.min(data['x_pos']), np.max(data['x_pos']), np.min(data['y_pos']), np.max(data['y_pos'])]
+                self.image.setRect(pg.QtCore.QRectF(extent[0], extent[2], extent[1] - extent[0], extent[3] - extent[2]))
+                axes_list[0].setAspectLocked(True)
+
 
     def _update(self,axes_list):
         '''all_plot_items = axes_list[0].getViewBox().allChildren()
@@ -255,7 +260,7 @@ class ConfocalScan_OldMethod(Experiment):
                 image = item
                 break'''
 
-        self.image.setImage(self.data['count_img'])
+        self.image.setImage(self.data['count_img'], autoLevels=False)
         self.image.setLevels([np.min(self.data['count_img']), np.max(self.data['count_img'])])
         self.colorbar.setLevels([np.min(self.data['count_img']), np.max(self.data['count_img'])])
 
@@ -363,6 +368,12 @@ class ConfocalPoint(Experiment):
 
         elif self.settings['continuous'] == True:
             while self._abort == False:     #self._abort is defined in experiment.py and is true false while running and set false when stop button is hit
+                if len(self.data['counts']) > self.settings['graph_params']['length_data']:         #once matplotlib gets above a certain number of data point GUI starts to lag and freeze
+                    count_rate_data.clear()
+                    self.data['counts'].clear()
+                    raw_counts_data.clear()
+                    self.data['raw_counts'].clear()
+
                 sleep(self.settings['graph_params']['refresh_rate'])    #effictivly this sleep is the time interval the graph is refreshed (1/fps)
                 # counting window
                 raw_counts = self.adw.read_probes('int_var',id=1)           #read variable from adwin
@@ -377,11 +388,7 @@ class ConfocalPoint(Experiment):
                 self.progress = 1   #this is a infinite loop till stop button is hit; progress & updateProgress is only here to update plot
                 self.updateProgress.emit(self.progress)     #calling updateProgress.emit triggers _plot
 
-                if len(self.data['counts']) > self.settings['graph_params']['length_data']:         #once matplotlib gets above a certain number of data point GUI starts to lag and freeze
-                    count_rate_data.clear()
-                    self.data['counts'].clear()
-                    raw_counts_data.clear()
-                    self.data['raw_counts'].clear()
+
 
 
     def _plot(self, axes_list, data=None):
@@ -393,13 +400,14 @@ class ConfocalPoint(Experiment):
 
         if data is not None and data is not {}:
             axes_list[0].clear()
-            axes_list[0].plot(data['counts'])
+            #axes_list[0].plot(data['counts'])
+            axes_list[0].plot(data['raw_counts'])
             axes_list[0].showGrid(x=True,y=True)
             axes_list[0].setLabel('left','counts/sec')  #units='counts/sec'
             axes_list[0].setXRange(0,self.settings['graph_params']['length_data']+100)
 
-            axes_list[1].setText(f'{data["counts"][-1]/1000:.3f} kcounts/sec')
-
+            #axes_list[1].setText(f'{data["counts"][-1]/1000:.3f} kcounts/sec')
+            axes_list[1].setText(f'{data["raw_counts"][-1]} counts/sec')
 
             '''
             Might be useful to include a max count number display
@@ -637,6 +645,7 @@ class ConfocalScan_PointByPoint(Experiment):
         self.data['raw_counts'] = raw_counts_data
         self.data['counts'] = count_rate_data
 
+        print('Position Data: ', '\n', self.data['x_pos'], '\n', self.data['y_pos'], '\n', 'Max x: ',np.max(self.data['x_pos']), 'Max y: ', np.max(self.data['y_pos']))
         #print('All data: ',self.data)
         if self.settings['return_to_start'] == True:
             self.nd.update({'x_pos': x_inital, 'y_pos': y_inital})
@@ -654,7 +663,8 @@ class ConfocalScan_PointByPoint(Experiment):
 
             levels = [np.min(data['count_img']), np.max(data['count_img'])]
             if self._first_plot == True:
-                extent = [self.settings['point_a']['x'], self.settings['point_b']['x'], self.settings['point_a']['y'],self.settings['point_b']['y']]
+                #extent = [self.settings['point_a']['x'], self.settings['point_b']['x'], self.settings['point_a']['y'],self.settings['point_b']['y']]
+                extent = [np.min(data['x_pos']), np.max(data['x_pos']), np.min(data['y_pos']), np.max(data['y_pos'])]
                 self.image = pg.ImageItem(data['count_img'], interpolation='nearest')
                 self.image.setLevels(levels)
                 self.image.setRect(pg.QtCore.QRectF(extent[0], extent[2],extent[1] - extent[0], extent[3] - extent[2]))
@@ -670,6 +680,10 @@ class ConfocalScan_PointByPoint(Experiment):
                 self.image.setImage(data['count_img'], autoLevels=False)
                 self.image.setLevels(levels)
                 self.colorbar.setLevels(levels)
+
+                extent = [np.min(data['x_pos']), np.max(data['x_pos']), np.min(data['y_pos']), np.max(data['y_pos'])]
+                self.image.setRect(pg.QtCore.QRectF(extent[0], extent[2], extent[1] - extent[0], extent[3] - extent[2]))
+                axes_list[0].setAspectLocked(True)
 
 
     def _update(self,axes_list):
