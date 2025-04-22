@@ -58,29 +58,19 @@ class ConfocalScan_OldMethod(Experiment):
         self.nd = self.devices['nanodrive']['instance']
         self.adw = self.devices['adwin']['instance']
 
-        self.setup_scan()
-
-
-
-    def setup_scan(self):
-        '''
-        Gets paths for adbasic file and loads them onto ADwin.
-        Resets Nanodrive clock settings to default.
-        '''
-        #one_d_scan script increments an index then adds count values to an array in a constant time interval
-        one_d_scan_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..','..','Controller','binary_files','ADbasic','One_D_Scan.TB2')
-        one_d_scan = os.path.normpath(one_d_scan_path)
-
-        self.adw.update({'process_2':{'load':one_d_scan}})
-        self.nd.clock_functions('Frame',reset=True)     #reset ALL clocks to default settings
-
-        #print('scan setup')
 
     def _function(self):
         """
         This is the actual function that will be executed. It uses only information that is provided in the settings property
         will be overwritten in the __init__
         """
+        #Gets paths for adbasic file and loads them onto ADwin.
+        one_d_scan_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'Controller','binary_files', 'ADbasic', 'One_D_Scan.TB2')
+        one_d_scan = os.path.normpath(one_d_scan_path)
+        self.adw.update({'process_2': {'load': one_d_scan}})
+        # one_d_scan script increments an index then adds count values to an array in a constant time interval
+        self.nd.clock_functions('Frame', reset=True)  # reset ALL clocks to default settings
+
         x_min = self.settings['point_a']['x']
         x_max = self.settings['point_b']['x']
         y_min = self.settings['point_a']['y']
@@ -211,8 +201,10 @@ class ConfocalScan_OldMethod(Experiment):
         self.data['counts'] = count_rate_data
         print('Position Data: ','\n',self.data['x_pos'],'\n',self.data['y_pos'],'\n','Max x: ',np.max(self.data['x_pos']),'Max y: ',np.max(self.data['y_pos']))
         #print('Counts: ','\n',self.count_data)
-
         #print('All data: ',self.data)
+
+        #clearing process to aviod memory fragmentation when running different experiments in GUI
+        self.adw.clear_process(2)
         if self.settings['return_to_start'] == True:
             self.nd.update({'x_pos':x_inital,'y_pos':y_inital})
 
@@ -322,25 +314,18 @@ class ConfocalPoint(Experiment):
         self.nd = self.devices['nanodrive']['instance']
         self.adw = self.devices['adwin']['instance']
 
-        self.setup()
-
-    def setup(self):
-        '''
-        Gets paths for adbasic files and loads them onto ADwin.
-        Resets Nanodrive clock settings to default.
-        '''
-        #gets an 'overlaping' path to trial counter in binary_files folder
-        trial_counter_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..','..','Controller','binary_files','ADbasic','Trial_Counter.TB1')
-        trial_counter = os.path.normpath(trial_counter_path)
-
-        self.adw.update({'process_1':{'load':trial_counter}})
-        self.nd.clock_functions('Frame',reset=True)     #reset ALL clocks to default settings
 
     def _function(self):
         """
         This is the actual function that will be executed. It uses only information that is provided in the settings property
         will be overwritten in the __init__
         """
+        #gets an 'overlaping' path to trial counter in binary_files folder
+        trial_counter_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..','..','Controller','binary_files','ADbasic','Trial_Counter.TB1')
+        trial_counter = os.path.normpath(trial_counter_path)
+        self.adw.update({'process_1':{'load':trial_counter}})
+        self.nd.clock_functions('Frame',reset=True)     #reset ALL clocks to default settings
+
         self.data['counts'] = None
         self.data['raw_counts'] = None
         count_rate_data = []
@@ -388,6 +373,8 @@ class ConfocalPoint(Experiment):
                 self.progress = 1   #this is a infinite loop till stop button is hit; progress & updateProgress is only here to update plot
                 self.updateProgress.emit(self.progress)     #calling updateProgress.emit triggers _plot
 
+        self.adw.update({'process_1': {'running': False}})
+        self.adw.clear_process(1)
 
 
 
@@ -507,28 +494,17 @@ class ConfocalScan_PointByPoint(Experiment):
         self.nd = self.devices['nanodrive']['instance']
         self.adw = self.devices['adwin']['instance']
 
-        self.setup_scan()
-
-
-    def setup_scan(self):
-        '''
-        Gets paths for adbasic file and loads them onto ADwin.
-        Resets Nanodrive clock settings to default.
-        '''
-        # gets an 'overlaping' path to trial counter in binary_files folder
-        trial_counter_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'Controller','binary_files', 'ADbasic', 'Trial_Counter.TB1')
-        trial_counter = os.path.normpath(trial_counter_path)
-
-        self.adw.update({'process_1': {'load': trial_counter}})
-        self.nd.clock_functions('Frame',reset=True)     #reset ALL clocks to default settings
-
-        #print('scan setup')
-
     def _function(self):
         """
         This is the actual function that will be executed. It uses only information that is provided in the settings property
         will be overwritten in the __init__
         """
+        # gets an 'overlaping' path to trial counter in binary_files folder
+        trial_counter_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'Controller','binary_files', 'ADbasic', 'Trial_Counter.TB1')
+        trial_counter = os.path.normpath(trial_counter_path)
+        self.adw.update({'process_1': {'load': trial_counter}})
+        self.nd.clock_functions('Frame', reset=True)  # reset ALL clocks to default settings
+
         x_min = self.settings['point_a']['x']
         x_max = self.settings['point_b']['x']
         y_min = self.settings['point_a']['y']
@@ -647,6 +623,9 @@ class ConfocalScan_PointByPoint(Experiment):
 
         print('Position Data: ', '\n', self.data['x_pos'], '\n', self.data['y_pos'], '\n', 'Max x: ',np.max(self.data['x_pos']), 'Max y: ', np.max(self.data['y_pos']))
         #print('All data: ',self.data)
+
+        self.adw.update({'process_2': {'running': False}})
+        self.adw.clear_process(1)
         if self.settings['return_to_start'] == True:
             self.nd.update({'x_pos': x_inital, 'y_pos': y_inital})
 
