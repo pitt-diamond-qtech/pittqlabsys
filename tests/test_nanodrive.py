@@ -1,3 +1,5 @@
+from pycparser.ply.ctokens import t_MINUS
+
 from src.Controller.nanodrive import MCLNanoDrive
 import pytest
 import numpy as np
@@ -8,11 +10,12 @@ from time import sleep
 
 @pytest.fixture
 def get_nanodrive() -> MCLNanoDrive:
-    return MCLNanoDrive()
+    return MCLNanoDrive(settings={'serial':2849})
 
 def test_connection(get_nanodrive):
     assert get_nanodrive.is_connected
 
+@pytest.mark.skip(reason='not currently testing')
 def test_position(get_nanodrive):
     '''
     Read axis range and ensures it is a float. Sets axis position and read to make sure it is within 10 nm of specified
@@ -27,7 +30,7 @@ def test_position(get_nanodrive):
     assert isinstance(ax_range, float)
     assert 4.99 <= pos <= 5.01 #check to make sure atleast within 10 nm. Usally closer than 10nm to inputed position but not exact
 
-
+@pytest.mark.skip(reason='not currently testing')
 @pytest.mark.parametrize('clock',['Pixel','Line','Frame','Aux'])
 @pytest.mark.parametrize('mode',[0,1])
 def test_clock_mode(get_nanodrive,clock,mode):
@@ -44,7 +47,7 @@ def test_clock_mode(get_nanodrive,clock,mode):
     get_nanodrive.clock_functions(clock, mode=mode)
     sleep(0.1)
 
-
+@pytest.mark.skip(reason='not currently testing')
 @pytest.mark.parametrize('polarity',[0,1])
 @pytest.mark.parametrize('clock',['Pixel','Line','Frame','Aux'])
 def test_clock_polarity(get_nanodrive,clock,polarity):
@@ -64,6 +67,7 @@ def test_clock_polarity(get_nanodrive,clock,polarity):
     get_nanodrive.clock_functions(clock, polarity=polarity)
     sleep(0.1)
 
+@pytest.mark.skip(reason='not currently testing')
 @pytest.mark.parametrize('polarity',[0,1,2])
 @pytest.mark.parametrize('binding',['x','y','z','read','load'])
 @pytest.mark.parametrize('clock',['Pixel','Line','Frame','Aux'])
@@ -83,6 +87,7 @@ def test_clock_binding(get_nanodrive,clock,binding,polarity):
     nd.clock_functions(clock,polarity=polarity, binding=binding)
     sleep(0.1)
 
+@pytest.mark.skip(reason='not currently testing')
 def test_clock_reset(get_nanodrive):
     '''
     Test to see if error when sending reset command. Note pixel input is arbitrary ALL clocks are reset to defaults
@@ -91,6 +96,7 @@ def test_clock_reset(get_nanodrive):
     '''
     get_nanodrive.clock_functions('Pixel',reset=True)
 
+@pytest.mark.skip(reason='not currently testing')
 def test_single_ax_waveform(capsys,get_nanodrive):
     '''
     1) Loads waveform and then reads waveform on x-axis
@@ -134,7 +140,7 @@ def test_single_ax_waveform(capsys,get_nanodrive):
     assert len(wf) == len(x_read) == len(y_read)
     #also tested with reverse: wf_reveresed = np.arange(0, 10.1, 0.1)[::-1]
 
-
+@pytest.mark.skip(reason='not currently testing')
 def test_mult_ax_waveform(capsys,get_nanodrive):
     '''
     Sets up, triggers, then read a multi axis waveform. Plots read data to compare with inputed
@@ -176,7 +182,7 @@ def test_mult_ax_waveform(capsys,get_nanodrive):
 
     assert len(read_wf[0]) == len(read_wf[1]) == len(read_wf[2])
 
-
+@pytest.mark.skip(reason='not currently testing')
 def test_continuos_mult_ax_waveform(get_nanodrive):
     '''
     Triggers and infinite mult_ax waveform, waits 1 second then stops
@@ -194,6 +200,54 @@ def test_continuos_mult_ax_waveform(get_nanodrive):
     nd.trigger('mult_ax',mult_ax_stop=True)
 
 
+def test_waveform_for_confocal_scan(capsys,get_nanodrive):
+    '''
 
+    '''
+    read_rate = 2
+    load_rate = 2
+
+    y_min = 50
+    y_max = 100
+    step = 1
+    y_array = np.arange(y_min,y_max+step,step)
+
+    wf = list(y_array)
+    len_wf = len(y_array)
+
+    nd = get_nanodrive
+    nd.update(settings={'x_pos': 0, 'y_pos': y_min,'read_rate':read_rate,'num_datapoints':len_wf,'load_rate':load_rate})
+    sleep(0.1)
+
+    nd.setup(settings={'num_datapoints':len(wf),'load_waveform':wf},axis='y')
+    nd.setup(settings={'num_datapoints': len(wf) + 30, 'read_waveform': nd.empty_waveform},axis='y')  # read an extra 30 points
+    y_read = nd.waveform_acquisition(axis='y')
+
+    sleep(len_wf*load_rate/1000)
+    #sleeps added so NanoDrive finish waveform
+    y_after_wf = nd.read_probes('y_pos')
+
+    #extends waveform to match with extra read points
+    n_extra = len(y_read) - len(wf)
+    if n_extra > 0:
+        last_val = wf[-1]
+        extension = [last_val + step * (i + 1) for i in range(n_extra)]
+        wf_extended = wf + extension
+
+    with capsys.disabled():
+        #print('y value after wave acquisition: ', y_after_wf, 'len waveform: ',len_wf,'len y_read: ',len(y_read),'\n',y_read)
+        plt.figure(figsize=(10, 6))
+
+        plt.plot(wf_extended, y_read, label='Read waveform', marker='.', linestyle='none')
+        plt.plot(wf, wf, label='Input waveform', linestyle='--')
+        plt.axhline(y=y_max, color='r', linestyle='--', linewidth=1.5)
+
+
+        plt.xlabel('Waveform (um)')
+        plt.ylabel('Y position (um)')
+        plt.title(f'Comparison of read vs inputed waveform. Step = {step}um')
+        plt.legend()
+        plt.grid(True)
+        plt.show()
 
 

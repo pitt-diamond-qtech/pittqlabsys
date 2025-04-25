@@ -98,7 +98,7 @@ class ConfocalScan_OldMethod(Experiment):
 
         Nx = len(x_array)
         Ny = len(y_array)
-        self.data['count_img'] = np.zeros((Nx, Ny))
+        self.data['count_img'] = np.zeros((Nx, Ny+19))
 
         interation_num = 0 #number to track progress
         total_interations = ((x_max - x_min)/step + 1)*((y_max - y_min)/step + 1)       #plus 1 because in total_iterations because range is inclusive ie. [0,10]
@@ -141,14 +141,21 @@ class ConfocalScan_OldMethod(Experiment):
                 self.adw.update({'process_2':{'running':True}})
                 #trigger waveform on y-axis and record position data
                 self.nd.setup(settings={'read_waveform':self.nd.empty_waveform,'load_waveform':wf},axis='y')
+
+
+                '''self.nd.setup(settings={'num_datapoints': len_wf, 'load_waveform': wf}, axis='y')
+                self.nd.setup(settings={'num_datapoints':len_wf+20,'read_waveform':self.nd.empty_waveform},axis='y')'''
+
+
                 y_pos = self.nd.waveform_acquisition(axis='y')
                 sleep(self.settings['time_per_pt']*len_wf/1000)
                 y_data.append(y_pos)
                 self.data['y_pos'] = y_data
                 self.adw.update({'process_2':{'running':False}})
 
+                y_max_after_wf = self.nd.read_probes('y_pos')
                 # get count data from adwin and record it
-                raw_counts = list(self.adw.read_probes('int_array', id=1, length=len(y_array)))
+                raw_counts = list(self.adw.read_probes('int_array', id=1, length=len(y_array)+19))
                 raw_count_data.extend(raw_counts)
                 self.data['raw_counts'] = raw_count_data
 
@@ -192,6 +199,7 @@ class ConfocalScan_OldMethod(Experiment):
             interation_num = interation_num + len_wf
             self.progress = 100. * (interation_num +1) / total_interations
             self.updateProgress.emit(self.progress)
+            print('y_max_after_wf: ',y_max_after_wf)
 
         print('Data collected')
 
@@ -221,8 +229,8 @@ class ConfocalScan_OldMethod(Experiment):
 
             levels = [np.min(data['count_img']), np.max(data['count_img'])]
             if self._first_plot == True:
-                #extent = [self.settings['point_a']['x'], self.settings['point_b']['x'], self.settings['point_a']['y'],self.settings['point_b']['y']]
-                extent = [np.min(data['x_pos']), np.max(data['x_pos']), np.min(data['y_pos']), np.max(data['y_pos'])]
+                extent = [self.settings['point_a']['x'], self.settings['point_b']['x'], self.settings['point_a']['y'],self.settings['point_b']['y']]
+                #extent = [np.min(data['x_pos']), np.max(data['x_pos']), np.min(data['y_pos']), np.max(data['y_pos'])]
                 self.image = pg.ImageItem(data['count_img'], interpolation='nearest')
                 self.image.setLevels(levels)
                 self.image.setRect(pg.QtCore.QRectF(extent[0], extent[2], extent[1] - extent[0], extent[3] - extent[2]))
@@ -239,9 +247,9 @@ class ConfocalScan_OldMethod(Experiment):
                 self.image.setLevels(levels)
                 self.colorbar.setLevels(levels)
 
-                extent = [np.min(data['x_pos']), np.max(data['x_pos']), np.min(data['y_pos']), np.max(data['y_pos'])]
-                self.image.setRect(pg.QtCore.QRectF(extent[0], extent[2], extent[1] - extent[0], extent[3] - extent[2]))
-                axes_list[0].setAspectLocked(True)
+                #extent = [np.min(data['x_pos']), np.max(data['x_pos']), np.min(data['y_pos']), np.max(data['y_pos'])]
+                #self.image.setRect(pg.QtCore.QRectF(extent[0], extent[2], extent[1] - extent[0], extent[3] - extent[2]))
+                #axes_list[0].setAspectLocked(True)
 
 
     def _update(self,axes_list):
