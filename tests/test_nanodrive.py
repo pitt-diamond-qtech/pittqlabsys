@@ -200,52 +200,91 @@ def test_continuos_mult_ax_waveform(get_nanodrive):
     nd.trigger('mult_ax',mult_ax_stop=True)
 
 
-def test_waveform_for_confocal_scan(capsys,get_nanodrive):
-    '''
 
+
+@pytest.mark.parametrize('read_rate',[0.5,1,2])
+@pytest.mark.parametrize('step',[1,0.1,0.01])
+def test_waveform_for_confocal_scan(capsys,get_nanodrive,read_rate,step):
     '''
-    read_rate = 2
+    fails on read_rate 0.5,1 and step size 0.01 since the length of the waveform is longer than the allowed 6666 points
+    '''
+    read_rate = read_rate
     load_rate = 2
+    LR = load_rate/read_rate
 
-    y_min = 50
-    y_max = 100
-    step = 1
+    y_min = 50.0
+    y_max = 95.0
+    step = step
     y_array = np.arange(y_min,y_max+step,step)
 
-    wf = list(y_array)
-    len_wf = len(y_array)
+    y_before = np.arange(y_min-5.0,y_min,step)
+    y_after = np.arange(y_max+step, y_max+5.0+step, step)
+    #adjusted array with elements 5 um before and after desired waveform to compensate for start up and cool down periods
+    y_array_adj = np.insert(y_array,0,y_before)
+    y_array_adj = np.append(y_array_adj,y_after)
+
+    last_val = y_array_adj[-1]
+    extension = np.array([last_val + step * (i + 1) for i in range(20)])
+    y_array_adj_extended = np.concatenate((y_array_adj,extension))
+
+    wf = list(y_array_adj)
+    len_wf = len(y_array_adj)
 
     nd = get_nanodrive
-    nd.update(settings={'x_pos': 0, 'y_pos': y_min,'read_rate':read_rate,'num_datapoints':len_wf,'load_rate':load_rate})
+    nd.update(settings={'x_pos': 0, 'y_pos': y_min-5,'read_rate':read_rate,'num_datapoints':len_wf,'load_rate':load_rate})
     sleep(0.1)
 
     nd.setup(settings={'num_datapoints':len(wf),'load_waveform':wf},axis='y')
-    nd.setup(settings={'num_datapoints': len(wf) + 30, 'read_waveform': nd.empty_waveform},axis='y')  # read an extra 30 points
+    read_length = int(LR*len(wf)+20)
+    nd.setup(settings={'num_datapoints': read_length, 'read_waveform': nd.empty_waveform},axis='y')  # read an extra 20 points
     y_read = nd.waveform_acquisition(axis='y')
-
     sleep(len_wf*load_rate/1000)
     #sleeps added so NanoDrive finish waveform
-    y_after_wf = nd.read_probes('y_pos')
 
-    #extends waveform to match with extra read points
+    #extends waveform for plotting purposes to match with extra read points
     n_extra = len(y_read) - len(wf)
     if n_extra > 0:
         last_val = wf[-1]
         extension = [last_val + step * (i + 1) for i in range(n_extra)]
         wf_extended = wf + extension
+    #read and load time are the time stamps for points on a waveform being loaded and for points of the waveform being read
+    #two different lines for array length differences and read/load rate difference
+    read_time = np.arange(len(wf_extended))*read_rate
+    load_time = np.arange(len(wf))*load_rate
+    load_time_extended = np.arange(len(y_array_adj_extended))*load_rate
+
+    y_read_array = np.array(y_read)
+    #going to try a best fit equation to determine if extended waveform is good to use
+    lower_index = np.where((y_read_array > y_min-step/LR) & (y_read_array < y_min+step/LR))[0]
+    upper_index = np.where((y_read_array > y_max-step/LR) & (y_read_array < y_max+step/LR))[0]
+
+    load_lower_index = int(lower_index[0]/LR)
+    #load_upper_index = min(int(upper_index[0]/LR), len(wf)-1)
+    load_upper_index = int(upper_index[0]/LR)
 
     with capsys.disabled():
         #print('y value after wave acquisition: ', y_after_wf, 'len waveform: ',len_wf,'len y_read: ',len(y_read),'\n',y_read)
+        #print(len(y_array_adj_extended),'\n')
+        #print(lower_index[0], upper_index[0], ' & load ', load_lower_index, load_upper_index)
+        #print(y_array_adj[load_lower_index], y_array_adj[load_upper_index],f' expect to be {y_min} and {y_max}')
         plt.figure(figsize=(10, 6))
 
-        plt.plot(wf_extended, y_read, label='Read waveform', marker='.', linestyle='none')
-        plt.plot(wf, wf, label='Input waveform', linestyle='--')
-        plt.axhline(y=y_max, color='r', linestyle='--', linewidth=1.5)
+        plt.plot(read_time, y_read, label='Read waveform', marker='.', linestyle='none')
+        plt.plot(load_time_extended,y_array_adj_extended,alpha=0.1,marker='.',color='m',label='Extended Waveform')
+        plt.plot(load_time, wf, label='Input waveform', marker='.',color='orange')
 
+        #region of interest
+        plt.axhline(y=y_max, color='r', linestyle='--', linewidth=1.5,label='ROI')
+        plt.axhline(y=y_min, color='r', linestyle='--', linewidth=1.5,)
+        plt.axvline(x=read_time[lower_index[0]], color='r', linestyle='--', linewidth=1.5)
+        plt.axvline(x=read_time[upper_index[0]], color='r', linestyle='--', linewidth=1.5)
 
-        plt.xlabel('Waveform (um)')
+        plt.plot([load_time[load_lower_index]],[y_array_adj_extended[load_lower_index]],color='g', label='Index of Count Data',marker='.')
+        plt.plot([load_time_extended[load_upper_index]],[y_array_adj_extended[load_upper_index]],color='g',marker='.')
+
+        plt.xlabel('Time (ms)')
         plt.ylabel('Y position (um)')
-        plt.title(f'Comparison of read vs inputed waveform. Step = {step}um')
+        plt.title(f'Parameters: Number of points = {len(wf)}, Load Rate = {load_rate}ms, Read Rate = {read_rate}ms')
         plt.legend()
         plt.grid(True)
         plt.show()
