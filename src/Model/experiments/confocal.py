@@ -79,7 +79,7 @@ class ConfocalScan_OldMethod(Experiment):
         #array form point_a x,y to point_b x,y with step of resolution
         x_array = np.arange(x_min, x_max + step, step)
         y_array = np.arange(y_min, y_max+step, step)
-        reversed_y_array = y_array[::-1]
+        #reversed_y_array = y_array[::-1]
 
         x_inital = self.nd.read_probes('x_pos')
         y_inital = self.nd.read_probes('y_pos')
@@ -113,18 +113,17 @@ class ConfocalScan_OldMethod(Experiment):
         #print('adwin delay: ',delay)
 
         wf = list(y_array)
-        wf_reversed = list(reversed_y_array)
+        #wf_reversed = list(reversed_y_array)
         len_wf = len(y_array)
         #print(len_wf,wf)
 
 
         #set inital x and y and set nanodrive stage to that position
-        self.nd.update({'x_pos':x_min,'y_pos':y_min,'read_rate':self.settings['read_rate'],'num_datapoints':len_wf,'load_rate':self.settings['time_per_pt']})
+        self.nd.update({'x_pos':x_min,'y_pos':y_min,'num_datapoints':len_wf,'read_rate':self.settings['read_rate'],'load_rate':self.settings['time_per_pt']})
         #load_rate is time_per_pt; 2.0ms = 5000Hz
         self.adw.update({'process_2':{'delay':adwin_delay}})
         sleep(0.1)  #time for stage to move to starting posiition and adwin process to initilize
 
-        self._first_plot = True #useed to create pg.image only once
         forward = True #used to rasterize more efficently
         for i, x in enumerate(x_array):
             if self._abort == True:
@@ -165,6 +164,8 @@ class ConfocalScan_OldMethod(Experiment):
                 img_row.extend(count_rate)
                 self.data['counts'] = count_rate_data
 
+            #efficent rasterizing not impremented
+            '''
             else:
                 self.nd.update({'x_pos': x, 'y_pos': y_max})  # goes to x position
                 sleep(0.1)
@@ -191,7 +192,7 @@ class ConfocalScan_OldMethod(Experiment):
                 count_rate_data.extend(count_rate)
                 img_row.extend(count_rate)
                 self.data['counts'] = count_rate_data
-
+            '''
             self.data[('count_img')][i, :] = img_row #add previous scan data so image plots
             #forward = not forward
 
@@ -207,7 +208,7 @@ class ConfocalScan_OldMethod(Experiment):
         self.data['y_pos'] = y_data
         self.data['raw_counts'] = raw_count_data
         self.data['counts'] = count_rate_data
-        print('Position Data: ','\n',self.data['x_pos'],'\n',self.data['y_pos'],'\n','Max x: ',np.max(self.data['x_pos']),'Max y: ',np.max(self.data['y_pos']))
+        #print('Position Data: ','\n',self.data['x_pos'],'\n',self.data['y_pos'],'\n','Max x: ',np.max(self.data['x_pos']),'Max y: ',np.max(self.data['y_pos']))
         #print('Counts: ','\n',self.count_data)
         #print('All data: ',self.data)
 
@@ -228,7 +229,7 @@ class ConfocalScan_OldMethod(Experiment):
         if data is not None or data is not {}:
 
             levels = [np.min(data['count_img']), np.max(data['count_img'])]
-            if self._first_plot == True:
+            if self._plot_refresh == True:
                 extent = [self.settings['point_a']['x'], self.settings['point_b']['x'], self.settings['point_a']['y'],self.settings['point_b']['y']]
                 #extent = [np.min(data['x_pos']), np.max(data['x_pos']), np.min(data['y_pos']), np.max(data['y_pos'])]
                 self.image = pg.ImageItem(data['count_img'], interpolation='nearest')
@@ -240,8 +241,6 @@ class ConfocalScan_OldMethod(Experiment):
                 axes_list[0].setAspectLocked(True)
                 axes_list[0].setLabel('left', 'y (µm)')
                 axes_list[0].setLabel('bottom', 'x (µm)')
-
-                self._first_plot = False  # flip the flag so future updates use the else
             else:
                 self.image.setImage(data['count_img'], autoLevels=False)
                 self.image.setLevels(levels)
@@ -264,22 +263,6 @@ class ConfocalScan_OldMethod(Experiment):
         self.image.setLevels([np.min(self.data['count_img']), np.max(self.data['count_img'])])
         self.colorbar.setLevels([np.min(self.data['count_img']), np.max(self.data['count_img'])])
 
-    def get_axes_layout(self, figure_list):
-        """
-        overrides method so image item isnt cleared when last _plot is called
-        """
-        axes_list = []
-        if self._plot_refresh is True and self._first_plot is True:
-            for graph in figure_list:
-                graph.clear()
-                axes_list.append(graph.addPlot(row=0,col=0))
-
-
-        else:
-            for graph in figure_list:
-                axes_list.append(graph.getItem(row=0,col=0))
-
-        return axes_list
 
 class ConfocalPoint(Experiment):
     '''
@@ -361,12 +344,6 @@ class ConfocalPoint(Experiment):
 
         elif self.settings['continuous'] == True:
             while self._abort == False:     #self._abort is defined in experiment.py and is true false while running and set false when stop button is hit
-                if len(self.data['counts']) > self.settings['graph_params']['length_data']:         #once matplotlib gets above a certain number of data point GUI starts to lag and freeze
-                    count_rate_data.clear()
-                    self.data['counts'].clear()
-                    raw_counts_data.clear()
-                    self.data['raw_counts'].clear()
-
                 sleep(self.settings['graph_params']['refresh_rate'])    #effictivly this sleep is the time interval the graph is refreshed (1/fps)
                 # counting window
                 raw_counts = self.adw.read_probes('int_var',id=1)           #read variable from adwin
@@ -380,6 +357,12 @@ class ConfocalPoint(Experiment):
 
                 self.progress = 1   #this is a infinite loop till stop button is hit; progress & updateProgress is only here to update plot
                 self.updateProgress.emit(self.progress)     #calling updateProgress.emit triggers _plot
+
+                if len(self.data['counts']) > self.settings['graph_params']['length_data']:
+                    count_rate_data.clear()
+                    self.data['counts'].clear()
+                    raw_counts_data.clear()
+                    self.data['raw_counts'].clear()
 
         self.adw.update({'process_1': {'running': False}})
         self.adw.clear_process(1)
@@ -559,7 +542,6 @@ class ConfocalScan_PointByPoint(Experiment):
         self.nd.update({'x_pos': x_min, 'y_pos': y_min})
         sleep(0.1)  # time for stage to move and adwin process to initilize
 
-        self._first_plot = True #used to first create pg.image
         forward = True #used to rasterize more efficently going forward then back
         #for x in x_array:
         for i, x in enumerate(x_array):
@@ -649,7 +631,7 @@ class ConfocalScan_PointByPoint(Experiment):
         if data is not None or data is not {}:
 
             levels = [np.min(data['count_img']), np.max(data['count_img'])]
-            if self._first_plot == True:
+            if self._plot_refresh == True:
                 #extent = [self.settings['point_a']['x'], self.settings['point_b']['x'], self.settings['point_a']['y'],self.settings['point_b']['y']]
                 extent = [np.min(data['x_pos']), np.max(data['x_pos']), np.min(data['y_pos']), np.max(data['y_pos'])]
                 self.image = pg.ImageItem(data['count_img'], interpolation='nearest')
@@ -662,7 +644,6 @@ class ConfocalScan_PointByPoint(Experiment):
                 axes_list[0].setLabel('left', 'y (µm)')
                 axes_list[0].setLabel('bottom', 'x (µm)')
 
-                self._first_plot = False  # flip the flag so future updates use the else
             else:
                 self.image.setImage(data['count_img'], autoLevels=False)
                 self.image.setLevels(levels)
@@ -686,20 +667,3 @@ class ConfocalScan_PointByPoint(Experiment):
         self.image.setImage(self.data['count_img'])
         self.image.setLevels([np.min(self.data['count_img']),np.max(self.data['count_img'])])
         self.colorbar.setLevels([np.min(self.data['count_img']),np.max(self.data['count_img'])])
-
-    def get_axes_layout(self, figure_list):
-        """
-        overrides method so image item isnt cleared when last _plot is called
-        """
-        axes_list = []
-        if self._plot_refresh is True and self._first_plot is True:
-            for graph in figure_list:
-                graph.clear()
-                axes_list.append(graph.addPlot(row=0,col=0))
-
-
-        else:
-            for graph in figure_list:
-                axes_list.append(graph.getItem(row=0,col=0))
-
-        return axes_list
