@@ -2,16 +2,279 @@
 This file has the experiment classes relevant to using a confocal microscope. So far this includes:
 
 - Confocal Scan (old method) for larger images
-- Confocal Point for counting at 1 point
+- Confocal Point: Gets counts 1 point continuously or once
+- Confocal Point-by-Point: a slow method that ensures image is accurate
 
 '''
 
 import numpy as np
+from PyQt5.QtCore import QSettings
+
 from src.Controller import MCLNanoDrive, ADwinGold
 from src.core import Parameter, Experiment
 import os
 from time import sleep
 import pyqtgraph as pg
+
+
+class ConfocalScan_NewFast(Experiment):
+    '''
+    This class runs a confocal microscope scan using the MCL NanoDrive to move the sample stage and the ADwin Gold II to get count data.
+    The code loads a waveform on the nanodrive, starts the Adwin process, triggers a waveform aquisition, then reads the data array from the Adwin.
+
+    To get accurate counts, the loaded waveforms are extended to compensate for 'warm up' and 'cool down' movements. The data arrays are then
+    manipulated to get the counts for the inputed region.
+    '''
+
+    _DEFAULT_SETTINGS = [
+        Parameter('point_a',
+                  [Parameter('x',0,float,'x-coordinate start in microns'),
+                   Parameter('y',0,float,'y-coordinate start in microns')
+                   ]),
+        Parameter('point_b',
+                  [Parameter('x',10,float,'x-coordinate end in microns'),
+                   Parameter('y', 10, float, 'y-coordinate end in microns')
+                   ]),
+        Parameter('resolution', 0.1, float, 'Resolution of each pixel in microns'),
+        Parameter('time_per_pt', 2.0, float, 'Time in ms at each point to get counts; same as load_rate for nanodrive. Valid values 1/6-5 ms'),
+        Parameter('read_rate',2.0,[0.267,0.5,1.0,2.0,10.0,17.0,20.0],'Time in ms. Same as read_rate for nanodrive. Should match with time_per_pt for accurate position data'),
+        Parameter('return_to_start',True,bool,'If true will return to position of stage before scan started'),
+        #clocks currently not implemented
+        Parameter('correlate_clock', 'Aux', ['Pixel','Line','Frame','Aux'], 'Nanodrive clocked used for correlating points with counts (Connected to Digital Input 1 on Adwin)'),
+        Parameter('laser_clock', 'Pixel', ['Pixel','Line','Frame','Aux'], 'Nanodrive clocked used for turning laser on and off')
+    ]
+
+    #For actual experiment use LP100 [MCL_NanoDrive({'serial':2849})]. For testing using HS3 ['serial':2850]
+    _DEVICES = {'nanodrive': MCLNanoDrive(settings={'serial':2849}), 'adwin':ADwinGold()}
+    _EXPERIMENTS = {}
+
+    def __init__(self, devices, experiments=None, name=None, settings=None, log_function=None, data_path=None):
+        """
+        Initializes and connects to devices
+        Args:
+            name (optional): name of experiment, if empty same as class name
+            settings (optional): settings for this experiment, if empty same as default settings
+        """
+        super().__init__(name, settings=settings, sub_experiments=experiments, devices=devices, log_function=log_function, data_path=data_path)
+        #get instances of devices
+        self.nd = self.devices['nanodrive']['instance']
+        self.adw = self.devices['adwin']['instance']
+
+
+    def _function(self):
+        """
+        This is the actual function that will be executed. It uses only information that is provided in the settings property
+        will be overwritten in the __init__
+        """
+        #Gets paths for adbasic file and loads them onto ADwin.
+        one_d_scan_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'Controller','binary_files', 'ADbasic', 'One_D_Scan.TB2')
+        one_d_scan = os.path.normpath(one_d_scan_path)
+        self.adw.update({'process_2': {'load': one_d_scan}})
+        # one_d_scan script increments an index then adds count values to an array in a constant time interval
+        self.nd.clock_functions('Frame', reset=True)  # reset ALL clocks to default settings
+
+        #scanning range is 5 to 95 to compinsate for warm up time
+        x_min = max(self.settings['point_a']['x'], 5.0)
+        y_min = max(self.settings['point_a']['y'], 5.0)
+        x_max = min(self.settings['point_b']['x'], 95.0)
+        y_max = min(self.settings['point_b']['y'], 95.0)
+
+        step = self.settings['resolution']
+        #array form point_a x,y to point_b x,y with step of resolution
+        x_array = np.arange(x_min, x_max + step, step)
+        y_array = np.arange(y_min, y_max+step, step)
+
+        #adds point 5 um before and after
+        y_before = np.arange(y_min-5.0,y_min,step)
+        y_after = np.arange(y_max + step, y_max + 5.0 + step, step)
+        y_array_adj = np.insert(y_array, 0, y_before)
+        y_array_adj = np.append(y_array_adj, y_after)
+
+        x_inital = self.nd.read_probes('x_pos')
+        y_inital = self.nd.read_probes('y_pos')
+
+        #makes sure data is getting recorded. If still equal none after running experiment data is not being stored or not measured
+        self.data['x_pos'] = None
+        self.data['y_pos'] = None
+        self.data['raw_counts'] = None
+        self.data['counts'] = None
+        self.data['count_img'] = None
+        #local lists to store data and append to global self.data lists
+        x_data = []
+        y_data = []
+        raw_count_data = []
+        count_rate_data = []
+
+        Nx = len(x_array)
+        Ny = len(y_array)
+        self.data['count_img'] = np.zeros((Nx, Ny))
+
+        interation_num = 0 #number to track progress
+        total_interations = ((x_max - x_min)/step + 1)*((y_max - y_min)/step + 1)       #plus 1 because in total_iterations because range is inclusive ie. [0,10]
+        #print('total_interations=',total_interations)
+
+        #formula to set adwin to count for correct time frame. The event section is run every delay*3.3ns so the counter increments for that time then is read and clear
+        #time_per_pt is in millisecond and the adwin delay time is delay_value*3.3ns
+        adwin_delay = round((self.settings['time_per_pt']*1e6) / (3.3))
+        #print('adwin delay: ',delay)
+
+        wf = list(y_array_adj)
+        len_wf = len(y_array_adj)
+        #print(len_wf,wf)
+        load_read_ratio = self.settings['time_per_pt']/self.settings['read_rate'] #used for scaling when rates are different
+        num_points_read = int(load_read_ratio*len_wf + 50) #50 is added to compensate for start and end lack each producing ~15 points of unwanted values
+
+        #set inital x and y and set nanodrive stage to that position
+        self.nd.update({'x_pos':x_min,'y_pos':y_min-5.0,'num_datapoints':len_wf,'read_rate':self.settings['read_rate'],'load_rate':self.settings['time_per_pt']})
+        #load_rate is time_per_pt; 2.0ms = 5000Hz
+        self.adw.update({'process_2':{'delay':adwin_delay}})
+        sleep(0.1)  #time for stage to move to starting posiition and adwin process to initilize
+
+        forward = True #used to rasterize more efficently (Not implemented)
+        for i, x in enumerate(x_array):
+            if self._abort == True:
+                break
+            img_row = []
+            x = float(x)
+            if forward == True:
+                self.nd.update({'x_pos':x,'y_pos':y_min-5.0})     #goes to x position
+                sleep(0.1)
+                x_pos = self.nd.read_probes('x_pos')
+                x_data.append(x_pos)
+                self.data['x_pos'] = x_data     #adds x postion to data
+
+                self.adw.update({'process_2':{'running':True}})
+                #trigger waveform on y-axis and record position data
+                self.nd.setup(settings={'num_datapoints': len_wf, 'load_waveform': wf}, axis='y')
+                self.nd.setup(settings={'num_datapoints': num_points_read, 'read_waveform': self.nd.empty_waveform},axis='y')
+                y_pos = self.nd.waveform_acquisition(axis='y')
+                sleep(self.settings['time_per_pt']*len_wf/1000)
+
+                #want to get data only in desired range not range±5
+                y_pos_array = np.array(y_pos)
+                # index for the point of the read array when at y_min and y_max. Scale step by load_read_ratio to get points closes to y_min & y_max
+                lower_index = np.where((y_pos_array > y_min - step / load_read_ratio) & (y_pos_array < y_min + step / load_read_ratio))[0]
+                upper_index = np.where((y_pos_array > y_max - step / load_read_ratio) & (y_pos_array < y_max + step / load_read_ratio))[0]
+                print('Index U: ', upper_index, 'L: ', lower_index, y_pos_array)
+                y_pos_proper = list(y_pos_array[lower_index[0]:upper_index[0]])
+
+
+                y_data.append(y_pos_proper)
+                self.data['y_pos'] = y_data
+                self.adw.update({'process_2':{'running':False}})
+
+                #different index for count data if read and load rates are different
+                counts_lower_index = int(lower_index[0] / load_read_ratio)
+                counts_upper_index = int(upper_index[0] / load_read_ratio)
+                # get count data from adwin and record it
+                raw_counts = np.array(list(self.adw.read_probes('int_array', id=1, length=len(y_array_adj)+50)))
+                raw_counts_proper = list(raw_counts[counts_lower_index:counts_upper_index+1])
+                raw_count_data.extend(raw_counts_proper)
+                self.data['raw_counts'] = raw_count_data
+
+                # units of count/seconds
+                count_rate = list(np.array(raw_counts_proper) * 1e3 / self.settings['time_per_pt'])
+                count_rate_data.extend(count_rate)
+                img_row.extend(count_rate)
+                self.data['counts'] = count_rate_data
+
+            #efficent rasterizing not impremented
+            '''
+            else:
+                self.nd.update({'x_pos': x, 'y_pos': y_max})  # goes to x position
+                sleep(0.1)
+                x_pos = self.nd.read_probes('x_pos')
+                x_data.append(x_pos)
+                self.data['x_pos'] = x_data  # adds x postion to data
+
+                self.adw.update({'process_2': {'running': True}})
+                # trigger waveform on y-axis and record position data
+                self.nd.setup(settings={'read_waveform': self.nd.empty_waveform, 'load_waveform': wf_reversed}, axis='y')
+                y_pos = self.nd.waveform_acquisition(axis='y')
+                y_data.append(y_pos)
+                self.data['y_pos'] = y_data
+                self.adw.update({'process_2': {'running': False}})
+
+                # get count data from adwin and record it
+                raw_counts = list(self.adw.read_probes('int_array', id=1, length=len(y_array)))
+                raw_count_data.extend(raw_counts)
+                self.data['raw_counts'] = raw_count_data
+
+                # units of count/seconds
+                count_rate = list(np.array(raw_counts) * 1e3 / self.settings['time_per_pt'])
+                count_rate.reverse()
+                count_rate_data.extend(count_rate)
+                img_row.extend(count_rate)
+                self.data['counts'] = count_rate_data
+            '''
+            self.data[('count_img')][i, :] = img_row #add previous scan data so image plots
+            #forward = not forward
+
+            # updates process bar to see experiment is running
+            interation_num = interation_num + len_wf
+            self.progress = 100. * (interation_num +1) / total_interations
+            self.updateProgress.emit(self.progress)
+
+        print('Data collected')
+
+        self.data['x_pos'] = x_data
+        self.data['y_pos'] = y_data
+        self.data['raw_counts'] = raw_count_data
+        self.data['counts'] = count_rate_data
+        #print('Position Data: ','\n',self.data['x_pos'],'\n',self.data['y_pos'],'\n','Max x: ',np.max(self.data['x_pos']),'Max y: ',np.max(self.data['y_pos']))
+        #print('Counts: ','\n',self.count_data)
+        #print('All data: ',self.data)
+
+        #clearing process to aviod memory fragmentation when running different experiments in GUI
+        self.adw.clear_process(2)
+        if self.settings['return_to_start'] == True:
+            self.nd.update({'x_pos':x_inital,'y_pos':y_inital})
+
+
+
+    def _plot(self, axes_list, data=None):
+        '''
+        This function plots the data. It is triggered when the updateProgress signal is emited and when after the _function is executed.
+        For the scan, image can only be plotted once all data is gathered so self.running prevents a plotting call for the updateProgress signal.
+        '''
+        if data is None:
+            data = self.data
+        if data is not None or data is not {}:
+
+            levels = [np.min(data['count_img']), np.max(data['count_img'])]
+            if self._plot_refresh == True:
+                extent = [self.settings['point_a']['x'], self.settings['point_b']['x'], self.settings['point_a']['y'],self.settings['point_b']['y']]
+                #extent = [np.min(data['x_pos']), np.max(data['x_pos']), np.min(data['y_pos']), np.max(data['y_pos'])]
+                self.image = pg.ImageItem(data['count_img'], interpolation='nearest')
+                self.image.setLevels(levels)
+                self.image.setRect(pg.QtCore.QRectF(extent[0], extent[2], extent[1] - extent[0], extent[3] - extent[2]))
+                axes_list[0].addItem(self.image)
+                self.colorbar = axes_list[0].addColorBar(self.image, values=(levels[0], levels[1]), label='counts/sec',colorMap='viridis')
+
+                axes_list[0].setAspectLocked(True)
+                axes_list[0].setLabel('left', 'y (µm)')
+                axes_list[0].setLabel('bottom', 'x (µm)')
+            else:
+                self.image.setImage(data['count_img'], autoLevels=False)
+                self.image.setLevels(levels)
+                self.colorbar.setLevels(levels)
+
+                #extent = [np.min(data['x_pos']), np.max(data['x_pos']), np.min(data['y_pos']), np.max(data['y_pos'])]
+                #self.image.setRect(pg.QtCore.QRectF(extent[0], extent[2], extent[1] - extent[0], extent[3] - extent[2]))
+                #axes_list[0].setAspectLocked(True)
+
+
+    def _update(self,axes_list):
+        '''all_plot_items = axes_list[0].getViewBox().allChildren()
+        image = None
+        for item in all_plot_items:
+            if isinstance(item, pg.ImageItem):
+                image = item
+                break'''
+
+        self.image.setImage(self.data['count_img'], autoLevels=False)
+        self.image.setLevels([np.min(self.data['count_img']), np.max(self.data['count_img'])])
+        self.colorbar.setLevels([np.min(self.data['count_img']), np.max(self.data['count_img'])])
 
 
 class ConfocalScan_OldMethod(Experiment):
@@ -76,15 +339,14 @@ class ConfocalScan_OldMethod(Experiment):
         y_min = self.settings['point_a']['y']
         y_max = self.settings['point_b']['y']
         step = self.settings['resolution']
-        #array form point_a x,y to point_b x,y with step of resolution
+        # array form point_a x,y to point_b x,y with step of resolution
         x_array = np.arange(x_min, x_max + step, step)
-        y_array = np.arange(y_min, y_max+step, step)
-        #reversed_y_array = y_array[::-1]
+        y_array = np.arange(y_min, y_max + step, step)
 
         x_inital = self.nd.read_probes('x_pos')
         y_inital = self.nd.read_probes('y_pos')
 
-        #makes sure data is getting recorded. If still equal none after running experiment data is not being stored or measured
+        #makes sure data is getting recorded. If still equal none after running experiment data is not being stored or not measured
         self.data['x_pos'] = None
         self.data['y_pos'] = None
         self.data['raw_counts'] = None
@@ -96,16 +358,13 @@ class ConfocalScan_OldMethod(Experiment):
         raw_count_data = []
         count_rate_data = []
 
-        Nx = len(x_array)
+        #set data to zero so plotting happens while experiment runs
         Ny = len(y_array)
-        self.data['count_img'] = np.zeros((Nx, Ny+19))
+        self.data['count_img'] = np.zeros((Ny, Ny))
 
         interation_num = 0 #number to track progress
         total_interations = ((x_max - x_min)/step + 1)*((y_max - y_min)/step + 1)       #plus 1 because in total_iterations because range is inclusive ie. [0,10]
         #print('total_interations=',total_interations)
-
-        #print('process: ', self.adw.read_probes('process_status', id=2))
-        #print('nd connectd? ',self.nd.is_connected)
 
         #formula to set adwin to count for correct time frame. The event section is run every delay*3.3ns so the counter increments for that time then is read and clear
         #time_per_pt is in millisecond and the adwin delay time is delay_value*3.3ns
@@ -113,9 +372,7 @@ class ConfocalScan_OldMethod(Experiment):
         #print('adwin delay: ',delay)
 
         wf = list(y_array)
-        #wf_reversed = list(reversed_y_array)
         len_wf = len(y_array)
-        #print(len_wf,wf)
 
 
         #set inital x and y and set nanodrive stage to that position
@@ -124,83 +381,46 @@ class ConfocalScan_OldMethod(Experiment):
         self.adw.update({'process_2':{'delay':adwin_delay}})
         sleep(0.1)  #time for stage to move to starting posiition and adwin process to initilize
 
-        forward = True #used to rasterize more efficently
+
         for i, x in enumerate(x_array):
             if self._abort == True:
                 break
             img_row = []
             x = float(x)
-            if forward == True:
-                self.nd.update({'x_pos':x,'y_pos':y_min})     #goes to x position
-                sleep(0.1)
-                x_pos = self.nd.read_probes('x_pos')
-                x_data.append(x_pos)
-                self.data['x_pos'] = x_data     #adds x postion to data
+            self.nd.update({'x_pos':x,'y_pos':y_min})     #goes to x position
+            sleep(0.1)
+            x_pos = self.nd.read_probes('x_pos')
+            x_data.append(x_pos)
+            self.data['x_pos'] = x_data     #adds x postion to data
 
-                self.adw.update({'process_2':{'running':True}})
-                #trigger waveform on y-axis and record position data
-                self.nd.setup(settings={'read_waveform':self.nd.empty_waveform,'load_waveform':wf},axis='y')
+            self.adw.update({'process_2':{'running':True}})
+            #trigger waveform on y-axis and record position data
+            self.nd.setup(settings={'num_datapoints': len_wf, 'load_waveform': wf}, axis='y')
+            self.nd.setup(settings={'read_waveform': self.nd.empty_waveform},axis='y')
+            y_pos = self.nd.waveform_acquisition(axis='y')
+            sleep(self.settings['time_per_pt']*len_wf/1000)
+
+            y_data.append(y_pos)
+            self.data['y_pos'] = y_data
+            self.adw.update({'process_2':{'running':False}})
+
+            # get count data from adwin and record it
+            raw_counts = list(self.adw.read_probes('int_array', id=1, length=len_wf))
+            raw_count_data.extend(raw_counts)
+            self.data['raw_counts'] = raw_count_data
+
+            # units of count/seconds
+            count_rate = list(np.array(raw_counts) * 1e3 / self.settings['time_per_pt'])
+            count_rate_data.extend(count_rate)
+            img_row.extend(count_rate)
+            self.data['counts'] = count_rate_data
 
 
-                '''self.nd.setup(settings={'num_datapoints': len_wf, 'load_waveform': wf}, axis='y')
-                self.nd.setup(settings={'num_datapoints':len_wf+20,'read_waveform':self.nd.empty_waveform},axis='y')'''
-
-
-                y_pos = self.nd.waveform_acquisition(axis='y')
-                sleep(self.settings['time_per_pt']*len_wf/1000)
-                y_data.append(y_pos)
-                self.data['y_pos'] = y_data
-                self.adw.update({'process_2':{'running':False}})
-
-                y_max_after_wf = self.nd.read_probes('y_pos')
-                # get count data from adwin and record it
-                raw_counts = list(self.adw.read_probes('int_array', id=1, length=len(y_array)+19))
-                raw_count_data.extend(raw_counts)
-                self.data['raw_counts'] = raw_count_data
-
-                # units of count/seconds
-                count_rate = list(np.array(raw_counts) * 1e3 / self.settings['time_per_pt'])
-                count_rate_data.extend(count_rate)
-                img_row.extend(count_rate)
-                self.data['counts'] = count_rate_data
-
-            #efficent rasterizing not impremented
-            '''
-            else:
-                self.nd.update({'x_pos': x, 'y_pos': y_max})  # goes to x position
-                sleep(0.1)
-                x_pos = self.nd.read_probes('x_pos')
-                x_data.append(x_pos)
-                self.data['x_pos'] = x_data  # adds x postion to data
-
-                self.adw.update({'process_2': {'running': True}})
-                # trigger waveform on y-axis and record position data
-                self.nd.setup(settings={'read_waveform': self.nd.empty_waveform, 'load_waveform': wf_reversed}, axis='y')
-                y_pos = self.nd.waveform_acquisition(axis='y')
-                y_data.append(y_pos)
-                self.data['y_pos'] = y_data
-                self.adw.update({'process_2': {'running': False}})
-
-                # get count data from adwin and record it
-                raw_counts = list(self.adw.read_probes('int_array', id=1, length=len(y_array)))
-                raw_count_data.extend(raw_counts)
-                self.data['raw_counts'] = raw_count_data
-
-                # units of count/seconds
-                count_rate = list(np.array(raw_counts) * 1e3 / self.settings['time_per_pt'])
-                count_rate.reverse()
-                count_rate_data.extend(count_rate)
-                img_row.extend(count_rate)
-                self.data['counts'] = count_rate_data
-            '''
-            self.data[('count_img')][i, :] = img_row #add previous scan data so image plots
-            #forward = not forward
-
-            # updates process bar to see experiment is running
+            # updates process bar and plots with new count img
+            self.data[('count_img')][i, :] = img_row  # add previous scan data so image plots
             interation_num = interation_num + len_wf
             self.progress = 100. * (interation_num +1) / total_interations
             self.updateProgress.emit(self.progress)
-            print('y_max_after_wf: ',y_max_after_wf)
 
         print('Data collected')
 
@@ -264,10 +484,260 @@ class ConfocalScan_OldMethod(Experiment):
         self.colorbar.setLevels([np.min(self.data['count_img']), np.max(self.data['count_img'])])
 
 
+
+'''
+Idea for improved method:
+A clock on the nanodrive can be bound to read_waveform. When a waveform_aquisition is triggered the nanodrive executes both movement and reading. A TTL pulse will then be generated
+at every point if load_rate and read_rate are equal (note this would limit time_per_pt to be 0.5 or 2.0 ms only since read_rate is a table of values). The pulse is then 
+connected to a digital input on the Adwin. The Adwin automatically checks if an edge has occured at the digital inputs every 10ns so, the counter is read if a pulse is detected 
+and subsiquently cleared. This idea SHOULD result in the counting time being the time betweeen pulse which is approximatly the time at each point (minus the time it takes 
+nanodrive to move which is << 2.0ms.
+
+The only changes to the code are loading a different ADbasic file and sending a command to bind the nanodrive clock.
+
+In setup_scan:
+    digin_counter_idea_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..','..','Controller','binary_files','ADbasic','Digin_Counter_Idea.TB2')
+    digin_counter_idea = os.path.normpath(digin_counter_idea_path)
+Before while loop:
+    self.nd.clock_functions(self.settings['control_clock'],polarity='low-to-high',binding='read')
+    
+The Adbasic file is more complicated then the One_D_Scan script but should house the necceary components to acheive the improved method. I am unsure the reason, 
+but the issue with this improved method is artifacts in the count data. Specifically there are points when counting is skipped and points of double counting. These points seem 
+to be random. 
+
+In theory this method should work given my understanding of the Nanodrive and Adwin. I will continue to try and get the method to work, but if it is a task for 
+someone else my lab notebook will have more information on the idea and my testing of it. - Dylan Staples    
+
+
+Add macro and have nanodrive send pulse prior to first point. Macro will clear clock and then process procedes as normal with the time and point windows aligned. 
+'''
+
+class ConfocalScan_PointByPoint(Experiment):
+    '''
+    Slow method for confocal scan that goes point by point. Should ensure the scan is precise and accurate at the cost of time
+    '''
+
+    _DEFAULT_SETTINGS = [
+        Parameter('point_a',
+                  [Parameter('x',0,float,'x-coordinate start in microns'),
+                   Parameter('y',0,float,'y-coordinate start in microns')
+                   ]),
+        Parameter('point_b',
+                  [Parameter('x',10,float,'x-coordinate end in microns'),
+                   Parameter('y', 10, float, 'y-coordinate end in microns')
+                   ]),
+        Parameter('resolution', 0.1, float, 'Resolution of each pixel in microns'),
+        Parameter('time_per_pt', 5.0, float, 'Time in ms at each point to get counts'),
+        Parameter('settle_time',0.2,float,'Time in seconds to allow NanoDrive to settle to correct position'),
+        Parameter('return_to_start', True, bool, 'If true will return to position of stage before scan started'),
+        Parameter('correlate_clock', 'Aux', ['Pixel','Line','Frame','Aux'], 'Nanodrive clock'),
+        Parameter('laser_clock', 'Pixel', ['Pixel','Line','Frame','Aux'], 'Nanodrive clock used for turning laser on and off')
+    ]
+
+    #For actual experiment use LP100 [MCL_NanoDrive({'serial':2849})]. For testing using HS3 ['serial':2850]
+    _DEVICES = {'nanodrive': MCLNanoDrive(settings={'serial':2849}), 'adwin':ADwinGold()}
+    _EXPERIMENTS = {}
+
+    def __init__(self, devices, experiments=None, name=None, settings=None, log_function=None, data_path=None):
+        """
+        Initializes and connects to devices
+        Args:
+            name (optional): name of experiment, if empty same as class name
+            settings (optional): settings for this experiment, if empty same as default settings
+        """
+        super().__init__(name, settings=settings, sub_experiments=experiments, devices=devices, log_function=log_function, data_path=data_path)
+        #get instances of devices
+        self.nd = self.devices['nanodrive']['instance']
+        self.adw = self.devices['adwin']['instance']
+
+    def _function(self):
+        """
+        This is the actual function that will be executed. It uses only information that is provided in the settings property
+        will be overwritten in the __init__
+        """
+        # gets an 'overlaping' path to trial counter in binary_files folder
+        trial_counter_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'Controller','binary_files', 'ADbasic', 'Trial_Counter.TB1')
+        trial_counter = os.path.normpath(trial_counter_path)
+        self.adw.update({'process_1': {'load': trial_counter}})
+        self.nd.clock_functions('Frame', reset=True)  # reset ALL clocks to default settings
+
+        x_min = self.settings['point_a']['x']
+        x_max = self.settings['point_b']['x']
+        y_min = self.settings['point_a']['y']
+        y_max = self.settings['point_b']['y']
+        step = self.settings['resolution']
+        #array form point_a x,y to point_b x,y with step of resolution
+        x_array = np.arange(x_min, x_max+step, step)
+        y_array = np.arange(y_min, y_max + step, step)
+        reversed_y_array = y_array[::-1]
+
+        x_inital = self.nd.read_probes('x_pos')
+        y_inital = self.nd.read_probes('y_pos')
+
+        #makes sure data is getting recorded. If still equal none after running experiment data is not being stored or measured
+        self.data['x_pos'] = None
+        self.data['y_pos'] = None
+        self.data['raw_counts'] = None
+        self.data['counts'] = None
+        self.data['count_img'] = None
+        #local lists to store data and append to global self.data lists
+        x_data = []
+        y_data = []
+        raw_counts_data = []
+        count_rate_data = []
+
+        Nx = len(x_array)
+        Ny = len(y_array)
+        self.data['count_img'] = np.zeros((Nx, Ny))
+
+        interation_num = 0 #number to track progress
+        total_interations = ((x_max - x_min)/step + 1)*((y_max - y_min)/step + 1)       #plus 1 because in total_iterations range is inclusive ie. [0,10]
+        #print('total_interations=',total_interations)
+
+        #formula to set adwin to count for correct time frame. The event section is run every delay*3.3ns so the counter increments for that time then is read and clear
+        #time_per_pt is in millisecond and the adwin delay time is delay_value*3.3ns
+        adwin_delay = round((self.settings['time_per_pt']*1e6) / (3.3))
+        #print('adwin delay: ',adwin_delay)  606061 for 2ms and 606061*3.3 ns ~= 2 ms
+
+        self.adw.update({'process_1': {'delay': adwin_delay, 'running': True}})
+        # print(adwin_delay * 3.3 * 1e-9)
+        # set inital x and y and set nanodrive stage to that position
+        self.nd.update({'x_pos': x_min, 'y_pos': y_min})
+        sleep(0.1)  # time for stage to move and adwin process to initilize
+
+        forward = True #used to rasterize more efficently going forward then back
+        #for x in x_array:
+        for i, x in enumerate(x_array):
+            if self._abort:  #halts loop (and experiment) if stop button is pressed
+                break
+            x = float(x)
+            img_row = []  #used for tracking image rows and adding to count_img; list not saved
+            self.nd.update({'x_pos':x})
+            if forward == True:
+                for y in y_array:
+                    y = float(y)
+                    print(x,y)
+                    self.nd.update({'y_pos':y})
+                    sleep(self.settings['settle_time'])
+
+                    x_pos = self.nd.read_probes('x_pos')
+                    x_data.append(x_pos)
+                    self.data['x_pos'] = x_data  # adds x postion to data
+                    y_pos = self.nd.read_probes('y_pos')
+                    y_data.append(y_pos)
+                    self.data['y_pos'] = y_data  # adds y postion to data
+
+                    raw_counts = self.adw.read_probes('int_var',id=1)   #raw number of counter triggers
+                    count_rate = raw_counts*1e3/self.settings['time_per_pt'] # in units of counts/second
+
+                    img_row.append(count_rate)
+                    raw_counts_data.append(raw_counts)
+                    count_rate_data.append(count_rate)
+                    self.data['raw_counts'] = raw_counts_data
+                    self.data['counts'] = count_rate_data
+
+            else:
+                for y in reversed_y_array:
+                    y = float(y)
+                    print(x,y)
+                    self.nd.update({'y_pos':y})
+                    sleep(self.settings['settle_time'])
+
+                    x_pos = self.nd.read_probes('x_pos')
+                    x_data.append(x_pos)
+                    self.data['x_pos'] = x_data  # adds x postion to data
+                    y_pos = self.nd.read_probes('y_pos')
+                    y_data.append(y_pos)
+                    self.data['y_pos'] = y_data  # adds y postion to data
+
+                    raw_counts = self.adw.read_probes('int_var', id=1)  # raw number of counter triggers
+                    count_rate = raw_counts*1e3/self.settings['time_per_pt'] # in units of counts/second
+
+                    img_row.append(count_rate)
+                    raw_counts_data.append(raw_counts)
+                    count_rate_data.append(count_rate)
+                    self.data['raw_counts'] = raw_counts_data
+                    self.data['counts'] = count_rate_data
+                img_row.reverse() #reversed since going from y_max --> y_min
+
+            self.data['count_img'][i, :] = img_row
+            forward = not forward
+
+            interation_num = interation_num + len(y_array)
+            self.progress = 100. * (interation_num + 1) / total_interations
+            self.updateProgress.emit(self.progress)
+
+        print('Data collected')
+
+        self.data['x_pos'] = x_data
+        self.data['y_pos'] = y_data
+        self.data['raw_counts'] = raw_counts_data
+        self.data['counts'] = count_rate_data
+
+        print('Position Data: ', '\n', self.data['x_pos'], '\n', self.data['y_pos'], '\n', 'Max x: ',np.max(self.data['x_pos']), 'Max y: ', np.max(self.data['y_pos']))
+        #print('All data: ',self.data)
+
+        self.adw.update({'process_2': {'running': False}})
+        self.adw.clear_process(1)
+        if self.settings['return_to_start'] == True:
+            self.nd.update({'x_pos': x_inital, 'y_pos': y_inital})
+
+
+
+    def _plot(self, axes_list, data=None):
+        '''
+        This function plots the data. It is triggered when the updateProgress signal is emited and when after the _function is executed.
+        For the scan, image can only be plotted once all data is gathered so self.running prevents a plotting call for the updateProgress signal.
+        '''
+        if data is None:
+            data = self.data
+        if data is not None or data is not {}:
+
+            levels = [np.min(data['count_img']), np.max(data['count_img'])]
+            if self._plot_refresh == True:
+                #extent = [self.settings['point_a']['x'], self.settings['point_b']['x'], self.settings['point_a']['y'],self.settings['point_b']['y']]
+                extent = [np.min(data['x_pos']), np.max(data['x_pos']), np.min(data['y_pos']), np.max(data['y_pos'])]
+                self.image = pg.ImageItem(data['count_img'], interpolation='nearest')
+                self.image.setLevels(levels)
+                self.image.setRect(pg.QtCore.QRectF(extent[0], extent[2],extent[1] - extent[0], extent[3] - extent[2]))
+                axes_list[0].addItem(self.image)
+                self.colorbar = axes_list[0].addColorBar(self.image,values=(levels[0], levels[1]),label='counts/sec',colorMap='viridis')
+
+                axes_list[0].setAspectLocked(True)
+                axes_list[0].setLabel('left', 'y (µm)')
+                axes_list[0].setLabel('bottom', 'x (µm)')
+
+            else:
+                self.image.setImage(data['count_img'], autoLevels=False)
+                self.image.setLevels(levels)
+                self.colorbar.setLevels(levels)
+
+                extent = [np.min(data['x_pos']), np.max(data['x_pos']), np.min(data['y_pos']), np.max(data['y_pos'])]
+                self.image.setRect(pg.QtCore.QRectF(extent[0], extent[2], extent[1] - extent[0], extent[3] - extent[2]))
+                axes_list[0].setAspectLocked(True)
+
+
+    def _update(self,axes_list):
+        '''
+        all_plot_items = axes_list[0].getViewBox().allChildren()
+        image = None
+        for item in all_plot_items:
+            if isinstance(item, pg.ImageItem):
+                image = item
+                break
+        '''
+
+        self.image.setImage(self.data['count_img'])
+        self.image.setLevels([np.min(self.data['count_img']),np.max(self.data['count_img'])])
+        self.colorbar.setLevels([np.min(self.data['count_img']),np.max(self.data['count_img'])])
+
+
 class ConfocalPoint(Experiment):
     '''
-    This class implements a confocal microscope to get the counts at a point. It uses the MCL NanoDrive to move the sample stage and the ADwin Gold to get count data.
+    This class implements a confocal microscope to get the counts at a single point. It uses the MCL NanoDrive to move the sample stage and the ADwin Gold to get count data.
     The 'continuous' parameter if false will return 1 data point. If true it offers live counting that continues until the stop button is clicked.
+
+    Could add a small scan radius to search for points of high counts ie NV centers then go to that point
     '''
 
     _DEFAULT_SETTINGS = [
@@ -417,253 +887,3 @@ class ConfocalPoint(Experiment):
 
     def _update(self, axes_list):
         Experiment._update(self, axes_list)
-
-
-
-'''
-Idea for improved method:
-A clock on the nanodrive can be bound to read_waveform. When a waveform_aquisition is triggered the nanodrive executes both movement and reading. A TTL pulse will then be generated
-at every point if load_rate and read_rate are equal (note this would limit time_per_pt to be 0.5 or 2.0 ms only since read_rate is a table of values). The pulse is then 
-connected to a digital input on the Adwin. The Adwin automatically checks if an edge has occured at the digital inputs every 10ns so, the counter is read if a pulse is detected 
-and subsiquently cleared. This idea SHOULD result in the counting time being the time betweeen pulse which is approximatly the time at each point (minus the time it takes 
-nanodrive to move which is << 2.0ms.
-
-The only changes to the code are loading a different ADbasic file and sending a command to bind the nanodrive clock.
-
-In setup_scan:
-    digin_counter_idea_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..','..','Controller','binary_files','ADbasic','Digin_Counter_Idea.TB2')
-    digin_counter_idea = os.path.normpath(digin_counter_idea_path)
-Before while loop:
-    self.nd.clock_functions(self.settings['control_clock'],polarity='low-to-high',binding='read')
-    
-The Adbasic file is more complicated then the One_D_Scan script but should house the necceary components to acheive the improved method. I am unsure the reason, 
-but the issue with this improved method is artifacts in the count data. Specifically there are points when counting is skipped and points of double counting. These points seem 
-to be random. 
-
-In theory this method should work given my understanding of the Nanodrive and Adwin. I will continue to try and get the method to work, but if it is a task for 
-someone else my lab notebook will have more information on the idea and my testing of it. - Dylan Staples    
-
-
-Add macro and have nanodrive send pulse prior to first point. Macro will clear clock and then process procedes as normal with the time and point windows aligned. 
-'''
-
-class ConfocalScan_PointByPoint(Experiment):
-    '''
-    Slow method for confocal scan that goes point by point. Should ensure the scan is precise and accurate at the cost of computation time
-    '''
-
-    _DEFAULT_SETTINGS = [
-        Parameter('point_a',
-                  [Parameter('x',0,float,'x-coordinate start in microns'),
-                   Parameter('y',0,float,'y-coordinate start in microns')
-                   ]),
-        Parameter('point_b',
-                  [Parameter('x',10,float,'x-coordinate end in microns'),
-                   Parameter('y', 10, float, 'y-coordinate end in microns')
-                   ]),
-        Parameter('resolution', 0.1, float, 'Resolution of each pixel in microns'),
-        Parameter('time_per_pt', 5.0, float, 'Time in ms at each point to get counts'),
-        Parameter('settle_time',0.2,float,'Time in seconds to allow NanoDrive to settle to correct position'),
-        Parameter('return_to_start', True, bool, 'If true will return to position of stage before scan started'),
-        Parameter('correlate_clock', 'Aux', ['Pixel','Line','Frame','Aux'], 'Nanodrive clock'),
-        Parameter('laser_clock', 'Pixel', ['Pixel','Line','Frame','Aux'], 'Nanodrive clock used for turning laser on and off')
-    ]
-
-    #For actual experiment use LP100 [MCL_NanoDrive({'serial':2849})]. For testing using HS3 ['serial':2850]
-    _DEVICES = {'nanodrive': MCLNanoDrive(settings={'serial':2849}), 'adwin':ADwinGold()}
-    _EXPERIMENTS = {}
-
-    def __init__(self, devices, experiments=None, name=None, settings=None, log_function=None, data_path=None):
-        """
-        Initializes and connects to devices
-        Args:
-            name (optional): name of experiment, if empty same as class name
-            settings (optional): settings for this experiment, if empty same as default settings
-        """
-        super().__init__(name, settings=settings, sub_experiments=experiments, devices=devices, log_function=log_function, data_path=data_path)
-        #get instances of devices
-        self.nd = self.devices['nanodrive']['instance']
-        self.adw = self.devices['adwin']['instance']
-
-    def _function(self):
-        """
-        This is the actual function that will be executed. It uses only information that is provided in the settings property
-        will be overwritten in the __init__
-        """
-        # gets an 'overlaping' path to trial counter in binary_files folder
-        trial_counter_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'Controller','binary_files', 'ADbasic', 'Trial_Counter.TB1')
-        trial_counter = os.path.normpath(trial_counter_path)
-        self.adw.update({'process_1': {'load': trial_counter}})
-        self.nd.clock_functions('Frame', reset=True)  # reset ALL clocks to default settings
-
-        x_min = self.settings['point_a']['x']
-        x_max = self.settings['point_b']['x']
-        y_min = self.settings['point_a']['y']
-        y_max = self.settings['point_b']['y']
-        step = self.settings['resolution']
-        #array form point_a x,y to point_b x,y with step of resolution
-        x_array = np.arange(x_min, x_max+step, step)
-        y_array = np.arange(y_min, y_max + step, step)
-        reversed_y_array = y_array[::-1]
-
-        x_inital = self.nd.read_probes('x_pos')
-        y_inital = self.nd.read_probes('y_pos')
-
-        #makes sure data is getting recorded. If still equal none after running experiment data is not being stored or measured
-        self.data['x_pos'] = None
-        self.data['y_pos'] = None
-        self.data['raw_counts'] = None
-        self.data['counts'] = None
-        self.data['count_img'] = None
-        #local lists to store data and append to global self.data lists
-        x_data = []
-        y_data = []
-        raw_counts_data = []
-        count_rate_data = []
-
-        Nx = len(x_array)
-        Ny = len(y_array)
-        self.data['count_img'] = np.zeros((Nx, Ny))
-
-
-        interation_num = 0 #number to track progress
-        total_interations = ((x_max - x_min)/step + 1)*((y_max - y_min)/step + 1)       #plus 1 because in total_iterations range is inclusive ie. [0,10]
-        #print('total_interations=',total_interations)
-
-
-        #formula to set adwin to count for correct time frame. The event section is run every delay*3.3ns so the counter increments for that time then is read and clear
-        #time_per_pt is in millisecond and the adwin delay time is delay_value*3.3ns
-        adwin_delay = round((self.settings['time_per_pt']*1e6) / (3.3))
-        #print('adwin delay: ',adwin_delay)  606061 for 2ms and 606061*3.3 ns ~= 2 ms
-
-        self.adw.update({'process_1': {'delay': adwin_delay, 'running': True}})
-        # print(adwin_delay * 3.3 * 1e-9)
-        # set inital x and y and set nanodrive stage to that position
-        self.nd.update({'x_pos': x_min, 'y_pos': y_min})
-        sleep(0.1)  # time for stage to move and adwin process to initilize
-
-        forward = True #used to rasterize more efficently going forward then back
-        #for x in x_array:
-        for i, x in enumerate(x_array):
-            if self._abort:  #halts loop (and experiment) if stop button is pressed
-                break
-            x = float(x)
-            img_row = []  #used for tracking image rows and adding to count_img; list not saved
-            self.nd.update({'x_pos':x})
-            if forward == True:
-                for y in y_array:
-                    y = float(y)
-                    print(x,y)
-                    self.nd.update({'y_pos':y})
-                    sleep(self.settings['settle_time'])
-
-                    x_pos = self.nd.read_probes('x_pos')
-                    x_data.append(x_pos)
-                    self.data['x_pos'] = x_data  # adds x postion to data
-                    y_pos = self.nd.read_probes('y_pos')
-                    y_data.append(y_pos)
-                    self.data['y_pos'] = y_data  # adds y postion to data
-
-                    raw_counts = self.adw.read_probes('int_var',id=1)   #raw number of counter triggers
-                    count_rate = raw_counts*1e3/self.settings['time_per_pt'] # in units of counts/second
-
-                    img_row.append(count_rate)
-                    raw_counts_data.append(raw_counts)
-                    count_rate_data.append(count_rate)
-                    self.data['raw_counts'] = raw_counts_data
-                    self.data['counts'] = count_rate_data
-
-            else:
-                for y in reversed_y_array:
-                    y = float(y)
-                    print(x,y)
-                    self.nd.update({'y_pos':y})
-                    sleep(self.settings['settle_time'])
-
-                    x_pos = self.nd.read_probes('x_pos')
-                    x_data.append(x_pos)
-                    self.data['x_pos'] = x_data  # adds x postion to data
-                    y_pos = self.nd.read_probes('y_pos')
-                    y_data.append(y_pos)
-                    self.data['y_pos'] = y_data  # adds y postion to data
-
-                    raw_counts = self.adw.read_probes('int_var', id=1)  # raw number of counter triggers
-                    count_rate = raw_counts*1e3/self.settings['time_per_pt'] # in units of counts/second
-
-                    img_row.append(count_rate)
-                    raw_counts_data.append(raw_counts)
-                    count_rate_data.append(count_rate)
-                    self.data['raw_counts'] = raw_counts_data
-                    self.data['counts'] = count_rate_data
-                img_row.reverse() #reversed since going from y_max --> y_min
-
-            self.data['count_img'][i, :] = img_row
-            forward = not forward
-
-            interation_num = interation_num + len(y_array)
-            self.progress = 100. * (interation_num + 1) / total_interations
-            self.updateProgress.emit(self.progress)
-
-        print('Data collected')
-
-        self.data['x_pos'] = x_data
-        self.data['y_pos'] = y_data
-        self.data['raw_counts'] = raw_counts_data
-        self.data['counts'] = count_rate_data
-
-        print('Position Data: ', '\n', self.data['x_pos'], '\n', self.data['y_pos'], '\n', 'Max x: ',np.max(self.data['x_pos']), 'Max y: ', np.max(self.data['y_pos']))
-        #print('All data: ',self.data)
-
-        self.adw.update({'process_2': {'running': False}})
-        self.adw.clear_process(1)
-        if self.settings['return_to_start'] == True:
-            self.nd.update({'x_pos': x_inital, 'y_pos': y_inital})
-
-
-
-    def _plot(self, axes_list, data=None):
-        '''
-        This function plots the data. It is triggered when the updateProgress signal is emited and when after the _function is executed.
-        For the scan, image can only be plotted once all data is gathered so self.running prevents a plotting call for the updateProgress signal.
-        '''
-        if data is None:
-            data = self.data
-        if data is not None or data is not {}:
-
-            levels = [np.min(data['count_img']), np.max(data['count_img'])]
-            if self._plot_refresh == True:
-                #extent = [self.settings['point_a']['x'], self.settings['point_b']['x'], self.settings['point_a']['y'],self.settings['point_b']['y']]
-                extent = [np.min(data['x_pos']), np.max(data['x_pos']), np.min(data['y_pos']), np.max(data['y_pos'])]
-                self.image = pg.ImageItem(data['count_img'], interpolation='nearest')
-                self.image.setLevels(levels)
-                self.image.setRect(pg.QtCore.QRectF(extent[0], extent[2],extent[1] - extent[0], extent[3] - extent[2]))
-                axes_list[0].addItem(self.image)
-                self.colorbar = axes_list[0].addColorBar(self.image,values=(levels[0], levels[1]),label='counts/sec',colorMap='viridis')
-
-                axes_list[0].setAspectLocked(True)
-                axes_list[0].setLabel('left', 'y (µm)')
-                axes_list[0].setLabel('bottom', 'x (µm)')
-
-            else:
-                self.image.setImage(data['count_img'], autoLevels=False)
-                self.image.setLevels(levels)
-                self.colorbar.setLevels(levels)
-
-                extent = [np.min(data['x_pos']), np.max(data['x_pos']), np.min(data['y_pos']), np.max(data['y_pos'])]
-                self.image.setRect(pg.QtCore.QRectF(extent[0], extent[2], extent[1] - extent[0], extent[3] - extent[2]))
-                axes_list[0].setAspectLocked(True)
-
-
-    def _update(self,axes_list):
-        '''
-        all_plot_items = axes_list[0].getViewBox().allChildren()
-        image = None
-        for item in all_plot_items:
-            if isinstance(item, pg.ImageItem):
-                image = item
-                break
-        '''
-
-        self.image.setImage(self.data['count_img'])
-        self.image.setLevels([np.min(self.data['count_img']),np.max(self.data['count_img'])])
-        self.colorbar.setLevels([np.min(self.data['count_img']),np.max(self.data['count_img'])])
