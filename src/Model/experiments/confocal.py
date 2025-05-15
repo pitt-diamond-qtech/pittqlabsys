@@ -43,9 +43,11 @@ class ConfocalScan_NewFast(Experiment):
         Parameter('correlate_clock', 'Aux', ['Pixel','Line','Frame','Aux'], 'Nanodrive clocked used for correlating points with counts (Connected to Digital Input 1 on Adwin)'),
         Parameter('laser_clock', 'Pixel', ['Pixel','Line','Frame','Aux'], 'Nanodrive clocked used for turning laser on and off'),
         Parameter('crop_options',
-                  [Parameter('crop',True,bool,'Flag to crop image or not in GUI'),
+                  [Parameter('crop',False,bool,'Flag to crop image or not in GUI'),
                   Parameter('pixels',20,int,'number of pixels to crop'),
-                  Parameter('display_crop',False,bool,'if not cropped can display cropped region')
+                  Parameter('display_crop',True,bool,'if not cropped can display cropped region'),
+                  Parameter('numpy_crop',True,bool,'Use np.where to crop'),
+                  Parameter('numpy_flip',True,bool,'Flip index of numpy crop'),
                   ])
     ]
 
@@ -141,101 +143,71 @@ class ConfocalScan_NewFast(Experiment):
         self.adw.update({'process_2':{'delay':adwin_delay}})
         sleep(0.1)  #time for stage to move to starting posiition and adwin process to initilize
 
-        forward = True #used to rasterize more efficently (Not implemented)
+
         for i, x in enumerate(x_array):
             if self._abort == True:
                 break
             img_row = []
             x = float(x)
-            if forward == True:
-                self.nd.update({'x_pos':x,'y_pos':y_min-5.0})     #goes to x position
-                sleep(0.1)
-                x_pos = self.nd.read_probes('x_pos')
-                x_data.append(x_pos)
-                self.data['x_pos'] = x_data     #adds x postion to data
 
-                self.adw.update({'process_2':{'running':True}})
-                #trigger waveform on y-axis and record position data
-                self.nd.setup(settings={'num_datapoints': len_wf, 'load_waveform': wf}, axis='y')
-                self.nd.setup(settings={'num_datapoints': num_points_read, 'read_waveform': self.nd.empty_waveform},axis='y')
-                y_pos = self.nd.waveform_acquisition(axis='y')
-                sleep(self.settings['time_per_pt']*len_wf/1000)
+            self.nd.update({'x_pos':x,'y_pos':y_min-5.0})     #goes to x position
+            sleep(0.1)
+            x_pos = self.nd.read_probes('x_pos')
+            x_data.append(x_pos)
+            self.data['x_pos'] = x_data     #adds x postion to data
 
-                #want to get data only in desired range not range±5um
-                y_pos_array = np.array(y_pos)
-                # index for the points of the read array when at y_min and y_max. Scale step by load_read_ratio to get points closest to y_min & y_max
-                lower_index = np.where((y_pos_array > y_min - step / load_read_ratio) & (y_pos_array < y_min + step / load_read_ratio))[0]
-                upper_index = np.where((y_pos_array > y_max - step / load_read_ratio) & (y_pos_array < y_max + step / load_read_ratio))[0]
-                y_pos_proper = list(y_pos_array[lower_index[0]:upper_index[0]])
-                #print('Index L: ', lower_index, 'Index U: ', upper_index, '\n', y_pos_proper)
+            self.adw.update({'process_2':{'running':True}})
+            #trigger waveform on y-axis and record position data
+            self.nd.setup(settings={'num_datapoints': len_wf, 'load_waveform': wf}, axis='y')
+            self.nd.setup(settings={'num_datapoints': num_points_read, 'read_waveform': self.nd.empty_waveform},axis='y')
+            y_pos = self.nd.waveform_acquisition(axis='y')
+            sleep(self.settings['time_per_pt']*len_wf/1000)
 
-
-                #y_data.extend(y_pos_proper)
-                y_data.extend(list(y_pos))
-                self.data['y_pos'] = y_data
-                self.adw.update({'process_2':{'running':False}})
-
-                #different index for count data if read and load rates are different
-                counts_lower_index = int(lower_index[0] / load_read_ratio)
-                counts_upper_index = int(upper_index[0] / load_read_ratio)
-                # get count data from adwin and record it
-                raw_counts = np.array(list(self.adw.read_probes('int_array', id=1, length=len_wf+20)))
-                raw_counts_proper = list(raw_counts[counts_lower_index:counts_upper_index+1])
-                raw_count_data.extend(raw_counts_proper)
-                self.data['raw_counts'] = raw_count_data
-                #print('C_L: ', counts_lower_index, 'C_U: ', counts_upper_index)
-
-                '''# units of count/seconds
-                count_rate = list(np.array(raw_counts_proper) * 1e3 / self.settings['time_per_pt'])
-                count_rate_data.extend(count_rate)
-                img_row.extend(count_rate)
-                self.data['counts'] = count_rate_data'''
-
-                #optional get full or cropped image
-                count_rate = list(np.array(raw_counts) * 1e3 / self.settings['time_per_pt'])
-                if self.settings['crop_options']['crop'] == True:
-                    pixels = self.settings['crop_options']['pixels']
-                    cropped_count_rate = count_rate[pixels:pixels + len(y_array)]
-                    count_rate_data.extend(cropped_count_rate)
-                    img_row.extend(cropped_count_rate)
-                    self.data['counts'] = count_rate_data
-
-                elif self.settings['crop_options']['crop'] == False:
-                    count_rate_data.extend(count_rate)
-                    img_row.extend(count_rate)
-                    self.data['counts'] = count_rate_data
+            #want to get data only in desired range not range±5um
+            y_pos_array = np.array(y_pos)
+            # index for the points of the read array when at y_min and y_max. Scale step by load_read_ratio to get points closest to y_min & y_max
+            lower_index = np.where((y_pos_array > y_min - step / load_read_ratio) & (y_pos_array < y_min + step / load_read_ratio))[0]
+            upper_index = np.where((y_pos_array > y_max - step / load_read_ratio) & (y_pos_array < y_max + step / load_read_ratio))[0]
+            y_pos_proper = list(y_pos_array[lower_index[0]:upper_index[0]])
+            #print('Index L: ', lower_index, 'Index U: ', upper_index, '\n', y_pos_proper)
 
 
+            #y_data.extend(y_pos_proper)
+            y_data.extend(list(y_pos))
+            self.data['y_pos'] = y_data
+            self.adw.update({'process_2':{'running':False}})
 
-            #efficent rasterizing not impremented
-            '''
-            else:
-                self.nd.update({'x_pos': x, 'y_pos': y_max})  # goes to x position
-                sleep(0.1)
-                x_pos = self.nd.read_probes('x_pos')
-                x_data.append(x_pos)
-                self.data['x_pos'] = x_data  # adds x postion to data
+            #different index for count data if read and load rates are different
+            counts_lower_index = int(lower_index[0] / load_read_ratio)
+            counts_upper_index = int(upper_index[0] / load_read_ratio)
+            # get count data from adwin and record it
+            raw_counts = np.array(list(self.adw.read_probes('int_array', id=1, length=len_wf+20)))
+            raw_counts_proper = list(raw_counts[counts_lower_index:counts_upper_index+1])
+            raw_count_data.extend(raw_counts_proper)
+            self.data['raw_counts'] = raw_count_data
+            #print('C_L: ', counts_lower_index, 'C_U: ', counts_upper_index)
 
-                self.adw.update({'process_2': {'running': True}})
-                # trigger waveform on y-axis and record position data
-                self.nd.setup(settings={'read_waveform': self.nd.empty_waveform, 'load_waveform': wf_reversed}, axis='y')
-                y_pos = self.nd.waveform_acquisition(axis='y')
-                y_data.append(y_pos)
-                self.data['y_pos'] = y_data
-                self.adw.update({'process_2': {'running': False}})
+            '''# units of count/seconds
+            count_rate = list(np.array(raw_counts_proper) * 1e3 / self.settings['time_per_pt'])
+            count_rate_data.extend(count_rate)
+            img_row.extend(count_rate)
+            self.data['counts'] = count_rate_data'''
 
-                # get count data from adwin and record it
-                raw_counts = list(self.adw.read_probes('int_array', id=1, length=len(y_array)))
-                raw_count_data.extend(raw_counts)
-                self.data['raw_counts'] = raw_count_data
+            #optional get full or cropped image
+            count_rate = list(np.array(raw_counts) * 1e3 / self.settings['time_per_pt'])
+            if self.settings['crop_options']['crop'] == True:
+                pixels = self.settings['crop_options']['pixels']
+                cropped_count_rate = count_rate[pixels:pixels + len(y_array)]
+                count_rate_data.extend(cropped_count_rate)
+                img_row.extend(cropped_count_rate)
+                self.data['counts'] = count_rate_data
 
-                # units of count/seconds
-                count_rate = list(np.array(raw_counts) * 1e3 / self.settings['time_per_pt'])
-                count_rate.reverse()
+            elif self.settings['crop_options']['crop'] == False:
                 count_rate_data.extend(count_rate)
                 img_row.extend(count_rate)
                 self.data['counts'] = count_rate_data
-            '''
+
+
             self.data[('count_img')][i, :] = img_row #add previous scan data so image plots
             #forward = not forward
 
@@ -254,18 +226,24 @@ class ConfocalScan_NewFast(Experiment):
         #print('Counts: ','\n',self.count_data)
         #print('All data: ',self.data)
 
-        '''#region of interest using index method
-        self.data['count_img'][0,counts_lower_index] = 0
-        self.data['count_img'][0,counts_upper_index] = 0
-        self.data['count_img'][Nx-1,counts_lower_index] = 0
-        self.data['count_img'][Nx-1,counts_upper_index] = 0'''
 
         if self.settings['crop_options']['display_crop'] == True:
-            pixel = self.settings['crop_options']['pixels']
-            self.data['count_img'][0, pixel - 1] = 0
-            self.data['count_img'][Nx - 1, pixel - 1] = 0
-            self.data['count_img'][0, pixel - 1 + len(y_array)] = 0
-            self.data['count_img'][Nx - 1, pixel - 1 + len(y_array)] = 0
+            if self.settings['crop_options']['numpy_crop'] == True:
+                if self.settings['crop_options']['numpy_flip'] == True:
+                    q = -1
+                else:
+                    q = 1
+                self.data['count_img'][0, -counts_lower_index*q] = 0
+                self.data['count_img'][0, -counts_upper_index*q] = 0
+                self.data['count_img'][Nx - 1, -counts_lower_index*q] = 0
+                self.data['count_img'][Nx - 1, -counts_upper_index*q] = 0
+                print('Numpy cropped length = ',counts_upper_index-counts_lower_index, 'Length arry = ',len(y_array))
+            else:
+                pixel = self.settings['crop_options']['pixels']
+                self.data['count_img'][0, pixel - 1] = 0
+                self.data['count_img'][Nx - 1, pixel - 1] = 0
+                self.data['count_img'][0, pixel - 1 + len(y_array)] = 0
+                self.data['count_img'][Nx - 1, pixel - 1 + len(y_array)] = 0
 
         #clearing process to aviod memory fragmentation when running different experiments in GUI
         self.adw.clear_process(2)
