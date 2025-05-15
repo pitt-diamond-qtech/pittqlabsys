@@ -28,20 +28,25 @@ class ConfocalScan_NewFast(Experiment):
 
     _DEFAULT_SETTINGS = [
         Parameter('point_a',
-                  [Parameter('x',0,float,'x-coordinate start in microns'),
-                   Parameter('y',0,float,'y-coordinate start in microns')
+                  [Parameter('x',35.0,float,'x-coordinate start in microns'),
+                   Parameter('y',35.0,float,'y-coordinate start in microns')
                    ]),
         Parameter('point_b',
-                  [Parameter('x',10,float,'x-coordinate end in microns'),
-                   Parameter('y', 10, float, 'y-coordinate end in microns')
+                  [Parameter('x',95.0,float,'x-coordinate end in microns'),
+                   Parameter('y', 95.0, float, 'y-coordinate end in microns')
                    ]),
-        Parameter('resolution', 0.1, float, 'Resolution of each pixel in microns'),
-        Parameter('time_per_pt', 2.0, float, 'Time in ms at each point to get counts; same as load_rate for nanodrive. Valid values 1/6-5 ms'),
+        Parameter('resolution', 1.0, float, 'Resolution of each pixel in microns'),
+        Parameter('time_per_pt', 5.0, float, 'Time in ms at each point to get counts; same as load_rate for nanodrive. Valid values 1/6-5 ms'),
         Parameter('read_rate',2.0,[0.267,0.5,1.0,2.0,10.0,17.0,20.0],'Time in ms. Same as read_rate for nanodrive. Should match with time_per_pt for accurate position data'),
         Parameter('return_to_start',True,bool,'If true will return to position of stage before scan started'),
         #clocks currently not implemented
         Parameter('correlate_clock', 'Aux', ['Pixel','Line','Frame','Aux'], 'Nanodrive clocked used for correlating points with counts (Connected to Digital Input 1 on Adwin)'),
-        Parameter('laser_clock', 'Pixel', ['Pixel','Line','Frame','Aux'], 'Nanodrive clocked used for turning laser on and off')
+        Parameter('laser_clock', 'Pixel', ['Pixel','Line','Frame','Aux'], 'Nanodrive clocked used for turning laser on and off'),
+        Parameter('crop_options',
+                  [Parameter('crop',True,bool,'Flag to crop image or not in GUI'),
+                  Parameter('pixels',20,int,'number of pixels to crop'),
+                  Parameter('display_crop',False,bool,'if not cropped can display cropped region')
+                  ])
     ]
 
     #For actual experiment use LP100 [MCL_NanoDrive({'serial':2849})]. For testing using HS3 ['serial':2850]
@@ -105,9 +110,15 @@ class ConfocalScan_NewFast(Experiment):
         raw_count_data = []
         count_rate_data = []
 
+        # set data to zero so plotting happens while experiment runs
         Nx = len(x_array)
-        Ny = len(y_array)
-        self.data['count_img'] = np.zeros((Nx, Ny))
+
+        if self.settings['crop_options']['crop'] == True:
+            Ny = len(y_array)
+            self.data['count_img'] = np.zeros((Nx, Ny))
+        elif self.settings['crop_options']['crop'] == False:
+            Ny = len(y_array_adj)
+            self.data['count_img'] = np.zeros((Nx, Ny+20))
 
         interation_num = 0 #number to track progress
         total_interations = ((x_max - x_min)/step + 1)*((y_max - y_min)/step + 1)       #plus 1 because in total_iterations because range is inclusive ie. [0,10]
@@ -150,16 +161,17 @@ class ConfocalScan_NewFast(Experiment):
                 y_pos = self.nd.waveform_acquisition(axis='y')
                 sleep(self.settings['time_per_pt']*len_wf/1000)
 
-                #want to get data only in desired range not range±5
+                #want to get data only in desired range not range±5um
                 y_pos_array = np.array(y_pos)
-                # index for the point of the read array when at y_min and y_max. Scale step by load_read_ratio to get points closes to y_min & y_max
+                # index for the points of the read array when at y_min and y_max. Scale step by load_read_ratio to get points closest to y_min & y_max
                 lower_index = np.where((y_pos_array > y_min - step / load_read_ratio) & (y_pos_array < y_min + step / load_read_ratio))[0]
                 upper_index = np.where((y_pos_array > y_max - step / load_read_ratio) & (y_pos_array < y_max + step / load_read_ratio))[0]
-                print('Index U: ', upper_index, 'L: ', lower_index, y_pos_array)
                 y_pos_proper = list(y_pos_array[lower_index[0]:upper_index[0]])
+                #print('Index L: ', lower_index, 'Index U: ', upper_index, '\n', y_pos_proper)
 
 
-                y_data.append(y_pos_proper)
+                #y_data.extend(y_pos_proper)
+                y_data.extend(list(y_pos))
                 self.data['y_pos'] = y_data
                 self.adw.update({'process_2':{'running':False}})
 
@@ -167,16 +179,33 @@ class ConfocalScan_NewFast(Experiment):
                 counts_lower_index = int(lower_index[0] / load_read_ratio)
                 counts_upper_index = int(upper_index[0] / load_read_ratio)
                 # get count data from adwin and record it
-                raw_counts = np.array(list(self.adw.read_probes('int_array', id=1, length=len(y_array_adj)+50)))
+                raw_counts = np.array(list(self.adw.read_probes('int_array', id=1, length=len_wf+20)))
                 raw_counts_proper = list(raw_counts[counts_lower_index:counts_upper_index+1])
                 raw_count_data.extend(raw_counts_proper)
                 self.data['raw_counts'] = raw_count_data
+                #print('C_L: ', counts_lower_index, 'C_U: ', counts_upper_index)
 
-                # units of count/seconds
+                '''# units of count/seconds
                 count_rate = list(np.array(raw_counts_proper) * 1e3 / self.settings['time_per_pt'])
                 count_rate_data.extend(count_rate)
                 img_row.extend(count_rate)
-                self.data['counts'] = count_rate_data
+                self.data['counts'] = count_rate_data'''
+
+                #optional get full or cropped image
+                count_rate = list(np.array(raw_counts) * 1e3 / self.settings['time_per_pt'])
+                if self.settings['crop_options']['crop'] == True:
+                    pixels = self.settings['crop_options']['pixels']
+                    cropped_count_rate = count_rate[pixels:pixels + len(y_array)]
+                    count_rate_data.extend(cropped_count_rate)
+                    img_row.extend(cropped_count_rate)
+                    self.data['counts'] = count_rate_data
+
+                elif self.settings['crop_options']['crop'] == False:
+                    count_rate_data.extend(count_rate)
+                    img_row.extend(count_rate)
+                    self.data['counts'] = count_rate_data
+
+
 
             #efficent rasterizing not impremented
             '''
@@ -211,7 +240,7 @@ class ConfocalScan_NewFast(Experiment):
             #forward = not forward
 
             # updates process bar to see experiment is running
-            interation_num = interation_num + len_wf
+            interation_num = interation_num + len(y_array)
             self.progress = 100. * (interation_num +1) / total_interations
             self.updateProgress.emit(self.progress)
 
@@ -224,6 +253,19 @@ class ConfocalScan_NewFast(Experiment):
         #print('Position Data: ','\n',self.data['x_pos'],'\n',self.data['y_pos'],'\n','Max x: ',np.max(self.data['x_pos']),'Max y: ',np.max(self.data['y_pos']))
         #print('Counts: ','\n',self.count_data)
         #print('All data: ',self.data)
+
+        '''#region of interest using index method
+        self.data['count_img'][0,counts_lower_index] = 0
+        self.data['count_img'][0,counts_upper_index] = 0
+        self.data['count_img'][Nx-1,counts_lower_index] = 0
+        self.data['count_img'][Nx-1,counts_upper_index] = 0'''
+
+        if self.settings['crop_options']['display_crop'] == True:
+            pixel = self.settings['crop_options']['pixels']
+            self.data['count_img'][0, pixel - 1] = 0
+            self.data['count_img'][Nx - 1, pixel - 1] = 0
+            self.data['count_img'][0, pixel - 1 + len(y_array)] = 0
+            self.data['count_img'][Nx - 1, pixel - 1 + len(y_array)] = 0
 
         #clearing process to aviod memory fragmentation when running different experiments in GUI
         self.adw.clear_process(2)
@@ -254,6 +296,10 @@ class ConfocalScan_NewFast(Experiment):
                 axes_list[0].setAspectLocked(True)
                 axes_list[0].setLabel('left', 'y (µm)')
                 axes_list[0].setLabel('bottom', 'x (µm)')
+
+                axes_list[1].plot(data['y_pos'])
+                axes_list[1].addLine(y=self.settings['point_a']['y'])
+                axes_list[1].addLine(y=self.settings['point_b']['y'])
             else:
                 self.image.setImage(data['count_img'], autoLevels=False)
                 self.image.setLevels(levels)
@@ -359,8 +405,9 @@ class ConfocalScan_OldMethod(Experiment):
         count_rate_data = []
 
         #set data to zero so plotting happens while experiment runs
+        Nx = len(x_array)
         Ny = len(y_array)
-        self.data['count_img'] = np.zeros((Ny, Ny))
+        self.data['count_img'] = np.zeros((Nx, Ny))
 
         interation_num = 0 #number to track progress
         total_interations = ((x_max - x_min)/step + 1)*((y_max - y_min)/step + 1)       #plus 1 because in total_iterations because range is inclusive ie. [0,10]
@@ -519,14 +566,14 @@ class ConfocalScan_PointByPoint(Experiment):
 
     _DEFAULT_SETTINGS = [
         Parameter('point_a',
-                  [Parameter('x',0,float,'x-coordinate start in microns'),
-                   Parameter('y',0,float,'y-coordinate start in microns')
+                  [Parameter('x',35,float,'x-coordinate start in microns'),
+                   Parameter('y',35,float,'y-coordinate start in microns')
                    ]),
         Parameter('point_b',
-                  [Parameter('x',10,float,'x-coordinate end in microns'),
-                   Parameter('y', 10, float, 'y-coordinate end in microns')
+                  [Parameter('x',95,float,'x-coordinate end in microns'),
+                   Parameter('y', 95, float, 'y-coordinate end in microns')
                    ]),
-        Parameter('resolution', 0.1, float, 'Resolution of each pixel in microns'),
+        Parameter('resolution', 1, float, 'Resolution of each pixel in microns'),
         Parameter('time_per_pt', 5.0, float, 'Time in ms at each point to get counts'),
         Parameter('settle_time',0.2,float,'Time in seconds to allow NanoDrive to settle to correct position'),
         Parameter('return_to_start', True, bool, 'If true will return to position of stage before scan started'),
@@ -608,13 +655,13 @@ class ConfocalScan_PointByPoint(Experiment):
         forward = True #used to rasterize more efficently going forward then back
         #for x in x_array:
         for i, x in enumerate(x_array):
-            if self._abort:  #halts loop (and experiment) if stop button is pressed
-                break
             x = float(x)
             img_row = []  #used for tracking image rows and adding to count_img; list not saved
             self.nd.update({'x_pos':x})
             if forward == True:
                 for y in y_array:
+                    if self._abort:  # halts loop (and experiment) if stop button is pressed
+                        break
                     y = float(y)
                     print(x,y)
                     self.nd.update({'y_pos':y})
@@ -638,6 +685,8 @@ class ConfocalScan_PointByPoint(Experiment):
 
             else:
                 for y in reversed_y_array:
+                    if self._abort:  # halts loop (and experiment) if stop button is pressed
+                        break
                     y = float(y)
                     print(x,y)
                     self.nd.update({'y_pos':y})
