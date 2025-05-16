@@ -169,8 +169,6 @@ class ConfocalScan_NewFast(Experiment):
             lower_index = np.where((y_pos_array > y_min - step / load_read_ratio) & (y_pos_array < y_min + step / load_read_ratio))[0]
             upper_index = np.where((y_pos_array > y_max - step / load_read_ratio) & (y_pos_array < y_max + step / load_read_ratio))[0]
             y_pos_proper = list(y_pos_array[lower_index[0]:upper_index[0]])
-            #print('Index L: ', lower_index, 'Index U: ', upper_index, '\n', y_pos_proper)
-
 
             #y_data.extend(y_pos_proper)
             y_data.extend(list(y_pos))
@@ -179,7 +177,14 @@ class ConfocalScan_NewFast(Experiment):
 
             #different index for count data if read and load rates are different
             counts_lower_index = int(lower_index[0] / load_read_ratio)
-            counts_upper_index = int(upper_index[0] / load_read_ratio)
+            counts_upper_index = int(upper_index[-1] / load_read_ratio)
+
+            '''print('np.where index L: ', lower_index, 'Index U: ', upper_index, '\n')
+            for j in range(len(lower_index)):
+                print('All lower count index ',int(lower_index[j] / load_read_ratio))
+            for j in range(len(upper_index)):
+                print('All upper count index ',int(upper_index[j] / load_read_ratio))'''
+
             # get count data from adwin and record it
             raw_counts = np.array(list(self.adw.read_probes('int_array', id=1, length=len_wf+20)))
             raw_counts_proper = list(raw_counts[counts_lower_index:counts_upper_index+1])
@@ -196,11 +201,19 @@ class ConfocalScan_NewFast(Experiment):
             #optional get full or cropped image
             count_rate = list(np.array(raw_counts) * 1e3 / self.settings['time_per_pt'])
             if self.settings['crop_options']['crop'] == True:
-                pixels = self.settings['crop_options']['pixels']
-                cropped_count_rate = count_rate[pixels:pixels + len(y_array)]
-                count_rate_data.extend(cropped_count_rate)
-                img_row.extend(cropped_count_rate)
-                self.data['counts'] = count_rate_data
+                if self.settings['crop_options']['numpy_crop'] == True:
+                    #minus 1 so the crop is inclusive
+                    cropped_count_rate = count_rate[-counts_upper_index-1:(-counts_upper_index-1) + len(y_array)]
+                    count_rate_data.extend(cropped_count_rate)
+                    img_row.extend(cropped_count_rate)
+                    self.data['counts'] = count_rate_data
+
+                elif self.settings['crop_options']['numpy_crop'] == False:
+                    pixels = self.settings['crop_options']['pixels']
+                    cropped_count_rate = count_rate[pixels:pixels + len(y_array)]
+                    count_rate_data.extend(cropped_count_rate)
+                    img_row.extend(cropped_count_rate)
+                    self.data['counts'] = count_rate_data
 
             elif self.settings['crop_options']['crop'] == False:
                 count_rate_data.extend(count_rate)
@@ -233,12 +246,13 @@ class ConfocalScan_NewFast(Experiment):
                     q = -1
                 else:
                     q = 1
-                self.data['count_img'][0, -counts_lower_index*q] = 0
-                self.data['count_img'][0, -counts_upper_index*q] = 0
-                self.data['count_img'][Nx - 1, -counts_lower_index*q] = 0
-                self.data['count_img'][Nx - 1, -counts_upper_index*q] = 0
-                print('Numpy cropped length = ',counts_upper_index-counts_lower_index, 'Length arry = ',len(y_array))
-            else:
+                #self.data['count_img'][0, counts_lower_index*q] = 0
+                self.data['count_img'][0, counts_upper_index*q] = 0
+                #self.data['count_img'][Nx - 1, counts_lower_index*q] = 0
+                #self.data['count_img'][Nx - 1, counts_upper_index*q] = 0
+                print('L index: ',counts_lower_index,'U index: ',counts_upper_index,
+                    '\n','Numpy cropped length = ',counts_upper_index-counts_lower_index, 'Length array = ',len(y_array))
+            elif self.settings['crop_options']['numpy_crop'] == False:
                 pixel = self.settings['crop_options']['pixels']
                 self.data['count_img'][0, pixel - 1] = 0
                 self.data['count_img'][Nx - 1, pixel - 1] = 0
@@ -261,9 +275,20 @@ class ConfocalScan_NewFast(Experiment):
             data = self.data
         if data is not None or data is not {}:
 
-            levels = [np.min(data['count_img']), np.max(data['count_img'])]
+            #for colorbar to display graident without artificial zeros
+            non_zero_values = data['count_img'][data['count_img'] > 0]
+            if non_zero_values.size > 0:
+                min = np.min(non_zero_values)
+            else: #if else to aviod ValueError
+                min = 0
+
+            levels = [min, np.max(data['count_img'])]
             if self._plot_refresh == True:
-                extent = [self.settings['point_a']['x'], self.settings['point_b']['x'], self.settings['point_a']['y'],self.settings['point_b']['y']]
+
+                if self.settings['crop_options']['crop'] == True:
+                    extent = [self.settings['point_a']['x'], self.settings['point_b']['x'], self.settings['point_a']['y'],self.settings['point_b']['y']]
+                elif self.settings['crop_options']['crop'] == False:
+                    extent = [self.settings['point_a']['x'], self.settings['point_b']['x'],self.settings['point_a']['y']-5, self.settings['point_b']['y']+5]
                 #extent = [np.min(data['x_pos']), np.max(data['x_pos']), np.min(data['y_pos']), np.max(data['y_pos'])]
                 self.image = pg.ImageItem(data['count_img'], interpolation='nearest')
                 self.image.setLevels(levels)
@@ -473,7 +498,14 @@ class ConfocalScan_OldMethod(Experiment):
             data = self.data
         if data is not None or data is not {}:
 
-            levels = [np.min(data['count_img']), np.max(data['count_img'])]
+            # for colorbar to display graident without artificial zeros
+            non_zero_values = data['count_img'][data['count_img'] > 0]
+            if non_zero_values.size > 0:
+                min = np.min(non_zero_values)
+            else:  # if else to aviod ValueError
+                min = 0
+
+            levels = [min, np.max(data['count_img'])]
             if self._plot_refresh == True:
                 extent = [self.settings['point_a']['x'], self.settings['point_b']['x'], self.settings['point_a']['y'],self.settings['point_b']['y']]
                 #extent = [np.min(data['x_pos']), np.max(data['x_pos']), np.min(data['y_pos']), np.max(data['y_pos'])]
@@ -720,7 +752,14 @@ class ConfocalScan_PointByPoint(Experiment):
             data = self.data
         if data is not None or data is not {}:
 
-            levels = [np.min(data['count_img']), np.max(data['count_img'])]
+            # for colorbar to display graident without artificial zeros
+            non_zero_values = data['count_img'][data['count_img'] > 0]
+            if non_zero_values.size > 0:
+                min = np.min(non_zero_values)
+            else:  # if else to aviod ValueError
+                min = 0
+
+            levels = [min, np.max(data['count_img'])]
             if self._plot_refresh == True:
                 #extent = [self.settings['point_a']['x'], self.settings['point_b']['x'], self.settings['point_a']['y'],self.settings['point_b']['y']]
                 extent = [np.min(data['x_pos']), np.max(data['x_pos']), np.min(data['y_pos']), np.max(data['y_pos'])]
