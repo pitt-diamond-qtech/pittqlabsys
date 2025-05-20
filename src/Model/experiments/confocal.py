@@ -36,18 +36,22 @@ class ConfocalScan_NewFast(Experiment):
                    Parameter('y', 95.0, float, 'y-coordinate end in microns')
                    ]),
         Parameter('resolution', 1.0, float, 'Resolution of each pixel in microns'),
-        Parameter('time_per_pt', 5.0, float, 'Time in ms at each point to get counts; same as load_rate for nanodrive. Valid values 1/6-5 ms'),
-        Parameter('read_rate',2.0,[0.267,0.5,1.0,2.0,10.0,17.0,20.0],'Time in ms. Same as read_rate for nanodrive. Should match with time_per_pt for accurate position data'),
+        Parameter('time_per_pt', 5.0, [2.0,5.0], 'Time in ms at each point to get counts; same as load_rate for nanodrive. Wroking values 2 or 5 ms'),
+        Parameter('read_rate',2.0,2.0,'Time in ms. Same as read_rate for nanodrive'),
         Parameter('return_to_start',True,bool,'If true will return to position of stage before scan started'),
+        #!!! If you see horizontial lines in the confocal image, the adwin arrays likely are corrupted. The fix is to reboot the adwin. You will nuke all
+        #other process, variables, and arrays in the adwin. This parameter is added to make that easy to do in the GUI.
+        Parameter('reboot_adwin',False,bool,'Will reboot adwin when experiment is executed. Useful is data looks fishy'),
         #clocks currently not implemented
         Parameter('correlate_clock', 'Aux', ['Pixel','Line','Frame','Aux'], 'Nanodrive clocked used for correlating points with counts (Connected to Digital Input 1 on Adwin)'),
         Parameter('laser_clock', 'Pixel', ['Pixel','Line','Frame','Aux'], 'Nanodrive clocked used for turning laser on and off'),
         Parameter('crop_options',
                   [Parameter('crop',False,bool,'Flag to crop image or not in GUI'),
                   Parameter('pixels',20,int,'number of pixels to crop'),
-                  Parameter('display_crop',True,bool,'if not cropped can display cropped region'),
+                  Parameter('display_crop',True,bool,'if image is not cropped, can display cropped region'),
                   Parameter('numpy_crop',True,bool,'Use np.where to crop'),
                   Parameter('numpy_flip',True,bool,'Flip index of numpy crop'),
+                  Parameter('numpy_type','upper',['lower','upper'],'Use lower or upper index to crop')
                   ])
     ]
 
@@ -68,17 +72,26 @@ class ConfocalScan_NewFast(Experiment):
         self.adw = self.devices['adwin']['instance']
 
 
-    def _function(self):
-        """
-        This is the actual function that will be executed. It uses only information that is provided in the settings property
-        will be overwritten in the __init__
-        """
-        #Gets paths for adbasic file and loads them onto ADwin.
+    def setup_scan(self):
+        '''
+        Gets paths for adbasic file and loads them onto ADwin.
+        '''
+        self.adw.stop_process(2)
+        self.adw.clear_process(2)
         one_d_scan_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'Controller','binary_files', 'ADbasic', 'One_D_Scan.TB2')
         one_d_scan = os.path.normpath(one_d_scan_path)
         self.adw.update({'process_2': {'load': one_d_scan}})
         # one_d_scan script increments an index then adds count values to an array in a constant time interval
         self.nd.clock_functions('Frame', reset=True)  # reset ALL clocks to default settings
+
+    def _function(self):
+        """
+        This is the actual function that will be executed. It uses only information that is provided in the settings property
+        will be overwritten in the __init__
+        """
+        if self.settings['reboot_adwin'] == True:
+            self.adw.reboot_adwin()
+        self.setup_scan()
 
         #scanning range is 5 to 95 to compinsate for warm up time
         x_min = max(self.settings['point_a']['x'], 5.0)
@@ -120,7 +133,7 @@ class ConfocalScan_NewFast(Experiment):
             self.data['count_img'] = np.zeros((Nx, Ny))
         elif self.settings['crop_options']['crop'] == False:
             Ny = len(y_array_adj)
-            self.data['count_img'] = np.zeros((Nx, Ny+20))
+            self.data['count_img'] = np.zeros((Nx, Ny+self.settings['crop_options']['pixels']))
 
         interation_num = 0 #number to track progress
         total_interations = ((x_max - x_min)/step + 1)*((y_max - y_min)/step + 1)       #plus 1 because in total_iterations because range is inclusive ie. [0,10]
@@ -135,7 +148,7 @@ class ConfocalScan_NewFast(Experiment):
         len_wf = len(y_array_adj)
         #print(len_wf,wf)
         load_read_ratio = self.settings['time_per_pt']/self.settings['read_rate'] #used for scaling when rates are different
-        num_points_read = int(load_read_ratio*len_wf + 50) #50 is added to compensate for start and end lack each producing ~15 points of unwanted values
+        num_points_read = int(load_read_ratio*len_wf + self.settings['crop_options']['pixels']) #50 is added to compensate for start and end lack each producing ~15 points of unwanted values
 
         #set inital x and y and set nanodrive stage to that position
         self.nd.update({'x_pos':x_min,'y_pos':y_min-5.0,'num_datapoints':len_wf,'read_rate':self.settings['read_rate'],'load_rate':self.settings['time_per_pt']})
@@ -156,10 +169,22 @@ class ConfocalScan_NewFast(Experiment):
             x_data.append(x_pos)
             self.data['x_pos'] = x_data     #adds x postion to data
 
-            self.adw.update({'process_2':{'running':True}})
+
+            #The two different code lines to start counting seem to work for cropping. Honestly cant give a precise explaination, it seems to be related to
+            #hardware delay. If the time_per_pt is 5.0 starting counting before waveform set up works to within 1 pixel with numpy cropping. If the
+            #time_per_pt is 2.0 starting counting after waveform set up matches slow scan to a pixel. Sorry for a lack of explaination but this just seems to work.
+            #See dylan_staples/confocal scans w resolution target in the data folder for images and additional details
+            if self.settings['time_per_pt'] == 5.0:
+                self.adw.update({'process_2': {'running': True}})
+
             #trigger waveform on y-axis and record position data
             self.nd.setup(settings={'num_datapoints': len_wf, 'load_waveform': wf}, axis='y')
             self.nd.setup(settings={'num_datapoints': num_points_read, 'read_waveform': self.nd.empty_waveform},axis='y')
+
+            #restricted load_rate and read_rate to ensure cropping works. 2ms and 5ms count times are good as smaller window for speed and a larger window if more counts are needed
+            if  self.settings['time_per_pt'] == 2.0:
+                self.adw.update({'process_2': {'running': True}})
+
             y_pos = self.nd.waveform_acquisition(axis='y')
             sleep(self.settings['time_per_pt']*len_wf/1000)
 
@@ -186,7 +211,7 @@ class ConfocalScan_NewFast(Experiment):
                 print('All upper count index ',int(upper_index[j] / load_read_ratio))'''
 
             # get count data from adwin and record it
-            raw_counts = np.array(list(self.adw.read_probes('int_array', id=1, length=len_wf+20)))
+            raw_counts = np.array(list(self.adw.read_probes('int_array', id=1, length=len_wf+self.settings['crop_options']['pixels'])))
             raw_counts_proper = list(raw_counts[counts_lower_index:counts_upper_index+1])
             raw_count_data.extend(raw_counts_proper)
             self.data['raw_counts'] = raw_count_data
@@ -202,11 +227,17 @@ class ConfocalScan_NewFast(Experiment):
             count_rate = list(np.array(raw_counts) * 1e3 / self.settings['time_per_pt'])
             if self.settings['crop_options']['crop'] == True:
                 if self.settings['crop_options']['numpy_crop'] == True:
-                    #minus 1 so the crop is inclusive
-                    cropped_count_rate = count_rate[-counts_upper_index-1:(-counts_upper_index-1) + len(y_array)]
-                    count_rate_data.extend(cropped_count_rate)
-                    img_row.extend(cropped_count_rate)
-                    self.data['counts'] = count_rate_data
+                    if self.settings['crop_options']['numpy_type'] == 'upper':
+                        #minus 1 so the crop is inclusive
+                        cropped_count_rate = count_rate[-counts_upper_index-1:(-counts_upper_index-1) + len(y_array)]
+                        count_rate_data.extend(cropped_count_rate)
+                        img_row.extend(cropped_count_rate)
+                        self.data['counts'] = count_rate_data
+                    elif self.settings['crop_options']['numpy_type'] == 'lower':
+                        cropped_count_rate = count_rate[-counts_lower_index + 1:(-counts_upper_index + 1) + len(y_array)]
+                        count_rate_data.extend(cropped_count_rate)
+                        img_row.extend(cropped_count_rate)
+                        self.data['counts'] = count_rate_data
 
                 elif self.settings['crop_options']['numpy_crop'] == False:
                     pixels = self.settings['crop_options']['pixels']
@@ -246,10 +277,11 @@ class ConfocalScan_NewFast(Experiment):
                     q = -1
                 else:
                     q = 1
-                #self.data['count_img'][0, counts_lower_index*q] = 0
-                self.data['count_img'][0, counts_upper_index*q] = 0
-                #self.data['count_img'][Nx - 1, counts_lower_index*q] = 0
-                #self.data['count_img'][Nx - 1, counts_upper_index*q] = 0
+
+                self.data['count_img'][0, counts_upper_index*q-1 + len(y_array)] = 0
+                self.data['count_img'][0, counts_upper_index*q-1] = 0
+                self.data['count_img'][Nx - 1, counts_upper_index*q-1 + len(y_array)] = 0
+                self.data['count_img'][Nx - 1, counts_upper_index*q-1] = 0
                 print('L index: ',counts_lower_index,'U index: ',counts_upper_index,
                     '\n','Numpy cropped length = ',counts_upper_index-counts_lower_index, 'Length array = ',len(y_array))
             elif self.settings['crop_options']['numpy_crop'] == False:
@@ -377,6 +409,8 @@ class ConfocalScan_OldMethod(Experiment):
         will be overwritten in the __init__
         """
         #Gets paths for adbasic file and loads them onto ADwin.
+        self.adw.stop_process(2)
+        self.adw.clear_process(2)
         one_d_scan_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'Controller','binary_files', 'ADbasic', 'One_D_Scan.TB2')
         one_d_scan = os.path.normpath(one_d_scan_path)
         self.adw.update({'process_2': {'load': one_d_scan}})
@@ -613,6 +647,8 @@ class ConfocalScan_PointByPoint(Experiment):
         will be overwritten in the __init__
         """
         # gets an 'overlaping' path to trial counter in binary_files folder
+        self.adw.stop_process(1)
+        self.adw.clear_process(1)
         trial_counter_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'Controller','binary_files', 'ADbasic', 'Trial_Counter.TB1')
         trial_counter = os.path.normpath(trial_counter_path)
         self.adw.update({'process_1': {'load': trial_counter}})
@@ -733,7 +769,7 @@ class ConfocalScan_PointByPoint(Experiment):
         self.data['raw_counts'] = raw_counts_data
         self.data['counts'] = count_rate_data
 
-        print('Position Data: ', '\n', self.data['x_pos'], '\n', self.data['y_pos'], '\n', 'Max x: ',np.max(self.data['x_pos']), 'Max y: ', np.max(self.data['y_pos']))
+        #print('Position Data: ', '\n', self.data['x_pos'], '\n', self.data['y_pos'], '\n', 'Max x: ',np.max(self.data['x_pos']), 'Max y: ', np.max(self.data['y_pos']))
         #print('All data: ',self.data)
 
         self.adw.update({'process_2': {'running': False}})
@@ -848,6 +884,8 @@ class ConfocalPoint(Experiment):
         will be overwritten in the __init__
         """
         #gets an 'overlaping' path to trial counter in binary_files folder
+        self.adw.stop_process(1)
+        self.adw.clear_process(1)
         trial_counter_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..','..','Controller','binary_files','ADbasic','Trial_Counter.TB1')
         trial_counter = os.path.normpath(trial_counter_path)
         self.adw.update({'process_1':{'load':trial_counter}})
