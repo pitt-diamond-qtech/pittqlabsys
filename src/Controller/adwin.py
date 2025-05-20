@@ -181,6 +181,19 @@ class ADwinGold(Device):
             raise KeyError
         self.adw.Set_FPar(FPar_id, value)
 
+    def reboot_adwin(self,num_devices=1):
+        new_adw_handle = None
+        try:
+            # boots with T11 processor. 3.333.. ns minimum time resolution for low and high priority processes
+            new_adw_handle = ADwin.ADwin(DeviceNo=num_devices, raiseExceptions=1)
+            btl = new_adw_handle.ADwindir + 'ADwin11.btl'
+            new_adw_handle.Boot(btl)
+        except ADwinError as e:
+            print('Issue rebooting ADwin: ', e)
+            raise
+        if new_adw_handle is not None:
+            self.adw = new_adw_handle
+
     def __del__(self):  #should stop all processes when ADwin is closed or a crash occures
         self.close()
 
