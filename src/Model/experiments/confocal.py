@@ -37,7 +37,7 @@ class ConfocalScan_NewFast(Experiment):
                    ]),
         Parameter('resolution', 1.0, float, 'Resolution of each pixel in microns'),
         Parameter('time_per_pt', 5.0, [2.0,5.0], 'Time in ms at each point to get counts; same as load_rate for nanodrive. Wroking values 2 or 5 ms'),
-        Parameter('read_rate',2.0,2.0,'Time in ms. Same as read_rate for nanodrive'),
+        Parameter('read_rate',2.0,[2.0],'Time in ms. Same as read_rate for nanodrive'),
         Parameter('return_to_start',True,bool,'If true will return to position of stage before scan started'),
         #!!! If you see horizontial lines in the confocal image, the adwin arrays likely are corrupted. The fix is to reboot the adwin. You will nuke all
         #other process, variables, and arrays in the adwin. This parameter is added to make that easy to do in the GUI.
@@ -77,6 +77,7 @@ class ConfocalScan_NewFast(Experiment):
         Gets paths for adbasic file and loads them onto ADwin.
         '''
         self.adw.stop_process(2)
+        sleep(0.1)
         self.adw.clear_process(2)
         one_d_scan_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'Controller','binary_files', 'ADbasic', 'One_D_Scan.TB2')
         one_d_scan = os.path.normpath(one_d_scan_path)
@@ -193,7 +194,7 @@ class ConfocalScan_NewFast(Experiment):
             # index for the points of the read array when at y_min and y_max. Scale step by load_read_ratio to get points closest to y_min & y_max
             lower_index = np.where((y_pos_array > y_min - step / load_read_ratio) & (y_pos_array < y_min + step / load_read_ratio))[0]
             upper_index = np.where((y_pos_array > y_max - step / load_read_ratio) & (y_pos_array < y_max + step / load_read_ratio))[0]
-            y_pos_proper = list(y_pos_array[lower_index[0]:upper_index[0]])
+            y_pos_cropped = list(y_pos_array[lower_index[0]:upper_index[0]])
 
             #y_data.extend(y_pos_proper)
             y_data.extend(list(y_pos))
@@ -212,13 +213,13 @@ class ConfocalScan_NewFast(Experiment):
 
             # get count data from adwin and record it
             raw_counts = np.array(list(self.adw.read_probes('int_array', id=1, length=len_wf+self.settings['crop_options']['pixels'])))
-            raw_counts_proper = list(raw_counts[counts_lower_index:counts_upper_index+1])
-            raw_count_data.extend(raw_counts_proper)
+            raw_counts_cropped = list(raw_counts[counts_lower_index:counts_upper_index+1])
+            raw_count_data.extend(raw_counts_cropped)
             self.data['raw_counts'] = raw_count_data
             #print('C_L: ', counts_lower_index, 'C_U: ', counts_upper_index)
 
             '''# units of count/seconds
-            count_rate = list(np.array(raw_counts_proper) * 1e3 / self.settings['time_per_pt'])
+            count_rate = list(np.array(raw_counts_cropped) * 1e3 / self.settings['time_per_pt'])
             count_rate_data.extend(count_rate)
             img_row.extend(count_rate)
             self.data['counts'] = count_rate_data'''
@@ -255,7 +256,7 @@ class ConfocalScan_NewFast(Experiment):
             self.data[('count_img')][i, :] = img_row #add previous scan data so image plots
             #forward = not forward
 
-            # updates process bar to see experiment is running
+            # updates process bar and plots count_img so far
             interation_num = interation_num + len(y_array)
             self.progress = 100. * (interation_num +1) / total_interations
             self.updateProgress.emit(self.progress)
@@ -291,7 +292,10 @@ class ConfocalScan_NewFast(Experiment):
                 self.data['count_img'][0, pixel - 1 + len(y_array)] = 0
                 self.data['count_img'][Nx - 1, pixel - 1 + len(y_array)] = 0
 
+        print('Post abort break loop rest of the function is executed')
         #clearing process to aviod memory fragmentation when running different experiments in GUI
+        self.adw.stop_process(2)
+        sleep(0.1)
         self.adw.clear_process(2)
         if self.settings['return_to_start'] == True:
             self.nd.update({'x_pos':x_inital,'y_pos':y_inital})
