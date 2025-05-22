@@ -39,6 +39,9 @@ from matplotlib.backends.backend_pdf import \
 from matplotlib.figure import Figure
 from importlib import import_module
 
+import pyqtgraph as pg
+from pyqtgraph.exporters import ImageExporter
+
 # cPickle module implements the same algorithm as pickle, in C instead of Python.
 # It is many times faster than the Python implementation, but does not allow the user to subclass from Pickle.
 import pickle
@@ -722,24 +725,31 @@ class Experiment(QObject):
 
         """
 
-        def axes_empty(ax):
+        def check_nonempty(graph):
             """
             takes an axes object and checks if it is empty
             the axes object is considered empty it doesn't contain any of the following:
                 - lines
                 - images
                 - patches
-            Returns:
-
             """
-
             is_empty = True
 
-            if ax is not None and len(ax) > 0:
-                for a in ax:
-                    if len(a.lines) + len(a.images) + len(a.patches) != 0:
-                        is_empty = False
-
+            if graph is not None:
+                rows = graph.ci.rows
+                for row_index in rows:
+                    for item in rows[row_index].values():
+                        #item is any plot, image, label, etc item added to GraphicsLayoutWidget
+                        if isinstance(item, pg.PlotItem):
+                            for curve in item.listDataItems():
+                                #curve is any data that has been plotted on a PlotItem
+                                if curve.xData is not None and len(curve.xData) > 0:
+                                    is_empty = False
+                                    return is_empty
+                            for subitem in item.items:
+                                if isinstance(subitem, pg.ImageItem) and subitem.image is not None:
+                                    is_empty = False
+                                    return is_empty
             return is_empty
 
         # create and save images
@@ -763,20 +773,24 @@ class Experiment(QObject):
         if os.path.exists(os.path.dirname(filename_2)) is False:
             os.makedirs(os.path.dirname(filename_2))
 
-        fig_1 = Figure()
-        canvas_1 = FigureCanvas(fig_1)
+        graph_1 = pg.GraphicsLayoutWidget()  #graph is the space/object you add plots to
+        scene_1 = graph_1.sceneObj           #scene houses all the plots; we want to save all plots if nonempty
 
-        fig_2 = Figure()
-        canvas_2 = FigureCanvas(fig_2)
+        graph_2 = pg.GraphicsLayoutWidget()
+        scene_2 = graph_2.sceneObj
 
         self.force_update()
+        self.plot([graph_1, graph_2])
 
-        self.plot([fig_1, fig_2])
-
-        if filename_1 is not None and not axes_empty(fig_1.axes):
-            fig_1.savefig(filename_1)
-        if filename_2 is not None and not axes_empty(fig_2.axes):
-            fig_2.savefig(filename_2)
+        if filename_1 is not None and not check_nonempty(graph_1):
+            print('triggerd graph 1 save')
+            exporter = ImageExporter(scene_1)
+            exporter.export(filename_1)
+        print('graph_2')
+        if filename_2 is not None and not check_nonempty(graph_2):
+            print('triggerd graph 2 save')
+            exporter = ImageExporter(scene_2)
+            exporter.export(filename_2)
 
     def save(self, filename):
         """
