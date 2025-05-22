@@ -13,7 +13,7 @@ from PyQt5.QtCore import QSettings
 from src.Controller import MCLNanoDrive, ADwinGold
 from src.core import Parameter, Experiment
 import os
-from time import sleep
+from time import sleep, perf_counter
 import pyqtgraph as pg
 
 
@@ -37,23 +37,12 @@ class ConfocalScan_NewFast(Experiment):
                    ]),
         Parameter('resolution', 1.0, float, 'Resolution of each pixel in microns'),
         Parameter('time_per_pt', 5.0, [2.0,5.0], 'Time in ms at each point to get counts; same as load_rate for nanodrive. Wroking values 2 or 5 ms'),
-        Parameter('read_rate',2.0,[2.0],'Time in ms. Same as read_rate for nanodrive'),
-        Parameter('return_to_start',True,bool,'If true will return to position of stage before scan started'),
+        Parameter('ending_behavior', 'return_to_inital_pos', ['return_to_inital_pos', 'return_to_origin', 'leave_at_corner'],'Nanodrive position after scan'),
         #!!! If you see horizontial lines in the confocal image, the adwin arrays likely are corrupted. The fix is to reboot the adwin. You will nuke all
         #other process, variables, and arrays in the adwin. This parameter is added to make that easy to do in the GUI.
         Parameter('reboot_adwin',False,bool,'Will reboot adwin when experiment is executed. Useful is data looks fishy'),
         #clocks currently not implemented
-        Parameter('correlate_clock', 'Aux', ['Pixel','Line','Frame','Aux'], 'Nanodrive clocked used for correlating points with counts (Connected to Digital Input 1 on Adwin)'),
-        Parameter('laser_clock', 'Pixel', ['Pixel','Line','Frame','Aux'], 'Nanodrive clocked used for turning laser on and off'),
-        Parameter('crop_options',
-                  [Parameter('crop',False,bool,'Flag to crop image or not in GUI'),
-                  Parameter('pixels',20,int,'number of pixels to crop'),
-                  Parameter('display_crop',True,bool,'if image is not cropped, can display cropped region'),
-                  Parameter('numpy_crop',True,bool,'Use np.where to crop'),
-                  Parameter('numpy_flip',True,bool,'Flip index of numpy crop'),
-                  Parameter('numpy_type','upper',['lower','upper'],'Use lower or upper index to crop'),
-                  Parameter('index_mode',True,bool,'Use mode of index to crop')
-                  ])
+        Parameter('laser_clock', 'Pixel', ['Pixel','Line','Frame','Aux'], 'Nanodrive clocked used for turning laser on and off')
     ]
 
     #For actual experiment use LP100 [MCL_NanoDrive({'serial':2849})]. For testing using HS3 ['serial':2850]
@@ -86,6 +75,19 @@ class ConfocalScan_NewFast(Experiment):
         # one_d_scan script increments an index then adds count values to an array in a constant time interval
         self.nd.clock_functions('Frame', reset=True)  # reset ALL clocks to default settings
 
+    def after_scan(self):
+        '''
+        In this case cleans up adwin and moves nanodrive to desired position
+        '''
+        # clearing process to aviod memory fragmentation when running different experiments in GUI
+        self.adw.stop_process(2)    #neccesary if process is not stop for some reason
+        sleep(0.1)
+        self.adw.clear_process(2)
+        if self.settings['ending_behavior'] == 'return_to_inital_pos':
+            self.nd.update({'x_pos': self.x_inital, 'y_pos': self.y_inital})
+        elif self.settings['ending_behavior'] == 'return_to_origin':
+            self.nd.update({'x_pos': 0.0, 'y_pos': 0.0})
+
     def _function(self):
         """
         This is the actual function that will be executed. It uses only information that is provided in the settings property
@@ -112,15 +114,16 @@ class ConfocalScan_NewFast(Experiment):
         y_array_adj = np.insert(y_array, 0, y_before)
         y_array_adj = np.append(y_array_adj, y_after)
 
-        x_inital = self.nd.read_probes('x_pos')
-        y_inital = self.nd.read_probes('y_pos')
+        self.x_inital = self.nd.read_probes('x_pos')
+        self.y_inital = self.nd.read_probes('y_pos')
 
         #makes sure data is getting recorded. If still equal none after running experiment data is not being stored or not measured
         self.data['x_pos'] = None
         self.data['y_pos'] = None
         self.data['raw_counts'] = None
-        self.data['counts'] = None
+        self.data['count_rate'] = None
         self.data['count_img'] = None
+        self.data['raw_img'] = None
         #local lists to store data and append to global self.data lists
         x_data = []
         y_data = []
@@ -128,17 +131,13 @@ class ConfocalScan_NewFast(Experiment):
         count_rate_data = []
         index_list = []
 
-        # set data to zero so plotting happens while experiment runs
+
+        # set data to zero and update to plot while experiment runs
         Nx = len(x_array)
+        Ny = len(y_array)
 
-        if self.settings['crop_options']['crop'] == True:
-            Ny = len(y_array)
-            self.data['count_img'] = np.zeros((Nx, Ny))
-        elif self.settings['crop_options']['crop'] == False:
-            Ny = len(y_array_adj)
-            self.data['count_img'] = np.zeros((Nx, Ny+self.settings['crop_options']['pixels']))
-
-        full_image = np.zeros((Nx, len(y_array_adj)+self.settings['crop_options']['pixels']))
+        self.data['count_img'] = np.zeros((Nx, Ny))
+        self.data['raw_img'] = np.zeros((Nx, len(y_array_adj)+20))
 
         interation_num = 0 #number to track progress
         total_interations = ((x_max - x_min)/step + 1)*((y_max - y_min)/step + 1)       #plus 1 because in total_iterations because range is inclusive ie. [0,10]
@@ -152,11 +151,11 @@ class ConfocalScan_NewFast(Experiment):
         wf = list(y_array_adj)
         len_wf = len(y_array_adj)
         #print(len_wf,wf)
-        load_read_ratio = self.settings['time_per_pt']/self.settings['read_rate'] #used for scaling when rates are different
-        num_points_read = int(load_read_ratio*len_wf + self.settings['crop_options']['pixels']) #50 is added to compensate for start and end lack each producing ~15 points of unwanted values
+        load_read_ratio = self.settings['time_per_pt']/2.0 #used for scaling when rates are different
+        num_points_read = int(load_read_ratio*len_wf + 20) #20 is added to compensate for start warm up producing ~15 points of unwanted values
 
         #set inital x and y and set nanodrive stage to that position
-        self.nd.update({'x_pos':x_min,'y_pos':y_min-5.0,'num_datapoints':len_wf,'read_rate':self.settings['read_rate'],'load_rate':self.settings['time_per_pt']})
+        self.nd.update({'x_pos':x_min,'y_pos':y_min-5.0,'num_datapoints':len_wf,'read_rate':2.0,'load_rate':self.settings['time_per_pt']})
         #load_rate is time_per_pt; 2.0ms = 5000Hz
         self.adw.update({'process_2':{'delay':adwin_delay}})
         sleep(0.1)  #time for stage to move to starting posiition and adwin process to initilize
@@ -166,6 +165,7 @@ class ConfocalScan_NewFast(Experiment):
             if self._abort == True:
                 break
             img_row = []
+            raw_img_row = []
             x = float(x)
 
             self.nd.update({'x_pos':x,'y_pos':y_min-5.0})     #goes to x position
@@ -181,6 +181,7 @@ class ConfocalScan_NewFast(Experiment):
             #See dylan_staples/confocal scans w resolution target in the data folder for images and additional details
             if self.settings['time_per_pt'] == 5.0:
                 self.adw.update({'process_2': {'running': True}})
+                t1 = perf_counter()
 
             #trigger waveform on y-axis and record position data
             self.nd.setup(settings={'num_datapoints': len_wf, 'load_waveform': wf}, axis='y')
@@ -189,10 +190,12 @@ class ConfocalScan_NewFast(Experiment):
             #restricted load_rate and read_rate to ensure cropping works. 2ms and 5ms count times are good as smaller window for speed and a larger window if more counts are needed
             if  self.settings['time_per_pt'] == 2.0:
                 self.adw.update({'process_2': {'running': True}})
+                t1 = perf_counter()
 
             y_pos = self.nd.waveform_acquisition(axis='y')
+            t2 = perf_counter()
             sleep(self.settings['time_per_pt']*len_wf/1000)
-
+            print('start=',t1,' end=',t2,' elasped=',t2-t1)
             #want to get data only in desired range not range±5um
             y_pos_array = np.array(y_pos)
             # index for the points of the read array when at y_min and y_max. Scale step by load_read_ratio to get points closest to y_min & y_max
@@ -210,87 +213,33 @@ class ConfocalScan_NewFast(Experiment):
             counts_upper_index = int(upper_index[-1] / load_read_ratio)
             index_list.append(counts_upper_index)
 
-            print('np.where index L: ', lower_index, 'Index U: ', upper_index, '\n')
-            for j in range(len(upper_index)):
-                print('All upper count index ',int(upper_index[j] / load_read_ratio))
-
+            #get mode of index list and difference between mode and previous value
+            index_mode = max(set(index_list), key=index_list.count)
+            index_diff = abs(counts_upper_index - index_mode)
+            # index starts at 0 so need to add 1 if there is an index difference
+            if index_diff > 0:
+                index_diff = index_diff + 1
 
             # get count data from adwin and record it
-            raw_counts = np.array(list(self.adw.read_probes('int_array', id=1, length=len_wf+self.settings['crop_options']['pixels'])))
-            raw_counts_cropped = list(raw_counts[counts_lower_index:counts_upper_index+1])
-            raw_count_data.extend(raw_counts_cropped)
-            self.data['raw_counts'] = raw_count_data
-            #print('C_L: ', counts_lower_index, 'C_U: ', counts_upper_index)
-
-            '''# units of count/seconds
-            count_rate = list(np.array(raw_counts_cropped) * 1e3 / self.settings['time_per_pt'])
-            count_rate_data.extend(count_rate)
-            img_row.extend(count_rate)
-            self.data['counts'] = count_rate_data'''
-
-            #optional get full or cropped image
+            raw_counts = np.array(list(self.adw.read_probes('int_array', id=1, length=len_wf+20)))
+            # units of count/seconds
             count_rate = list(np.array(raw_counts) * 1e3 / self.settings['time_per_pt'])
-            '''if self.settings['crop_options']['crop'] == True:
-                if self.settings['crop_options']['numpy_crop'] == True:
-                    if self.settings['crop_options']['numpy_type'] == 'upper':
-                        #minus 1 so the crop is inclusive
-                        if self.settings['time_per_pt'] == 2.0:
-                            #minus 1 for inclusive crop and the 2.0 option needs 1 extra pixel
-                            crop_index = -counts_upper_index-1-1
-                        elif self.settings['time_per_pt'] == 5.0:
-                            #minus 1 for inclusive crop and the 5.0 option needs 2 extra pixels
-                            crop_index = -counts_upper_index-1-2
-                        cropped_count_rate = count_rate[crop_index:crop_index + len(y_array)]
-                        count_rate_data.extend(cropped_count_rate)
-                        img_row.extend(cropped_count_rate)
-                        self.data['counts'] = count_rate_data
-                    elif self.settings['crop_options']['numpy_type'] == 'lower':
-                        cropped_count_rate = count_rate[-counts_lower_index + 1:(-counts_upper_index + 1) + len(y_array)]
-                        count_rate_data.extend(cropped_count_rate)
-                        img_row.extend(cropped_count_rate)
-                        self.data['counts'] = count_rate_data
 
-                elif self.settings['crop_options']['numpy_crop'] == False:
-                    pixels = self.settings['crop_options']['pixels']
-                    cropped_count_rate = count_rate[pixels:pixels + len(y_array)]
-                    count_rate_data.extend(cropped_count_rate)
-                    img_row.extend(cropped_count_rate)
-                    self.data['counts'] = count_rate_data
+            crop_index = -index_mode - 1 - index_diff
+            cropped_raw_counts = list(raw_counts[crop_index::crop_index + len(y_array)])
+            cropped_count_rate = count_rate[crop_index:crop_index + len(y_array)]
 
-            elif self.settings['crop_options']['crop'] == False:
-                count_rate_data.extend(count_rate)
-                img_row.extend(count_rate)
-                self.data['counts'] = count_rate_data'''
+            raw_count_data.extend(cropped_raw_counts)
+            self.data['raw_counts'] = raw_count_data
 
-            if self.settings['crop_options']['index_mode'] == True:
-                index_mode = max(set(index_list), key=index_list.count)
-                print('mode of index: ',index_mode)
-                index_diff = abs(counts_upper_index - index_mode)
-                #index starts at 0 so need to add 1 if there is an index difference
-                if index_diff > 0:
-                    index_diff = index_diff + 1
+            count_rate_data.extend(cropped_count_rate)
+            self.data['count_rate'] = count_rate_data
 
-                crop_index = -index_mode - 1 - index_diff
-                cropped_count_rate = count_rate[crop_index:crop_index + len(y_array)]
-                count_rate_data.extend(cropped_count_rate)
-                img_row.extend(cropped_count_rate)
-                self.data['counts'] = count_rate_data
-                #full_image[i, :] = img_row
-                self.data[('count_img')][i, :] = img_row #add previous scan data so image plots
-
-                #self.data['count_img'] = full_image[:, crop_index:crop_index + len(y_array)]
-
-            elif self.settings['crop_options']['index_mode'] == False:
-                index_mode = counts_upper_index
-
-                crop_index = -index_mode - 1
-                cropped_count_rate = count_rate[crop_index:crop_index + len(y_array)]
-                count_rate_data.extend(cropped_count_rate)
-                img_row.extend(cropped_count_rate)
-                self.data['counts'] = count_rate_data
-
-                self.data[('count_img')][i, :] = img_row #add previous scan data so image plots
-
+            #adds count rate data to raw img and cropped count img
+            raw_img_row.extend(count_rate)
+            self.data['raw_img'][i, :] = raw_img_row
+            img_row.extend(cropped_count_rate)
+            self.data['count_img'][i, :] = img_row  # add previous scan data so image plots
 
 
             # updates process bar and plots count_img so far
@@ -303,37 +252,12 @@ class ConfocalScan_NewFast(Experiment):
         self.data['x_pos'] = x_data
         self.data['y_pos'] = y_data
         self.data['raw_counts'] = raw_count_data
-        self.data['counts'] = count_rate_data
+        self.data['count_rate'] = count_rate_data
         #print('Position Data: ','\n',self.data['x_pos'],'\n',self.data['y_pos'],'\n','Max x: ',np.max(self.data['x_pos']),'Max y: ',np.max(self.data['y_pos']))
         #print('Counts: ','\n',self.count_data)
         #print('All data: ',self.data)
 
-
-        '''if self.settings['crop_options']['display_crop'] == True:
-            if self.settings['crop_options']['numpy_crop'] == True:
-                if self.settings['crop_options']['numpy_flip'] == True:
-                    q = -1
-                else:
-                    q = 1
-                self.data['count_img'][0, counts_upper_index*q-1 + len(y_array)] = 0
-                self.data['count_img'][0, counts_upper_index*q-1] = 0
-                self.data['count_img'][Nx - 1, counts_upper_index*q-1 + len(y_array)] = 0
-                self.data['count_img'][Nx - 1, counts_upper_index*q-1] = 0
-                print('L index: ',counts_lower_index,'U index: ',counts_upper_index,
-                    '\n','Numpy cropped length = ',counts_upper_index-counts_lower_index, 'Length array = ',len(y_array))
-            elif self.settings['crop_options']['numpy_crop'] == False:
-                pixel = self.settings['crop_options']['pixels']
-                self.data['count_img'][0, pixel - 1] = 0
-                self.data['count_img'][Nx - 1, pixel - 1] = 0
-                self.data['count_img'][0, pixel - 1 + len(y_array)] = 0
-                self.data['count_img'][Nx - 1, pixel - 1 + len(y_array)] = 0'''
-
-        #clearing process to aviod memory fragmentation when running different experiments in GUI
-        self.adw.stop_process(2)
-        sleep(0.1)
-        self.adw.clear_process(2)
-        if self.settings['return_to_start'] == True:
-            self.nd.update({'x_pos':x_inital,'y_pos':y_inital})
+        self.after_scan()
 
 
 
@@ -356,11 +280,7 @@ class ConfocalScan_NewFast(Experiment):
             levels = [min, np.max(data['count_img'])]
             if self._plot_refresh == True:
 
-                if self.settings['crop_options']['crop'] == True:
-                    extent = [self.settings['point_a']['x'], self.settings['point_b']['x'], self.settings['point_a']['y'],self.settings['point_b']['y']]
-                elif self.settings['crop_options']['crop'] == False:
-                    extent = [self.settings['point_a']['x'], self.settings['point_b']['x'],self.settings['point_a']['y']-5, self.settings['point_b']['y']+5]
-                #extent = [np.min(data['x_pos']), np.max(data['x_pos']), np.min(data['y_pos']), np.max(data['y_pos'])]
+                extent = [self.settings['point_a']['x'], self.settings['point_b']['x'], self.settings['point_a']['y'],self.settings['point_b']['y']]
                 self.image = pg.ImageItem(data['count_img'], interpolation='nearest')
                 self.image.setLevels(levels)
                 self.image.setRect(pg.QtCore.QRectF(extent[0], extent[2], extent[1] - extent[0], extent[3] - extent[2]))
