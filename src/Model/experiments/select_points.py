@@ -14,12 +14,14 @@
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 import numpy as np
+import pyqtgraph as pg
 from scipy.spatial import KDTree
 import time
 import matplotlib
 from matplotlib import patches
 import random
 from src.core import Experiment, Parameter
+
 class SelectPoints(Experiment):
     """
 Experiment to select points on an image. The selected points are saved and can be used in a superexperiment to iterate over.
@@ -51,6 +53,7 @@ Experiment to select points on an image. The selected points are saved and can b
         # keep experiment alive while NVs are selected
         while not self._abort:
             time.sleep(1)
+
     def plot(self, figure_list):
         '''
         Plots a dot on top of each selected NV, with a corresponding number denoting the order in which the NVs are
@@ -60,19 +63,35 @@ Experiment to select points on an image. The selected points are saved and can b
             figure_list:
         '''
         # if there is not image data get it from the current plot
-        if not self.data == {} and self.data['image_data'] is  None:
+        if not self.data == {} and self.data['image_data'] is None:
+            plot = figure_list[0].getItem(row=0,col=0)
+            x_axis = plot.getAxis('bottom')
+            y_axis = plot.getAxis('left')
+
+
+            self.plot_settings['xlabel'] = x_axis.label.text
+            self.plot_settings['ylabel'] = y_axis.label.text
+            print(self.plot_settings)
+            label = plot.getLabel()
+            print(label)
+
+
             axes = figure_list[0].axes[0]
             if len(axes.images)>0:
                 self.data['image_data'] = np.array(axes.images[0].get_array())
                 self.data['extent'] = np.array(axes.images[0].get_extent())
                 self.plot_settings['cmap'] = axes.images[0].get_cmap().name
-                self.plot_settings['xlabel'] = axes.get_xlabel()
-                self.plot_settings['ylabel'] = axes.get_ylabel()
+                self.plot_settings['xlabel'] = x_axis.label.text
+                self.plot_settings['ylabel'] = y_axis.label.text
                 self.plot_settings['title'] = axes.get_title()
                 self.plot_settings['interpol'] = axes.images[0].get_interpolation()
+
+                print(self.plot_settings)
         Experiment.plot(self, figure_list)
+
     #must be passed figure with galvo plot on first axis
     def _plot(self, axes_list):
+        print('select points _plot executed')
         '''
         Plots a dot on top of each selected NV, with a corresponding number denoting the order in which the NVs are
         listed.
@@ -87,7 +106,9 @@ Experiment to select points on an image. The selected points are saved and can b
             axes.set_ylabel(self.plot_settings['ylabel'])
             axes.set_title(self.plot_settings['title'])
         self._update(axes_list)
+
     def _update(self, axes_list):
+        print('select points _update executed')
         #note: may be able to use blit to make things faster
         axes = axes_list[0]
         patch_size = self.settings['patch_size']
@@ -119,7 +140,9 @@ Experiment to select points on an image. The selected points are saved and can b
             #patch collection used here instead of adding individual patches for speed
             self.patch_collection = matplotlib.collections.PatchCollection(patch_list)
             axes.add_collection(self.patch_collection)
+
     def toggle_NV(self, pt):
+        print('select points toggle_NV executed')
         '''
         If there is not currently a selected NV within self.settings[patch_size] of pt, adds it to the selected list. If
         there is, removes that point from the selected list.

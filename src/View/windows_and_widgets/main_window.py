@@ -16,6 +16,7 @@ from PyQt5 import QtGui, QtCore, QtWidgets
 from PyQt5.uic import loadUiType
 from PyQt5.QtCore import QThread, pyqtSlot
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
+import pyqtgraph as pg
 
 from src.core import Parameter, Device, Experiment, Probe
 from src.core.experiment_iterator import ExperimentIterator
@@ -398,6 +399,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             if (not (mouse_event.xdata == None)):
                 if (mouse_event.button == 1):
                     pt = np.array([mouse_event.xdata, mouse_event.ydata])
+                    x,y = pt[0],pt[1]
+                    print('clicked point from select points: ',pt,' (x,y)=',x,y)
                     self.current_experiment.toggle_NV(pt)
                     self.current_experiment.plot([self.matplotlibwidget_1.figure])
                     self.matplotlibwidget_1.draw()
@@ -451,56 +454,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.history.append(msg)
         self.history_model.insertRow(0, QtGui.QStandardItem(msg))
 
-    '''
-    def create_figures(self):
-        """
-        creates the maplotlib figures]
-        self.matplotlibwidget_1
-        self.matplotlibwidget_2
-        and toolbars
-        self.mpl_toolbar_1
-        self.mpl_toolbar_2
-        Returns:
-
-        """
-
-
-        try:
-            self.horizontalLayout_14.removeWidget(self.matplotlibwidget_1)
-            self.matplotlibwidget_1.close()
-        except AttributeError:
-            pass
-        try:
-            self.horizontalLayout_15.removeWidget(self.matplotlibwidget_2)
-            self.matplotlibwidget_2.close()
-        except AttributeError:
-            pass
-        self.matplotlibwidget_2 = MatplotlibWidget(self.plot_2)
-        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
-        sizePolicy.setHorizontalStretch(0)
-        sizePolicy.setVerticalStretch(0)
-        sizePolicy.setHeightForWidth(self.matplotlibwidget_2.sizePolicy().hasHeightForWidth())
-        self.matplotlibwidget_2.setSizePolicy(sizePolicy)
-        self.matplotlibwidget_2.setMinimumSize(QtCore.QSize(200, 200))
-        self.matplotlibwidget_2.setObjectName("matplotlibwidget_2")
-        self.horizontalLayout_16.addWidget(self.matplotlibwidget_2)
-        self.matplotlibwidget_1 = MatplotlibWidget(self.plot_1)
-        self.matplotlibwidget_1.setMinimumSize(QtCore.QSize(200, 200))
-        self.matplotlibwidget_1.setObjectName("matplotlibwidget_1")
-        self.horizontalLayout_15.addWidget(self.matplotlibwidget_1)
-
-        self.matplotlibwidget_1.mpl_connect('button_press_event', self.plot_clicked)
-        self.matplotlibwidget_2.mpl_connect('button_press_event', self.plot_clicked)
-
-        # adds a toolbar to the plots
-        self.mpl_toolbar_1 = NavigationToolbar(self.matplotlibwidget_1.canvas, self.toolbar_space_1)
-        self.mpl_toolbar_2 = NavigationToolbar(self.matplotlibwidget_2.canvas, self.toolbar_space_2)
-        self.horizontalLayout_9.addWidget(self.mpl_toolbar_2)
-        self.horizontalLayout_14.addWidget(self.mpl_toolbar_1)
-
-        self.matplotlibwidget_1.figure.set_tight_layout(True)
-        self.matplotlibwidget_2.figure.set_tight_layout(True)
-    '''
 
     def create_figures(self):
 
@@ -515,7 +468,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         except AttributeError:
             pass
 
-        #adds 2 graphics layout widgets
+        #adds 2 graphics layout widgets. _1 is top layout and _2 is bottom layout
         self.pyqtgraphwidget_2 = PyQtgraphWidget(self.plot_2)
         sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
         sizePolicy.setHorizontalStretch(0)
