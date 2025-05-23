@@ -727,14 +727,13 @@ class Experiment(QObject):
 
         def check_nonempty(graph):
             """
-            takes an axes object and checks if it is empty
-            the axes object is considered empty it doesn't contain any of the following:
-                - lines
-                - images
-                - patches
-            """
-            is_empty = True
+            takes a GrachicsLayoutWidget (a graph) and checks if the plots it contains have data
+            the graph is considered non-empty if it has
+                -a PlotItem with data
+                -any ImageItem ie. it could be blank
 
+            a picture will be saved of the entire graph if ANY PlotItems are none empty
+            """
             if graph is not None:
                 rows = graph.ci.rows
                 for row_index in rows:
@@ -744,13 +743,11 @@ class Experiment(QObject):
                             for curve in item.listDataItems():
                                 #curve is any data that has been plotted on a PlotItem
                                 if curve.xData is not None and len(curve.xData) > 0:
-                                    is_empty = False
-                                    return is_empty
+                                    return False
                             for subitem in item.items:
                                 if isinstance(subitem, pg.ImageItem) and subitem.image is not None:
-                                    is_empty = False
-                                    return is_empty
-            return is_empty
+                                    return False
+            return True
 
         # create and save images
         if (filename_1 is None):
@@ -774,21 +771,18 @@ class Experiment(QObject):
             os.makedirs(os.path.dirname(filename_2))
 
         graph_1 = pg.GraphicsLayoutWidget()  #graph is the space/object you add plots to
-        scene_1 = graph_1.sceneObj           #scene houses all the plots; we want to save all plots if nonempty
+        scene_1 = graph_1.scene()            #scene houses all the plots; we want to save all plots if nonempty
 
         graph_2 = pg.GraphicsLayoutWidget()
-        scene_2 = graph_2.sceneObj
+        scene_2 = graph_2.scene()
 
         self.force_update()
         self.plot([graph_1, graph_2])
 
         if filename_1 is not None and not check_nonempty(graph_1):
-            print('triggerd graph 1 save')
             exporter = ImageExporter(scene_1)
             exporter.export(filename_1)
-        print('graph_2')
         if filename_2 is not None and not check_nonempty(graph_2):
-            print('triggerd graph 2 save')
             exporter = ImageExporter(scene_2)
             exporter.export(filename_2)
 
