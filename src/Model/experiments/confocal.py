@@ -13,7 +13,7 @@ from PyQt5.QtCore import QSettings
 from src.Controller import MCLNanoDrive, ADwinGold
 from src.core import Parameter, Experiment
 import os
-from time import sleep, perf_counter
+from time import sleep
 import pyqtgraph as pg
 
 
@@ -28,15 +28,15 @@ class ConfocalScan_NewFast(Experiment):
 
     _DEFAULT_SETTINGS = [
         Parameter('point_a',
-                  [Parameter('x',35.0,float,'x-coordinate start in microns'),
-                   Parameter('y',35.0,float,'y-coordinate start in microns')
+                  [Parameter('x',5.0,float,'x-coordinate start in microns'),
+                   Parameter('y',5.0,float,'y-coordinate start in microns')
                    ]),
         Parameter('point_b',
                   [Parameter('x',95.0,float,'x-coordinate end in microns'),
                    Parameter('y', 95.0, float, 'y-coordinate end in microns')
                    ]),
         Parameter('resolution', 1.0, float, 'Resolution of each pixel in microns'),
-        Parameter('time_per_pt', 5.0, [2.0,5.0], 'Time in ms at each point to get counts; same as load_rate for nanodrive. Wroking values 2 or 5 ms'),
+        Parameter('time_per_pt', 2.0, [2.0,5.0], 'Time in ms at each point to get counts; same as load_rate for nanodrive. Wroking values 2 or 5 ms'),
         Parameter('ending_behavior', 'return_to_inital_pos', ['return_to_inital_pos', 'return_to_origin', 'leave_at_corner'],'Nanodrive position after scan'),
         #!!! If you see horizontial lines in the confocal image, the adwin arrays likely are corrupted. The fix is to reboot the adwin. You will nuke all
         #other process, variables, and arrays in the adwin. This parameter is added to make that easy to do in the GUI.
@@ -77,7 +77,7 @@ class ConfocalScan_NewFast(Experiment):
 
     def after_scan(self):
         '''
-        In this case cleans up adwin and moves nanodrive to desired position
+        Cleans up adwin and moves nanodrive to specified position
         '''
         # clearing process to aviod memory fragmentation when running different experiments in GUI
         self.adw.stop_process(2)    #neccesary if process is not stop for some reason
@@ -178,10 +178,9 @@ class ConfocalScan_NewFast(Experiment):
             #The two different code lines to start counting seem to work for cropping. Honestly cant give a precise explaination, it seems to be related to
             #hardware delay. If the time_per_pt is 5.0 starting counting before waveform set up works to within 1 pixel with numpy cropping. If the
             #time_per_pt is 2.0 starting counting after waveform set up matches slow scan to a pixel. Sorry for a lack of explaination but this just seems to work.
-            #See dylan_staples/confocal scans w resolution target in the data folder for images and additional details
+            #See data/dylan_staples/confocal_scans_w_resolution_target for images and additional details
             if self.settings['time_per_pt'] == 5.0:
                 self.adw.update({'process_2': {'running': True}})
-                t1 = perf_counter()
 
             #trigger waveform on y-axis and record position data
             self.nd.setup(settings={'num_datapoints': len_wf, 'load_waveform': wf}, axis='y')
@@ -190,12 +189,10 @@ class ConfocalScan_NewFast(Experiment):
             #restricted load_rate and read_rate to ensure cropping works. 2ms and 5ms count times are good as smaller window for speed and a larger window if more counts are needed
             if  self.settings['time_per_pt'] == 2.0:
                 self.adw.update({'process_2': {'running': True}})
-                t1 = perf_counter()
 
             y_pos = self.nd.waveform_acquisition(axis='y')
-            t2 = perf_counter()
             sleep(self.settings['time_per_pt']*len_wf/1000)
-            print('start=',t1,' end=',t2,' elasped=',t2-t1)
+
             #want to get data only in desired range not range±5um
             y_pos_array = np.array(y_pos)
             # index for the points of the read array when at y_min and y_max. Scale step by load_read_ratio to get points closest to y_min & y_max
@@ -226,6 +223,8 @@ class ConfocalScan_NewFast(Experiment):
             count_rate = list(np.array(raw_counts) * 1e3 / self.settings['time_per_pt'])
 
             crop_index = -index_mode - 1 - index_diff
+            if self.settings['time_per_pt'] == 5.0:
+                crop_index = crop_index-2
             cropped_raw_counts = list(raw_counts[crop_index::crop_index + len(y_array)])
             cropped_count_rate = count_rate[crop_index:crop_index + len(y_array)]
 
@@ -285,23 +284,26 @@ class ConfocalScan_NewFast(Experiment):
                 self.image.setLevels(levels)
                 self.image.setRect(pg.QtCore.QRectF(extent[0], extent[2], extent[1] - extent[0], extent[3] - extent[2]))
                 axes_list[0].addItem(self.image)
-                self.colorbar = axes_list[0].addColorBar(self.image, values=(levels[0], levels[1]), label='counts/sec',colorMap='viridis')
+
+                self.colorbar = pg.ColorBarItem(values=(levels[0], levels[1]), label='counts/sec',colorMap='viridis')
+                self.colorbar.setImageItem(self.image)
+                #layout is housing the PlotItem that houses the ImageItem. Add colorbar to layout so it is properly saved when saving dataset
+                layout = axes_list[0].parentItem()
+                layout.addItem(self.colorbar)
 
                 axes_list[0].setAspectLocked(True)
                 axes_list[0].setLabel('left', 'y (µm)')
                 axes_list[0].setLabel('bottom', 'x (µm)')
 
-                axes_list[1].plot(data['y_pos'])
+                #plotting y position on top plot if wanted
+                '''axes_list[1].plot(data['y_pos'])
                 axes_list[1].addLine(y=self.settings['point_a']['y'])
-                axes_list[1].addLine(y=self.settings['point_b']['y'])
+                axes_list[1].addLine(y=self.settings['point_b']['y'])'''
+
             else:
                 self.image.setImage(data['count_img'], autoLevels=False)
                 self.image.setLevels(levels)
                 self.colorbar.setLevels(levels)
-
-                #extent = [np.min(data['x_pos']), np.max(data['x_pos']), np.min(data['y_pos']), np.max(data['y_pos'])]
-                #self.image.setRect(pg.QtCore.QRectF(extent[0], extent[2], extent[1] - extent[0], extent[3] - extent[2]))
-                #axes_list[0].setAspectLocked(True)
 
 
     def _update(self,axes_list):
@@ -660,13 +662,13 @@ class ConfocalScan_PointByPoint(Experiment):
         forward = True #used to rasterize more efficently going forward then back
         #for x in x_array:
         for i, x in enumerate(x_array):
+            if self._abort:  # halts loop (and experiment) if stop button is pressed
+                break #need to but break in x for loop which takes some time to stop but stopped in y loop array sizes may mismatch and require a GUI restart
             x = float(x)
             img_row = []  #used for tracking image rows and adding to count_img; list not saved
             self.nd.update({'x_pos':x})
             if forward == True:
                 for y in y_array:
-                    if self._abort:  # halts loop (and experiment) if stop button is pressed
-                        break
                     y = float(y)
                     print(x,y)
                     self.nd.update({'y_pos':y})
@@ -690,8 +692,6 @@ class ConfocalScan_PointByPoint(Experiment):
 
             else:
                 for y in reversed_y_array:
-                    if self._abort:  # halts loop (and experiment) if stop button is pressed
-                        break
                     y = float(y)
                     print(x,y)
                     self.nd.update({'y_pos':y})
@@ -920,9 +920,8 @@ class ConfocalPoint(Experiment):
             #axes_list[1].setText(f'{data["counts"][-1]/1000:.3f} kcounts/sec')
             axes_list[1].setText(f'{data["raw_counts"][-1]} counts/sec')
 
-            '''
-            Might be useful to include a max count number display
-            '''
+            # todo: Might be useful to include a max count number display
+
 
     def get_axes_layout(self, figure_list):
         """
