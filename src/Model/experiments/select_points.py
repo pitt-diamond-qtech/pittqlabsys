@@ -114,24 +114,32 @@ Experiment to select points on an image. The selected points are saved and can b
         if self.plot_settings:
             extent = self.data['extent']
             levels = [np.min(self.data['image_data']),np.max(self.data['image_data'])]
-            sp_image = pg.ImageItem(self.data['image_data'], interpolation='nearest', extent=extent)
-            sp_image.setLevels(levels)
-            sp_image.setRect(pg.QtCore.QRectF(extent[0], extent[2], extent[1] - extent[0], extent[3] - extent[2]))
+            if self._plot_refresh:
+                self.sp_image = pg.ImageItem(self.data['image_data'], interpolation='nearest', extent=extent)
+                self.sp_image.setLevels(levels)
+                self.sp_image.setRect(pg.QtCore.QRectF(extent[0], extent[2], extent[1] - extent[0], extent[3] - extent[2]))
 
-            axes.addItem(sp_image)
-            axes.setLabel('left', self.plot_settings['ylabel'])
-            axes.setLabel('bottom', self.plot_settings['xlabel'])
-            axes.setTitle(self.plot_settings['title'])
+                axes.addItem(self.sp_image)
+                axes.setLabel('left', self.plot_settings['ylabel'])
+                axes.setLabel('bottom', self.plot_settings['xlabel'])
+                axes.setTitle(self.plot_settings['title'])
 
-            colorbar = pg.ColorBarItem(values=(levels[0], levels[1]), colorMap=self.plot_settings['cmap'])
-            colorbar.setImageItem(sp_image)
-            # layout is housing the PlotItem that houses the ImageItem. Add colorbar to layout so it is properly saved when saving dataset
-            layout = axes.parentItem()
-            layout.addItem(colorbar)
+                self.colorbar = pg.ColorBarItem(values=(levels[0], levels[1]), colorMap=self.plot_settings['cmap'])
+                self.colorbar.setImageItem(self.sp_image)
+                # layout is housing the PlotItem that houses the ImageItem. Add colorbar to layout so it is properly saved when saving dataset
+                layout = axes.parentItem()
+                layout.addItem(self.colorbar)
+            else:
+                self.sp_image.setImage(self.data['image_data'], autoLevels=False)
+                self.sp_image.setLevels(levels)
+                self.colorbar.setLevels(levels)
         self._update(axes_list)
 
     def _update(self, axes_list):
-        print('select points _update executed')
+        '''
+        Feed AI the previous code and said needed to convert to pyqt graph.
+        I changed some names but otherwise AI's code -- works for now
+        '''
         patch_size = self.settings['patch_size']
         axes = axes_list[0]
 
