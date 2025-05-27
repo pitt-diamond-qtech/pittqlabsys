@@ -88,10 +88,14 @@ Experiment to select points on an image. The selected points are saved and can b
             top_left = image.mapToView(pg.QtCore.QPointF(0, 0))
             bottom_right = image.mapToView(pg.QtCore.QPointF(shape[1], shape[0]))
 
+            #xmin = min(top_left.x(),bottom_right.x())
+            #xmax = max(top_left.x(),bottom_right.x())
+            #ymin = min(top_left.y(),bottom_right.y())
+            #ymax = max(top_left.y(),bottom_right.y())
             xmin = top_left.x()
             xmax = bottom_right.x()
-            ymax = top_left.y()
-            ymin = bottom_right.y()
+            ymin = top_left.y()
+            ymax = bottom_right.y()
             self.data['extent'] = np.array([xmin, xmax, ymin, ymax])
             print('first extent',self.data['extent'])
 
@@ -112,42 +116,57 @@ Experiment to select points on an image. The selected points are saved and can b
         Args:
             figure_list:
         '''
+        print('Refresh?',self._plot_refresh)
+
+        def create_img(colorbar=True):
+            self.sp_image = pg.ImageItem(self.data['image_data'], interpolation='nearest', extent=extent)
+            self.sp_image.setLevels(levels)
+            self.sp_image.setRect(pg.QtCore.QRectF(extent[0], extent[2], extent[1] - extent[0], extent[3] - extent[2]))
+
+            axes.addItem(self.sp_image)
+            axes.setLabel('left', self.plot_settings['ylabel'])
+            axes.setLabel('bottom', self.plot_settings['xlabel'])
+            axes.setTitle(self.plot_settings['title'])
+
+            if colorbar:
+                self.colorbar = pg.ColorBarItem(values=(levels[0], levels[1]), colorMap=self.plot_settings['cmap'])
+                # layout is housing the PlotItem that houses the ImageItem. Add colorbar to layout so it is properly saved when saving dataset
+                layout = axes.parentItem()
+                layout.addItem(self.colorbar)
+            self.colorbar.setImageItem(self.sp_image)
+
         axes = axes_list[0]
         if self.plot_settings:
             extent = self.data['extent']
             levels = [np.min(self.data['image_data']),np.max(self.data['image_data'])]
+
             if self._plot_refresh:
-                self.sp_image = pg.ImageItem(self.data['image_data'], interpolation='nearest', extent=extent)
-                self.sp_image.setLevels(levels)
-                self.sp_image.setRect(pg.QtCore.QRectF(extent[0], extent[2], extent[1] - extent[0], extent[3] - extent[2]))
-
-                axes.addItem(self.sp_image)
-                axes.setLabel('left', self.plot_settings['ylabel'])
-                axes.setLabel('bottom', self.plot_settings['xlabel'])
-                axes.setTitle(self.plot_settings['title'])
-
-                self.colorbar = pg.ColorBarItem(values=(levels[0], levels[1]), colorMap=self.plot_settings['cmap'])
-                self.colorbar.setImageItem(self.sp_image)
-                # layout is housing the PlotItem that houses the ImageItem. Add colorbar to layout so it is properly saved when saving dataset
-                layout = axes.parentItem()
-                layout.addItem(self.colorbar)
+                create_img()
             else:
-                self.sp_image.setImage(self.data['image_data'], autoLevels=False)
-                self.sp_image.setLevels(levels)
-                self.colorbar.setLevels(levels)
+                try:
+                    self.sp_image.setImage(self.data['image_data'], autoLevels=False)
+                    self.sp_image.setLevels(levels)
+                    self.colorbar.setLevels(levels)
+                except RuntimeError:
+                    create_img(colorbar=False)
+
         self._update(axes_list)
 
     def _update(self, axes_list):
         '''
-        Feed AI the previous code and said needed to convert to pyqt graph.
-        I changed some names but otherwise AI's code -- works for now
+        Handles plotting text and circles over clicked points
         '''
         patch_size = self.settings['patch_size']
         axes = axes_list[0]
+        viewbox = axes.vb
+        view_range = viewbox.ViewRange()
+        view_size = viewbox.sceneBoundingRect().size()
+        x_data_range = view_range[0][1] - view_range[0][0]
+        x_data_per_pixel = x_data_range / view_size.width()
+        pixel_size = self.settings['patch_size'] / x_data_per_pixel
 
         # Clear previous scatter points and labels
         if hasattr(self, 'point_scatter'):
-            print('triggered scatter remove')
             axes.removeItem(self.point_scatter)
             del self.point_scatter
         if hasattr(self, 'text_items'):
@@ -165,17 +184,15 @@ Experiment to select points on an image. The selected points are saved and can b
 
             for index, pt in enumerate(self.data['nv_locations']):
                 #max and min seemed to flip sometimes for no reason this prevents that as index 0&1 are x and index 2&3 are y
-                xmin = min(self.data['extent'][0],self.data['extent'][1])
-                xmax = max(self.data['extent'][0],self.data['extent'][1])
-                ymin = min(self.data['extent'][2],self.data['extent'][3])
-                ymax = max(self.data['extent'][2],self.data['extent'][3])
+                xmin = self.data['extent'][0]
+                xmax = self.data['extent'][1]
+                ymin = self.data['extent'][2]
+                ymax = self.data['extent'][3]
                 x, y = pt
                 # only want to plot points if they are in the image region
-                print(xmin, x, xmax, ymin, y, ymax)
                 if xmin <= x <= xmax and ymin <= y <= ymax:
-
                     # Add scatter point
-                    circles.append({'pos': pt, 'size': patch_size*400, 'brush': 'r'})
+                    circles.append({'pos': pt, 'size': pixel_size, 'brush': 'r'})
 
                     # Add text label
                     text = pg.TextItem(text=str(index), color='w', anchor=(0.5, 0.5))
@@ -184,44 +201,14 @@ Experiment to select points on an image. The selected points are saved and can b
                     axes.addItem(text)
                     text_labels.append(text)
 
-                print(circles)
-                self.point_scatter = pg.ScatterPlotItem(spots=circles)
-                self.point_scatter.setZValue(9)
-                axes.addItem(self.point_scatter)
-                self.text_items = text_labels
+            print(circles)
+            self.point_scatter = pg.ScatterPlotItem(spots=circles)
+            self.point_scatter.setZValue(9)
+            axes.addItem(self.point_scatter)
+            self.text_items = text_labels
 
         print('NVs:',self.data['nv_locations'])
-        '''#note: may be able to use blit to make things faster
-        axes = axes_list[0]
-        patch_size = self.settings['patch_size']
-        # first clear all old patches (circles and numbers), then redraw all
-        if self.patch_collection:
-            try:
-                self.patch_collection.remove()
-                for text in self.text:
-                    text.remove()
-            except ValueError:
-                pass
-        patch_list = []
-        if(self.data['nv_locations'] is not None):
-            for index, pt in enumerate(self.data['nv_locations']):
-                circ = patches.Circle((pt[0], pt[1]), patch_size, fc='b')
-                patch_list.append(circ)
-                #cap number of drawn numbers at 400 since drawing text is extremely slow and they're all so close together
-                #as to be unreadable anyways
-                if len(self.data['nv_locations']) <= 400:
-                    text = axes.text(pt[0], pt[1], '{:d}'.format(index),
-                            horizontalalignment='center',
-                            verticalalignment='center',
-                            color='white'
-                            )
-                    self.text.append(text)
-                else:
-                    print("Cannot select more than 400 locations in image!")
-                    raise RuntimeError("Cannot select more than 400 locations in image!")
-            #patch collection used here instead of adding individual patches for speed
-            self.patch_collection = matplotlib.collections.PatchCollection(patch_list)
-            axes.add_collection(self.patch_collection)'''
+
 
     def toggle_NV(self, pt):
         '''
@@ -232,10 +219,10 @@ Experiment to select points on an image. The selected points are saved and can b
         Poststate: updates selected list
         '''
         # max and min seemed to flip sometimes for no reason this prevents that as index 0&1 are x and index 2&3 are y
-        xmin = min(self.data['extent'][0], self.data['extent'][1])
-        xmax = max(self.data['extent'][0], self.data['extent'][1])
-        ymin = min(self.data['extent'][2], self.data['extent'][3])
-        ymax = max(self.data['extent'][2], self.data['extent'][3])
+        xmin = self.data['extent'][0]
+        xmax = self.data['extent'][1]
+        ymin = self.data['extent'][2]
+        ymax = self.data['extent'][3]
         x, y = pt
         # only want to points if they are in the image region
         if xmin <= x <= xmax and ymin <= y <= ymax:

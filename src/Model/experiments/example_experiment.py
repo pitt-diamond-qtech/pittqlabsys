@@ -171,10 +171,10 @@ Example Experiment that has all different types of parameters (integer, str, flo
                     axes_list[1].plot(data['random data'])
             if plot_type == '2D':
                 if 'image data' in data and not data['image data'] is None:
-                    extent=[-1, 1, 1, -1]
+                    extent=[-1, 1, -1, 1]
                     levels = [np.min(data['image data']),np.max(data['image data'])]
 
-                    self.image = pg.ImageItem(data['image data'], interpolation='nearest', extent=extent)
+                    self.image = pg.ImageItem(data['image data'], interpolation='nearest',extent=extent)
                     self.image.setLevels(levels)
                     self.image.setRect(pg.QtCore.QRectF(extent[0],extent[2],extent[1]-extent[0],extent[3]-extent[2]))
                     axes_list[0].addItem(self.image)
