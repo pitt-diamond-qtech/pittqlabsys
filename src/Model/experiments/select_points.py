@@ -86,9 +86,13 @@ Experiment to select points on an image. The selected points are saved and can b
 
             self.data['image_data'] = image_data
 
-            shape = image_data.shape  #(rows, cols)
+            '''shape = image_data.shape  #(rows, cols)
             top_left = image.mapToView(pg.QtCore.QPointF(0, 0))
-            bottom_right = image.mapToView(pg.QtCore.QPointF(shape[1], shape[0]))
+            bottom_right = image.mapToView(pg.QtCore.QPointF(shape[1], shape[0]))'''
+
+            rect = image.rect()
+            top_left = image.mapToView(rect.topLeft())
+            bottom_right = image.mapToView(rect.bottomRight())
 
             xmin = top_left.x()
             xmax = bottom_right.x()
