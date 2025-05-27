@@ -17,10 +17,12 @@ import numpy as np
 import pyqtgraph as pg
 from scipy.spatial import KDTree
 import time
-import matplotlib
-from matplotlib import patches
 import random
 from src.core import Experiment, Parameter
+from PyQt5.QtGui import QBrush, QPen
+from PyQt5.QtWidgets import QGraphicsEllipseItem
+from pyqtgraph import functions as fn
+from PyQt5.QtCore import Qt
 
 class SelectPoints(Experiment):
     """
@@ -88,16 +90,11 @@ Experiment to select points on an image. The selected points are saved and can b
             top_left = image.mapToView(pg.QtCore.QPointF(0, 0))
             bottom_right = image.mapToView(pg.QtCore.QPointF(shape[1], shape[0]))
 
-            #xmin = min(top_left.x(),bottom_right.x())
-            #xmax = max(top_left.x(),bottom_right.x())
-            #ymin = min(top_left.y(),bottom_right.y())
-            #ymax = max(top_left.y(),bottom_right.y())
             xmin = top_left.x()
             xmax = bottom_right.x()
             ymin = top_left.y()
             ymax = bottom_right.y()
             self.data['extent'] = np.array([xmin, xmax, ymin, ymax])
-            print('first extent',self.data['extent'])
 
             self.plot_settings['cmap'] = plot.parentItem().getItem(row=0,col=1).colorMap().name
             self.plot_settings['title'] = plot.titleLabel.text
@@ -116,8 +113,6 @@ Experiment to select points on an image. The selected points are saved and can b
         Args:
             figure_list:
         '''
-        print('Refresh?',self._plot_refresh)
-
         def create_img(colorbar=True):
             self.sp_image = pg.ImageItem(self.data['image_data'], interpolation='nearest', extent=extent)
             self.sp_image.setLevels(levels)
@@ -127,6 +122,7 @@ Experiment to select points on an image. The selected points are saved and can b
             axes.setLabel('left', self.plot_settings['ylabel'])
             axes.setLabel('bottom', self.plot_settings['xlabel'])
             axes.setTitle(self.plot_settings['title'])
+            axes.setAspectLocked(True)
 
             if colorbar:
                 self.colorbar = pg.ColorBarItem(values=(levels[0], levels[1]), colorMap=self.plot_settings['cmap'])
@@ -141,6 +137,7 @@ Experiment to select points on an image. The selected points are saved and can b
             levels = [np.min(self.data['image_data']),np.max(self.data['image_data'])]
 
             if self._plot_refresh:
+                #if plot refresh is true the ImageItem has been deleted and needs recreated
                 create_img()
             else:
                 try:
@@ -158,23 +155,16 @@ Experiment to select points on an image. The selected points are saved and can b
         '''
         patch_size = self.settings['patch_size']
         axes = axes_list[0]
-        viewbox = axes.vb
-        view_range = viewbox.ViewRange()
-        view_size = viewbox.sceneBoundingRect().size()
-        x_data_range = view_range[0][1] - view_range[0][0]
-        x_data_per_pixel = x_data_range / view_size.width()
-        pixel_size = self.settings['patch_size'] / x_data_per_pixel
 
-        # Clear previous scatter points and labels
-        if hasattr(self, 'point_scatter'):
-            axes.removeItem(self.point_scatter)
-            del self.point_scatter
+        # Clear previous plotted ellipses and labels
+        if hasattr(self, 'point_ellipses'):
+            for ellipse in self.point_ellipses:
+                axes.removeItem(ellipse)
         if hasattr(self, 'text_items'):
             for text in self.text_items:
                 axes.removeItem(text)
 
-        circles = []
-        print('circles list:',circles)
+        ellipses_list = []
         text_labels = []
 
         if self.data['nv_locations'] is not None:
@@ -191,24 +181,24 @@ Experiment to select points on an image. The selected points are saved and can b
                 x, y = pt
                 # only want to plot points if they are in the image region
                 if xmin <= x <= xmax and ymin <= y <= ymax:
-                    # Add scatter point
-                    circles.append({'pos': pt, 'size': pixel_size, 'brush': 'r'})
+                    #add a circle over each clicked point
+                    r = patch_size / 2
+                    ellipse = QGraphicsEllipseItem(x-r,y-r,patch_size,patch_size)
+                    ellipse.setBrush(QBrush(fn.mkColor('r')))
+                    ellipse.setPen(QPen(Qt.NoPen))
+                    ellipse.setZValue(9)
+                    axes.addItem(ellipse)
+                    ellipses_list.append(ellipse)
 
-                    # Add text label
+                    #at the index number over each clicked point
                     text = pg.TextItem(text=str(index), color='w', anchor=(0.5, 0.5))
                     text.setPos(pt[0], pt[1])
                     text.setZValue(10)
                     axes.addItem(text)
                     text_labels.append(text)
 
-            print(circles)
-            self.point_scatter = pg.ScatterPlotItem(spots=circles)
-            self.point_scatter.setZValue(9)
-            axes.addItem(self.point_scatter)
             self.text_items = text_labels
-
-        print('NVs:',self.data['nv_locations'])
-
+            self.point_ellipses = ellipses_list
 
     def toggle_NV(self, pt):
         '''

@@ -454,11 +454,6 @@ class PyQtgraphWidget(QtWidgets.QWidget):
     def get_graph(self):
         return self.graph
 
-    @property
-    def viewbox(self):
-        return self.plot_item.vb
-
-
 class PyQtCoordinatesBar(QtWidgets.QWidget):
 
     def __init__(self,connected_graph,parent=None):
