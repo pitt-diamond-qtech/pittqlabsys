@@ -67,31 +67,42 @@ Experiment to select points on an image. The selected points are saved and can b
             plot = figure_list[0].getItem(row=0,col=0)
             x_axis = plot.getAxis('bottom')
             y_axis = plot.getAxis('left')
+            self.plot_settings['xlabel'] = x_axis.label.toPlainText()
+            self.plot_settings['ylabel'] = y_axis.label.toPlainText()
 
+            for item in plot.items:
+                if isinstance(item, pg.ImageItem):
+                    image = item
+                    image_data = item.image
 
-            self.plot_settings['xlabel'] = x_axis.label.text
-            self.plot_settings['ylabel'] = y_axis.label.text
-            print(self.plot_settings)
-            label = plot.getLabel()
-            print(label)
+                    break
+                else:
+                    Experiment.plot(self, figure_list)
+                    print('NO IMAGE FOUND')
+                    raise
 
+            self.data['image_data'] = image_data
 
-            axes = figure_list[0].axes[0]
-            if len(axes.images)>0:
-                self.data['image_data'] = np.array(axes.images[0].get_array())
-                self.data['extent'] = np.array(axes.images[0].get_extent())
-                self.plot_settings['cmap'] = axes.images[0].get_cmap().name
-                self.plot_settings['xlabel'] = x_axis.label.text
-                self.plot_settings['ylabel'] = y_axis.label.text
-                self.plot_settings['title'] = axes.get_title()
-                self.plot_settings['interpol'] = axes.images[0].get_interpolation()
+            shape = image_data.shape  #(rows, cols)
+            top_left = image.mapToView(pg.QtCore.QPointF(0, 0))
+            bottom_right = image.mapToView(pg.QtCore.QPointF(shape[1], shape[0]))
 
-                print(self.plot_settings)
+            xmin = top_left.x()
+            xmax = bottom_right.x()
+            ymin = top_left.y()
+            ymax = bottom_right.y()
+            self.data['extent'] = np.array([xmin, xmax, ymin, ymax])
+
+            self.plot_settings['cmap'] = image.getColorMap().name
+            self.plot_settings['title'] = plot.titleLabel.text
+
+            #pyqt graph does not have a method for getting the interpolation...just using nearest for now
+            #self.plot_settings['interpol'] = axes.images[0].get_interpolation()
+
         Experiment.plot(self, figure_list)
 
     #must be passed figure with galvo plot on first axis
     def _plot(self, axes_list):
-        print('select points _plot executed')
         '''
         Plots a dot on top of each selected NV, with a corresponding number denoting the order in which the NVs are
         listed.
@@ -101,15 +112,59 @@ Experiment to select points on an image. The selected points are saved and can b
         '''
         axes = axes_list[0]
         if self.plot_settings:
-            axes.imshow(self.data['image_data'], cmap=self.plot_settings['cmap'], interpolation=self.plot_settings['interpol'], extent=self.data['extent'])
-            axes.set_xlabel(self.plot_settings['xlabel'])
-            axes.set_ylabel(self.plot_settings['ylabel'])
-            axes.set_title(self.plot_settings['title'])
+            extent = self.data['extent']
+            levels = [np.min(self.data['image_data']),np.max(self.data['image_data'])]
+            sp_image = pg.ImageItem(self.data['image_data'], interpolation='nearest', extent=extent)
+            sp_image.setLevels(levels)
+            sp_image.setRect(pg.QtCore.QRectF(extent[0], extent[2], extent[1] - extent[0], extent[3] - extent[2]))
+
+            axes.addItem(sp_image)
+            axes.setLabel('left', self.plot_settings['ylabel'])
+            axes.setLabel('bottom', self.plot_settings['xlabel'])
+            axes.setTitle(self.plot_settings['title'])
+
+            colorbar = pg.ColorBarItem(values=(levels[0], levels[1]), colorMap=self.plot_settings['cmap'])
+            colorbar.setImageItem(sp_image)
+            # layout is housing the PlotItem that houses the ImageItem. Add colorbar to layout so it is properly saved when saving dataset
+            layout = axes.parentItem()
+            layout.addItem(colorbar)
         self._update(axes_list)
 
     def _update(self, axes_list):
         print('select points _update executed')
-        #note: may be able to use blit to make things faster
+        patch_size = self.settings['patch_size']
+        axes = axes_list[0]
+
+        # Clear previous scatter points and labels
+        if hasattr(self, 'point_scatter'):
+            axes.removeItem(self.point_scatter)
+        if hasattr(self, 'text_items'):
+            for text in self.text_items:
+                axes.removeItem(text)
+
+        circles = []
+        text_labels = []
+
+        if self.data['nv_locations'] is not None:
+            if len(self.data['nv_locations']) > 400:
+                print("Cannot select more than 400 locations in image!")
+                raise RuntimeError("Cannot select more than 400 locations in image!")
+
+            for index, pt in enumerate(self.data['nv_locations']):
+                # Add scatter point
+                circles.append({'pos': pt, 'size': patch_size, 'brush': 'b'})
+
+                # Add text label
+                text = pg.TextItem(text=str(index), color='w', anchor=(0.5, 0.5))
+                text.setPos(pt[0], pt[1])
+                axes.addItem(text)
+                text_labels.append(text)
+
+            self.point_scatter = pg.ScatterPlotItem(spots=circles)
+            axes.addItem(self.point_scatter)
+            self.text_items = text_labels
+
+        '''#note: may be able to use blit to make things faster
         axes = axes_list[0]
         patch_size = self.settings['patch_size']
         # first clear all old patches (circles and numbers), then redraw all
@@ -139,7 +194,7 @@ Experiment to select points on an image. The selected points are saved and can b
                     raise RuntimeError("Cannot select more than 400 locations in image!")
             #patch collection used here instead of adding individual patches for speed
             self.patch_collection = matplotlib.collections.PatchCollection(patch_list)
-            axes.add_collection(self.patch_collection)
+            axes.add_collection(self.patch_collection)'''
 
     def toggle_NV(self, pt):
         print('select points toggle_NV executed')
@@ -158,6 +213,7 @@ Experiment to select points on an image. The selected points are saved and can b
             tree = KDTree(self.data['nv_locations'])
             #does a search with k=1, that is a search for the nearest neighbor, within distance_upper_bound
             d, i = tree.query(pt,k = 1, distance_upper_bound = self.settings['patch_size'])
+            print(d,i)
 
             # removes NV if previously selected
             if d is not np.inf:

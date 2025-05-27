@@ -14,7 +14,7 @@
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 from PyQt5 import QtGui, QtCore, QtWidgets
 from PyQt5.uic import loadUiType
-from PyQt5.QtCore import QThread, pyqtSlot
+from PyQt5.QtCore import QThread, pyqtSlot, Qt
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 import pyqtgraph as pg
 
@@ -395,7 +395,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         Args:
             mouse_event:
         """
-        if isinstance(self.current_experiment, SelectPoints) and self.current_experiment.is_running:
+        '''if isinstance(self.current_experiment, SelectPoints) and self.current_experiment.is_running:
             if (not (mouse_event.xdata == None)):
                 if (mouse_event.button == 1):
                     pt = np.array([mouse_event.xdata, mouse_event.ydata])
@@ -403,7 +403,17 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                     print('clicked point from select points: ',pt,' (x,y)=',x,y)
                     self.current_experiment.toggle_NV(pt)
                     self.current_experiment.plot([self.matplotlibwidget_1.figure])
-                    self.matplotlibwidget_1.draw()
+                    self.matplotlibwidget_1.draw()'''
+
+        if isinstance(self.current_experiment, SelectPoints) and self.current_experiment.is_running:
+            print(mouse_event,mouse_event.button())
+            if mouse_event.button() == Qt.LeftButton:
+                mouse_point = self.pyqtgraphwidget_1.viewbox.mapSceneToView(mouse_event.scenePos())
+                pt = np.array([mouse_point.x(), mouse_point.y()])
+                print(f'Clicked point: {pt}, (x, y)=({pt[0]}, {pt[1]})')
+
+                self.current_experiment.toggle_NV(pt)
+                self.current_experiment.plot([self.pyqtgraphwidget_1.graph])
 
         item = self.tree_experiments.currentItem()
 
@@ -498,6 +508,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.cordbar_1.setSizePolicy(sizePolicy)
         self.cordbar_1.setMinimumSize(QtCore.QSize(200, 50))
         self.cordbar_1.setObjectName('cordinatebar_1')
+
+        # connects plots so when clicked on the plot_clicked method triggers
+        self.pyqtgraphwidget_1.graph.scene().sigMouseClicked.connect(self.plot_clicked)
+        self.pyqtgraphwidget_2.graph.scene().sigMouseClicked.connect(self.plot_clicked)
 
 
     def load_experiments(self):

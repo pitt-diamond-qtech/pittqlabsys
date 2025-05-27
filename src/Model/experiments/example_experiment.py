@@ -181,6 +181,9 @@ Example Experiment that has all different types of parameters (integer, str, flo
                     image.setRect(pg.QtCore.QRectF(extent[0],extent[2],extent[1]-extent[0],extent[3]-extent[2]))
                     axes_list[0].addItem(image)
 
+                    axes_list[0].setLabel('left', 'y')
+                    axes_list[0].setLabel('bottom', 'x')
+                    axes_list[0].setTitle('Example 2D plot')
                     axes_list[0].addColorBar(image, values=(levels[0],levels[1]), label='kcounts/sec', colorMap='viridis')
 
 
