@@ -406,12 +406,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                     self.matplotlibwidget_1.draw()'''
 
         if isinstance(self.current_experiment, SelectPoints) and self.current_experiment.is_running:
-            print(mouse_event,mouse_event.button())
             if mouse_event.button() == Qt.LeftButton:
-                mouse_point = self.pyqtgraphwidget_1.viewbox.mapSceneToView(mouse_event.scenePos())
+                #get viewbox from PlotItem that houses ImageItem
+                viewbox = self.pyqtgraphwidget_1.graph.getItem(row=0,col=0).vb
+                mouse_point = viewbox.mapSceneToView(mouse_event.scenePos())
                 pt = np.array([mouse_point.x(), mouse_point.y()])
                 print(f'Clicked point: {pt}, (x, y)=({pt[0]}, {pt[1]})')
-
                 self.current_experiment.toggle_NV(pt)
                 self.current_experiment.plot([self.pyqtgraphwidget_1.graph])
 
