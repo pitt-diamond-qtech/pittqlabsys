@@ -430,7 +430,7 @@ class PyQtgraphWidget(QtWidgets.QWidget):
         #self.graph.setBackground('lightgray')
         self.layout.addWidget(self.graph)
 
-        self.plot_items = self.graph.addPlot()   #adds a plot item to next available cell
+        self.plot_item = self.graph.addPlot()   #adds a plot item to next available cell
 
         self.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
         self.updateGeometry()
@@ -456,7 +456,7 @@ class PyQtgraphWidget(QtWidgets.QWidget):
 
     @property
     def viewbox(self):
-        return self.plot_items.vb
+        return self.plot_item.vb
 
 
 class PyQtCoordinatesBar(QtWidgets.QWidget):
@@ -510,6 +510,7 @@ class PyQtCoordinatesBar(QtWidgets.QWidget):
         if not self.viewbox == None:
             mousePoint = self.viewbox.mapSceneToView(scene_pos)
             self.left_label.setText("<span style='font-size: 10pt; color: black'> x = %0.2f, y = %0.2f</span>" % (mousePoint.x(), mousePoint.y()))
+
 
     def mouseClicked(self,event):
         '''

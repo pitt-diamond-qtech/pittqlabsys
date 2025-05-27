@@ -82,11 +82,9 @@ class MinimalExperiment(Experiment):
 
     def _plot(self, axes_list):
         x = np.linspace(-10,10,100)
-        print(axes_list)
         axes_list[2].plot(x)     #plots x on top plot
         axes_list[0].plot(x**2)  #plots x**2 on bottom left plot
         axes_list[1].plot(x**3)  #plots x**3 on bottom right plot
-
 
 class ExampleExperiment(Experiment):
     """
@@ -176,15 +174,20 @@ Example Experiment that has all different types of parameters (integer, str, flo
                     extent=[-1, 1, 1, -1]
                     levels = [np.min(data['image data']),np.max(data['image data'])]
 
-                    image = pg.ImageItem(data['image data'], interpolation='nearest', extent=extent)
-                    image.setLevels(levels)
-                    image.setRect(pg.QtCore.QRectF(extent[0],extent[2],extent[1]-extent[0],extent[3]-extent[2]))
-                    axes_list[0].addItem(image)
+                    self.image = pg.ImageItem(data['image data'], interpolation='nearest', extent=extent)
+                    self.image.setLevels(levels)
+                    self.image.setRect(pg.QtCore.QRectF(extent[0],extent[2],extent[1]-extent[0],extent[3]-extent[2]))
+                    axes_list[0].addItem(self.image)
 
                     axes_list[0].setLabel('left', 'y')
                     axes_list[0].setLabel('bottom', 'x')
                     axes_list[0].setTitle('Example 2D plot')
-                    axes_list[0].addColorBar(image, values=(levels[0],levels[1]), label='kcounts/sec', colorMap='viridis')
+
+                    self.colorbar = pg.ColorBarItem(values=(levels[0], levels[1]), colorMap='viridis')
+                    self.colorbar.setImageItem(self.image)
+                    # layout is housing the PlotItem that houses the ImageItem. Add colorbar to layout so it is properly saved when saving dataset
+                    layout = axes_list[0].parentItem()
+                    layout.addItem(self.colorbar)
 
 
     def _update(self, axes_list):
@@ -198,17 +201,11 @@ Example Experiment that has all different types of parameters (integer, str, flo
         """
         plot_type = self.settings['plot_style']
         if plot_type == '2D':
-            # we expect exactely one image in the axes object (see ExperimentDummy.plot)
-            all_plot_items = axes_list[0].getViewBox().allChildren()
-            image = None
-            for item in all_plot_items:
-                if isinstance(item, pg.ImageItem):
-                    image = item
-                    break
-
             # now update the data
-            image.setImage(self.data['random data'])
-            image.setLevels([np.min(self.data['random data']),np.max(self.data['random data'])])
+            levels = [np.min(self.data['image data']), np.max(self.data['image data'])]
+            self.image.setImage(self.data['image data'])
+            self.image.setLevels(levels)
+            self.colorbar.setLevels(levels)
 
 
         else:

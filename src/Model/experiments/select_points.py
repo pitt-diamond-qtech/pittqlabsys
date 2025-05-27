@@ -58,7 +58,8 @@ Experiment to select points on an image. The selected points are saved and can b
         '''
         Plots a dot on top of each selected NV, with a corresponding number denoting the order in which the NVs are
         listed.
-        Precondition: must have an existing image in figure_list[0] to plot over
+        Precondition: must have an GraphicsLayout with a PlotItem and a Colorbar. The PlotItem houses the ImageItem / the image data.
+                      Only works if there is precisely one of each in the correct spot. See ExampleExperiment 2D plot for correct setup.
         Args:
             figure_list:
         '''
@@ -70,16 +71,15 @@ Experiment to select points on an image. The selected points are saved and can b
             self.plot_settings['xlabel'] = x_axis.label.toPlainText()
             self.plot_settings['ylabel'] = y_axis.label.toPlainText()
 
-            for item in plot.items:
-                if isinstance(item, pg.ImageItem):
-                    image = item
-                    image_data = item.image
-
-                    break
-                else:
-                    Experiment.plot(self, figure_list)
-                    print('NO IMAGE FOUND')
-                    raise
+            if plot.items is not None:
+                for item in plot.items:
+                    if isinstance(item, pg.ImageItem):
+                        image = item
+                        image_data = item.image
+            else:
+                Experiment.plot(self, figure_list)
+                print('NO IMAGE FOUND')
+                raise
 
             self.data['image_data'] = image_data
 
@@ -93,7 +93,7 @@ Experiment to select points on an image. The selected points are saved and can b
             ymax = bottom_right.y()
             self.data['extent'] = np.array([xmin, xmax, ymin, ymax])
 
-            self.plot_settings['cmap'] = image.getColorMap().name
+            self.plot_settings['cmap'] = plot.parentItem().getItem(row=0,col=1).colorMap().name
             self.plot_settings['title'] = plot.titleLabel.text
 
             #pyqt graph does not have a method for getting the interpolation...just using nearest for now
@@ -205,7 +205,6 @@ Experiment to select points on an image. The selected points are saved and can b
             axes.add_collection(self.patch_collection)'''
 
     def toggle_NV(self, pt):
-        print('select points toggle_NV executed')
         '''
         If there is not currently a selected NV within self.settings[patch_size] of pt, adds it to the selected list. If
         there is, removes that point from the selected list.
@@ -221,10 +220,9 @@ Experiment to select points on an image. The selected points are saved and can b
             tree = KDTree(self.data['nv_locations'])
             #does a search with k=1, that is a search for the nearest neighbor, within distance_upper_bound
             d, i = tree.query(pt,k = 1, distance_upper_bound = self.settings['patch_size'])
-            print(d,i)
 
             # removes NV if previously selected
-            if d is not np.inf:
+            if not np.isinf(d):
                 self.data['nv_locations'].pop(i)
             # adds NV if not previously selected
             else:
