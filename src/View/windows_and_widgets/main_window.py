@@ -388,30 +388,20 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         self.tree_settings.blockSignals(False)
 
-
     def plot_clicked(self, mouse_event):
         """
         gets activated when the user clicks on a plot
         Args:
             mouse_event:
         """
-        '''if isinstance(self.current_experiment, SelectPoints) and self.current_experiment.is_running:
-            if (not (mouse_event.xdata == None)):
-                if (mouse_event.button == 1):
-                    pt = np.array([mouse_event.xdata, mouse_event.ydata])
-                    x,y = pt[0],pt[1]
-                    print('clicked point from select points: ',pt,' (x,y)=',x,y)
-                    self.current_experiment.toggle_NV(pt)
-                    self.current_experiment.plot([self.matplotlibwidget_1.figure])
-                    self.matplotlibwidget_1.draw()'''
+        # get viewbox and mouse coordinates from primary PlotItem
+        viewbox = self.pyqtgraphwidget_1.graph.getItem(row=0, col=0).vb
+        mouse_point = viewbox.mapSceneToView(mouse_event.scenePos())
 
         if isinstance(self.current_experiment, SelectPoints) and self.current_experiment.is_running:
+            #if running the SelectPoints experiment triggers function to plot and save NV position
             if mouse_event.button() == Qt.LeftButton:
-                #get viewbox from PlotItem that houses ImageItem
-                viewbox = self.pyqtgraphwidget_1.graph.getItem(row=0,col=0).vb
-                mouse_point = viewbox.mapSceneToView(mouse_event.scenePos())
                 pt = np.array([mouse_point.x(), mouse_point.y()])
-                print(f'Clicked point: {pt}, (x, y)=({pt[0]}, {pt[1]})')
                 self.current_experiment.toggle_NV(pt)
                 self.current_experiment.plot([self.pyqtgraphwidget_1.graph])
 
@@ -423,14 +413,14 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 item_x = item.child(0)
                 if mouse_event.xdata is not None:
                     self.tree_experiments.setCurrentItem(item_x)
-                    item_x.value = float(mouse_event.xdata)
-                    item_x.setText(1, '{:0.3f}'.format(float(mouse_event.xdata)))
+                    item_x.value = float(mouse_point.x())
+                    item_x.setText(1, '{:0.3f}'.format(float(mouse_point.x())))
                # item_y = item.child(0)
                 item_y = item.child(1)
                 if mouse_event.ydata is not None:
                     self.tree_experiments.setCurrentItem(item_y)
-                    item_y.value = float(mouse_event.ydata)
-                    item_y.setText(1, '{:0.3f}'.format(float(mouse_event.ydata)))
+                    item_y.value = float(mouse_point.y())
+                    item_y.setText(1, '{:0.3f}'.format(float(mouse_point.y())))
 
                 # focus back on item
                 self.tree_experiments.setCurrentItem(item)
@@ -439,10 +429,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                     if item.parent().is_point():
                         if item == item.parent().child(1):
                             if mouse_event.xdata is not None:
-                                item.setData(1, 2, float(mouse_event.xdata))
+                                item.setData(1, 2, float(mouse_point.x()))
                         if item == item.parent().child(0):
                             if mouse_event.ydata is not None:
-                                item.setData(1, 2, float(mouse_event.ydata))
+                                item.setData(1, 2, float(mouse_point.y()))
 
     def get_time(self):
         """
@@ -463,7 +453,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         self.history.append(msg)
         self.history_model.insertRow(0, QtGui.QStandardItem(msg))
-
 
     def create_figures(self):
 
