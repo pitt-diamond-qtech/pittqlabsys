@@ -8,8 +8,6 @@ This file has the experiment classes relevant to using a confocal microscope. So
 '''
 
 import numpy as np
-from PyQt5.QtCore import QSettings
-
 from src.Controller import MCLNanoDrive, ADwinGold
 from src.core import Parameter, Experiment
 import os
@@ -17,7 +15,7 @@ from time import sleep
 import pyqtgraph as pg
 
 
-class ConfocalScan_NewFast(Experiment):
+class ConfocalScan_Fast(Experiment):
     '''
     This class runs a confocal microscope scan using the MCL NanoDrive to move the sample stage and the ADwin Gold II to get count data.
     The code loads a waveform on the nanodrive, starts the Adwin process, triggers a waveform aquisition, then reads the data array from the Adwin.
@@ -41,6 +39,8 @@ class ConfocalScan_NewFast(Experiment):
         #!!! If you see horizontial lines in the confocal image, the adwin arrays likely are corrupted. The fix is to reboot the adwin. You will nuke all
         #other process, variables, and arrays in the adwin. This parameter is added to make that easy to do in the GUI.
         Parameter('reboot_adwin',False,bool,'Will reboot adwin when experiment is executed. Useful is data looks fishy'),
+        Parameter('cropping', #nested cause it does not need changed often
+                  [Parameter('crop_data',True,bool,'Current logic scans over a larger area then crops data to requested size. Added for ease of seeing full image')]),
         #clocks currently not implemented
         Parameter('laser_clock', 'Pixel', ['Pixel','Line','Frame','Aux'], 'Nanodrive clocked used for turning laser on and off')
     ]
@@ -80,7 +80,7 @@ class ConfocalScan_NewFast(Experiment):
         Cleans up adwin and moves nanodrive to specified position
         '''
         # clearing process to aviod memory fragmentation when running different experiments in GUI
-        self.adw.stop_process(2)    #neccesary if process is not stop for some reason
+        self.adw.stop_process(2)    #neccesary if process is does not stop for some reason
         sleep(0.1)
         self.adw.clear_process(2)
         if self.settings['ending_behavior'] == 'return_to_inital_pos':
@@ -131,11 +131,9 @@ class ConfocalScan_NewFast(Experiment):
         count_rate_data = []
         index_list = []
 
-
         # set data to zero and update to plot while experiment runs
         Nx = len(x_array)
         Ny = len(y_array)
-
         self.data['count_img'] = np.zeros((Nx, Ny))
         self.data['raw_img'] = np.zeros((Nx, len(y_array_adj)+20))
 
@@ -173,7 +171,6 @@ class ConfocalScan_NewFast(Experiment):
             x_pos = self.nd.read_probes('x_pos')
             x_data.append(x_pos)
             self.data['x_pos'] = x_data     #adds x postion to data
-
 
             #The two different code lines to start counting seem to work for cropping. Honestly cant give a precise explaination, it seems to be related to
             #hardware delay. If the time_per_pt is 5.0 starting counting before waveform set up works to within 1 pixel with numpy cropping. If the
@@ -240,14 +237,12 @@ class ConfocalScan_NewFast(Experiment):
             img_row.extend(cropped_count_rate)
             self.data['count_img'][i, :] = img_row  # add previous scan data so image plots
 
-
             # updates process bar and plots count_img so far
             interation_num = interation_num + len(y_array)
             self.progress = 100. * (interation_num +1) / total_interations
             self.updateProgress.emit(self.progress)
 
         print('Data collected')
-
         self.data['x_pos'] = x_data
         self.data['y_pos'] = y_data
         self.data['raw_counts'] = raw_count_data
@@ -258,13 +253,32 @@ class ConfocalScan_NewFast(Experiment):
 
         self.after_scan()
 
-
-
     def _plot(self, axes_list, data=None):
         '''
         This function plots the data. It is triggered when the updateProgress signal is emited and when after the _function is executed.
         For the scan, image can only be plotted once all data is gathered so self.running prevents a plotting call for the updateProgress signal.
         '''
+        def create_img(add_colobar=True):
+            '''
+            Creates a new image and ImageItem. Optionally create colorbar
+            '''
+            axes_list[0].clear()
+            self.count_image = pg.ImageItem(data['count_img'], interpolation='nearest')
+            self.count_image.setLevels(levels)
+            self.count_image.setRect(pg.QtCore.QRectF(extent[0], extent[2], extent[1] - extent[0], extent[3] - extent[2]))
+            axes_list[0].addItem(self.count_image)
+
+            axes_list[0].setAspectLocked(True)
+            axes_list[0].setLabel('left', 'y (µm)')
+            axes_list[0].setLabel('bottom', 'x (µm)')
+
+            if add_colobar:
+                self.colorbar = pg.ColorBarItem(values=(levels[0], levels[1]), label='counts/sec', colorMap='viridis')
+                # layout is housing the PlotItem that houses the ImageItem. Add colorbar to layout so it is properly saved when saving dataset
+                layout = axes_list[0].parentItem()
+                layout.addItem(self.colorbar)
+            self.colorbar.setImageItem(self.count_image)
+
         if data is None:
             data = self.data
         if data is not None or data is not {}:
@@ -277,296 +291,30 @@ class ConfocalScan_NewFast(Experiment):
                 min = 0
 
             levels = [min, np.max(data['count_img'])]
+            extent = [self.settings['point_a']['x'], self.settings['point_b']['x'], self.settings['point_a']['y'],self.settings['point_b']['y']]
+
             if self._plot_refresh == True:
-
-                extent = [self.settings['point_a']['x'], self.settings['point_b']['x'], self.settings['point_a']['y'],self.settings['point_b']['y']]
-                self.image = pg.ImageItem(data['count_img'], interpolation='nearest')
-                self.image.setLevels(levels)
-                self.image.setRect(pg.QtCore.QRectF(extent[0], extent[2], extent[1] - extent[0], extent[3] - extent[2]))
-                axes_list[0].addItem(self.image)
-
-                self.colorbar = pg.ColorBarItem(values=(levels[0], levels[1]), label='counts/sec',colorMap='viridis')
-                self.colorbar.setImageItem(self.image)
-                #layout is housing the PlotItem that houses the ImageItem. Add colorbar to layout so it is properly saved when saving dataset
-                layout = axes_list[0].parentItem()
-                layout.addItem(self.colorbar)
-
-                axes_list[0].setAspectLocked(True)
-                axes_list[0].setLabel('left', 'y (µm)')
-                axes_list[0].setLabel('bottom', 'x (µm)')
-
-                #plotting y position on top plot if wanted
-                '''axes_list[1].plot(data['y_pos'])
-                axes_list[1].addLine(y=self.settings['point_a']['y'])
-                axes_list[1].addLine(y=self.settings['point_b']['y'])'''
-
+                # if plot refresh is true the ImageItem has been deleted and needs recreated
+                create_img()
             else:
-                self.image.setImage(data['count_img'], autoLevels=False)
-                self.image.setLevels(levels)
-                self.colorbar.setLevels(levels)
-
+                try:
+                    self.count_image.setImage(data['count_img'], autoLevels=False)
+                    self.count_image.setLevels(levels)
+                    self.colorbar.setLevels(levels)
+                except RuntimeError:
+                    # sometimes when clicking other experiments ImageItem is deleted but _plot_refresh is false. This ensures the image can be replotted
+                    create_img(add_colobar=False)
 
     def _update(self,axes_list):
-        '''all_plot_items = axes_list[0].getViewBox().allChildren()
-        image = None
-        for item in all_plot_items:
-            if isinstance(item, pg.ImageItem):
-                image = item
-                break'''
-
-        self.image.setImage(self.data['count_img'], autoLevels=False)
-        self.image.setLevels([np.min(self.data['count_img']), np.max(self.data['count_img'])])
-        self.colorbar.setLevels([np.min(self.data['count_img']), np.max(self.data['count_img'])])
-
-
-class ConfocalScan_OldMethod(Experiment):
-    '''
-    This class runs a confocal microscope scan using the MCL NanoDrive to move the sample stage and the ADwin Gold II to get count data.
-    The code loads a waveform on the nanodrive, starts the Adwin process, triggers a waveform aquisition, then reads the data array from the Adwin.
-
-    Note: This method relies on lining up timing between the NanoDrive and Adwin. A point is loaded to the nanodrive say every 2.0 ms and the Adwin records
-    count data every 2.0 ms (time is variable using time_per_pt setting). However while it seems to work there is nothing explicitly correlating both instruments.
-    I tried to make a method that would correlated the instruments but it had artifacts in the count data. The method is commented at the end of this file.
-    '''
-
-    _DEFAULT_SETTINGS = [
-        Parameter('point_a',
-                  [Parameter('x',0,float,'x-coordinate start in microns'),
-                   Parameter('y',0,float,'y-coordinate start in microns')
-                   ]),
-        Parameter('point_b',
-                  [Parameter('x',10,float,'x-coordinate end in microns'),
-                   Parameter('y', 10, float, 'y-coordinate end in microns')
-                   ]),
-        Parameter('resolution', 0.1, float, 'Resolution of each pixel in microns'),
-        Parameter('time_per_pt', 2.0, float, 'Time in ms at each point to get counts; same as load_rate for nanodrive. Valid values 1/6-5 ms'),
-        Parameter('read_rate',2.0,[0.267,0.5,1.0,2.0,10.0,17.0,20.0],'Time in ms. Same as read_rate for nanodrive. Should match with time_per_pt for accurate position data'),
-        Parameter('return_to_start',True,bool,'If true will return to position of stage before scan started'),
-        #clocks currently not implemented
-        Parameter('correlate_clock', 'Aux', ['Pixel','Line','Frame','Aux'], 'Nanodrive clocked used for correlating points with counts (Connected to Digital Input 1 on Adwin)'),
-        Parameter('laser_clock', 'Pixel', ['Pixel','Line','Frame','Aux'], 'Nanodrive clocked used for turning laser on and off')
-    ]
-
-    #For actual experiment use LP100 [MCL_NanoDrive({'serial':2849})]. For testing using HS3 ['serial':2850]
-    _DEVICES = {'nanodrive': MCLNanoDrive(settings={'serial':2849}), 'adwin':ADwinGold()}
-    _EXPERIMENTS = {}
-
-    def __init__(self, devices, experiments=None, name=None, settings=None, log_function=None, data_path=None):
-        """
-        Initializes and connects to devices
-        Args:
-            name (optional): name of experiment, if empty same as class name
-            settings (optional): settings for this experiment, if empty same as default settings
-        """
-        super().__init__(name, settings=settings, sub_experiments=experiments, devices=devices, log_function=log_function, data_path=data_path)
-        #get instances of devices
-        self.nd = self.devices['nanodrive']['instance']
-        self.adw = self.devices['adwin']['instance']
-
-
-    def _function(self):
-        """
-        This is the actual function that will be executed. It uses only information that is provided in the settings property
-        will be overwritten in the __init__
-        """
-        #Gets paths for adbasic file and loads them onto ADwin.
-        self.adw.stop_process(2)
-        self.adw.clear_process(2)
-        one_d_scan_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'Controller','binary_files', 'ADbasic', 'One_D_Scan.TB2')
-        one_d_scan = os.path.normpath(one_d_scan_path)
-        self.adw.update({'process_2': {'load': one_d_scan}})
-        # one_d_scan script increments an index then adds count values to an array in a constant time interval
-        self.nd.clock_functions('Frame', reset=True)  # reset ALL clocks to default settings
-
-        x_min = self.settings['point_a']['x']
-        x_max = self.settings['point_b']['x']
-        y_min = self.settings['point_a']['y']
-        y_max = self.settings['point_b']['y']
-        step = self.settings['resolution']
-        # array form point_a x,y to point_b x,y with step of resolution
-        x_array = np.arange(x_min, x_max + step, step)
-        y_array = np.arange(y_min, y_max + step, step)
-
-        x_inital = self.nd.read_probes('x_pos')
-        y_inital = self.nd.read_probes('y_pos')
-
-        #makes sure data is getting recorded. If still equal none after running experiment data is not being stored or not measured
-        self.data['x_pos'] = None
-        self.data['y_pos'] = None
-        self.data['raw_counts'] = None
-        self.data['counts'] = None
-        self.data['count_img'] = None
-        #local lists to store data and append to global self.data lists
-        x_data = []
-        y_data = []
-        raw_count_data = []
-        count_rate_data = []
-
-        #set data to zero so plotting happens while experiment runs
-        Nx = len(x_array)
-        Ny = len(y_array)
-        self.data['count_img'] = np.zeros((Nx, Ny))
-
-        interation_num = 0 #number to track progress
-        total_interations = ((x_max - x_min)/step + 1)*((y_max - y_min)/step + 1)       #plus 1 because in total_iterations because range is inclusive ie. [0,10]
-        #print('total_interations=',total_interations)
-
-        #formula to set adwin to count for correct time frame. The event section is run every delay*3.3ns so the counter increments for that time then is read and clear
-        #time_per_pt is in millisecond and the adwin delay time is delay_value*3.3ns
-        adwin_delay = round((self.settings['time_per_pt']*1e6) / (3.3))
-        #print('adwin delay: ',delay)
-
-        wf = list(y_array)
-        len_wf = len(y_array)
-
-
-        #set inital x and y and set nanodrive stage to that position
-        self.nd.update({'x_pos':x_min,'y_pos':y_min,'num_datapoints':len_wf,'read_rate':self.settings['read_rate'],'load_rate':self.settings['time_per_pt']})
-        #load_rate is time_per_pt; 2.0ms = 5000Hz
-        self.adw.update({'process_2':{'delay':adwin_delay}})
-        sleep(0.1)  #time for stage to move to starting posiition and adwin process to initilize
-
-
-        for i, x in enumerate(x_array):
-            if self._abort == True:
-                break
-            img_row = []
-            x = float(x)
-            self.nd.update({'x_pos':x,'y_pos':y_min})     #goes to x position
-            sleep(0.1)
-            x_pos = self.nd.read_probes('x_pos')
-            x_data.append(x_pos)
-            self.data['x_pos'] = x_data     #adds x postion to data
-
-            self.adw.update({'process_2':{'running':True}})
-            #trigger waveform on y-axis and record position data
-            self.nd.setup(settings={'num_datapoints': len_wf, 'load_waveform': wf}, axis='y')
-            self.nd.setup(settings={'read_waveform': self.nd.empty_waveform},axis='y')
-            y_pos = self.nd.waveform_acquisition(axis='y')
-            sleep(self.settings['time_per_pt']*len_wf/1000)
-
-            y_data.append(y_pos)
-            self.data['y_pos'] = y_data
-            self.adw.update({'process_2':{'running':False}})
-
-            # get count data from adwin and record it
-            raw_counts = list(self.adw.read_probes('int_array', id=1, length=len_wf))
-            raw_count_data.extend(raw_counts)
-            self.data['raw_counts'] = raw_count_data
-
-            # units of count/seconds
-            count_rate = list(np.array(raw_counts) * 1e3 / self.settings['time_per_pt'])
-            count_rate_data.extend(count_rate)
-            img_row.extend(count_rate)
-            self.data['counts'] = count_rate_data
-
-
-            # updates process bar and plots with new count img
-            self.data[('count_img')][i, :] = img_row  # add previous scan data so image plots
-            interation_num = interation_num + len_wf
-            self.progress = 100. * (interation_num +1) / total_interations
-            self.updateProgress.emit(self.progress)
-
-        print('Data collected')
-
-        self.data['x_pos'] = x_data
-        self.data['y_pos'] = y_data
-        self.data['raw_counts'] = raw_count_data
-        self.data['counts'] = count_rate_data
-        #print('Position Data: ','\n',self.data['x_pos'],'\n',self.data['y_pos'],'\n','Max x: ',np.max(self.data['x_pos']),'Max y: ',np.max(self.data['y_pos']))
-        #print('Counts: ','\n',self.count_data)
-        #print('All data: ',self.data)
-
-        #clearing process to aviod memory fragmentation when running different experiments in GUI
-        self.adw.clear_process(2)
-        if self.settings['return_to_start'] == True:
-            self.nd.update({'x_pos':x_inital,'y_pos':y_inital})
-
-
-
-    def _plot(self, axes_list, data=None):
-        '''
-        This function plots the data. It is triggered when the updateProgress signal is emited and when after the _function is executed.
-        For the scan, image can only be plotted once all data is gathered so self.running prevents a plotting call for the updateProgress signal.
-        '''
-        if data is None:
-            data = self.data
-        if data is not None or data is not {}:
-
-            # for colorbar to display graident without artificial zeros
-            non_zero_values = data['count_img'][data['count_img'] > 0]
-            if non_zero_values.size > 0:
-                min = np.min(non_zero_values)
-            else:  # if else to aviod ValueError
-                min = 0
-
-            levels = [min, np.max(data['count_img'])]
-            if self._plot_refresh == True:
-                extent = [self.settings['point_a']['x'], self.settings['point_b']['x'], self.settings['point_a']['y'],self.settings['point_b']['y']]
-                #extent = [np.min(data['x_pos']), np.max(data['x_pos']), np.min(data['y_pos']), np.max(data['y_pos'])]
-                self.image = pg.ImageItem(data['count_img'], interpolation='nearest')
-                self.image.setLevels(levels)
-                self.image.setRect(pg.QtCore.QRectF(extent[0], extent[2], extent[1] - extent[0], extent[3] - extent[2]))
-                axes_list[0].addItem(self.image)
-                self.colorbar = axes_list[0].addColorBar(self.image, values=(levels[0], levels[1]), label='counts/sec',colorMap='viridis')
-
-                axes_list[0].setAspectLocked(True)
-                axes_list[0].setLabel('left', 'y (µm)')
-                axes_list[0].setLabel('bottom', 'x (µm)')
-            else:
-                self.image.setImage(data['count_img'], autoLevels=False)
-                self.image.setLevels(levels)
-                self.colorbar.setLevels(levels)
-
-                #extent = [np.min(data['x_pos']), np.max(data['x_pos']), np.min(data['y_pos']), np.max(data['y_pos'])]
-                #self.image.setRect(pg.QtCore.QRectF(extent[0], extent[2], extent[1] - extent[0], extent[3] - extent[2]))
-                #axes_list[0].setAspectLocked(True)
-
-
-    def _update(self,axes_list):
-        '''all_plot_items = axes_list[0].getViewBox().allChildren()
-        image = None
-        for item in all_plot_items:
-            if isinstance(item, pg.ImageItem):
-                image = item
-                break'''
-
-        self.image.setImage(self.data['count_img'], autoLevels=False)
-        self.image.setLevels([np.min(self.data['count_img']), np.max(self.data['count_img'])])
+        self.count_image.setImage(self.data['count_img'], autoLevels=False)
+        self.count_image.setLevels([np.min(self.data['count_img']), np.max(self.data['count_img'])])
         self.colorbar.setLevels([np.min(self.data['count_img']), np.max(self.data['count_img'])])
 
 
 
-'''
-Idea for improved method:
-A clock on the nanodrive can be bound to read_waveform. When a waveform_aquisition is triggered the nanodrive executes both movement and reading. A TTL pulse will then be generated
-at every point if load_rate and read_rate are equal (note this would limit time_per_pt to be 0.5 or 2.0 ms only since read_rate is a table of values). The pulse is then 
-connected to a digital input on the Adwin. The Adwin automatically checks if an edge has occured at the digital inputs every 10ns so, the counter is read if a pulse is detected 
-and subsiquently cleared. This idea SHOULD result in the counting time being the time betweeen pulse which is approximatly the time at each point (minus the time it takes 
-nanodrive to move which is << 2.0ms.
-
-The only changes to the code are loading a different ADbasic file and sending a command to bind the nanodrive clock.
-
-In setup_scan:
-    digin_counter_idea_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..','..','Controller','binary_files','ADbasic','Digin_Counter_Idea.TB2')
-    digin_counter_idea = os.path.normpath(digin_counter_idea_path)
-Before while loop:
-    self.nd.clock_functions(self.settings['control_clock'],polarity='low-to-high',binding='read')
-    
-The Adbasic file is more complicated then the One_D_Scan script but should house the necceary components to acheive the improved method. I am unsure the reason, 
-but the issue with this improved method is artifacts in the count data. Specifically there are points when counting is skipped and points of double counting. These points seem 
-to be random. 
-
-In theory this method should work given my understanding of the Nanodrive and Adwin. I will continue to try and get the method to work, but if it is a task for 
-someone else my lab notebook will have more information on the idea and my testing of it. - Dylan Staples    
-
-
-Add macro and have nanodrive send pulse prior to first point. Macro will clear clock and then process procedes as normal with the time and point windows aligned. 
-'''
-
-class ConfocalScan_PointByPoint(Experiment):
+class ConfocalScan_Slow(Experiment):
     '''
-    Slow method for confocal scan that goes point by point. Should ensure the scan is precise and accurate at the cost of time
+    Slow method for confocal scan that goes point by point. Should ensure the scan is precise and accurate at the cost of execution time
     '''
 
     _DEFAULT_SETTINGS = [
@@ -581,8 +329,11 @@ class ConfocalScan_PointByPoint(Experiment):
         Parameter('resolution', 1, float, 'Resolution of each pixel in microns'),
         Parameter('time_per_pt', 5.0, float, 'Time in ms at each point to get counts'),
         Parameter('settle_time',0.2,float,'Time in seconds to allow NanoDrive to settle to correct position'),
-        Parameter('return_to_start', True, bool, 'If true will return to position of stage before scan started'),
-        Parameter('correlate_clock', 'Aux', ['Pixel','Line','Frame','Aux'], 'Nanodrive clock'),
+        Parameter('ending_behavior', 'return_to_origin', ['return_to_inital_pos', 'return_to_origin', 'leave_at_corner'],'Nanodrive position after scan'),
+        # !!! If you see horizontial lines in the confocal image, the adwin arrays likely are corrupted. The fix is to reboot the adwin. You will nuke all
+        # other process, variables, and arrays in the adwin. This parameter is added to make that easy to do in the GUI.
+        Parameter('reboot_adwin', False, bool,'Will reboot adwin when experiment is executed. Useful is data looks fishy'),
+        # clocks currently not implemented
         Parameter('laser_clock', 'Pixel', ['Pixel','Line','Frame','Aux'], 'Nanodrive clock used for turning laser on and off')
     ]
 
@@ -602,18 +353,40 @@ class ConfocalScan_PointByPoint(Experiment):
         self.nd = self.devices['nanodrive']['instance']
         self.adw = self.devices['adwin']['instance']
 
+    def setup_scan(self):
+        '''
+        Gets paths for adbasic file and loads them onto ADwin.
+        '''
+        self.adw.stop_process(1)
+        sleep(0.1)
+        self.adw.clear_process(1)
+        trial_counter_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'Controller','binary_files', 'ADbasic', 'Trial_Counter.TB1')
+        trial_counter = os.path.normpath(trial_counter_path)
+        self.adw.update({'process_1': {'load': trial_counter}})
+        #trial counter simply reads the counter value
+        self.nd.clock_functions('Frame', reset=True)  # reset ALL clocks to default settings
+
+    def after_scan(self):
+        '''
+        Cleans up adwin and moves nanodrive to specified position
+        '''
+        # clearing process to aviod memory fragmentation when running different experiments in GUI
+        self.adw.stop_process(1)    #neccesary if process is does not stop for some reason
+        sleep(0.1)
+        self.adw.clear_process(1)
+        if self.settings['ending_behavior'] == 'return_to_inital_pos':
+            self.nd.update({'x_pos': self.x_inital, 'y_pos': self.y_inital})
+        elif self.settings['ending_behavior'] == 'return_to_origin':
+            self.nd.update({'x_pos': 0.0, 'y_pos': 0.0})
+
     def _function(self):
         """
         This is the actual function that will be executed. It uses only information that is provided in the settings property
         will be overwritten in the __init__
         """
-        # gets an 'overlaping' path to trial counter in binary_files folder
-        self.adw.stop_process(1)
-        self.adw.clear_process(1)
-        trial_counter_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'Controller','binary_files', 'ADbasic', 'Trial_Counter.TB1')
-        trial_counter = os.path.normpath(trial_counter_path)
-        self.adw.update({'process_1': {'load': trial_counter}})
-        self.nd.clock_functions('Frame', reset=True)  # reset ALL clocks to default settings
+        if self.settings['reboot_adwin'] == True:
+            self.adw.reboot_adwin()
+        self.setup_scan()
 
         x_min = self.settings['point_a']['x']
         x_max = self.settings['point_b']['x']
@@ -625,8 +398,8 @@ class ConfocalScan_PointByPoint(Experiment):
         y_array = np.arange(y_min, y_max + step, step)
         reversed_y_array = y_array[::-1]
 
-        x_inital = self.nd.read_probes('x_pos')
-        y_inital = self.nd.read_probes('y_pos')
+        self.x_inital = self.nd.read_probes('x_pos')
+        self.y_inital = self.nd.read_probes('y_pos')
 
         #makes sure data is getting recorded. If still equal none after running experiment data is not being stored or measured
         self.data['x_pos'] = None
@@ -660,13 +433,13 @@ class ConfocalScan_PointByPoint(Experiment):
         sleep(0.1)  # time for stage to move and adwin process to initilize
 
         forward = True #used to rasterize more efficently going forward then back
-        #for x in x_array:
         for i, x in enumerate(x_array):
             if self._abort:  # halts loop (and experiment) if stop button is pressed
-                break #need to but break in x for loop which takes some time to stop but stopped in y loop array sizes may mismatch and require a GUI restart
+                break #need to put break in x for loop which takes some time to stop but if stopped in y loop array sizes may mismatch and require a GUI restart
             x = float(x)
             img_row = []  #used for tracking image rows and adding to count_img; list not saved
             self.nd.update({'x_pos':x})
+
             if forward == True:
                 for y in y_array:
                     y = float(y)
@@ -682,7 +455,7 @@ class ConfocalScan_PointByPoint(Experiment):
                     self.data['y_pos'] = y_data  # adds y postion to data
 
                     raw_counts = self.adw.read_probes('int_var',id=1)   #raw number of counter triggers
-                    count_rate = raw_counts*1e3/self.settings['time_per_pt'] # in units of counts/second
+                    count_rate = raw_counts*1e3 / self.settings['time_per_pt'] # in units of counts/second
 
                     img_row.append(count_rate)
                     raw_counts_data.append(raw_counts)
@@ -705,7 +478,7 @@ class ConfocalScan_PointByPoint(Experiment):
                     self.data['y_pos'] = y_data  # adds y postion to data
 
                     raw_counts = self.adw.read_probes('int_var', id=1)  # raw number of counter triggers
-                    count_rate = raw_counts*1e3/self.settings['time_per_pt'] # in units of counts/second
+                    count_rate = raw_counts*1e3 / self.settings['time_per_pt'] # in units of counts/second
 
                     img_row.append(count_rate)
                     raw_counts_data.append(raw_counts)
@@ -732,17 +505,34 @@ class ConfocalScan_PointByPoint(Experiment):
         #print('All data: ',self.data)
 
         self.adw.update({'process_2': {'running': False}})
-        self.adw.clear_process(1)
-        if self.settings['return_to_start'] == True:
-            self.nd.update({'x_pos': x_inital, 'y_pos': y_inital})
-
-
+        self.after_scan()
 
     def _plot(self, axes_list, data=None):
         '''
         This function plots the data. It is triggered when the updateProgress signal is emited and when after the _function is executed.
         For the scan, image can only be plotted once all data is gathered so self.running prevents a plotting call for the updateProgress signal.
         '''
+        def create_img(add_colobar=True):
+            '''
+            Creates a new image and ImageItem. Optionally create colorbar
+            '''
+            axes_list[0].clear()
+            self.slow_count_image = pg.ImageItem(data['count_img'], interpolation='nearest')
+            self.slow_count_image.setLevels(levels)
+            self.slow_count_image.setRect(pg.QtCore.QRectF(extent[0], extent[2], extent[1] - extent[0], extent[3] - extent[2]))
+            axes_list[0].addItem(self.slow_count_image)
+
+            axes_list[0].setAspectLocked(True)
+            axes_list[0].setLabel('left', 'y (µm)')
+            axes_list[0].setLabel('bottom', 'x (µm)')
+
+            if add_colobar:
+                self.colorbar = pg.ColorBarItem(values=(levels[0], levels[1]), label='counts/sec', colorMap='viridis')
+                # layout is housing the PlotItem that houses the ImageItem. Add colorbar to layout so it is properly saved when saving dataset
+                layout = axes_list[0].parentItem()
+                layout.addItem(self.colorbar)
+            self.colorbar.setImageItem(self.slow_count_image)
+
         if data is None:
             data = self.data
         if data is not None or data is not {}:
@@ -755,45 +545,29 @@ class ConfocalScan_PointByPoint(Experiment):
                 min = 0
 
             levels = [min, np.max(data['count_img'])]
+            extent = [self.settings['point_a']['x'], self.settings['point_b']['x'], self.settings['point_a']['y'],self.settings['point_b']['y']]
+            # extent = [np.min(data['x_pos']), np.max(data['x_pos']), np.min(data['y_pos']), np.max(data['y_pos'])]
+
             if self._plot_refresh == True:
-                #extent = [self.settings['point_a']['x'], self.settings['point_b']['x'], self.settings['point_a']['y'],self.settings['point_b']['y']]
-                extent = [np.min(data['x_pos']), np.max(data['x_pos']), np.min(data['y_pos']), np.max(data['y_pos'])]
-                self.image = pg.ImageItem(data['count_img'], interpolation='nearest')
-                self.image.setLevels(levels)
-                self.image.setRect(pg.QtCore.QRectF(extent[0], extent[2],extent[1] - extent[0], extent[3] - extent[2]))
-                axes_list[0].addItem(self.image)
-                self.colorbar = axes_list[0].addColorBar(self.image,values=(levels[0], levels[1]),label='counts/sec',colorMap='viridis')
-
-                axes_list[0].setAspectLocked(True)
-                axes_list[0].setLabel('left', 'y (µm)')
-                axes_list[0].setLabel('bottom', 'x (µm)')
-
+                # if plot refresh is true the ImageItem has been deleted and needs recreated
+                create_img()
             else:
-                self.image.setImage(data['count_img'], autoLevels=False)
-                self.image.setLevels(levels)
-                self.colorbar.setLevels(levels)
-
-                extent = [np.min(data['x_pos']), np.max(data['x_pos']), np.min(data['y_pos']), np.max(data['y_pos'])]
-                self.image.setRect(pg.QtCore.QRectF(extent[0], extent[2], extent[1] - extent[0], extent[3] - extent[2]))
-                axes_list[0].setAspectLocked(True)
-
+                try:
+                    self.slow_count_image.setImage(data['count_img'], autoLevels=False)
+                    self.slow_count_image.setLevels(levels)
+                    self.colorbar.setLevels(levels)
+                except RuntimeError:
+                    # sometimes when clicking other experiments ImageItem is deleted but _plot_refresh is false. This ensures the image can be replotted
+                    create_img(add_colobar=False)
 
     def _update(self,axes_list):
-        '''
-        all_plot_items = axes_list[0].getViewBox().allChildren()
-        image = None
-        for item in all_plot_items:
-            if isinstance(item, pg.ImageItem):
-                image = item
-                break
-        '''
-
-        self.image.setImage(self.data['count_img'])
-        self.image.setLevels([np.min(self.data['count_img']),np.max(self.data['count_img'])])
+        self.slow_count_image.setImage(self.data['count_img'], autoLevels=False)
+        self.slow_count_image.setLevels([np.min(self.data['count_img']),np.max(self.data['count_img'])])
         self.colorbar.setLevels([np.min(self.data['count_img']),np.max(self.data['count_img'])])
 
 
-class ConfocalPoint(Experiment):
+
+class Confocal_Point(Experiment):
     '''
     This class implements a confocal microscope to get the counts at a single point. It uses the MCL NanoDrive to move the sample stage and the ADwin Gold to get count data.
     The 'continuous' parameter if false will return 1 data point. If true it offers live counting that continues until the stop button is clicked.
@@ -807,17 +581,15 @@ class ConfocalPoint(Experiment):
                    Parameter('y',0,float,'y-coordinate start in microns')
                    ]),
         Parameter('count_time', 2.0, float, 'Time in ms at  point to get count data'),
-        Parameter('continuous', False, bool,'If experiment should return 1 value or continuously plot for optics optimization'),
-        #clocks currently not implemented
-        Parameter('correlate_clock', 'Aux', ['Pixel','Line','Frame','Aux'], 'Nanodrive clocked used for correlating points with counts'),
-        Parameter('laser_clock', 'Pixel', ['Pixel','Line','Frame','Aux'], 'Nanodrive clocked used for turning laser on and off'),
-        Parameter('plot_style', 'aux', ['main','aux','two'],'Main is bottom graph (axes_list[0]), aux is top graph (axes_list[1]), two is plot on both'),
+        Parameter('continuous', True, bool,'If experiment should return 1 value or continuously plot for optics optimization'),
         Parameter('graph_params',
                   [Parameter('refresh_rate',0.01,float,'For continuous counting this is the refresh rate of the graph in seconds (= 1/frames per second)'),
                    Parameter('length_data',2500,int,'After so many data points matplotlib freezes GUI. Data dic will be cleared after this many entries'),
-                   #BOTH graph_params above effect the stability of GUI. The values here should be optimized and then left unchanged
-                   Parameter('font_size',32,int,'font size to make it easier to see on the fly if needed')
-                   ])
+                   Parameter('font_size',32,int,'font size to make it easier to see on the fly if needed'),
+                   Parameter('plot_raw_counts',False,bool,'Sometimes counts/sec is rounded to zero. Check this to plot raw counts')
+                   ]),
+        # clocks currently not implemented
+        Parameter('laser_clock', 'Pixel', ['Pixel', 'Line', 'Frame', 'Aux'],'Nanodrive clocked used for turning laser on and off'),
     ]
 
     #For actual experiment use LP100 [MCL_NanoDrive({'serial':2849})]. For testing using HS3 ['serial':2850]
@@ -837,18 +609,32 @@ class ConfocalPoint(Experiment):
         self.adw = self.devices['adwin']['instance']
 
 
+    def setup(self):
+        '''
+        Gets paths for adbasic file and loads them onto ADwin.
+        '''
+        self.adw.stop_process(1)
+        sleep(0.1)
+        self.adw.clear_process(1)
+        trial_counter_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'Controller','binary_files', 'ADbasic', 'Trial_Counter.TB1')
+        trial_counter = os.path.normpath(trial_counter_path)
+        self.adw.update({'process_1': {'load': trial_counter}})
+        self.nd.clock_functions('Frame', reset=True)  # reset ALL clocks to default settings
+
+    def cleanup(self):
+        '''
+        Cleans up adwin after experiment
+        '''
+        self.adw.stop_process(1)
+        sleep(0.1)
+        self.adw.clear_process(1)
+
     def _function(self):
         """
         This is the actual function that will be executed. It uses only information that is provided in the settings property
         will be overwritten in the __init__
         """
-        #gets an 'overlaping' path to trial counter in binary_files folder
-        self.adw.stop_process(1)
-        self.adw.clear_process(1)
-        trial_counter_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..','..','Controller','binary_files','ADbasic','Trial_Counter.TB1')
-        trial_counter = os.path.normpath(trial_counter_path)
-        self.adw.update({'process_1':{'load':trial_counter}})
-        self.nd.clock_functions('Frame',reset=True)     #reset ALL clocks to default settings
+        self.setup()
 
         self.data['counts'] = None
         self.data['raw_counts'] = None
@@ -869,7 +655,7 @@ class ConfocalPoint(Experiment):
             # window
             raw_counts = self.adw.read_probes('int_var',id=1)
             counts = raw_counts*1e3/self.settings['count_time']
-            for i in range(0,2):        #just want the 1 number to be viewable so will plot a straight line (with 2 points) of its value
+            for i in range(0,2):        #just want the single value to be viewable so will plot a straight line (with 2 points) of its value
                 raw_counts_data.append(raw_counts)
                 count_rate_data.append(counts)
             self.data['raw_counts'] = raw_counts_data
@@ -888,7 +674,7 @@ class ConfocalPoint(Experiment):
                 self.data['counts'] = count_rate_data
                 #print('Current count rate', self.data['counts'][-1])
 
-                self.progress = 1   #this is a infinite loop till stop button is hit; progress & updateProgress is only here to update plot
+                self.progress = 50   #this is a infinite loop till stop button is hit; progress & updateProgress is only here to update plot
                 self.updateProgress.emit(self.progress)     #calling updateProgress.emit triggers _plot
 
                 if len(self.data['counts']) > self.settings['graph_params']['length_data']:
@@ -898,9 +684,7 @@ class ConfocalPoint(Experiment):
                     self.data['raw_counts'].clear()
 
         self.adw.update({'process_1': {'running': False}})
-        self.adw.clear_process(1)
-
-
+        self.cleanup()
 
     def _plot(self, axes_list, data=None):
         '''
@@ -908,20 +692,25 @@ class ConfocalPoint(Experiment):
         '''
         if data is None:
             data = self.data
-
         if data is not None and data is not {}:
-            axes_list[0].clear()
-            #axes_list[0].plot(data['counts'])
-            axes_list[0].plot(data['raw_counts'])
-            axes_list[0].showGrid(x=True,y=True)
-            axes_list[0].setLabel('left','counts/sec')  #units='counts/sec'
-            axes_list[0].setXRange(0,self.settings['graph_params']['length_data']+100)
 
-            #axes_list[1].setText(f'{data["counts"][-1]/1000:.3f} kcounts/sec')
-            axes_list[1].setText(f'{data["raw_counts"][-1]} counts/sec')
+            if self.settings['graph_params']['plot_raw_counts'] == True:
+                # sometimes counts are so low it rounds to zero. Plotting raw counts can be useful
+                plot_counts = self.data['raw_counts']
+                axes_label = 'counts'
+            else:
+                plot_counts = self.data['counts']
+                axes_label = 'counts/sec'
+
+            axes_list[0].clear()
+            axes_list[0].plot(plot_counts)
+            axes_list[0].showGrid(x=True, y=True)
+            axes_list[0].setLabel('left', axes_label)
+            axes_list[0].setXRange(0, self.settings['graph_params']['length_data'] + 100)
+
+            axes_list[1].setText(f'{plot_counts[-1]/1000} k{axes_label}')
 
             # todo: Might be useful to include a max count number display
-
 
     def get_axes_layout(self, figure_list):
         """

@@ -112,6 +112,7 @@ Experiment to select points on an image. The selected points are saved and can b
             figure_list:
         '''
         def create_img(add_colorbar=True):
+            axes.clear()
             self.sp_image = pg.ImageItem(self.data['image_data'], interpolation='nearest', extent=extent)
             self.sp_image.setLevels(levels)
             self.sp_image.setRect(pg.QtCore.QRectF(extent[0], extent[2], extent[1] - extent[0], extent[3] - extent[2]))

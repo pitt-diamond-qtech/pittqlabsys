@@ -174,10 +174,10 @@ Example Experiment that has all different types of parameters (integer, str, flo
                     extent=[-1, 1, -1, 1]
                     levels = [np.min(data['image data']),np.max(data['image data'])]
 
-                    self.image = pg.ImageItem(data['image data'], interpolation='nearest',extent=extent)
-                    self.image.setLevels(levels)
-                    self.image.setRect(pg.QtCore.QRectF(extent[0],extent[2],extent[1]-extent[0],extent[3]-extent[2]))
-                    axes_list[0].addItem(self.image)
+                    self.ex_image = pg.ImageItem(data['image data'], interpolation='nearest',extent=extent)
+                    self.ex_image.setLevels(levels)
+                    self.ex_image.setRect(pg.QtCore.QRectF(extent[0],extent[2],extent[1]-extent[0],extent[3]-extent[2]))
+                    axes_list[0].addItem(self.ex_image)
 
                     axes_list[0].setAspectLocked(True)
                     axes_list[0].setLabel('left', 'y')
@@ -185,7 +185,7 @@ Example Experiment that has all different types of parameters (integer, str, flo
                     axes_list[0].setTitle('Example 2D plot')
 
                     self.colorbar = pg.ColorBarItem(values=(levels[0], levels[1]), colorMap='viridis')
-                    self.colorbar.setImageItem(self.image)
+                    self.colorbar.setImageItem(self.ex_image)
                     # layout is housing the PlotItem that houses the ImageItem. Add colorbar to layout so it is properly saved when saving dataset
                     layout = axes_list[0].parentItem()
                     layout.addItem(self.colorbar)
@@ -204,8 +204,8 @@ Example Experiment that has all different types of parameters (integer, str, flo
         if plot_type == '2D':
             # now update the data
             levels = [np.min(self.data['image data']), np.max(self.data['image data'])]
-            self.image.setImage(self.data['image data'])
-            self.image.setLevels(levels)
+            self.ex_image.setImage(self.data['image data'])
+            self.ex_image.setLevels(levels)
             self.colorbar.setLevels(levels)
 
 
