@@ -61,7 +61,7 @@ Experiment to select points on an image. The selected points are saved and can b
         '''
         Plots a dot on top of each selected NV, with a corresponding number denoting the order in which the NVs are
         listed.
-        Precondition: must have an GraphicsLayout with a PlotItem and a Colorbar. The PlotItem houses the ImageItem / the image data.
+        Precondition: must have a GraphicsLayout with a PlotItem and a Colorbar. The PlotItem houses the ImageItem / the image data.
                       Only works if there is precisely one of each in the correct spot. See ExampleExperiment 2D plot for correct setup.
         Args:
             figure_list:
@@ -86,14 +86,9 @@ Experiment to select points on an image. The selected points are saved and can b
 
             self.data['image_data'] = image_data
 
-            '''shape = image_data.shape  #(rows, cols)
-            top_left = image.mapToView(pg.QtCore.QPointF(0, 0))
-            bottom_right = image.mapToView(pg.QtCore.QPointF(shape[1], shape[0]))'''
-
             rect = image.boundingRect()
             top_left = image.mapToView(rect.topLeft())
             bottom_right = image.mapToView(rect.bottomRight())
-
             xmin = top_left.x()
             xmax = bottom_right.x()
             ymin = top_left.y()
@@ -111,13 +106,12 @@ Experiment to select points on an image. The selected points are saved and can b
     #must be passed figure with galvo plot on first axis
     def _plot(self, axes_list):
         '''
-        Plots a dot on top of each selected NV, with a corresponding number denoting the order in which the NVs are
-        listed.
+        Plots a copy of the image from previous experiment on bottom graph (figure_list[0] and axes_list[0])
         Precondition: must have an existing image in figure_list[0] to plot over
         Args:
             figure_list:
         '''
-        def create_img(colorbar=True):
+        def create_img(add_colorbar=True):
             self.sp_image = pg.ImageItem(self.data['image_data'], interpolation='nearest', extent=extent)
             self.sp_image.setLevels(levels)
             self.sp_image.setRect(pg.QtCore.QRectF(extent[0], extent[2], extent[1] - extent[0], extent[3] - extent[2]))
@@ -128,7 +122,7 @@ Experiment to select points on an image. The selected points are saved and can b
             axes.setTitle(self.plot_settings['title'])
             axes.setAspectLocked(True)
 
-            if colorbar:
+            if add_colorbar:
                 self.colorbar = pg.ColorBarItem(values=(levels[0], levels[1]), colorMap=self.plot_settings['cmap'])
                 # layout is housing the PlotItem that houses the ImageItem. Add colorbar to layout so it is properly saved when saving dataset
                 layout = axes.parentItem()
@@ -149,7 +143,8 @@ Experiment to select points on an image. The selected points are saved and can b
                     self.sp_image.setLevels(levels)
                     self.colorbar.setLevels(levels)
                 except RuntimeError:
-                    create_img(colorbar=False)
+                    #sometimes when clicking other experiments ImageItem is deleted but _plot_refresh is false. This ensures the image can be replotted
+                    create_img(add_colorbar=False)
 
         self._update(axes_list)
 
@@ -177,7 +172,6 @@ Experiment to select points on an image. The selected points are saved and can b
                 raise RuntimeError("Cannot select more than 400 locations in image!")
 
             for index, pt in enumerate(self.data['nv_locations']):
-                #max and min seemed to flip sometimes for no reason this prevents that as index 0&1 are x and index 2&3 are y
                 xmin = self.data['extent'][0]
                 xmax = self.data['extent'][1]
                 ymin = self.data['extent'][2]
@@ -254,8 +248,8 @@ Experiment to select points on an image. The selected points are saved and can b
                     random.shuffle(nv_pts)  # shuffles in place
 
                 self.data['nv_locations'] = nv_pts
-
                 self.stop()
+
             elif self.settings['type'] == 'line' and len(self.data['nv_locations'])>1:
                 # here we create a straight line between points a and b
                 N = self.settings['Nx']
@@ -263,14 +257,13 @@ Experiment to select points on an image. The selected points are saved and can b
                 ptb = self.data['nv_locations'][1]
                 nv_pts = [np.array([pta[0] + 1.0*i*(ptb[0]-pta[0])/(N-1), pta[1] + 1.0*i*(ptb[1]-pta[1])/(N-1)]) for i in range(N)]
 
-
                 # randomize
                 if self.settings['randomize']:
                     random.shuffle(nv_pts)  # shuffles in place
 
                 self.data['nv_locations'] = nv_pts
-
                 self.stop()
+
             elif self.settings['type'] == 'ring' and len(self.data['nv_locations'])>1:
                 # here we create a circular grid, where pts a and be define the center and the outermost ring
                 Nx, Ny = self.settings['Nx'], self.settings['Ny']
@@ -286,8 +279,6 @@ Experiment to select points on an image. The selected points are saved and can b
                 for r in np.linspace(rmax, 0, Ny + 1)[0:-1]:
                     for theta in angles:
                         nv_pts += [[r * np.sin(theta)+pt_center[0], r * np.cos(theta)+pt_center[1]]]
-
-
 
                 # randomize
                 if self.settings['randomize']:
