@@ -464,20 +464,14 @@ class PyQtCoordinatesBar(QtWidgets.QWidget):
         self.graph.setBackground((255, 255, 255))
         self.layout.addWidget(self.graph)
 
-        self.left_label = pg.LabelItem(justify='left')
-        self.left_label.setText("<span style='font-size: 10pt; color: black'> Click mouse and hold either 'Ctrl' to save point, 'Alt' to remove last point, "
-                                "or 'Shift' to see all saved points.</span>")
-        self.right_label = pg.LabelItem(justify='right')
-        self.graph.addItem(self.left_label, row=0,col=0)
-        self.graph.addItem(self.right_label, row=0,col=1)
+        self.label = pg.LabelItem(justify='right')
+        self.graph.addItem(self.label, row=0,col=0)
 
         self.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
         self.updateGeometry()
 
-        self.connected_graph = connected_graph   #gets graphics layoutwidget of connected widget
+        self.connected_graph = connected_graph   #gets graphics layoutwidget of connected PyQtgraphWidget
         self.update()
-
-        self.saved_points = []
 
     def update(self):
         '''
@@ -488,11 +482,7 @@ class PyQtCoordinatesBar(QtWidgets.QWidget):
         if isinstance(item, (pg.PlotItem, pg.ImageItem)):
             #only if the item is a PlotItem or ImageItem will it have a viewbox (and coordinates) that your cursor hovers over
             self.viewbox = item.vb
-
             self.mouse_movement = pg.SignalProxy(self.connected_graph.scene().sigMouseMoved, rateLimit=10, slot=self.mouseMoved)
-            self.mouse_clicked = pg.SignalProxy(self.connected_graph.scene().sigMouseClicked, rateLimit=1, slot=self.mouseClicked)
-            #clears saved points since 'new' plot is going to be loaded
-            #self.saved_points.clear()
         else:
             self.viewbox = None
 
@@ -502,55 +492,9 @@ class PyQtCoordinatesBar(QtWidgets.QWidget):
         '''
         self.update()
         scene_pos = event[0]
-        if not self.viewbox == None:
+        if self.viewbox != None:
             mousePoint = self.viewbox.mapSceneToView(scene_pos)
-            self.left_label.setText("<span style='font-size: 10pt; color: black'> x = %0.2f, y = %0.2f</span>" % (mousePoint.x(), mousePoint.y()))
-
-
-    def mouseClicked(self,event):
-        '''
-        Function saved the clicked point to list when a point on graph is clicked. List can then be accessed for later use.
-        For readablity concerns should add max of 9 points. This probably could be expanded if more thought is put in to this function
-        '''
-        if not self.viewbox == None:
-        #if control key is held saves mouse position to list
-            if event[0].modifiers() & QtCore.Qt.ControlModifier:
-                scene_pos = event[0].scenePos()
-                mousePoint = self.viewbox.mapSceneToView(scene_pos)
-                self.saved_points.append([round(mousePoint.x(),2),round(mousePoint.y(),2)])
-                new_point = self.saved_points[-1]
-                string = ''
-                for i in range(len(self.saved_points)):
-                    string = string +str(self.saved_points[i]) + ', '
-                self.right_label.setText("<span style='font-size: 10pt; color: black'> x=%0.2f,y=%0.2f added.</span>" % (new_point[0],new_point[1]) + f"<span style='font-size: "
-                                                                                                                                                   f"10pt; color: black'> All points: {string} </span>")
-                print(self.saved_points)
-
-            #if alt key is held removes last point
-            elif event[0].modifiers() & QtCore.Qt.AltModifier:
-                if len(self.saved_points) > 0:
-                    last_point = self.saved_points.pop()
-                    print(self.saved_points)
-                    if len(self.saved_points) == 0:
-                        self.right_label.setText("<span style='font-size: 10pt; color: black'> Removed x=%0.2f, y=%0.2f. No saved points</span>" % (last_point[0],last_point[1]))
-                    else:
-                        new_point = self.saved_points[-1]
-                        string = ''
-                        for i in range(len(self.saved_points)):
-                            string = string +str(self.saved_points[i]) + ', '
-                        self.right_label.setText("<span style='font-size: 10pt; color: black'> Removed x=%0.2f,y=%0.2f. </span>" % (last_point[0],last_point[1]) +
-                                                f"<span style='font-size: 10pt; color: black'> All points: {string} </span>")
-
-            #if shift key is held shows full list
-            elif event[0].modifiers() & QtCore.Qt.ShiftModifier:
-                string = ''
-                for i in range(len(self.saved_points)):
-                    string = string +str(self.saved_points[i]) + ', '
-                self.right_label.setText(f"<span style='font-size: 10pt; color: black'> {string} </span>")
-
-    @property
-    def get_saved_points(self):
-        return self.saved_points
+            self.label.setText("<span style='font-size: 10pt; color: black'> (x,y) = (%0.2f, %0.2f)</span>" % (mousePoint.x(), mousePoint.y()))
 
     def sizeHint(self):
         """
