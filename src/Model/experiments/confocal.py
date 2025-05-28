@@ -1,10 +1,9 @@
 '''
-This file has the experiment classes relevant to using a confocal microscope. So far this includes:
+This file has the experiment classes relevant to prefroming a scan with the confocal microscope. So far this includes:
 
-- Confocal Scan (old method) for larger images
-- Confocal Point: Gets counts 1 point continuously or once
-- Confocal Point-by-Point: a slow method that ensures image is accurate
-
+- Confocal Scan Fast for larger images
+- Confocal Scan Slow: a slow method that ensures image is accurate
+- Confocal Point: Gets counts 1 point one time or continuously
 '''
 
 import numpy as np
@@ -14,11 +13,10 @@ import os
 from time import sleep
 import pyqtgraph as pg
 
-
 class ConfocalScan_Fast(Experiment):
     '''
     This class runs a confocal microscope scan using the MCL NanoDrive to move the sample stage and the ADwin Gold II to get count data.
-    The code loads a waveform on the nanodrive, starts the Adwin process, triggers a waveform aquisition, then reads the data array from the Adwin.
+    The code loads a waveform on the nanodrive, starts the Adwin process, triggers a waveform aquisition, then reads the count data array from the Adwin.
 
     To get accurate counts, the loaded waveforms are extended to compensate for 'warm up' and 'cool down' movements. The data arrays are then
     manipulated to get the counts for the inputed region.
@@ -314,7 +312,8 @@ class ConfocalScan_Fast(Experiment):
 
 class ConfocalScan_Slow(Experiment):
     '''
-    Slow method for confocal scan that goes point by point. Should ensure the scan is precise and accurate at the cost of execution time
+    This class runs a confocal microscope scan using the MCL NanoDrive to move the sample stage and the ADwin Gold II to get count data.
+    The slow method goes point by point to ensure the scan is precise and accurate at the cost of execution time
     '''
 
     _DEFAULT_SETTINGS = [
@@ -571,8 +570,6 @@ class Confocal_Point(Experiment):
     '''
     This class implements a confocal microscope to get the counts at a single point. It uses the MCL NanoDrive to move the sample stage and the ADwin Gold to get count data.
     The 'continuous' parameter if false will return 1 data point. If true it offers live counting that continues until the stop button is clicked.
-
-    Could add a small scan radius to search for points of high counts ie NV centers then go to that point
     '''
 
     _DEFAULT_SETTINGS = [
