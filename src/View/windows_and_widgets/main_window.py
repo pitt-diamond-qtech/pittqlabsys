@@ -394,14 +394,20 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         Args:
             mouse_event:
         """
+        print('plot clicked triggered','current experiment is', self.current_experiment)
         # get viewbox and mouse coordinates from primary PlotItem
         viewbox = self.pyqtgraphwidget_1.graph.getItem(row=0, col=0).vb
         mouse_point = viewbox.mapSceneToView(mouse_event.scenePos())
+        if mouse_event.button() == Qt.LeftButton:
+            pt = np.array([mouse_point.x(), mouse_point.y()])
+            print(pt)
 
         if isinstance(self.current_experiment, SelectPoints) and self.current_experiment.is_running:
             #if running the SelectPoints experiment triggers function to plot and save NV position
+            #!!!CURRENTLY DOES NOT TRIGGER IF SELECT POINTS IS RUNNING WITH EXPERIMENT ITERATOR
             if mouse_event.button() == Qt.LeftButton:
                 pt = np.array([mouse_point.x(), mouse_point.y()])
+                print(pt)
                 self.current_experiment.toggle_NV(pt)
                 self.current_experiment.plot([self.pyqtgraphwidget_1.graph])
 

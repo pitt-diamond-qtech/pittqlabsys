@@ -50,6 +50,7 @@ Experiment to select points on an image. The selected points are saved and can b
         """
         Waits until stopped to keep experiment live. Gui must handle calling of Toggle_NV function on mouse click.
         """
+        print('Starting SelectPoints')
         self.data = {'nv_locations': [], 'image_data': None, 'extent': None}
         self.progress = 50
         self.updateProgress.emit(self.progress)
@@ -79,6 +80,7 @@ Experiment to select points on an image. The selected points are saved and can b
                     if isinstance(item, pg.ImageItem):
                         image = item
                         image_data = item.image
+                        print('select_points image data =',image_data)
             else:
                 Experiment.plot(self, figure_list)
                 print('NO IMAGE FOUND')

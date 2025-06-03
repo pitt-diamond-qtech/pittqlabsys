@@ -147,6 +147,8 @@ Example Experiment that has all different types of parameters (integer, str, flo
         img = np.array(self.data['random data'][0:Nx ** 2])
         img = img.reshape((Nx, Nx))
         self.data.update({'image data': img})
+        time.sleep(0.5)
+        print(self.data)
 
     def _plot(self, axes_list, data=None):
         """
@@ -161,6 +163,7 @@ Example Experiment that has all different types of parameters (integer, str, flo
         plot_type = self.settings['plot_style']
         if data is None:
             data = self.data
+        print('all data:',data)
 
         if data is not None and data is not {}:
             if plot_type in ('main', 'two'):
@@ -170,26 +173,46 @@ Example Experiment that has all different types of parameters (integer, str, flo
                 if not data['random data'] is None:
                     axes_list[1].plot(data['random data'])
             if plot_type == '2D':
-                if 'image data' in data and not data['image data'] is None:
+                print('first if passed 2D. Image data =',data['image data'])
+                if self.data['image data'] is not None:
+                    print('run 2D example')
+                    def create_img(add_colobar=True):
+                        '''
+                        Creates a new image and ImageItem. Optionally create colorbar
+                        '''
+                        axes_list[0].clear()
+                        self.ex_image = pg.ImageItem(self.data['image data'], interpolation='nearest')
+                        self.ex_image.setLevels(levels)
+                        self.ex_image.setRect(pg.QtCore.QRectF(extent[0], extent[2], extent[1] - extent[0], extent[3] - extent[2]))
+                        axes_list[0].addItem(self.ex_image)
+
+                        axes_list[0].setAspectLocked(True)
+                        axes_list[0].setLabel('left', 'y')
+                        axes_list[0].setLabel('bottom', 'x')
+                        axes_list[0].setTitle('Example 2D plot')
+
+                        if add_colobar:
+                            self.colorbar = pg.ColorBarItem(values=(levels[0], levels[1]),colorMap='viridis')
+                            # layout is housing the PlotItem that houses the ImageItem. Add colorbar to layout so it is properly saved when saving dataset
+                            layout = axes_list[0].parentItem()
+                            layout.addItem(self.colorbar)
+                        self.colorbar.setImageItem(self.ex_image)
+
                     extent=[-1, 1, -1, 1]
-                    levels = [np.min(data['image data']),np.max(data['image data'])]
+                    levels = [np.min(self.data['image data']),np.max(self.data['image data'])]
 
-                    self.ex_image = pg.ImageItem(data['image data'], interpolation='nearest',extent=extent)
-                    self.ex_image.setLevels(levels)
-                    self.ex_image.setRect(pg.QtCore.QRectF(extent[0],extent[2],extent[1]-extent[0],extent[3]-extent[2]))
-                    axes_list[0].addItem(self.ex_image)
-
-                    axes_list[0].setAspectLocked(True)
-                    axes_list[0].setLabel('left', 'y')
-                    axes_list[0].setLabel('bottom', 'x')
-                    axes_list[0].setTitle('Example 2D plot')
-
-                    self.colorbar = pg.ColorBarItem(values=(levels[0], levels[1]), colorMap='viridis')
-                    self.colorbar.setImageItem(self.ex_image)
-                    # layout is housing the PlotItem that houses the ImageItem. Add colorbar to layout so it is properly saved when saving dataset
-                    layout = axes_list[0].parentItem()
-                    layout.addItem(self.colorbar)
-
+                    if self._plot_refresh == True:
+                        # if plot refresh is true the ImageItem has been deleted and needs recreated
+                        print('creating img')
+                        create_img()
+                    else:
+                        try:
+                            self.ex_image.setImage(self.data['image data'], autoLevels=False)
+                            self.ex_image.setLevels(levels)
+                            self.colorbar.setLevels(levels)
+                        except RuntimeError:
+                            # sometimes when clicking other experiments ImageItem is deleted but _plot_refresh is false. This ensures the image can be replotted
+                            create_img(add_colobar=False)
 
     def _update(self, axes_list):
         """
@@ -207,8 +230,6 @@ Example Experiment that has all different types of parameters (integer, str, flo
             self.ex_image.setImage(self.data['image data'])
             self.ex_image.setLevels(levels)
             self.colorbar.setLevels(levels)
-
-
         else:
             # fall back to default behaviour
             Experiment._update(self, axes_list)
