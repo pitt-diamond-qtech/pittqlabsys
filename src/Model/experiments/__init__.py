@@ -18,3 +18,5 @@ from src.Model.experiments.galvo_scan import GalvoScan
 from .galvo_scan_generic import GalvoScanGeneric
 from .select_points import SelectPoints
 from .confocal import ConfocalScan_Fast, ConfocalScan_Slow, Confocal_Point
+
+from src.core.experiment_iterator import ExperimentIterator

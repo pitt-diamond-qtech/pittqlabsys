@@ -548,7 +548,7 @@ class Experiment(QObject):
         }}
 
 
-        # if isinstance(self, experimentIterator):
+        # if isinstance(self, ExperimentIterator):
         #     dictator['filepath'] = inspect.getfile(self.__class__),
 
         if self.experiments != {}:
@@ -1138,7 +1138,6 @@ class Experiment(QObject):
             return sub_experiments, devices_updated
 
         for experiment_name, experiment_info in experiment_dict.items():
-
             # check if experiment already exists
             if experiment_name in list(experiments.keys()):
                 print(('WARNING: experiment {:s} already exists. Did not load!'.format(experiment_name)))
@@ -1147,12 +1146,12 @@ class Experiment(QObject):
                 module, experiment_class_name, experiment_settings, experiment_devices, experiment_sub_experiments, experiment_doc, package = Experiment.get_experiment_information(
                     experiment_info, package=package)
                 # creates all dynamic experiments so they can be imported following the if statement
-                # if experiment_class_name == 'experimentIterator':
-                if 'experimentIterator' in experiment_class_name:
+                # if experiment_class_name == 'ExperimentIterator':
+                if 'ExperimentIterator' in experiment_class_name:
                     # creates all the dynamic classes in the experiment and the class of the experiment itself
                     # and updates the experiment info with these new classes
                     from src.core.experiment_iterator import \
-                        ExperimentIterator  # CAUTION: imports experimentIterator, which inherits from experiment. Local scope should avoid circular imports.
+                        ExperimentIterator  # CAUTION: imports ExperimentIterator, which inherits from experiment. Local scope should avoid circular imports.
 
                     experiment_info, _ = ExperimentIterator.create_dynamic_experiment_class(experiment_info)
 
@@ -1212,7 +1211,6 @@ class Experiment(QObject):
                     print(('experiments', sub_experiments))
 
                 try:
-
                     experiment_instance = eval(class_creation_string)
                 except Exception as err:
                     #print('loading ' + experiment_name + ' failed:')
@@ -1276,7 +1274,7 @@ class Experiment(QObject):
                     package = module_path.split('.')[0]
 
             experiment_class_name = str(experiment_information['class'])
-            if 'experimentIterator' in experiment_class_name:
+            if 'ExperimentIterator' in experiment_class_name:
                 module_path = package + '.core.experiment_iterator'
             if 'devices' in experiment_information:
                 experiment_devices = experiment_information['devices']
@@ -1298,7 +1296,7 @@ class Experiment(QObject):
 
         assert isinstance(package, str)
 
-        # if the experiment has not been created yet, i.e. experiment_class_name: experimentIteratorAQ or experimentIterator
+        # if the experiment has not been created yet, i.e. experiment_class_name: ExperimentIteratorAQ or ExperimentIterator
         if verbose:
             print(('experiment_filepath', experiment_filepath))
             print(('path_to_module', module_path))

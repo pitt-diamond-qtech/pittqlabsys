@@ -30,11 +30,11 @@ import random
 
 class ExperimentIterator(Experiment):
     '''
-This is a template class for experiments that iterate over a series of subexperiments in either a loop /
-a parameter sweep / future: list of points.
-CAUTION: This class has some circular dependencies with experiment that are avoided by only importing it in very local scope
-in experiment (since this inherits from experiment, it can't be imported globally in experiment). Use caution when making changes in
-experiment.
+    This is a template class for experiments that iterate over a series of subexperiments in either a loop /
+    a parameter sweep / future: list of points.
+    CAUTION: This class has some circular dependencies with experiment that are avoided by only importing it in very local scope
+    in experiment (since this inherits from experiment, it can't be imported globally in experiment). Use caution when making changes in
+    experiment.
     '''
 
     _DEFAULT_SETTINGS = []
@@ -43,18 +43,17 @@ experiment.
     _EXPERIMENTS = {}
     # _EXPERIMENTS is populated dynamically with the required subexperiments
 
-    _number_of_classes = 0  # keeps track of the number of dynamically created experimentIterator classes that have been created
-    _class_list = []  # list of current dynamically created experimentIterator classes
+    _number_of_classes = 0  # keeps track of the number of dynamically created ExperimentIterator classes that have been created
+    _class_list = []  # list of current dynamically created ExperimentIterator classes
 
     ITER_TYPES = ['loop', 'sweep']
 
-    def __init__(self, sub_experiments, name=None, settings=None, log_function=None, data_path=None):
+    def __init__(self, experiments, name=None, settings=None, log_function=None, data_path=None):
         """
         Default experiment initialization
         """
-        Experiment.__init__(self, name, sub_experiments=sub_experiments, settings=settings, log_function=log_function,
-                            data_path=data_path)
-        self.iterator_type = self.get_iterator_type(self.settings, sub_experiments)
+        Experiment.__init__(self, name, sub_experiments=experiments, settings=settings, log_function=log_function, data_path=data_path)
+        self.iterator_type = self.get_iterator_type(self.settings, experiments)
 
         self._current_subexperiment_stage = None
 
@@ -102,14 +101,14 @@ experiment.
             # in both cases, param values have tolist to make sure that they are python types (ex float) rather than numpy
             # types (ex np.float64), the latter of which can cause typing issues
             sweep_range = self.settings['sweep_range']
-            param_values = np.empty(sweep_range['N/value_step']).tolist()
+            param_values = np.empty(int(sweep_range['N/value_step'])).tolist()
             if self.settings['stepping_mode'] == 'N':
                 param_values = np.linspace(sweep_range['min_value'], sweep_range['max_value'],
                                            int(sweep_range['N/value_step']), endpoint=True).tolist()
             elif self.settings['stepping_mode'] == 'value_step':
                 param_values = np.linspace(sweep_range['min_value'], sweep_range['max_value'],
-                                           (sweep_range['max_value'] - sweep_range['min_value']) / sweep_range[
-                                               'N/value_step'] + 1, endpoint=True).tolist()
+                                           int((sweep_range['max_value'] - sweep_range['min_value']) / sweep_range[
+                                               'N/value_step']) + 1, endpoint=True).tolist()
             return param_values
 
         experiment_names = list(self.settings['experiment_order'].keys())
@@ -136,10 +135,10 @@ experiment.
 
             param_values = get_sweep_parameters()
 
-            print('GD parametes before', param_values)
+            print('GD parameters before', param_values)
             if self.settings['sweep_range']['randomize'] == True:
                 np.random.shuffle(param_values)
-            print('GD parametes after', param_values)
+            print('GD parameters after', param_values)
 
             for i, value in enumerate(param_values):
                 self.iterator_progress = float(i) / len(param_values)
@@ -379,7 +378,7 @@ experiment.
 
         '''
 
-        # TODO: be smarter about how we plot experimentIterator
+        # TODO: be smarter about how we plot ExperimentIterator
         if self._current_subexperiment_stage is not None:
             if self._current_subexperiment_stage['current_subexperiment'] is not None:
                 self._current_subexperiment_stage['current_subexperiment'].plot(figure_list)
@@ -410,19 +409,19 @@ experiment.
         Returns: itself as a dictionary
         """
         dictator = Experiment.to_dict(self)
-        # the dynamically created experimentIterator classes have a generic name
-        # replace this with experimentIterator to indicate that this class is of type experimentIterator
-        dictator[self.name]['class'] = 'experimentIterator'
+        # the dynamically created ExperimentIterator classes have a generic name
+        # replace this with ExperimentIterator to indicate that this class is of type ExperimentIterator
+        dictator[self.name]['class'] = 'ExperimentIterator'
 
         return dictator
 
     @staticmethod
     def get_iterator_default_experiment(iterator_type):
         """
-        This function might be overwritten by functions that inherit from experimentIterator
+        This function might be overwritten by functions that inherit from ExperimentIterator
         Returns:
             sub_experiments: a dictionary with the default experiments for the experiment_iterator
-            experiment_settings: a dictionary with the experiment_settingsfor the default experiments
+            experiment_settings: a dictionary with the experiment_settings for the default experiments
 
         """
 
@@ -436,12 +435,12 @@ experiment.
 
         Args:
             experiment_order:
-                a dictionary giving the order that the experiments in the experimentIterator should be executed.
+                a dictionary giving the order that the experiments in the ExperimentIterator should be executed.
                 Must be in the form {'experiment_name': int}. experiments are executed from lowest number to highest
 
         Returns:
             experiment_order_parameter:
-                A list of parameters giving the order that the experiments in the experimentIterator should be executed.
+                A list of parameters giving the order that the experiments in the ExperimentIterator should be executed.
             experiment_execution_freq:
                 A list of parameters giving the frequency with which each experiment should be executed,
                 e.g. 1 is every loop, 3 is every third loop, 0 is never
@@ -464,7 +463,7 @@ experiment.
         """
         assigning the actual experiment settings depending on the iterator type
 
-        this might be overwritten by classes that inherit form experimentIterator
+        this might be overwritten by classes that inherit form ExperimentIterator
 
         Args:
             sub_experiments: dictionary with the subexperiments
@@ -522,7 +521,7 @@ experiment.
                     experiment_trace = experiment_name
                 else:
                     experiment_trace = experiment_trace + '->' + experiment_name
-                if issubclass(experiments[experiment_name], ExperimentIterator):  # gets subexperiments of experimentIterator objects
+                if issubclass(experiments[experiment_name], ExperimentIterator):  # gets subexperiments of ExperimentIterator objects
                     populate_sweep_param(vars(experiments[experiment_name])['_EXPERIMENTS'], parameter_list=parameter_list,
                                          trace=experiment_trace)
                 else:
@@ -571,13 +570,13 @@ experiment.
         and updates the experiment info with these new classes
 
         Args:
-            experiment_information: A dictionary describing the experimentIterator, or an existing object
-            experiment_iterators: dictionary with the experimentiterators (optional)
+            experiment_information: A dictionary describing the ExperimentIterator, or an existing object
+            experiment_iterators: dictionary with the Experimentiterators (optional)
 
         Returns:
-            experiment_information:  The updated dictionary describing the newly created experimentIterator class
-            experiment_iterators: updated dictionary with the experimentiterators
-        Poststate: Dynamically created classes inheriting from experimentIterator are added to AQuISS.experiments
+            experiment_information:  The updated dictionary describing the newly created ExperimentIterator class
+            experiment_iterators: updated dictionary with the Experimentiterators
+        Poststate: Dynamically created classes inheriting from ExperimentIterator are added to AQuISS.experiments
 
         '''
 
@@ -599,7 +598,7 @@ experiment.
             if verbose:
                 print(('experiment_information', experiment_information))
             sub_experiments = {}  # dictonary of experiment classes that are to be subexperiments of the dynamic class. Should be in the dictionary form {'class_name': <class_object>} (btw. class_object is not the instance)
-            experiment_order = []  # A list of parameters giving the order that the experiments in the experimentIterator should be executed. Must be in the form {'experiment_name': int}. experiments are executed from lowest number to highest
+            experiment_order = []  # A list of parameters giving the order that the experiments in the ExperimentIterator should be executed. Must be in the form {'experiment_name': int}. experiments are executed from lowest number to highest
             experiment_execution_freq = []  # A list of parameters giving the frequency with which each experiment should be executed
             _, experiment_class_name, experiment_settings, _, experiment_sub_experiments, _, package = Experiment.get_experiment_information(
                 experiment_information)
@@ -626,7 +625,7 @@ experiment.
                         # identically named one already loaded, vs using that loaded experiment
 
                         raise NotImplementedError
-                    elif experiment_sub_experiments[sub_experiment_name]['class'] == 'experimentIterator':
+                    elif experiment_sub_experiments[sub_experiment_name]['class'] == 'ExperimentIterator':
                         # raise NotImplementedError # has to be dynamic maybe???
                         experiment_information_subclass, experiment_iterators = ExperimentIterator.create_dynamic_experiment_class(
                             experiment_sub_experiments[sub_experiment_name], experiment_iterators)
@@ -676,18 +675,18 @@ experiment.
 
         def create_experiment_iterator_class(sub_experiments, experiment_settings, experiment_iterator_base_class, verbose=verbose):
             """
-            A 'factory' to create a experimentIterator class at runtime with the given inputs.
+            A 'factory' to create a ExperimentIterator class at runtime with the given inputs.
 
             Args:
                 sub_experiments: dictonary of experiment classes that are to be subexperiments of the dynamic class. Should be in the dictionary
                          form {'class_name': <class_object>} (btw. class_object is not the instance)
                 experiment_default_settings: the default settings of the dynamically created object. Should be a list of Parameter objects.
 
-            Returns: A newly created class inheriting from experimentIterator, with the given subexperiments and default settings
+            Returns: A newly created class inheriting from ExperimentIterator, with the given subexperiments and default settings
 
             """
 
-            # dynamically import the module, i.e. the namespace for the experimentiterator
+            # dynamically import the module, i.e. the namespace for the Experimentiterator
             experiment_iterator_module = __import__(experiment_iterator_base_class.__module__)
 
             if verbose:
@@ -752,7 +751,7 @@ experiment.
         class_name, dynamic_class = create_experiment_iterator_class(sub_experiments, experiment_default_settings,
                                                                  experiment_iterators[package], verbose=verbose)
 
-        # update the generic name (e.g. experimentIterator) to a unique name  (e.g. experimentIterator_01)
+        # update the generic name (e.g. ExperimentIterator) to a unique name  (e.g. ExperimentIterator_01)
         experiment_information['class'] = class_name
 
         if 'iterator_type' in experiment_information['settings']:
@@ -796,7 +795,7 @@ experiment.
                     print(p, name, c)
 
                 if issubclass(c, ExperimentIterator):
-                    # update dictionary with 'Package name , e.g. AQuISS or b103_toolkit': <experimentIterator_class>
+                    # update dictionary with 'Package name , e.g. AQuISS or b103_toolkit': <ExperimentIterator_class>
                     experiment_iterator.update({c.__module__.split('.')[0]: c})
 
         return experiment_iterator
