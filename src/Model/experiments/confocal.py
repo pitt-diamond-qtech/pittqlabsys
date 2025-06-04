@@ -7,6 +7,8 @@ This file has the experiment classes relevant to prefroming a scan with the conf
 '''
 
 import numpy as np
+from pyqtgraph.exporters import ImageExporter
+
 from src.Controller import MCLNanoDrive, ADwinGold
 from src.core import Parameter, Experiment
 import os
@@ -34,6 +36,9 @@ class ConfocalScan_Fast(Experiment):
         Parameter('resolution', 1.0, float, 'Resolution of each pixel in microns'),
         Parameter('time_per_pt', 2.0, [2.0,5.0], 'Time in ms at each point to get counts; same as load_rate for nanodrive. Wroking values 2 or 5 ms'),
         Parameter('ending_behavior', 'return_to_origin', ['return_to_inital_pos', 'return_to_origin', 'leave_at_corner'],'Nanodrive position after scan'),
+        Parameter('sweep_z',#useful with experiment iterator to find z level where NVs are most fluorescent
+                  [Parameter('set_z',False,bool,'T/F to set z position before 2D x-y scan'),
+                         Parameter('z_value',50.0,float,'z value to set nanodrive to')]),
         #!!! If you see horizontial lines in the confocal image, the adwin arrays likely are corrupted. The fix is to reboot the adwin. You will nuke all
         #other process, variables, and arrays in the adwin. This parameter is added to make that easy to do in the GUI.
         Parameter('reboot_adwin',False,bool,'Will reboot adwin when experiment is executed. Useful is data looks fishy'),
@@ -72,6 +77,16 @@ class ConfocalScan_Fast(Experiment):
         self.adw.update({'process_2': {'load': one_d_scan}})
         # one_d_scan script increments an index then adds count values to an array in a constant time interval
         self.nd.clock_functions('Frame', reset=True)  # reset ALL clocks to default settings
+        if self.settings['sweep_z']['set_z']:
+            z_value = self.settings['sweep_z']['z_value']
+            if z_value < 0.0:
+                z_value = 0.0
+            elif z_value > 100.0:
+                z_value = 100.0
+            self.nd.update({'z_pos':z_value})
+
+        # tracker to only save test image once
+        self.data_collected = False
 
     def after_scan(self):
         '''
@@ -240,6 +255,9 @@ class ConfocalScan_Fast(Experiment):
             self.progress = 100. * (interation_num +1) / total_interations
             self.updateProgress.emit(self.progress)
 
+        #tracker to only save test image once
+        self.data_collected = True
+
         print('Data collected')
         self.data['x_pos'] = x_data
         self.data['y_pos'] = y_data
@@ -299,6 +317,16 @@ class ConfocalScan_Fast(Experiment):
                     self.count_image.setImage(data['count_img'], autoLevels=False)
                     self.count_image.setLevels(levels)
                     self.colorbar.setLevels(levels)
+
+                    if self.settings['sweep_z']['set_z'] and self.data_collected:
+                        z = self.settings['sweep_z']['z_value']
+                        print('z =', z, 'max counts =', levels[1])
+                        axes_list[0].setTitle(f"Confocal Scan with z = {z}")
+                        scene = axes_list[0].scene()
+                        exporter = ImageExporter(scene)
+                        filename = f'D:\Data\dylan_staples\image_NV_confocal_scans\confocal_scan_z_{z}.png'
+                        exporter.export(filename)
+
                 except RuntimeError:
                     # sometimes when clicking other experiments ImageItem is deleted but _plot_refresh is false. This ensures the image can be replotted
                     create_img(add_colobar=False)

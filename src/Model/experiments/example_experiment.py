@@ -136,7 +136,7 @@ Example Experiment that has all different types of parameters (integer, str, flo
             time.sleep(wait_time)
             self.log('{:s} count {:02d}'.format(self.name, i))
             data.append(random.random())
-            self.data = {'random data': data}
+            self.data['random data'] = data
             self.progress = 100. * (i + 1) / count
             self.updateProgress.emit(self.progress)
 
@@ -147,8 +147,6 @@ Example Experiment that has all different types of parameters (integer, str, flo
         img = np.array(self.data['random data'][0:Nx ** 2])
         img = img.reshape((Nx, Nx))
         self.data.update({'image data': img})
-        time.sleep(0.5)
-        print(self.data)
 
     def _plot(self, axes_list, data=None):
         """
@@ -163,7 +161,6 @@ Example Experiment that has all different types of parameters (integer, str, flo
         plot_type = self.settings['plot_style']
         if data is None:
             data = self.data
-        print('all data:',data)
 
         if data is not None and data is not {}:
             if plot_type in ('main', 'two'):
@@ -173,9 +170,7 @@ Example Experiment that has all different types of parameters (integer, str, flo
                 if not data['random data'] is None:
                     axes_list[1].plot(data['random data'])
             if plot_type == '2D':
-                print('first if passed 2D. Image data =',data['image data'])
                 if self.data['image data'] is not None:
-                    print('run 2D example')
                     def create_img(add_colobar=True):
                         '''
                         Creates a new image and ImageItem. Optionally create colorbar
@@ -203,7 +198,6 @@ Example Experiment that has all different types of parameters (integer, str, flo
 
                     if self._plot_refresh == True:
                         # if plot refresh is true the ImageItem has been deleted and needs recreated
-                        print('creating img')
                         create_img()
                     else:
                         try:
