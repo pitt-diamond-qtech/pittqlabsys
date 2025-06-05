@@ -419,13 +419,13 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             if item.is_point():
                # item_x = item.child(1)
                 item_x = item.child(0)
-                if mouse_event.xdata is not None:
+                if mouse_point.x() is not None:
                     self.tree_experiments.setCurrentItem(item_x)
                     item_x.value = float(mouse_point.x())
                     item_x.setText(1, '{:0.3f}'.format(float(mouse_point.x())))
                # item_y = item.child(0)
                 item_y = item.child(1)
-                if mouse_event.ydata is not None:
+                if mouse_point.y() is not None:
                     self.tree_experiments.setCurrentItem(item_y)
                     item_y.value = float(mouse_point.y())
                     item_y.setText(1, '{:0.3f}'.format(float(mouse_point.y())))

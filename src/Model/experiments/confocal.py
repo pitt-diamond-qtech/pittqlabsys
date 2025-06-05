@@ -33,12 +33,13 @@ class ConfocalScan_Fast(Experiment):
                   [Parameter('x',95.0,float,'x-coordinate end in microns'),
                    Parameter('y', 95.0, float, 'y-coordinate end in microns')
                    ]),
+        Parameter('z_pos',50.0,float,'z position of nanodrive; useful for z-axis sweeps to find NVs'),
         Parameter('resolution', 1.0, float, 'Resolution of each pixel in microns'),
         Parameter('time_per_pt', 2.0, [2.0,5.0], 'Time in ms at each point to get counts; same as load_rate for nanodrive. Wroking values 2 or 5 ms'),
         Parameter('ending_behavior', 'return_to_origin', ['return_to_inital_pos', 'return_to_origin', 'leave_at_corner'],'Nanodrive position after scan'),
-        Parameter('sweep_z',#useful with experiment iterator to find z level where NVs are most fluorescent
-                  [Parameter('set_z',False,bool,'T/F to set z position before 2D x-y scan'),
-                         Parameter('z_value',50.0,float,'z value to set nanodrive to')]),
+        Parameter('3D_scan',#using experiment iterator to sweep z-position can give an effective 3D scan as successive images. Useful for finding where NVs are in focal plane
+                  [Parameter('enable',False,bool,'T/F to enable 3D scan'),
+                         Parameter('folderpath','D:\Data\dylan_staples\image_NV_confocal_scans',str,'folder location to save images at each z-value')]),
         #!!! If you see horizontial lines in the confocal image, the adwin arrays likely are corrupted. The fix is to reboot the adwin. You will nuke all
         #other process, variables, and arrays in the adwin. This parameter is added to make that easy to do in the GUI.
         Parameter('reboot_adwin',False,bool,'Will reboot adwin when experiment is executed. Useful is data looks fishy'),
@@ -77,15 +78,8 @@ class ConfocalScan_Fast(Experiment):
         self.adw.update({'process_2': {'load': one_d_scan}})
         # one_d_scan script increments an index then adds count values to an array in a constant time interval
         self.nd.clock_functions('Frame', reset=True)  # reset ALL clocks to default settings
-        if self.settings['sweep_z']['set_z']:
-            z_value = self.settings['sweep_z']['z_value']
-            if z_value < 0.0:
-                z_value = 0.0
-            elif z_value > 100.0:
-                z_value = 100.0
-            self.nd.update({'z_pos':z_value})
 
-        # tracker to only save test image once
+        # tracker to only save 3D image slice once
         self.data_collected = False
 
     def after_scan(self):
@@ -100,6 +94,13 @@ class ConfocalScan_Fast(Experiment):
             self.nd.update({'x_pos': self.x_inital, 'y_pos': self.y_inital})
         elif self.settings['ending_behavior'] == 'return_to_origin':
             self.nd.update({'x_pos': 0.0, 'y_pos': 0.0})
+
+        z_pos = self.settings['z_pos']
+        if self.settings['z_pos'] < 0.0:
+            z_pos = 0.0
+        elif z_pos > 100.0:
+            z_pos = 100.0
+        self.nd.update({'z_pos': z_pos})
 
     def _function(self):
         """
@@ -287,6 +288,7 @@ class ConfocalScan_Fast(Experiment):
             axes_list[0].setAspectLocked(True)
             axes_list[0].setLabel('left', 'y (µm)')
             axes_list[0].setLabel('bottom', 'x (µm)')
+            axes_list[0].setTitle(f"Confocal Scan with z = {self.nd.read_probes('z_pos'):.2f}")
 
             if add_colobar:
                 self.colorbar = pg.ColorBarItem(values=(levels[0], levels[1]), label='counts/sec', colorMap='viridis')
@@ -318,13 +320,13 @@ class ConfocalScan_Fast(Experiment):
                     self.count_image.setLevels(levels)
                     self.colorbar.setLevels(levels)
 
-                    if self.settings['sweep_z']['set_z'] and self.data_collected:
-                        z = self.settings['sweep_z']['z_value']
+                    if self.settings['3D_scan']['enable'] and self.data_collected:
+                        z = self.nd.read_probes('z_pos')
                         print('z =', z, 'max counts =', levels[1])
-                        axes_list[0].setTitle(f"Confocal Scan with z = {z}")
+                        axes_list[0].setTitle(f"Confocal Scan with z = {z:.2f}")
                         scene = axes_list[0].scene()
                         exporter = ImageExporter(scene)
-                        filename = f'D:\Data\dylan_staples\image_NV_confocal_scans\confocal_scan_z_{z}.png'
+                        filename = os.path.join(self.settings['3D_scan']['folderpath'], f'confocal_scan_z_{z:.2f}.png')
                         exporter.export(filename)
 
                 except RuntimeError:
