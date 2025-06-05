@@ -32,4 +32,6 @@ tomli==2.0.1
 typing_extensions==4.12.2
 tzdata==2024.1
 zipp==3.19.2
-
+pyqtgraph==0.12.4
+ADwin==0.17.0
+pycparser==2.20
