@@ -34,7 +34,7 @@ class ConfocalScan_Fast(Experiment):
                    Parameter('y', 95.0, float, 'y-coordinate end in microns')
                    ]),
         Parameter('z_pos',50.0,float,'z position of nanodrive; useful for z-axis sweeps to find NVs'),
-        Parameter('resolution', 1.0, float, 'Resolution of each pixel in microns'),
+        Parameter('resolution', 1.0, [2.0,1.0,0.5,0.25,0.1,0.05,0.025,0.001], 'Resolution of each pixel in microns. Limited to give '),
         Parameter('time_per_pt', 2.0, [2.0,5.0], 'Time in ms at each point to get counts; same as load_rate for nanodrive. Wroking values 2 or 5 ms'),
         Parameter('ending_behavior', 'return_to_origin', ['return_to_inital_pos', 'return_to_origin', 'leave_at_corner'],'Nanodrive position after scan'),
         Parameter('3D_scan',#using experiment iterator to sweep z-position can give an effective 3D scan as successive images. Useful for finding where NVs are in focal plane
@@ -79,6 +79,14 @@ class ConfocalScan_Fast(Experiment):
         # one_d_scan script increments an index then adds count values to an array in a constant time interval
         self.nd.clock_functions('Frame', reset=True)  # reset ALL clocks to default settings
 
+        z_pos = self.settings['z_pos']
+        #maz range is 0 to 100
+        if self.settings['z_pos'] < 0.0:
+            z_pos = 0.0
+        elif z_pos > 100.0:
+            z_pos = 100.0
+        self.nd.update({'z_pos': z_pos})
+
         # tracker to only save 3D image slice once
         self.data_collected = False
 
@@ -95,13 +103,6 @@ class ConfocalScan_Fast(Experiment):
         elif self.settings['ending_behavior'] == 'return_to_origin':
             self.nd.update({'x_pos': 0.0, 'y_pos': 0.0})
 
-        z_pos = self.settings['z_pos']
-        if self.settings['z_pos'] < 0.0:
-            z_pos = 0.0
-        elif z_pos > 100.0:
-            z_pos = 100.0
-        self.nd.update({'z_pos': z_pos})
-
     def _function(self):
         """
         This is the actual function that will be executed. It uses only information that is provided in the settings property
@@ -111,13 +112,19 @@ class ConfocalScan_Fast(Experiment):
             self.adw.reboot_adwin()
         self.setup_scan()
 
-        #scanning range is 5 to 95 to compinsate for warm up time
-        x_min = max(self.settings['point_a']['x'], 5.0)
+        #y scanning range is 5 to 95 to compensate for warm up time
+        x_min = max(self.settings['point_a']['x'], 0.0)
         y_min = max(self.settings['point_a']['y'], 5.0)
-        x_max = min(self.settings['point_b']['x'], 95.0)
+        x_max = min(self.settings['point_b']['x'], 100.0)
         y_max = min(self.settings['point_b']['y'], 95.0)
 
         step = self.settings['resolution']
+        num_points = (y_max - y_min) / step + 1
+        print('num_points',num_points)
+        if num_points < 91:
+            new_step = self.correct_step(step)
+            self.log(f'Works best with minimum 91 pixel resolution in y-direction. You are getting a free resolution upgrade to {new_step} um!')
+
         #array form point_a x,y to point_b x,y with step of resolution
         x_array = np.arange(x_min, x_max + step, step)
         y_array = np.arange(y_min, y_max+step, step)
@@ -130,6 +137,7 @@ class ConfocalScan_Fast(Experiment):
 
         self.x_inital = self.nd.read_probes('x_pos')
         self.y_inital = self.nd.read_probes('y_pos')
+        self.z_inital = self.nd.read_probes('z_pos')
 
         #makes sure data is getting recorded. If still equal none after running experiment data is not being stored or not measured
         self.data['x_pos'] = None
@@ -288,7 +296,7 @@ class ConfocalScan_Fast(Experiment):
             axes_list[0].setAspectLocked(True)
             axes_list[0].setLabel('left', 'y (µm)')
             axes_list[0].setLabel('bottom', 'x (µm)')
-            axes_list[0].setTitle(f"Confocal Scan with z = {self.nd.read_probes('z_pos'):.2f}")
+            axes_list[0].setTitle(f"Confocal Scan with z = {self.z_inital:.2f}")
 
             if add_colobar:
                 self.colorbar = pg.ColorBarItem(values=(levels[0], levels[1]), label='counts/sec', colorMap='viridis')
@@ -321,12 +329,11 @@ class ConfocalScan_Fast(Experiment):
                     self.colorbar.setLevels(levels)
 
                     if self.settings['3D_scan']['enable'] and self.data_collected:
-                        z = self.nd.read_probes('z_pos')
-                        print('z =', z, 'max counts =', levels[1])
-                        axes_list[0].setTitle(f"Confocal Scan with z = {z:.2f}")
+                        print('z =', self.z_inital, 'max counts =', levels[1])
+                        axes_list[0].setTitle(f"Confocal Scan with z = {self.z_inital:.2f}")
                         scene = axes_list[0].scene()
                         exporter = ImageExporter(scene)
-                        filename = os.path.join(self.settings['3D_scan']['folderpath'], f'confocal_scan_z_{z:.2f}.png')
+                        filename = os.path.join(self.settings['3D_scan']['folderpath'], f'confocal_scan_z_{self.z_inital:.2f}.png')
                         exporter.export(filename)
 
                 except RuntimeError:
@@ -337,6 +344,28 @@ class ConfocalScan_Fast(Experiment):
         self.count_image.setImage(self.data['count_img'], autoLevels=False)
         self.count_image.setLevels([np.min(self.data['count_img']), np.max(self.data['count_img'])])
         self.colorbar.setLevels([np.min(self.data['count_img']), np.max(self.data['count_img'])])
+
+    def correct_step(self, old_step):
+        '''
+        Increases resolution by one threshold if the step size does not give enough points for a good y-array.
+        For good y-array len() > 90
+         '''
+        if old_step == 1.0:
+            return 0.5
+        elif old_step > 1.0:
+            return 1.0
+        elif old_step == 0.5:
+            return 0.25
+        elif old_step == 0.25:
+            return 0.1
+        elif old_step == 0.1:
+            return 0.05
+        elif old_step == 0.05:
+            return 0.025
+        elif old_step == 0.025:
+            return 0.001
+        else:
+            raise KeyError
 
 
 
@@ -355,10 +384,14 @@ class ConfocalScan_Slow(Experiment):
                   [Parameter('x',95,float,'x-coordinate end in microns'),
                    Parameter('y', 95, float, 'y-coordinate end in microns')
                    ]),
+        Parameter('z_pos', 50.0, float, 'z position of nanodrive; useful for z-axis sweeps to find NVs'),
         Parameter('resolution', 1, float, 'Resolution of each pixel in microns'),
         Parameter('time_per_pt', 5.0, float, 'Time in ms at each point to get counts'),
         Parameter('settle_time',0.2,float,'Time in seconds to allow NanoDrive to settle to correct position'),
         Parameter('ending_behavior', 'return_to_origin', ['return_to_inital_pos', 'return_to_origin', 'leave_at_corner'],'Nanodrive position after scan'),
+        Parameter('3D_scan',# using experiment iterator to sweep z-position can give an effective 3D scan as successive images. Useful for finding where NVs are in focal plane
+                  [Parameter('enable', False, bool, 'T/F to enable 3D scan'),
+                   Parameter('folderpath', 'D:\Data\dylan_staples\image_NV_confocal_scans', str,'folder location to save images at each z-value')]),
         # !!! If you see horizontial lines in the confocal image, the adwin arrays likely are corrupted. The fix is to reboot the adwin. You will nuke all
         # other process, variables, and arrays in the adwin. This parameter is added to make that easy to do in the GUI.
         Parameter('reboot_adwin', False, bool,'Will reboot adwin when experiment is executed. Useful is data looks fishy'),
@@ -395,6 +428,16 @@ class ConfocalScan_Slow(Experiment):
         #trial counter simply reads the counter value
         self.nd.clock_functions('Frame', reset=True)  # reset ALL clocks to default settings
 
+        z_pos = self.settings['z_pos']
+        if self.settings['z_pos'] < 0.0:
+            z_pos = 0.0
+        elif z_pos > 100.0:
+            z_pos = 100.0
+        self.nd.update({'z_pos': z_pos})
+
+        # tracker to only save 3D image slice once
+        self.data_collected = False
+
     def after_scan(self):
         '''
         Cleans up adwin and moves nanodrive to specified position
@@ -429,6 +472,7 @@ class ConfocalScan_Slow(Experiment):
 
         self.x_inital = self.nd.read_probes('x_pos')
         self.y_inital = self.nd.read_probes('y_pos')
+        self.z_inital = self.nd.read_probes('z_pos')
 
         #makes sure data is getting recorded. If still equal none after running experiment data is not being stored or measured
         self.data['x_pos'] = None
@@ -523,8 +567,10 @@ class ConfocalScan_Slow(Experiment):
             self.progress = 100. * (interation_num + 1) / total_interations
             self.updateProgress.emit(self.progress)
 
-        print('Data collected')
+        # tracker to only save test image once
+        self.data_collected = True
 
+        print('Data collected')
         self.data['x_pos'] = x_data
         self.data['y_pos'] = y_data
         self.data['raw_counts'] = raw_counts_data
@@ -554,6 +600,7 @@ class ConfocalScan_Slow(Experiment):
             axes_list[0].setAspectLocked(True)
             axes_list[0].setLabel('left', 'y (µm)')
             axes_list[0].setLabel('bottom', 'x (µm)')
+            axes_list[0].setTitle(f"Confocal Scan with z = {self.z_inital:.2f}")
 
             if add_colobar:
                 self.colorbar = pg.ColorBarItem(values=(levels[0], levels[1]), label='counts/sec', colorMap='viridis')
@@ -585,6 +632,15 @@ class ConfocalScan_Slow(Experiment):
                     self.slow_count_image.setImage(data['count_img'], autoLevels=False)
                     self.slow_count_image.setLevels(levels)
                     self.colorbar.setLevels(levels)
+
+                    if self.settings['3D_scan']['enable'] and self.data_collected:
+                        print('z =', self.z_inital, 'max counts =', levels[1])
+                        axes_list[0].setTitle(f"Confocal Scan with z = {self.z_inital:.2f}")
+                        scene = axes_list[0].scene()
+                        exporter = ImageExporter(scene)
+                        filename = os.path.join(self.settings['3D_scan']['folderpath'], f'confocal_scan_z_{self.z_inital:.2f}.png')
+                        exporter.export(filename)
+
                 except RuntimeError:
                     # sometimes when clicking other experiments ImageItem is deleted but _plot_refresh is false. This ensures the image can be replotted
                     create_img(add_colobar=False)
@@ -608,18 +664,21 @@ class Confocal_Point(Experiment):
                    Parameter('y',0,float,'y-coordinate start in microns')
                    ]),
         Parameter('count_time', 2.0, float, 'Time in ms at  point to get count data'),
+        Parameter('num_cycles', 10, int, 'Number of samples to average; set as Par_10 in adbasic scirpt'),
+        Parameter('plot_avg', True, bool, 'T/F to plot average count data'),
         Parameter('continuous', True, bool,'If experiment should return 1 value or continuously plot for optics optimization'),
         Parameter('graph_params',
-                  [Parameter('refresh_rate',0.01,float,'For continuous counting this is the refresh rate of the graph in seconds (= 1/frames per second)'),
-                   Parameter('length_data',2500,int,'After so many data points matplotlib freezes GUI. Data dic will be cleared after this many entries'),
+                  [
+                   Parameter('plot_raw_counts', False, bool,'Sometimes counts/sec is rounded to zero. Check this to plot raw counts'),
+                   Parameter('refresh_rate', 0.1, float,'For continuous counting this is the refresh rate of the graph in seconds (= 1/frames per second)'),
+                   Parameter('length_data',500,int,'After so many data points matplotlib freezes GUI. Data dic will be cleared after this many entries'),
                    Parameter('font_size',32,int,'font size to make it easier to see on the fly if needed'),
-                   Parameter('plot_raw_counts',False,bool,'Sometimes counts/sec is rounded to zero. Check this to plot raw counts')
                    ]),
         # clocks currently not implemented
         Parameter('laser_clock', 'Pixel', ['Pixel', 'Line', 'Frame', 'Aux'],'Nanodrive clocked used for turning laser on and off'),
     ]
 
-    #For actual experiment use LP100 [MCL_NanoDrive({'serial':2849})]. For testing using HS3 ['serial':2850]
+    #For actual experiment use LP100 [MCL_NanoDrive({'serial':2849})]. For testing cautiously using HS3 ['serial':2850]
     _DEVICES = {'nanodrive': MCLNanoDrive(settings={'serial':2849}), 'adwin':ADwinGold()}
     _EXPERIMENTS = {}
 
@@ -643,7 +702,7 @@ class Confocal_Point(Experiment):
         self.adw.stop_process(1)
         sleep(0.1)
         self.adw.clear_process(1)
-        trial_counter_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'Controller','binary_files', 'ADbasic', 'Trial_Counter.TB1')
+        trial_counter_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'Controller','binary_files', 'ADbasic', 'Averagable_Trial_Counter.TB1')
         trial_counter = os.path.normpath(trial_counter_path)
         self.adw.update({'process_1': {'load': trial_counter}})
         self.nd.clock_functions('Frame', reset=True)  # reset ALL clocks to default settings
@@ -665,12 +724,15 @@ class Confocal_Point(Experiment):
 
         self.data['counts'] = None
         self.data['raw_counts'] = None
-        count_rate_data = []
-        raw_counts_data =[]
+        # set to zero initially for smoother plotting
+        count_rate_data = [0] * self.settings['graph_params']['length_data']
+        raw_counts_data = [0] * self.settings['graph_params']['length_data']
 
         x = self.settings['point']['x']
         y = self.settings['point']['y']
 
+        num_cycles = self.settings['num_cycles']
+        self.adw.set_int_var(10,num_cycles)
         #set adwin delay which determines the counting time
         adwin_delay = round((self.settings['count_time']*1e6) / (3.3))
         self.adw.update({'process_1':{'delay':adwin_delay,'running':True}})
@@ -678,7 +740,7 @@ class Confocal_Point(Experiment):
         sleep(0.1)  #time for stage to move and adwin process to initilize
 
         if self.settings['continuous'] == False:
-            sleep((self.settings['count_time']*1.5)/1000)    #sleep for 1.2 times the count time to ensure enough time for counts. note this does not affect actually counting
+            sleep((self.settings['count_time']*1.5)/1000)    #sleep for 1.5 times the count time to ensure enough time for counts. note this does not affect actually counting
             # window
             raw_counts = self.adw.read_probes('int_var',id=1)
             counts = raw_counts*1e3/self.settings['count_time']
@@ -690,25 +752,26 @@ class Confocal_Point(Experiment):
 
         elif self.settings['continuous'] == True:
             while self._abort == False:     #self._abort is defined in experiment.py and is true false while running and set false when stop button is hit
-                sleep(self.settings['graph_params']['refresh_rate'])    #effictivly this sleep is the time interval the graph is refreshed (1/fps)
-                # counting window
-                raw_counts = self.adw.read_probes('int_var',id=1)           #read variable from adwin
-                counts = raw_counts*1e3/self.settings['count_time']
+                sleep(self.settings['graph_params']['refresh_rate'])    #effictivly this sleep is the time interval the graph is refreshed (1/fps) counting window
 
+                if self.settings['plot_avg']:
+                    raw_counts = self.adw.read_probes('int_var',id=5) / self.settings['num_cycles'] #Par_5 stores the total counts over 'num_cycles'
+                    counts = raw_counts * 1e3 / self.settings['count_time']
+                else:
+                    raw_counts = self.adw.read_probes('int_var', id=1)  # read variable from adwin
+                    counts = raw_counts * 1e3 / self.settings['count_time']
+
+                #append most recent value and remove oldest value
                 raw_counts_data.append(raw_counts)
+                raw_counts_data.pop(0)
                 count_rate_data.append(counts)
+                count_rate_data.pop(0)
                 self.data['raw_counts'] = raw_counts_data
                 self.data['counts'] = count_rate_data
                 #print('Current count rate', self.data['counts'][-1])
 
                 self.progress = 50   #this is a infinite loop till stop button is hit; progress & updateProgress is only here to update plot
                 self.updateProgress.emit(self.progress)     #calling updateProgress.emit triggers _plot
-
-                if len(self.data['counts']) > self.settings['graph_params']['length_data']:
-                    count_rate_data.clear()
-                    self.data['counts'].clear()
-                    raw_counts_data.clear()
-                    self.data['raw_counts'].clear()
 
         self.adw.update({'process_1': {'running': False}})
         self.cleanup()
@@ -733,9 +796,10 @@ class Confocal_Point(Experiment):
             axes_list[0].plot(plot_counts)
             axes_list[0].showGrid(x=True, y=True)
             axes_list[0].setLabel('left', axes_label)
-            axes_list[0].setXRange(0, self.settings['graph_params']['length_data'] + 100)
+            x_ax_length = int(self.settings['graph_params']['length_data']*1.1)
+            axes_list[0].setXRange(0, x_ax_length)
 
-            axes_list[1].setText(f'{plot_counts[-1]/1000} k{axes_label}')
+            axes_list[1].setText(f'{plot_counts[-1]/1000:.3f} k{axes_label}')
 
             # todo: Might be useful to include a max count number display
 
