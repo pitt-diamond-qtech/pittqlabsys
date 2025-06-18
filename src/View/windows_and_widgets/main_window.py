@@ -436,10 +436,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 if item.parent() is not None:
                     if item.parent().is_point():
                         if item == item.parent().child(1):
-                            if mouse_event.xdata is not None:
+                            if mouse_point.x() is not None:
                                 item.setData(1, 2, float(mouse_point.x()))
                         if item == item.parent().child(0):
-                            if mouse_event.ydata is not None:
+                            if mouse_point.y() is not None:
                                 item.setData(1, 2, float(mouse_point.y()))
 
     def get_time(self):
