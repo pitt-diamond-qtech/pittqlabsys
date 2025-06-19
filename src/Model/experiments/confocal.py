@@ -660,16 +660,16 @@ class Confocal_Point(Experiment):
 
     _DEFAULT_SETTINGS = [
         Parameter('point',
-                  [Parameter('x',0,float,'x-coordinate start in microns'),
-                   Parameter('y',0,float,'y-coordinate start in microns')
+                  [Parameter('x',0.0,float,'x-coordinate in microns'),
+                   Parameter('y',0.0,float,'y-coordinate in microns'),
+                   Parameter('z',0.0,float,'z-coordinate in microns')
                    ]),
         Parameter('count_time', 2.0, float, 'Time in ms at  point to get count data'),
         Parameter('num_cycles', 10, int, 'Number of samples to average; set as Par_10 in adbasic scirpt'),
         Parameter('plot_avg', True, bool, 'T/F to plot average count data'),
         Parameter('continuous', True, bool,'If experiment should return 1 value or continuously plot for optics optimization'),
         Parameter('graph_params',
-                  [
-                   Parameter('plot_raw_counts', False, bool,'Sometimes counts/sec is rounded to zero. Check this to plot raw counts'),
+                  [Parameter('plot_raw_counts', False, bool,'Sometimes counts/sec is rounded to zero. Check this to plot raw counts'),
                    Parameter('refresh_rate', 0.1, float,'For continuous counting this is the refresh rate of the graph in seconds (= 1/frames per second)'),
                    Parameter('length_data',500,int,'After so many data points matplotlib freezes GUI. Data dic will be cleared after this many entries'),
                    Parameter('font_size',32,int,'font size to make it easier to see on the fly if needed'),
@@ -730,20 +730,30 @@ class Confocal_Point(Experiment):
 
         x = self.settings['point']['x']
         y = self.settings['point']['y']
+        z = self.settings['point']['z']
 
         num_cycles = self.settings['num_cycles']
         self.adw.set_int_var(10,num_cycles)
         #set adwin delay which determines the counting time
         adwin_delay = round((self.settings['count_time']*1e6) / (3.3))
         self.adw.update({'process_1':{'delay':adwin_delay,'running':True}})
-        self.nd.update({'x_pos':x,'y_pos':y})
+        self.nd.update({'x_pos':x,'y_pos':y,'z_pos':z})
         sleep(0.1)  #time for stage to move and adwin process to initilize
 
         if self.settings['continuous'] == False:
-            sleep((self.settings['count_time']*1.5)/1000)    #sleep for 1.5 times the count time to ensure enough time for counts. note this does not affect actually counting
-            # window
-            raw_counts = self.adw.read_probes('int_var',id=1)
-            counts = raw_counts*1e3/self.settings['count_time']
+            if self.settings['plot_avg']:
+                counting_time = self.settings['count_time']*self.settings['num_cycles']
+            else:
+                counting_time = self.settings['count_time']
+            sleep((counting_time*1.5)/1000)    #sleep for 1.5 times the count time to ensure enough time for counts. Does not affect counting window
+
+            if self.settings['plot_avg']:
+                raw_counts = self.adw.read_probes('int_var', id=5) / self.settings['num_cycles']  # Par_5 stores the total counts over 'num_cycles'
+                counts = raw_counts * 1e3 / self.settings['count_time']
+            else:
+                raw_counts = self.adw.read_probes('int_var', id=1)  # read variable from adwin
+                counts = raw_counts * 1e3 / self.settings['count_time']
+
             for i in range(0,2):        #just want the single value to be viewable so will plot a straight line (with 2 points) of its value
                 raw_counts_data.append(raw_counts)
                 count_rate_data.append(counts)
