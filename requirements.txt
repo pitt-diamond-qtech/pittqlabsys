@@ -15,7 +15,7 @@ pytest==7.4.4
 
 #seemingly unused packages part of old requirements.txt
 colorama==0.4.6
-contourpy==1.2.1
+contourpy==1.1.1 #changed from 1.2.1 as 1.2.1 does not seem to exists?
 cycler==0.12.1
 deprecation==2.1.0
 exceptiongroup==1.2.1
