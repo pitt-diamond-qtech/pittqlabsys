@@ -14,6 +14,7 @@
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 import numpy as np
+from math import floor
 import pyqtgraph as pg
 from scipy.spatial import KDTree
 import time
@@ -52,7 +53,7 @@ Experiment to select points on an image. The selected points are saved and can b
         """
         print('Starting SelectPoints. ','\n',
               'If using experiment iterator click SelectPoints in GUI experiment tree! If no image click experiment with image in GUI experiment tree then click SelectPoints experiment in tree!')
-        self.data = {'nv_locations': [], 'image_data': None, 'extent': None}
+        self.data = {'nv_locations': [], 'image_data': None, 'extent': None, 'pt_indices': []}
         self.progress = 50
         self.updateProgress.emit(self.progress)
         # keep experiment alive while NVs are selected
@@ -105,7 +106,7 @@ Experiment to select points on an image. The selected points are saved and can b
 
         Experiment.plot(self, figure_list)
 
-    #must be passed figure with galvo plot on first axis
+    #must be passed figure with image plot on first axis
     def _plot(self, axes_list):
         '''
         Plots a copy of the image from previous experiment on bottom graph (figure_list[0] and axes_list[0])
@@ -116,6 +117,8 @@ Experiment to select points on an image. The selected points are saved and can b
         def create_img(add_colorbar=True):
             axes.clear()
             self.sp_image = pg.ImageItem(self.data['image_data'], interpolation='nearest', extent=extent)
+            #get shape of image to calculate indices of selected points
+            self.img_len_x, self.img_len_y = np.shape(self.data['image_data'])
             self.sp_image.setLevels(levels)
             self.sp_image.setRect(pg.QtCore.QRectF(extent[0], extent[2], extent[1] - extent[0], extent[3] - extent[2]))
 
@@ -209,7 +212,17 @@ Experiment to select points on an image. The selected points are saved and can b
             pt: the point to add or remove from the selected list
         Poststate: updates selected list
         '''
-        # max and min seemed to flip sometimes for no reason this prevents that as index 0&1 are x and index 2&3 are y
+        def index_point(x,y,xmin,xmax,ymin,ymax):
+            #takes inputed point and calculates x,y index in image data
+            x_dis_from_edge = x - xmin
+            y_dis_from_edge = y - ymin
+            x_tot_dis = xmax - xmin
+            y_tot_dis = ymax - ymin
+            # use floor as rounding down compensates for index starting at 0
+            x_index = floor(self.img_len_x * x_dis_from_edge / x_tot_dis)
+            y_index = floor(self.img_len_y * y_dis_from_edge / y_tot_dis)
+            return x_index, y_index
+
         xmin = self.data['extent'][0]
         xmax = self.data['extent'][1]
         ymin = self.data['extent'][2]
@@ -219,6 +232,9 @@ Experiment to select points on an image. The selected points are saved and can b
         if xmin <= x <= xmax and ymin <= y <= ymax:
             if not self.data['nv_locations']: #if self.data is empty so this is the first point
                 self.data['nv_locations'].append(pt)
+                index = index_point(x, y, xmin, xmax, ymin, ymax)
+                self.data['pt_indices'].append(index)
+                self.log(f'Selected NV at (x,y) = ({x:.2f},{y:.2f}) and index (i,j) = {index}')
                 self.data['image_data'] = None # clear image data
             else:
                 # use KDTree to find NV closest to mouse click
@@ -229,15 +245,20 @@ Experiment to select points on an image. The selected points are saved and can b
                 # removes NV if previously selected
                 if not np.isinf(d):
                     self.data['nv_locations'].pop(i)
+                    self.data['pt_indices'].pop(i)
                 # adds NV if not previously selected
                 else:
                     self.data['nv_locations'].append(pt)
+                    index = index_point(x,y,xmin,xmax,ymin,ymax)
+                    self.data['pt_indices'].append(index)
+                    self.log(f'Selected NV at (x,y) = ({x:.2f},{y:.2f}) and index (i,j) = {index}')
 
                 # randomize
                 if self.settings['randomize']:
                     self.log('warning! randomize not avalable when manually selecting points')
 
-            # if type is not free we calculate the total points of locations from the first selected points
+            #if type is not free we calculate the total points of locations from the first selected points
+            #not adding point indexing for specific geometries as idk how they are to be used in future -- Dylan Staples
             if self.settings['type'] == 'square' and len(self.data['nv_locations'])>1:
                 # here we create a rectangular grid, where pts a and be define the top left and bottom right corner of the rectangle
                 Nx, Ny = self.settings['Nx'], self.settings['Ny']
