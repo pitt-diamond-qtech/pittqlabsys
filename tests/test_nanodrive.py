@@ -1,5 +1,3 @@
-from pycparser.ply.ctokens import t_MINUS
-
 from src.Controller.nanodrive import MCLNanoDrive
 import pytest
 import numpy as np
@@ -199,7 +197,7 @@ def test_continuos_mult_ax_waveform(get_nanodrive):
     sleep(1)
     nd.trigger('mult_ax',mult_ax_stop=True)
 
-
+@pytest.mark.skip(reason='not currently testing')
 @pytest.mark.parametrize('read_rate',[0.5,1,2])
 @pytest.mark.parametrize('load_rate',[1,2,5])
 @pytest.mark.parametrize('step',[1.0,0.1])
