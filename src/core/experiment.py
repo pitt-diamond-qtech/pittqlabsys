@@ -1413,7 +1413,6 @@ class Experiment(QObject):
         return experiment_instance
 
 
-
     def _plot(self, axes_list):
         """
         plots the data only the axes objects that are provided in axes_list
@@ -1421,7 +1420,6 @@ class Experiment(QObject):
             axes_list: a list of axes objects, this should be implemented in each subexperiment
 
         Returns: None
-
         """
         pass
         # not sure if to raise a not implemented error or just give a warning. For now just warning
@@ -1434,7 +1432,6 @@ class Experiment(QObject):
             axes_list: a list of axes objects, this should be implemented in each subexperiment
 
         Returns: None
-
         """
 
         # default behaviour just calls the standard plot function that creates a new image everytime it is called
@@ -1446,7 +1443,6 @@ class Experiment(QObject):
         """
         forces the plot to refresh
         Returns:
-
         """
         self._plot_refresh = True
 
@@ -1469,11 +1465,6 @@ class Experiment(QObject):
         if self._plot_refresh is True:
             self._plot(axes_list)
             self._plot_refresh = False
-            '''
-            for figure in figure_list:
-                if figure.axes:
-                    figure.set_tight_layout(True)
-            '''
         else:
             self._update_plot(axes_list)
 
@@ -1487,15 +1478,12 @@ class Experiment(QObject):
             figure_list: a list of figure objects
         Returns:
             axes_list: a list of axes objects
-
         """
         axes_list = []
         if self._plot_refresh is True:
             for graph in figure_list:
                 graph.clear()
                 axes_list.append(graph.addPlot(row=0,col=0))
-
-
         else:
             for graph in figure_list:
                 axes_list.append(graph.getItem(row=0,col=0))
@@ -1506,7 +1494,6 @@ class Experiment(QObject):
         """
         plots the data contained in self.data, which should be a dictionary or a deque of dictionaries
         for the latter use the last entry
-
         """
         axes_list = self.get_axes_layout_validate(figure_list)
         self._plot_validate(axes_list)
