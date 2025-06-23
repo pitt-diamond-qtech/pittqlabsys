@@ -112,6 +112,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.tree_gui_settings.doubleClicked.connect(self.edit_tree_item)
 
             self.current_experiment = None
+            self.previous_data = None
             self.probe_to_plot = None
 
             # create models for tree structures, the models reflect the data
@@ -601,6 +602,15 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 experiment.finished.connect(experiment_thread.quit)  # clean up. quit thread after experiment is finished
                 experiment.finished.connect(self.experiment_finished) # connect finished signal of experiment to finished slot of gui
 
+                # for some experiments we want to inherit data from the previous experiment (for example NV locations from SelectPoints to use in say ODMR)
+                # to use you want an inherit data parameter in the experiment settings. Could be expanded depending on use cases
+                if self.previous_data is not None:
+                    if 'inherit_data' in experiment.settings and experiment.settings['inherit_data']:
+                        common_keys = experiment.data.keys() & self.previous_data.keys()
+                        #print('common keys',common_keys)
+                        for key in common_keys:
+                            experiment.data[key] = self.previous_data[key]
+
                 # start thread, i.e. experiment
                 experiment_thread.start()
 
@@ -898,10 +908,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 item = iterator.value()
                 iterator +=1
 
-
         self.tree_experiments.setColumnWidth(0, 200)
         self.tree_experiments.setColumnWidth(1, 400)
         self.tree_experiments.setColumnWidth(2, 50)
+
     def update_parameters(self, treeWidget):
         """
         updates the internal dictionaries for experiments and devices with values from the respective trees
@@ -1012,6 +1022,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         waits for the experiment to emit the experiment_finshed signal
         """
         experiment = self.current_experiment
+        self.previous_data = experiment.data
         experiment.updateProgress.disconnect(self.update_status)
         self.experiment_thread.started.disconnect()
         experiment.finished.disconnect()

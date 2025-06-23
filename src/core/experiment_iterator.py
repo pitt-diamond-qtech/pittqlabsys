@@ -26,6 +26,7 @@ import importlib
 from functools import reduce
 
 import random
+from time import sleep
 
 
 class ExperimentIterator(Experiment):
@@ -142,6 +143,7 @@ class ExperimentIterator(Experiment):
 
             for i, value in enumerate(param_values):
                 self.iterator_progress = float(i) / len(param_values)
+                previous_data = None
 
                 experiment_list, parameter_list = get_experiment_and_settings_from_str(self.settings['sweep_param'])
                 experiment = self
@@ -169,13 +171,22 @@ class ExperimentIterator(Experiment):
 
                     curr_experiment_exec_freq = self.settings['experiment_execution_freq'][experiment_name]
                     if curr_experiment_exec_freq != 0 and (j % curr_experiment_exec_freq == 0):
+
+                        #for some experiments we want to inherit data from the previous experiment (for example NV locations from SelectPoints to use in say ODMR
+                        #to use you want an inherit data parameter in the experiment settings. Could be expanded depending on use cases
+                        if previous_data is not None:
+                            common_keys = self.experiment.data.keys() & previous_data.keys()
+                            for key in common_keys:
+                                self.experiment.data[key] = previous_data[key]
+
                         # i+1 so first execution is mth loop, not first
                         self.log('starting {:s}'.format(experiment_name))
                         tag = self.experiments[experiment_name].settings['tag']
-                        self.experiments[experiment_name].settings['tag'] = '{:s}_{:s}_{:0.3e}'.format(tag, parameter_name,
-                                                                                               value)
+                        self.experiments[experiment_name].settings['tag'] = '{:s}_{:s}_{:0.3e}'.format(tag, parameter_name,value)
                         self.experiments[experiment_name].run()
                         self.experiments[experiment_name].settings['tag'] = tag
+
+                        previous_data = self.experiments[experiment_name].data
 
         elif self.iterator_type == 'loop':
 
@@ -187,6 +198,7 @@ class ExperimentIterator(Experiment):
             self.data = {}
             for i in range(num_loops):
                 self.iterator_progress = float(i) / num_loops
+                previous_data = None
 
                 for experiment_name in sorted_experiment_names:
                     if self._abort:
@@ -196,6 +208,15 @@ class ExperimentIterator(Experiment):
                     curr_experiment_execution_freq = self.settings['experiment_execution_freq'][experiment_name]
 
                     if curr_experiment_execution_freq != 0 and (j % curr_experiment_execution_freq == 0):
+
+                        #for some experiments we want to inherit data from the previous experiment (for example NV locations from SelectPoints to use in say ODMR
+                        #to use you want an inherit data parameter in the experiment settings. Could be expanded depending on use cases
+                        if previous_data is not None:
+                            if 'inherit_data' in self.experiments[experiment_name].settings and self.experiments[experiment_name].settings['inherit_data']:
+                                common_keys = self.experiment.data.keys() & previous_data.keys()
+                                for key in common_keys:
+                                    self.experiment.data[key] = previous_data[key]
+
                         # i+1 so first execution is mth loop, not first
                         self.log('starting {:s} \t iteration {:d} of {:d}'.format(experiment_name, i + 1, num_loops))
                         tag = self.experiments[experiment_name].settings['tag']
@@ -203,6 +224,8 @@ class ExperimentIterator(Experiment):
                         self.experiments[experiment_name].settings['tag'] = tmp.format(i)
                         self.experiments[experiment_name].run()
                         self.experiments[experiment_name].settings['tag'] = tag
+
+                        previous_data = self.experiments[experiment_name].data
 
                 # from the last experiment we take the average of the data as the data of the iterator experiment
                 if isinstance(self.experiments[experiment_name].data, dict):
