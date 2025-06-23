@@ -111,6 +111,7 @@ class ConfocalScan_Fast(Experiment):
         if self.settings['reboot_adwin'] == True:
             self.adw.reboot_adwin()
         self.setup_scan()
+        sleep(0.1)
 
         #y scanning range is 5 to 95 to compensate for warm up time
         x_min = max(self.settings['point_a']['x'], 0.0)
@@ -459,6 +460,7 @@ class ConfocalScan_Slow(Experiment):
         if self.settings['reboot_adwin'] == True:
             self.adw.reboot_adwin()
         self.setup_scan()
+        sleep(0.1)
 
         x_min = self.settings['point_a']['x']
         x_max = self.settings['point_b']['x']
