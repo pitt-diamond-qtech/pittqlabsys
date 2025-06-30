@@ -20,7 +20,7 @@ import traceback
 from src.core.device import Device
 from src.core.parameter import Parameter
 from src.core.read_write_functions import save_aqs_file, load_aqs_file
-from src.core.helper_functions import module_name_from_path
+from src.core.helper_functions import module_name_from_path, structure_data_for_matlab
 
 from collections import deque
 import os
@@ -31,6 +31,7 @@ import inspect
 import warnings
 import platform
 from PyQt5.QtCore import pyqtSignal, QObject, pyqtSlot
+from scipy.io import savemat
 
 import numpy as np
 from builtins import len as builtin_len
@@ -440,6 +441,7 @@ class Experiment(QObject):
             self.save_data()
             self.save_log()
             self.save_image_to_disk()
+            self.save_data_to_matlab()
 
         success = not self._abort
 
@@ -801,6 +803,27 @@ class Experiment(QObject):
         filename = self.check_filename(filename)
         with open(filename, 'w') as outfile:
             outfile.write(pickle.dumps(self.__dict__))
+
+    def save_data_to_matlab(self, filename=None):
+        print('running save_data_to_matlab')
+        if filename is None:
+            filename = self.filename('.mat')
+        filename = self.check_filename(filename)
+
+        if self.matlab_data is None:
+            self.matlab_data = self.data
+        if self.matlab_settings is None:
+            self.matlab_settings = self.settings
+
+        print('getting formated data')
+        tag = self.settings['tag']
+        if ' ' in tag:
+            good_tag = tag.replace(' ', '_')
+        else:
+            good_tag = tag
+        structured_data = structure_data_for_matlab(data=self.matlab_data,settings=self.matlab_settings, tag=good_tag)
+        print('structured_data', structured_data)
+        savemat(filename, structured_data)
 
     @staticmethod
     def load(filename, devices=None):

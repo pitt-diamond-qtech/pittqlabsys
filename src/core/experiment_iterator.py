@@ -12,7 +12,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
-
+import copy
 
 from src.core import Parameter, Experiment
 import numpy as np
@@ -94,7 +94,8 @@ class ExperimentIterator(Experiment):
         '''
         Runs either a loop or a parameter sweep over the subexperiments in the order defined by the parameter_list 'experiment_order'
         '''
-
+        self.matlab_data = []
+        self.matlab_settings = []
         def get_sweep_parameters():
             """
             Returns: the paramter values over which to sweep
@@ -183,10 +184,23 @@ class ExperimentIterator(Experiment):
                         self.log('starting {:s}'.format(experiment_name))
                         tag = self.experiments[experiment_name].settings['tag']
                         self.experiments[experiment_name].settings['tag'] = '{:s}_{:s}_{:0.3e}'.format(tag, parameter_name,value)
-                        self.experiments[experiment_name].run()
-                        self.experiments[experiment_name].settings['tag'] = tag
 
+                        settings = self.experiments[experiment_name].settings
+                        print('current exp settings:', settings)
+                        self.matlab_settings.append(copy.deepcopy(settings))
+
+                        self.experiments[experiment_name].run()
+
+                        self.experiments[experiment_name].data['python_scan_map'] = {'scan_parameter':parameter_name,'num_steps':len(param_values),'current_value':value}
+                        data = self.experiments[experiment_name].data
+                        print('current exp data:', data)
+                        self.matlab_data.append(copy.deepcopy(data))
+
+
+                        self.experiments[experiment_name].settings['tag'] = tag
                         previous_data = self.experiments[experiment_name].data
+
+                        print('mat data list:', self.matlab_data,'\n','mat settings list:', self.matlab_settings)
 
         elif self.iterator_type == 'loop':
 
