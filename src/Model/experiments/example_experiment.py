@@ -124,8 +124,8 @@ Example Experiment that has all different types of parameters (integer, str, flo
         # some generic function
         import time
         import random
-        self.data['random data'] = None
-        self.data['image data'] = None
+        self.data['random_data'] = None
+        self.data['image_data'] = None
         count = self.settings['count']
         name = self.settings['name']
         wait_time = self.settings['wait_time']
@@ -136,17 +136,18 @@ Example Experiment that has all different types of parameters (integer, str, flo
             time.sleep(wait_time)
             self.log('{:s} count {:02d}'.format(self.name, i))
             data.append(random.random())
-            self.data['random data'] = data
+            self.data['random_data'] = data
             self.progress = 100. * (i + 1) / count
             self.updateProgress.emit(self.progress)
 
-        self.data = {'random data': data}
+        self.data = {'random_data': data}
 
         # create image data
-        Nx = int(np.sqrt(len(self.data['random data'])))
-        img = np.array(self.data['random data'][0:Nx ** 2])
+        Nx = int(np.sqrt(len(self.data['random_data'])))
+        img = np.array(self.data['random_data'][0:Nx ** 2])
         img = img.reshape((Nx, Nx))
-        self.data.update({'image data': img})
+        self.data.update({'image_data': img})
+
 
     def _plot(self, axes_list, data=None):
         """
@@ -164,19 +165,19 @@ Example Experiment that has all different types of parameters (integer, str, flo
 
         if data is not None and data is not {}:
             if plot_type in ('main', 'two'):
-                if not data['random data'] is None:
-                    axes_list[0].plot(data['random data'])
+                if not data['random_data'] is None:
+                    axes_list[0].plot(data['random_data'])
             if plot_type in ('aux', 'two', '2D'):
-                if not data['random data'] is None:
-                    axes_list[1].plot(data['random data'])
+                if not data['random_data'] is None:
+                    axes_list[1].plot(data['random_data'])
             if plot_type == '2D':
-                if self.data['image data'] is not None:
+                if self.data['image_data'] is not None:
                     def create_img(add_colobar=True):
                         '''
                         Creates a new image and ImageItem. Optionally create colorbar
                         '''
                         axes_list[0].clear()
-                        self.ex_image = pg.ImageItem(self.data['image data'], interpolation='nearest')
+                        self.ex_image = pg.ImageItem(self.data['image_data'], interpolation='nearest')
                         self.ex_image.setLevels(levels)
                         self.ex_image.setRect(pg.QtCore.QRectF(extent[0], extent[2], extent[1] - extent[0], extent[3] - extent[2]))
                         axes_list[0].addItem(self.ex_image)
@@ -194,14 +195,14 @@ Example Experiment that has all different types of parameters (integer, str, flo
                         self.colorbar.setImageItem(self.ex_image)
 
                     extent=[-1, 1, -1, 1]
-                    levels = [np.min(self.data['image data']),np.max(self.data['image data'])]
+                    levels = [np.min(self.data['image_data']),np.max(self.data['image_data'])]
 
                     if self._plot_refresh == True:
                         # if plot refresh is true the ImageItem has been deleted and needs recreated
                         create_img()
                     else:
                         try:
-                            self.ex_image.setImage(self.data['image data'], autoLevels=False)
+                            self.ex_image.setImage(self.data['image_data'], autoLevels=False)
                             self.ex_image.setLevels(levels)
                             self.colorbar.setLevels(levels)
                         except RuntimeError:
@@ -220,8 +221,8 @@ Example Experiment that has all different types of parameters (integer, str, flo
         plot_type = self.settings['plot_style']
         if plot_type == '2D':
             # now update the data
-            levels = [np.min(self.data['image data']), np.max(self.data['image data'])]
-            self.ex_image.setImage(self.data['image data'])
+            levels = [np.min(self.data['image_data']), np.max(self.data['image_data'])]
+            self.ex_image.setImage(self.data['image_data'])
             self.ex_image.setLevels(levels)
             self.colorbar.setLevels(levels)
         else:
