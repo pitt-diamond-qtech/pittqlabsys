@@ -23,6 +23,8 @@ import glob
 import pkgutil
 import numpy as np
 import h5py
+from pyparsing import empty
+
 
 def get_project_root() -> Path:  # new feature in Python 3.x i.e. annotations
     """Returns project root folder."""
@@ -208,7 +210,7 @@ def structure_data_for_matlab(data,settings=None,tag=None,return_array=False):
         elif isinstance(value, float) or isinstance(value, list):
             return 'f8'
         elif isinstance(value, int):
-            return 'i4'
+            return 'O'
         elif isinstance(value, str):
             return 'U{}'.format(len(value)+1) #+1 so empty string (U0) dont casue an error
         elif isinstance(value, bool):
@@ -283,7 +285,7 @@ def structure_data_for_matlab(data,settings=None,tag=None,return_array=False):
 
         if settings:
             specific_settings = settings[i] #settings corresponding to the current dic interation
-            flat_settings = flatten_dict(specific_settings)
+            '''flat_settings = flatten_dict(specific_settings)
             for key, value in flat_settings.items():
                 if not got_dtype: #only get data type once; if a dictionary as default will be a 1x1 struct
                     settings_type = guess_numpy_dtype(value)
@@ -295,7 +297,15 @@ def structure_data_for_matlab(data,settings=None,tag=None,return_array=False):
                 if value == None:
                     values_list.append(np.nan)
                 else:
-                    values_list.append(value)
+                    values_list.append(value)'''
+
+
+            if not got_dtype:  # only get data type once; if a dictionary as default will be a 1x1 struct
+                settings_type = guess_numpy_dtype(specific_settings)
+                settings_shape = get_shape(specific_settings)
+
+                data_types.append(('settings', settings_type, settings_shape))
+            values_list.append(specific_settings)
 
         got_dtype = True
         values_list_tuples.append(tuple(values_list))
@@ -309,6 +319,7 @@ def structure_data_for_matlab(data,settings=None,tag=None,return_array=False):
 
 
     #try:
+    print(values_list_tuples,'\n',data_types)
     array = np.array(values_list_tuples, dtype=data_types)
     print("array created")
     #except Exception as e:
@@ -415,39 +426,86 @@ class matlab_saver():
     def __init__(self, tag = None):
         if tag is None:
             self.tag = 'unnamed_experiment'
+        else:
+            self.tag = tag
 
-        self.list_all_dtype_tuples = []
-        self.dtype_list = []
+        #list to be populated by add_experiment_data method to check shape and alter data if needed
+        self.all_dtype_list = []
+        self.all_values_list = []
+
+        self.last_dtype_list = None
+        self.got_dtype = False
 
         self.experiment_tuples = [] #stores a tuple with experiment data and settings for each experiment
 
-
-    def add_experiment_data(self, data_dic, settings_dic):
-        flat_data_dic = self._flatten_dic(data_dic)
-        flat_settings_dic = self._flatten_dic(settings_dic)
-
-        values_list = []  # list to store dictionary values
+    def add_experiment_data(self, data_dic, settings_dic, expand_settings=False):
+        '''
+        Args:
+            data_dic: experiment data dictionary
+            settings_dic: experiment settings dictionary
+            expand_settings: If true will flatten settings dictionary so each key is a field in matlab file
+                             If false settings will appear as a 1x1 struct in matlab file with keys as subfields
+        Returns:
+            value_list: List of values that can be made into an array for saving
+            dtype_list: List of dtype touples for numpy array
+        '''
+        #ensure the inputs are dictionaries
+        data_dic = dict(data_dic)
+        settings_dic = dict(settings_dic)
+        #list to store dictionary values
+        values_list = []
         data_types_list = []
 
-        for key in flat_data_dic.keys():
-            value = flat_data_dic[key]
-
+        flat_data_dic = self._flatten_dic(data_dic)
+        for key,value in flat_data_dic.items():
             value_type = self._get_dtype(value)
             value_shape = self._get_shape(value)
             data_types_list.append((key, value_type, value_shape))
-            if value == None:
+
+            if value_type == 'f4' and value == None:
                 values_list.append(np.nan)
             else:
                 values_list.append(value)
 
+        if expand_settings:
+            flat_settings_dic = self._flatten_dic(settings_dic)
             for key, value in flat_settings_dic.items():
                 value_type = self._get_dtype(value)
                 value_shape = self._get_shape(value)
                 data_types_list.append((key, value_type, value_shape))
-                if value == None:
+                if value_type == 'f4' and value == None:
                     values_list.append(np.nan)
                 else:
                     values_list.append(value)
+        else:
+            value_type = self._get_dtype(settings_dic)
+            value_shape = self._get_shape(settings_dic)
+            data_types_list.append(('settings', value_type, value_shape))
+            values_list.append(settings_dic)
+
+        self.last_dtype_list = data_types_list
+
+        self.all_dtype_list.append(data_types_list)
+        self.all_values_list.append(values_list)
+
+        return values_list, data_types_list
+
+    def get_structured_data(self, return_array=False):
+        if self.last_dtype_list is None:
+            raise ValueError('Data type list has not been created')
+        if self.all_values_list == []:
+            raise ValueError('Values list is empty!')
+
+        list_of_value_list_tuples = []
+        for i in range(len(self.all_values_list)):
+            list_of_value_list_tuples.append(tuple(self.all_values_list[i]))
+
+        final_array = np.array(list_of_value_list_tuples, dtype=self.last_dtype_list)
+        if return_array:  # for more complex shapes may want to get array to use in another function
+            return final_array
+        else:
+            structured_data = {self.tag: final_array}
+            return structured_data
 
     def _compare_tuples(self, a, b):
         if len(a) != len(b):
@@ -457,14 +515,17 @@ class matlab_saver():
         for i, (x, y) in enumerate(zip(a, b)):
             if isinstance(x, float) and isinstance(y, float):
                 if np.isnan(x) and np.isnan(y):
-                    continue  # treat NaNs as equa
+                    continue  # treat NaNs as equal
                 if np.isposinf(x) and np.isposinf(y):
                     continue
                 if np.isneginf(x) and np.isneginf(y):
                     continue
             if x != y:
-                differences.append((i, x, y))
-
+                index = i
+                first_tup_val = x
+                second_tup_val = y
+                differences.append((index, first_tup_val, second_tup_val))
+        print('tuple differences:',differences)
         return differences
 
     def _get_dtype(self, value):
@@ -502,7 +563,7 @@ class matlab_saver():
         for k, v in d.items():
             new_key = f"{parent_key}{sep}{k}" if parent_key else str(k)
             if isinstance(v, dict):
-                items.update(self.flatten_dict(v, new_key, sep=sep))
+                items.update(self._flatten_dic(v, new_key, sep=sep))
             else:
                 items[new_key] = v
         return items
@@ -520,7 +581,7 @@ class matlab_saver():
         Returns:
             np.ndarray – The larger array with the small array embedded
 
-        FUNCTION WRITTEN ENTIRELY BY AI!!
+        FUNCTION WRITTEN BY AI! NEED TESTED!
         """
         small = np.asarray(small)
         target_shape = tuple(target_shape)
@@ -543,8 +604,54 @@ class matlab_saver():
         result[slices] = small
         return result
 
+    def _highest_common_shape(self, shape1, shape2):
+        """
+        Returns the element-wise maximum shape when right-aligning the two input shapes.
+
+        FUNCTION WRITTEN BY AI! NEED TESTED!
+        """
+        # Convert to tuples (in case input is a NumPy array's shape)
+        shape1 = tuple(shape1)
+        shape2 = tuple(shape2)
+
+        # Pad the shorter shape with 1s on the left
+        max_len = max(len(shape1), len(shape2))
+        shape1_padded = (1,) * (max_len - len(shape1)) + shape1
+        shape2_padded = (1,) * (max_len - len(shape2)) + shape2
+
+        # Take max dimension-wise
+        result = tuple(max(a, b) for a, b in zip(shape1_padded, shape2_padded))
+        return result
 
 
 
 if __name__ == '__main__':
     print(explore_package('src.core'))
+
+    a = ('random data', '<f8', (3,))
+    b = ('random data', '<f8', (5,))
+
+    matlab_saver = matlab_saver()
+    dif = matlab_saver._compare_tuples(a,b)
+
+    for i in range(len(dif)):
+        #loops through all differences
+        print(dif[i][0])
+        if dif[i][0] == 2:
+            #if difference is size gets highest common shape
+            shape_1 = dif[i][1]
+            shape_2 = dif[i][2]
+            best_shape = matlab_saver._highest_common_shape(shape_1, shape_2)
+            print(best_shape)
+        if dif[i][0] == 1:
+            #should never be a difference in data type
+            print('difference in data types..defaulting to object')
+            best_dtype = 'O'
+
+        new_dtype_tuple = tuple()
+
+
+
+    small = np.array([1,2,3])
+    large = np.array([1,2,3,4,5])
+

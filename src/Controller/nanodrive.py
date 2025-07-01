@@ -107,6 +107,7 @@ class MCLNanoDrive(Device):
             for key, value in settings.items():     #goes through inputed settings to see what commands to send ot update parameters
                 #print('nd updating: ',key,'to: ',value)
                 if key == 'serial':
+                    self.close()
                     self._initilize_handle()    #changes handle under control
 
                 elif key in ['x_pos','y_pos','z_pos']:      #updates axis position

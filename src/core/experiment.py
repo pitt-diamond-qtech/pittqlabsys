@@ -20,7 +20,7 @@ import traceback
 from src.core.device import Device
 from src.core.parameter import Parameter
 from src.core.read_write_functions import save_aqs_file, load_aqs_file
-from src.core.helper_functions import module_name_from_path, structure_data_for_matlab
+from src.core.helper_functions import module_name_from_path, structure_data_for_matlab, matlab_saver
 
 from collections import deque
 import os
@@ -79,6 +79,7 @@ class Experiment(QObject):
         #super().__init__(self)
 
         self._experiment_class = self.__class__.__name__
+        print('experiment_class',self._experiment_class)
 
         if name is None:
             name = self.__class__.__name__
@@ -135,6 +136,7 @@ class Experiment(QObject):
             'subexperiment_exec_count': {},
             'subexperiment_exec_duration': {}
         }
+
 
     @property
     def data_path(self):
@@ -805,24 +807,19 @@ class Experiment(QObject):
             outfile.write(pickle.dumps(self.__dict__))
 
     def save_data_to_matlab(self, filename=None):
-        print('running save_data_to_matlab')
         if filename is None:
             filename = self.filename('.mat')
         filename = self.check_filename(filename)
 
-        if self.matlab_data is None:
-            self.matlab_data = self.data
-        if self.matlab_settings is None:
-            self.matlab_settings = self.settings
-
-        print('getting formated data')
         tag = self.settings['tag']
         if ' ' in tag:
             good_tag = tag.replace(' ', '_')
         else:
             good_tag = tag
-        structured_data = structure_data_for_matlab(data=self.matlab_data,settings=self.matlab_settings, tag=good_tag)
-        print('structured_data', structured_data)
+
+        mat_save = matlab_saver(tag=good_tag)
+        mat_save.add_experiment_data(self.data,self.settings)
+        structured_data = mat_save.get_structured_data()
         savemat(filename, structured_data)
 
     @staticmethod
