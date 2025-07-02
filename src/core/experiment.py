@@ -20,7 +20,7 @@ import traceback
 from src.core.device import Device
 from src.core.parameter import Parameter
 from src.core.read_write_functions import save_aqs_file, load_aqs_file
-from src.core.helper_functions import module_name_from_path, structure_data_for_matlab, matlab_saver
+from src.core.helper_functions import module_name_from_path, MatlabSaver
 
 from collections import deque
 import os
@@ -812,14 +812,16 @@ class Experiment(QObject):
         filename = self.check_filename(filename)
 
         tag = self.settings['tag']
-        if ' ' in tag:
-            good_tag = tag.replace(' ', '_')
+        if ' ' in tag or '.' in tag or '+' in tag or '-' in tag:
+            good_tag = tag.replace(' ', '_').replace('.', '_').replace('+', 'P').replace('-', 'M')
+            #matlab structs cant include spaces, dots, or plus/minus so replace with other characters
+            #other disallowed characters but not used in our naming schemes so checks as of now
         else:
             good_tag = tag
 
-        mat_save = matlab_saver(tag=good_tag)
-        mat_save.add_experiment_data(self.data,self.settings)
-        structured_data = mat_save.get_structured_data()
+        mat_saver = MatlabSaver(tag=good_tag)
+        mat_saver.add_experiment_data(self.data,self.settings)
+        structured_data = mat_saver.get_structured_data()
         savemat(filename, structured_data)
 
     @staticmethod
