@@ -24,7 +24,8 @@ import inspect
 from src.core import helper_functions as hf
 import importlib
 from functools import reduce
-from src.core.helper_functions import matlab_saver
+from src.core.helper_functions import MatlabSaver
+from scipy.io import savemat
 
 import random
 from time import sleep
@@ -58,23 +59,9 @@ class ExperimentIterator(Experiment):
         self.iterator_type = self.get_iterator_type(self.settings, experiments)
 
         self._current_subexperiment_stage = None
-        self.iterator_level = 1 #for multi iterator experiments tracks how many iterator levels there is; value equal num layers below
-
-        '''print('self.experiments',self.experiments)
-        for key,value in self.experiments.items():
-            if hasattr(value, 'get_iterator_type'): #only itertaor classes have get_iterator_type method so this check if there are sub iterators
-                self.iterator_level += 1
-                print('Sub iterator detected')
-                sub_it_1 = value
-                print('Sub iterator experiments',sub_it_1.experiments.items())
-                for key, value in sub_it_1.experiments.items():
-                    if hasattr(value, 'get_iterator_type'):
-                        self.iterator_level += 1
-        print('iterator level',self.iterator_level)'''
-
+        # for multi iterator experiments tracks how many iterator levels there is; value equal num layers below
         self.iterator_level = self.detect_iterator_depth(self.experiments)
         print('iterator level',self.iterator_level)
-
 
         self._skippable = True
 
@@ -214,23 +201,25 @@ class ExperimentIterator(Experiment):
                         tag = self.experiments[experiment_name].settings['tag']
                         self.experiments[experiment_name].settings['tag'] = '{:s}_{:s}_{:0.3e}'.format(tag, parameter_name,value)
 
-                        settings = self.experiments[experiment_name].settings
+
+                        settings = copy.deepcopy(self.experiments[experiment_name].settings)
                         #self.matlab_settings.append(copy.deepcopy(settings))
 
                         self.experiments[experiment_name].run()
 
-                        self.experiments[experiment_name].data['python'] = {'scan_parameter':parameter_name,'scan_current_value':value, 'scan_num_steps':len(param_values)}
-                        data = self.experiments[experiment_name].data
+                        scan_info_dic = {'scan_parameter':parameter_name,'scan_current_value':value, 'scan_all_values':list(param_values)}
+
+                        #self.experiments[experiment_name].data['python'] = {'scan_parameter':parameter_name,'scan_current_value':value, 'scan_all_values':list(param_values)}
+                        data = copy.deepcopy(self.experiments[experiment_name].data)
                         #self.matlab_data.append(copy.deepcopy(data))
+                        self.data[self.experiments[experiment_name].settings['tag']] = [data, settings, {'python_scan_info': scan_info_dic}]
 
 
                         self.experiments[experiment_name].settings['tag'] = tag
                         previous_data = self.experiments[experiment_name].data
 
-                        #print('mat data list:', self.matlab_data,'\n','mat settings list:', self.matlab_settings)
+            print(self.settings['tag'],'data',self.data)
 
-                #full_data = matlab_saver.get_structured_data()
-                #self.data = full_data
 
         elif self.iterator_type == 'loop':
 
@@ -435,6 +424,25 @@ class ExperimentIterator(Experiment):
     def loop_index(self):
         loop_index = max(self._current_subexperiment_stage['subexperiment_exec_count'].values())
         return loop_index
+
+    def save_data_to_matlab(self, filename=None):
+        pass
+        '''if filename is None:
+            filename = self.filename('.mat')
+        filename = self.check_filename(filename)
+
+        tag = self.settings['tag']
+        if ' ' in tag or '.' in tag or '+' in tag or '-' in tag:
+            good_tag = tag.replace(' ', '_').replace('.', '_').replace('+', 'P').replace('-', 'M')
+            # matlab structs cant include spaces, dots, or plus/minus so replace with other characters
+            # other disallowed characters but not used in our naming schemes so checks as of now
+        else:
+            good_tag = tag
+
+        mat_saver = MatlabSaver(tag=good_tag)
+        mat_saver.add_experiment_data(self.data, self.settings)
+        structured_data = mat_saver.get_structured_data()
+        savemat(filename, structured_data)'''
 
     def plot(self, figure_list):
         '''
