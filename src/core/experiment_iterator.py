@@ -422,29 +422,40 @@ class ExperimentIterator(Experiment):
         return loop_index
 
     def save_data_to_matlab(self, filename=None):
-        def extract_data(dic, current_level, target_level):
+        def extract_data(dic, current_level, target_level, inherited_scan_info=None):
+            it_level_str = f'_iterator_{target_level-current_level+1}'
+            if inherited_scan_info is None:
+                inherited_scan_info = {}
             result = []
             for key, value in dic.items():
                 #sweep_1_y_1.000e+00:[{exp_1:[dic(data),dic(settings),dic(scan_params),'exp_2:[dic(data),dic(settings),dic(scan_params),'exp_3:[dic(data),dic(settings),dic(scan_params)]},
                                      #dic(settings),dic(scan_params)
+                next_dic_level = value[0]
+                current_level_settings = value[1]
+                current_level_scan_info_raw = value[2]
+
+                scan_variable = current_level_scan_info_raw.get('scan_parameter' + it_level_str)
+                scan_var_current_value = current_level_scan_info_raw.get('scan_current_value' + it_level_str)
+                scan_var_all_values = current_level_scan_info_raw.get('scan_all_values' + it_level_str)
+
+                updated_scan_info = dict(inherited_scan_info)
+                updated_scan_info['scan_parameter' + it_level_str] = scan_variable
+                updated_scan_info['scan_current_value' + it_level_str] = scan_var_current_value
+                updated_scan_info['scan_all_values' + it_level_str] = scan_var_all_values
+
                 if current_level < target_level:
 
                     if isinstance(value, list) and isinstance(value[0], dict):
-                        next_dic_level = value[0]
-                        current_level_settings = value[1]
-                        current_level_sweep_params = value[2]
-                        result.extend(extract_data(next_dic_level, current_level+1, target_level))
+                        result.extend(extract_data(next_dic_level, current_level+1, target_level, updated_scan_info))
                     else:
-                        raise ValueError(f"Unexpected structure at level {current_level}: {key} → {value}")
+                        raise ValueError(f"In matlab saving: Unexpected structure at level {current_level}: {key} → {value}")
 
                 elif current_level == target_level:
                     if isinstance(value, list) and len(value) == 3:
-                        next_dic_level = value[0]
-                        current_level_settings = value[1]
-                        current_level_sweep_params = value[2]
-                        result.append((next_dic_level, current_level_settings, current_level_sweep_params))
+
+                        result.append((next_dic_level, current_level_settings, updated_scan_info))
                     else:
-                        raise ValueError(f"Invalid leaf data at level {current_level}: {key} → {value}")
+                        raise ValueError(f"In matlab saving: Invalid leaf data at level {current_level}: {key} → {value}")
 
             return result
 
@@ -462,19 +473,11 @@ class ExperimentIterator(Experiment):
             good_tag = tag
 
         mat_saver = MatlabSaver(tag=good_tag)
-        '''for key, value in self.data.items():
-            print(value)
-            #value is a list [dic(data),dic(settings),dic(scan_info)]
-            data = value[0]
-            settings = value[1]
-            scan_info = value[2]
-
-            mat_saver.add_experiment_data(data,settings,iterator_info_dic=scan_info)'''
 
         data_tuples = extract_data(self.data, current_level=1, target_level=self.iterator_level)
         print('data_tuples',data_tuples)
-        for data, settings, scan_info in data_tuples:
-            mat_saver.add_experiment_data(data, settings, iterator_info_dic=scan_info)
+        for data, settings, combined_scan_info in data_tuples:
+            mat_saver.add_experiment_data(data, settings, iterator_info_dic=combined_scan_info)
 
         structured_data = mat_saver.get_structured_data()
         savemat(filename, structured_data)
