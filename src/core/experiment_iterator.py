@@ -200,25 +200,21 @@ class ExperimentIterator(Experiment):
                         self.log('starting {:s}'.format(experiment_name))
                         tag = self.experiments[experiment_name].settings['tag']
                         self.experiments[experiment_name].settings['tag'] = '{:s}_{:s}_{:0.3e}'.format(tag, parameter_name,value)
-
-
+                        #ensure settings and data are deepcopys so multiple iterations dont change old values
                         settings = copy.deepcopy(self.experiments[experiment_name].settings)
-                        #self.matlab_settings.append(copy.deepcopy(settings))
-
                         self.experiments[experiment_name].run()
 
-                        scan_info_dic = {'scan_parameter':parameter_name,'scan_current_value':value, 'scan_all_values':list(param_values)}
-
-                        #self.experiments[experiment_name].data['python'] = {'scan_parameter':parameter_name,'scan_current_value':value, 'scan_all_values':list(param_values)}
+                        it_level_str = f'_iterator_{self.iterator_level}'
+                        python_scan_info_dic = {'scan_parameter'+it_level_str:parameter_name,'scan_current_value'+it_level_str:value, 'scan_all_values'+it_level_str:list(param_values)}
                         data = copy.deepcopy(self.experiments[experiment_name].data)
-                        #self.matlab_data.append(copy.deepcopy(data))
-                        self.data[self.experiments[experiment_name].settings['tag']] = [data, settings, {'python_scan_info': scan_info_dic}]
 
+                        #adds to self.data a key of the current experiment tage with a value that is a lsit of [data, settings, scan_infor] for current experiment
+                        self.data[self.experiments[experiment_name].settings['tag']] = [data, settings, python_scan_info_dic]
 
                         self.experiments[experiment_name].settings['tag'] = tag
                         previous_data = self.experiments[experiment_name].data
 
-            print(self.settings['tag'],'data',self.data)
+            #print(self.settings['tag'],'data',self.data)
 
 
         elif self.iterator_type == 'loop':
@@ -426,8 +422,33 @@ class ExperimentIterator(Experiment):
         return loop_index
 
     def save_data_to_matlab(self, filename=None):
-        pass
-        '''if filename is None:
+        def extract_data(dic, current_level, target_level):
+            result = []
+            for key, value in dic.items():
+                #sweep_1_y_1.000e+00:[{exp_1:[dic(data),dic(settings),dic(scan_params),'exp_2:[dic(data),dic(settings),dic(scan_params),'exp_3:[dic(data),dic(settings),dic(scan_params)]},
+                                     #dic(settings),dic(scan_params)
+                if current_level < target_level:
+                    if isinstance(value, list) and isinstance(value[0], dict):
+                        next_dic_level = value[0]
+                        current_level_settings = value[1]
+                        current_level_sweep_params = value[2]
+                        extract_data(next_dic_level, current_level+1, target_level)
+                    else:
+                        raise ValueError(f"Unexpected structure at level {current_level}: {key} → {value}")
+
+                elif current_level == target_level:
+                    if isinstance(value, list) and len(value) == 3:
+                        next_dic_level = value[0]
+                        current_level_settings = value[1]
+                        current_level_sweep_params = value[2]
+                        result.append((next_dic_level, current_level_settings, current_level_sweep_params))
+                    else:
+                        raise ValueError(f"Invalid leaf data at level {current_level}: {key} → {value}")
+
+            return result
+
+
+        if filename is None:
             filename = self.filename('.mat')
         filename = self.check_filename(filename)
 
@@ -440,9 +461,21 @@ class ExperimentIterator(Experiment):
             good_tag = tag
 
         mat_saver = MatlabSaver(tag=good_tag)
-        mat_saver.add_experiment_data(self.data, self.settings)
+        for key, value in self.data.items():
+            print(value)
+            #value is a list [dic(data),dic(settings),dic(scan_info)]
+            data = value[0]
+            settings = value[1]
+            scan_info = value[2]
+
+            mat_saver.add_experiment_data(data,settings,iterator_info_dic=scan_info)
+
+        #data_tuples = extract_data(self.data, current_level=1, target_level=self.iterator_level)
+        #for data, settings, scan_info in data_tuples:
+            #mat_saver.add_experiment_data(data, settings, iterator_info_dic=scan_info)
+
         structured_data = mat_saver.get_structured_data()
-        savemat(filename, structured_data)'''
+        savemat(filename, structured_data)
 
     def plot(self, figure_list):
         '''
