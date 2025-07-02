@@ -36,6 +36,6 @@ class NV_Locations(Experiment):
         This is the actual function that will be executed. It uses only information that is provided in the settings property
         will be overwritten in the __init__
         """
-        print('NV Locations:',self.data['nv_locations'])
+        #print('NV Locations:',self.data['nv_locations'])
         time.sleep(self.settings['execution_time'])
         print('All data:',self.data)

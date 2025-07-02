@@ -421,7 +421,7 @@ def structure_data_for_hdf5(filename,data,settings=None,tag=None):
                 settings_group = group.create_group('settings')
                 write_dict_to_hdf5(settings_group, specific_settings)
 
-class matlab_saver():
+class MatlabSaver:
 
     def __init__(self, tag = None):
         if tag is None:
@@ -438,7 +438,7 @@ class matlab_saver():
 
         self.experiment_tuples = [] #stores a tuple with experiment data and settings for each experiment
 
-    def add_experiment_data(self, data_dic, settings_dic, expand_settings=False):
+    def add_experiment_data(self, data_dic, settings_dic, flatten_settings=False, iterator_info_dic=None, flatten_iterator_info=False):
         '''
         Args:
             data_dic: experiment data dictionary
@@ -467,7 +467,7 @@ class matlab_saver():
             else:
                 values_list.append(value)
 
-        if expand_settings:
+        if flatten_settings:
             flat_settings_dic = self._flatten_dic(settings_dic)
             for key, value in flat_settings_dic.items():
                 value_type = self._get_dtype(value)
@@ -482,6 +482,24 @@ class matlab_saver():
             value_shape = self._get_shape(settings_dic)
             data_types_list.append(('settings', value_type, value_shape))
             values_list.append(settings_dic)
+
+        #for experiment iterators we want to know the sweep parameters; the iterator_info_dic is inputted similar to settings with optional flattening
+        if iterator_info_dic is not None and flatten_iterator_info == True:
+            flat_iterator_dic = self._flatten_dic(iterator_info_dic)
+            for key, value in flat_iterator_dic.items():
+                value_type = self._get_dtype(value)
+                value_shape = self._get_shape(value)
+                data_types_list.append((key, value_type, value_shape))
+                if value_type == 'f4' and value == None:
+                    values_list.append(np.nan)
+                else:
+                    values_list.append(value)
+        elif iterator_info_dic is not None:
+            #iterator_info_dic has the form {'pyton_scan_info':
+            value_type = self._get_dtype(iterator_info_dic)
+            value_shape = self._get_shape(iterator_info_dic)
+            data_types_list.append(('python_scan_info', value_type, value_shape))
+            values_list.append(iterator_info_dic)
 
         self.last_dtype_list = data_types_list
 
@@ -529,7 +547,7 @@ class matlab_saver():
         return differences
 
     def _get_dtype(self, value):
-        print('value type:', type(value))
+        #print('value type:', type(value))
         if isinstance(value, np.ndarray):
             return value.dtype
         elif isinstance(value, float) or isinstance(value, list):
@@ -542,6 +560,8 @@ class matlab_saver():
             return 'O' #matlab reconizes a boolean as its logical data type
         elif value is None:
             return 'f4' #if value is None will set as np.nan which is a float data type
+        elif isinstance(value, dict):
+            return 'O'
         else:
             print('Value type not recognized...Defaulting to object...May corrupt data')
             return 'O'
