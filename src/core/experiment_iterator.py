@@ -24,6 +24,7 @@ import inspect
 from src.core import helper_functions as hf
 import importlib
 from functools import reduce
+from src.core.helper_functions import matlab_saver
 
 import random
 from time import sleep
@@ -57,6 +58,23 @@ class ExperimentIterator(Experiment):
         self.iterator_type = self.get_iterator_type(self.settings, experiments)
 
         self._current_subexperiment_stage = None
+        self.iterator_level = 1 #for multi iterator experiments tracks how many iterator levels there is; value equal num layers below
+
+        '''print('self.experiments',self.experiments)
+        for key,value in self.experiments.items():
+            if hasattr(value, 'get_iterator_type'): #only itertaor classes have get_iterator_type method so this check if there are sub iterators
+                self.iterator_level += 1
+                print('Sub iterator detected')
+                sub_it_1 = value
+                print('Sub iterator experiments',sub_it_1.experiments.items())
+                for key, value in sub_it_1.experiments.items():
+                    if hasattr(value, 'get_iterator_type'):
+                        self.iterator_level += 1
+        print('iterator level',self.iterator_level)'''
+
+        self.iterator_level = self.detect_iterator_depth(self.experiments)
+        print('iterator level',self.iterator_level)
+
 
         self._skippable = True
 
@@ -89,6 +107,17 @@ class ExperimentIterator(Experiment):
                 raise TypeError('unknown iterator type')
 
         return iterator_type
+
+    def detect_iterator_depth(self, experiments, current_level=1):
+        max_level = current_level
+        for key, value in experiments.items():
+            if hasattr(value, 'get_iterator_type'):
+                print(f'Sub iterator detected at level {current_level}: {key}')
+                # Recurse into sub-experiments
+                sub_experiments = getattr(value, 'experiments', {})
+                sub_level = self.detect_iterator_depth(sub_experiments, current_level + 1)
+                max_level = max(max_level, sub_level)
+        return max_level
 
     def _function(self):
         '''
@@ -186,21 +215,22 @@ class ExperimentIterator(Experiment):
                         self.experiments[experiment_name].settings['tag'] = '{:s}_{:s}_{:0.3e}'.format(tag, parameter_name,value)
 
                         settings = self.experiments[experiment_name].settings
-                        print('current exp settings:', settings)
-                        self.matlab_settings.append(copy.deepcopy(settings))
+                        #self.matlab_settings.append(copy.deepcopy(settings))
 
                         self.experiments[experiment_name].run()
 
-                        self.experiments[experiment_name].data['python_scan_map'] = {'scan_parameter':parameter_name,'num_steps':len(param_values),'current_value':value}
+                        self.experiments[experiment_name].data['python'] = {'scan_parameter':parameter_name,'scan_current_value':value, 'scan_num_steps':len(param_values)}
                         data = self.experiments[experiment_name].data
-                        print('current exp data:', data)
-                        self.matlab_data.append(copy.deepcopy(data))
+                        #self.matlab_data.append(copy.deepcopy(data))
 
 
                         self.experiments[experiment_name].settings['tag'] = tag
                         previous_data = self.experiments[experiment_name].data
 
-                        print('mat data list:', self.matlab_data,'\n','mat settings list:', self.matlab_settings)
+                        #print('mat data list:', self.matlab_data,'\n','mat settings list:', self.matlab_settings)
+
+                #full_data = matlab_saver.get_structured_data()
+                #self.data = full_data
 
         elif self.iterator_type == 'loop':
 
