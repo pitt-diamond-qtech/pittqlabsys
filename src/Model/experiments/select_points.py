@@ -50,8 +50,11 @@ Experiment to select points on an image. The selected points are saved and can b
     def _function(self):
         """
         Waits until stopped to keep experiment live. Gui must handle calling of Toggle_NV function on mouse click.
+        If using with an experiment iterator use skip button to stop and go to next experiment
         """
-        self.log('!!! IF USING ExperimentIterator CLICK SelectPoints IN GUI EXPERIMENT TREE !!! IF NO IMAGE CLICK EXPERIMENT WITH IMAGE THEN SelectPoints !!!')
+        self.log('!!! IF USING ExperimentIterator CLICK SelectPoints IN GUI EXPERIMENT TREE !!!')
+        self.log('!!! IF NO IMAGE CLICK EXPERIMENT WITH IMAGE THEN SelectPoints !!!')
+        self.log('!!! In ExperimentIterator use skip button to finish SelectPoints !!!')
         self.data = {'nv_locations': [], 'image_data': None, 'extent': None, 'pt_indices': []}
         self.progress = 50
         self.updateProgress.emit(self.progress)
