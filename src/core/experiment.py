@@ -818,6 +818,8 @@ class Experiment(QObject):
             #other disallowed characters but not used in our naming schemes so checks as of now
         else:
             good_tag = tag
+        # add 'data_' to ensure field name does not start with a number
+        good_tag = 'data_' + good_tag
 
         mat_saver = MatlabSaver(tag=good_tag)
         mat_saver.add_experiment_data(self.data,self.settings)
