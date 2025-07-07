@@ -215,8 +215,6 @@ class ExperimentIterator(Experiment):
                         self.experiments[experiment_name].settings['tag'] = tag
                         previous_data = self.experiments[experiment_name].data
 
-            #print(self.settings['tag'],'data',self.data)
-
 
         elif self.iterator_type == 'loop':
 
@@ -423,66 +421,75 @@ class ExperimentIterator(Experiment):
         return loop_index
 
     def save_data_to_matlab(self, filename=None):
-        #does not include the settings of each iterator level as the important info is in the inherited scan info
-        def extract_data(dic, current_level, target_level, inherited_scan_info=None):
-            it_level_str = f'_iterator_{target_level-current_level+1}'
-            if inherited_scan_info is None:
-                inherited_scan_info = {}
-            result = []
-            for key, value in dic.items():
-                #sweep_1_y_1.000e+00:[{exp_1:[dic(data),dic(settings),dic(scan_params),'exp_2:[dic(data),dic(settings),dic(scan_params),'exp_3:[dic(data),dic(settings),dic(scan_params)]},
-                                     #dic(settings),dic(scan_params)
-                next_dic_level = value[0]
-                current_level_settings = value[1]
-                current_level_scan_info_raw = value[2]
+        if self.iterator_type == 'loop':
+            #for loop the experiment data is averaged so its structure is similar to a single experiment; default to normal behavior
+            Experiment.save_data_to_matlab(self)
 
-                scan_variable = current_level_scan_info_raw.get('scan_parameter' + it_level_str)
-                scan_var_current_value = current_level_scan_info_raw.get('scan_current_value' + it_level_str)
-                scan_var_all_values = current_level_scan_info_raw.get('scan_all_values' + it_level_str)
+        elif self.iterator_type == 'sweep': #for sweeps need more complex structure
+            #does not include the settings of each iterator level as the important info is in the inherited scan info
+            def extract_data(dic, current_level, target_level, inherited_scan_info=None):
+                it_level_str = f'_iterator_{target_level-current_level+1}'
+                if inherited_scan_info is None:
+                    inherited_scan_info = {}
+                result = []
+                for key, value in dic.items():
+                    #sweep_1_y_1.000e+00:[{exp_1:[dic(data),dic(settings),dic(scan_params),'exp_2:[dic(data),dic(settings),dic(scan_params),'exp_3:[dic(data),dic(settings),dic(scan_params)]},
+                                         #dic(settings),dic(scan_params)
+                    next_dic_level = value[0]
+                    current_level_settings = value[1]
+                    current_level_scan_info_raw = value[2]
 
-                updated_scan_info = dict(inherited_scan_info)
-                updated_scan_info['scan_parameter' + it_level_str] = scan_variable
-                updated_scan_info['scan_current_value' + it_level_str] = scan_var_current_value
-                updated_scan_info['scan_all_values' + it_level_str] = scan_var_all_values
+                    scan_variable = current_level_scan_info_raw.get('scan_parameter' + it_level_str)
+                    scan_var_current_value = current_level_scan_info_raw.get('scan_current_value' + it_level_str)
+                    scan_var_all_values = current_level_scan_info_raw.get('scan_all_values' + it_level_str)
 
-                if current_level < target_level:
+                    updated_scan_info = dict(inherited_scan_info)
+                    updated_scan_info['scan_parameter' + it_level_str] = scan_variable
+                    updated_scan_info['scan_current_value' + it_level_str] = scan_var_current_value
+                    updated_scan_info['scan_all_values' + it_level_str] = scan_var_all_values
 
-                    if isinstance(value, list) and isinstance(value[0], dict):
-                        result.extend(extract_data(next_dic_level, current_level+1, target_level, updated_scan_info))
-                    else:
-                        raise ValueError(f"In matlab saving: Unexpected structure at level {current_level}: {key} → {value}")
+                    if current_level < target_level:
 
-                elif current_level == target_level:
-                    if isinstance(value, list) and len(value) == 3:
+                        if isinstance(value, list) and isinstance(value[0], dict):
+                            result.extend(extract_data(next_dic_level, current_level+1, target_level, updated_scan_info))
+                        else:
+                            raise ValueError(f"In matlab saving: Unexpected structure at level {current_level}: {key} → {value}")
 
-                        result.append((next_dic_level, current_level_settings, updated_scan_info))
-                    else:
-                        raise ValueError(f"In matlab saving: Invalid leaf data at level {current_level}: {key} → {value}")
+                    elif current_level == target_level:
+                        if isinstance(value, list) and len(value) == 3:
 
-            return result
+                            result.append((next_dic_level, current_level_settings, updated_scan_info))
+                        else:
+                            raise ValueError(f"In matlab saving: Invalid leaf data at level {current_level}: {key} → {value}")
+
+                return result
 
 
-        if filename is None:
-            filename = self.filename('.mat')
-        filename = self.check_filename(filename)
+            if filename is None:
+                filename = self.filename('.mat')
+            filename = self.check_filename(filename)
 
-        tag = self.settings['tag']
-        if ' ' in tag or '.' in tag or '+' in tag or '-' in tag:
-            good_tag = tag.replace(' ', '_').replace('.', '_').replace('+', 'P').replace('-', 'M')
-            # matlab structs cant include spaces, dots, or plus/minus so replace with other characters
-            # other disallowed characters but not used in our naming schemes so checks as of now
+            tag = self.settings['tag']
+            if ' ' in tag or '.' in tag or '+' in tag or '-' in tag:
+                good_tag = tag.replace(' ', '_').replace('.', '_').replace('+', 'P').replace('-', 'M')
+                # matlab structs cant include spaces, dots, or plus/minus so replace with other characters
+                # other disallowed characters but not used in our naming schemes so checks as of now
+            else:
+                good_tag = tag
+            #add 'data_' to ensure field name does not start with a number
+            good_tag = 'data_' + good_tag
+
+            mat_saver = MatlabSaver(tag=good_tag)
+            data_tuples = extract_data(self.data, current_level=1, target_level=self.iterator_level)
+            #print('data_tuples',data_tuples)
+            for data, settings, combined_scan_info in data_tuples:
+                mat_saver.add_experiment_data(data, settings, iterator_info_dic=combined_scan_info)
+
+            structured_data = mat_saver.get_structured_data()
+            savemat(filename, structured_data)
+
         else:
-            good_tag = tag
-
-        mat_saver = MatlabSaver(tag=good_tag)
-
-        data_tuples = extract_data(self.data, current_level=1, target_level=self.iterator_level)
-        print('data_tuples',data_tuples)
-        for data, settings, combined_scan_info in data_tuples:
-            mat_saver.add_experiment_data(data, settings, iterator_info_dic=combined_scan_info)
-
-        structured_data = mat_saver.get_structured_data()
-        savemat(filename, structured_data)
+            raise TypeError('wrong iterator type')
 
     def plot(self, figure_list):
         '''
