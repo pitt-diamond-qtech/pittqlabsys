@@ -192,9 +192,10 @@ class ExperimentIterator(Experiment):
                         #for some experiments we want to inherit data from the previous experiment (for example NV locations from SelectPoints to use in say ODMR
                         #to use you want an inherit data parameter in the experiment settings. Could be expanded depending on use cases
                         if previous_data is not None:
-                            common_keys = self.experiment.data.keys() & previous_data.keys()
-                            for key in common_keys:
-                                self.experiment.data[key] = previous_data[key]
+                            if 'inherit_data' in self.experiments[experiment_name].settings and self.experiments[experiment_name].settings['inherit_data']:
+                                common_keys = self.experiments[experiment_name].data.keys() & previous_data.keys()
+                                for key in common_keys:
+                                    self.experiments[experiment_name].data[key] = previous_data[key]
 
                         # i+1 so first execution is mth loop, not first
                         self.log('starting {:s}'.format(experiment_name))
@@ -242,9 +243,9 @@ class ExperimentIterator(Experiment):
                         #to use you want an inherit data parameter in the experiment settings. Could be expanded depending on use cases
                         if previous_data is not None:
                             if 'inherit_data' in self.experiments[experiment_name].settings and self.experiments[experiment_name].settings['inherit_data']:
-                                common_keys = self.experiment.data.keys() & previous_data.keys()
+                                common_keys = self.experiments[experiment_name].data.keys() & previous_data.keys()
                                 for key in common_keys:
-                                    self.experiment.data[key] = previous_data[key]
+                                    self.experiments[experiment_name].data[key] = previous_data[key]
 
                         # i+1 so first execution is mth loop, not first
                         self.log('starting {:s} \t iteration {:d} of {:d}'.format(experiment_name, i + 1, num_loops))
@@ -422,6 +423,7 @@ class ExperimentIterator(Experiment):
         return loop_index
 
     def save_data_to_matlab(self, filename=None):
+        #does not include the settings of each iterator level as the important info is in the inherited scan info
         def extract_data(dic, current_level, target_level, inherited_scan_info=None):
             it_level_str = f'_iterator_{target_level-current_level+1}'
             if inherited_scan_info is None:
