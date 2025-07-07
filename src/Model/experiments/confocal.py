@@ -222,7 +222,7 @@ class ConfocalScan_Fast(Experiment):
             y_pos_cropped = list(y_pos_array[lower_index[0]:upper_index[0]])
 
             #y_data.extend(y_pos_cropped)
-            y_data.extend(list(y_pos))
+            y_data.append(list(y_pos))
             self.data['y_pos'] = y_data
             self.adw.update({'process_2':{'running':False}})
 
@@ -249,10 +249,10 @@ class ConfocalScan_Fast(Experiment):
             cropped_raw_counts = list(raw_counts[crop_index:crop_index + len(y_array)])
             cropped_count_rate = count_rate[crop_index:crop_index + len(y_array)]
 
-            raw_count_data.extend(cropped_raw_counts)
+            raw_count_data.append(cropped_raw_counts)
             self.data['raw_counts'] = raw_count_data
 
-            count_rate_data.extend(cropped_count_rate)
+            count_rate_data.append(cropped_count_rate)
             self.data['count_rate'] = count_rate_data
 
             #adds count rate data to raw img and cropped count img
@@ -271,17 +271,14 @@ class ConfocalScan_Fast(Experiment):
 
         print('Data collected')
         self.data['x_pos'] = x_data
-        self.data['y_pos'] = y_data
-        self.data['raw_counts'] = raw_count_data
-        self.data['count_rate'] = count_rate_data
+        self.data['y_pos'] = np.array(y_data)
+        self.data['raw_counts'] = np.array(raw_count_data)
+        self.data['count_rate'] = np.array(count_rate_data)
         #print('Position Data: ','\n',self.data['x_pos'],'\n',self.data['y_pos'],'\n','Max x: ',np.max(self.data['x_pos']),'Max y: ',np.max(self.data['y_pos']))
         #print('Counts: ','\n',self.count_data)
         #print('All data: ',self.data)
 
         self.after_scan()
-
-        for key, value in self.data.items():
-            print(f'{key} data shape:',np.shape(value))
 
     def _plot(self, axes_list, data=None):
         '''
