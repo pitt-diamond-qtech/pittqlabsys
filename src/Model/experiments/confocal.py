@@ -246,7 +246,7 @@ class ConfocalScan_Fast(Experiment):
             crop_index = -index_mode - 1 - index_diff
             if self.settings['time_per_pt'] == 5.0:
                 crop_index = crop_index-2
-            cropped_raw_counts = list(raw_counts[crop_index::crop_index + len(y_array)])
+            cropped_raw_counts = list(raw_counts[crop_index:crop_index + len(y_array)])
             cropped_count_rate = count_rate[crop_index:crop_index + len(y_array)]
 
             raw_count_data.extend(cropped_raw_counts)
@@ -279,6 +279,9 @@ class ConfocalScan_Fast(Experiment):
         #print('All data: ',self.data)
 
         self.after_scan()
+
+        for key, value in self.data.items():
+            print(f'{key} data shape:',np.shape(value))
 
     def _plot(self, axes_list, data=None):
         '''
