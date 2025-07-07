@@ -476,6 +476,7 @@ class ConfocalScan_Slow(Experiment):
         self.x_inital = self.nd.read_probes('x_pos')
         self.y_inital = self.nd.read_probes('y_pos')
         self.z_inital = self.nd.read_probes('z_pos')
+        self.settings['z_pos'] = self.z_inital
 
         #makes sure data is getting recorded. If still equal none after running experiment data is not being stored or measured
         self.data['x_pos'] = None
