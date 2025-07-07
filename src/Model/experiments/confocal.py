@@ -310,9 +310,12 @@ class ConfocalScan_Fast(Experiment):
         if data is None:
             data = self.data
         if data is not None or data is not {}:
-
             #for colorbar to display graident without artificial zeros
-            non_zero_values = data['count_img'][data['count_img'] > 0]
+            try: #sometimes when data is inputted as argument it does not have 'count_img' key; this try/except prevents error if that happens
+                non_zero_values = data['count_img'][data['count_img'] > 0]
+            except KeyError:
+                data['count_img'] = self.data['count_img']
+                non_zero_values = data['count_img'][data['count_img'] > 0]
             if non_zero_values.size > 0:
                 min = np.min(non_zero_values)
             else: #if else to aviod ValueError
