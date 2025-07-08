@@ -510,10 +510,11 @@ class MatlabSaver:
             if len(new_data_types_list) != len(self.last_dtype_list):
                 raise ValueError("Mismatch in data field count between experiments.")
 
-            #self._adjust_previous_data(new_data_types_list)
             print('Variable data sizes..Changing shape of previous data')
-            print('Current dtype:',new_data_types_list,' Previous dtype:',self.all_dtype_list[-1])
-            index_of_diff_tups = []
+            self._adjust_previous_data_shape(new_data_types_list)
+
+            #print('Current dtype:',new_data_types_list,' Previous dtype:',self.all_dtype_list[-1])
+            '''index_of_diff_tups = []
             differences = []
             new_shape_list = []
             for i in range(len(new_data_types_list)):
@@ -543,7 +544,7 @@ class MatlabSaver:
                     print('old data:', old_exp_data,'\n','data to reshape:', data_to_reshape)
                     new_data = self._embed_array(data_to_reshape, new_shape_list[index])
                     print('new data:', new_data)
-                    self.all_values_list[j][element] = new_data
+                    self.all_values_list[j][element] = new_data'''
 
 
         self.last_dtype_list = new_data_types_list
@@ -581,11 +582,11 @@ class MatlabSaver:
             return structured_data
 
     def _adjust_previous_data_shape(self, new_data_types_list):
-        print('Variable data sizes..Changing shape of previous data')
         #print('Current dtype:', new_data_types_list, ' Previous dtype:', self.all_dtype_list[-1])
         index_of_diff_tups = []
         differences = []
         new_shape_list = []
+
         for i in range(len(new_data_types_list)):
             diff = self._compare_tuples(new_data_types_list[i], self.last_dtype_list[i])
             if diff:
@@ -600,19 +601,20 @@ class MatlabSaver:
                         print('different data shapes..changing shape of previous data')
                         new_shape = self._highest_common_shape(d[1], d[2])
                         new_shape_list.append(new_shape)
-                        print('new shape:', new_shape)
+                        #print('new shape:', new_shape)
 
-        print(index_of_diff_tups)
-        print(new_shape_list)
+        #print(index_of_diff_tups)
+        #print(new_shape_list)
+
         for index, element in enumerate(index_of_diff_tups):
             # want the index of each element in index_of_diff_tupes since it corresponds to same index in new_shape_list
             # want element as that is the index of experiment data in all_values_list that needs changed
             for j, exp_data in enumerate(self.all_values_list):
                 old_exp_data = exp_data
                 data_to_reshape = old_exp_data[element]
-                print('old data:', old_exp_data, '\n', 'data to reshape:', data_to_reshape)
+                #print('old data:', old_exp_data, '\n', 'data to reshape:', data_to_reshape)
                 new_data = self._embed_array(data_to_reshape, new_shape_list[index])
-                print('new data:', new_data)
+                #print('new data:', new_data)
                 self.all_values_list[j][element] = new_data
 
     def _compare_tuples(self, a, b):
