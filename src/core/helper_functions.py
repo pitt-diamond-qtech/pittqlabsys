@@ -436,7 +436,6 @@ class MatlabSaver:
         self.largest_dtype_shapes = []
 
         self.last_dtype_list = None
-        self.got_dtype = False
 
         self.experiment_tuples = [] #stores a tuple with experiment data and settings for each experiment
 
@@ -530,6 +529,15 @@ class MatlabSaver:
         return values_list, new_data_types_list
 
     def get_structured_data(self, return_array=False):
+        '''
+        Structures the values (self.all_values_list) and data type (self.last_dtype_list) as calculated by the add_experiment_data function
+        to be compabile with matlab as a 1xn struct.
+        Args:
+            return_array: if you want the numpy array instead of the array added to a dictionary
+
+        Returns:
+            structured_data suitable for saving to matlab with scipy.io's savemat function
+        '''
         if self.last_dtype_list is None:
             raise ValueError('Data type list has not been created')
         if self.all_values_list == []:
@@ -539,15 +547,6 @@ class MatlabSaver:
         for i in range(len(self.all_values_list)):
             list_of_value_list_tuples.append(tuple(self.all_values_list[i]))
 
-
-        '''for k, row in enumerate(list_of_value_list_tuples):
-            if len(row) != len(self.last_dtype_list):
-                print(f"Row {k} has length {len(row)} — expected {len(self.last_dtype_list)}")
-            else:
-                print(f"Row {k} is good")'''
-
-        #print('len list_of_value_list_tuples:', len(list_of_value_list_tuples), 'len self.last_dtype_list', len(self.last_dtype_list))
-        #print(list_of_value_list_tuples, self.last_dtype_list)
         final_array = np.array(list_of_value_list_tuples, dtype=self.last_dtype_list)
         if return_array:  # for more complex shapes may want to get array to use in another function
             return final_array
@@ -556,53 +555,24 @@ class MatlabSaver:
             return structured_data
 
     def _adjust_previous_data_shape(self, new_data_types_list):
+        '''
+        Goes through the experiment data values pertaining to each data type and reshapes if their shape does not match the largest.
+        Only runs if the new inputted data types do not match the previous data types.
+            - Does not check for name and variable type; those should be the same for sweeping a single experiment.
+        Args:
+            new_data_types_list: data type list of newly added data
+        '''
         #print('Current dtype:', new_data_types_list, ' Previous dtype:', self.all_dtype_list[-1])
-        index_of_diff_tups = []
-        differences = []
-        new_shape_list = []
 
         for i in range(len(new_data_types_list)):
             target_shape = self.largest_dtype_shapes[i]
             for j, exp_data in enumerate(self.all_values_list):
                 current_shape = self._get_shape(exp_data[i])
                 if current_shape != target_shape:
-                    print(f"Reshaping data at [{j}][{i}] from {current_shape} to {target_shape}")
+                    #print(f"Reshaping data at [{j}][{i}] from {current_shape} to {target_shape}")
                     new_data = self._embed_array(exp_data[i], target_shape)
                     self.all_values_list[j][i] = new_data
-            '''diff = self._compare_tuples(new_data_types_list[i], self.last_dtype_list[i])
-            if diff:
-                for d in diff:
-                    differences.append(d)
-                    index_of_diff_tups.append(i)
-                    if d[0] == 0:
-                        print('different data names...this should not be happening')
-                    elif d[0] == 1:
-                        print('different data types...ideally should not happen')
-                    elif d[0] == 2:
-                        print('different data shapes..changing shape of previous data')
-                        previous_largest_shape = self.largest_dtype_shapes[i]
 
-                        new_shape_0 = self._highest_common_shape(d[1], previous_largest_shape)
-                        new_shape = self._highest_common_shape(d[2], new_shape_0)
-
-                        new_shape_list.append(new_shape)
-                        self.largest_dtype_shapes[i] = new_shape
-                        #print('new shape:', new_shape)
-
-        #print(index_of_diff_tups)
-        #print(new_shape_list)
-
-        for index, element in enumerate(index_of_diff_tups):
-            # want the index of each element in index_of_diff_tupes since it corresponds to same index in new_shape_list
-            # want element as that is the index of experiment data in all_values_list that needs changed
-            for j, exp_data in enumerate(self.all_values_list):
-                old_exp_data = exp_data
-                data_to_reshape = old_exp_data[element]
-                #print('old data:', old_exp_data, '\n', 'data to reshape:', data_to_reshape)
-                new_data = self._embed_array(data_to_reshape, new_shape_list[index])
-                #print('new data:', new_data)
-                self.all_values_list[j][element] = new_data
-'''
     def _update_largest_dtype_shapes(self, field_shapes):
         """
         Update the stored largest shape for each field based on a new list of shapes.
@@ -622,6 +592,17 @@ class MatlabSaver:
                 self.largest_dtype_shapes[i] = new_largest
 
     def _compare_tuples(self, a, b):
+        '''
+        Compares two tuples and returns a list of tuples with differences
+        Args:
+            a: 1st tuple
+            b: 2nd tuple
+
+        Returns:
+            differences: list of tuples [(index of differnece, 1st tup value, 2nd tup value),...]
+
+        With current logic not used
+        '''
         if len(a) != len(b):
             raise ValueError("Tuples must have the same length")
 
@@ -643,6 +624,9 @@ class MatlabSaver:
         return differences
 
     def _get_dtype(self, value):
+        '''
+        Checks the variable type and returns the corresponding dtype string suitable for matlab
+        '''
         #print('value type:', type(value))
         if isinstance(value, np.ndarray):
             return value.dtype
@@ -663,6 +647,9 @@ class MatlabSaver:
             return 'O'
 
     def _get_shape(self, value):
+        '''
+        Checks the variable shape and returns the corresponding dtype shape suitable for matlab
+        '''
         if isinstance(value, np.ndarray):
             return value.shape
         elif isinstance(value, (list, tuple)):
@@ -674,7 +661,17 @@ class MatlabSaver:
             return ()
 
     def _flatten_dic(self, d, parent_key='', sep='_'):
-        """Flattens a nested dictionary into a single-layer dictionary with joined keys."""
+        '''
+        Flattens a nested dictionary into a single-layer dictionary with joined keys.
+
+        Args:
+            d: the dictionary to flatten
+            parent_key: used for recursion
+            sep: the sperator between strung together keys
+
+        Returns:
+            the flattened dictionary
+        '''
         items = {}
         for k, v in d.items():
             new_key = f"{parent_key}{sep}{k}" if parent_key else str(k)
@@ -685,7 +682,7 @@ class MatlabSaver:
         return items
 
     def _embed_array(self, small, target_shape, fill_value=np.nan, center=False):
-        """
+        '''
         Embed a smaller array into a larger array of target_shape.
 
         Parameters:
@@ -696,9 +693,7 @@ class MatlabSaver:
 
         Returns:
             np.ndarray – The larger array with the small array embedded
-
-        FUNCTION WRITTEN BY AI! NEEDS TESTED!
-        """
+        '''
         small = np.asarray(small)
         target_shape = tuple(target_shape)
 
@@ -721,11 +716,13 @@ class MatlabSaver:
         return result
 
     def _highest_common_shape(self, shape1, shape2):
-        """
-        Returns the element-wise maximum shape when right-aligning the two input shapes.
+        '''
+        Gets the largest common shape between two arrays.
+        Works for any number of dimensions.
 
-        FUNCTION WRITTEN BY AI! NEED TESTED!
-        """
+        Returns:
+            largest shape as a tuple ex: (10,) or (40,40)
+        '''
         # Convert to tuples (in case input is a NumPy array's shape)
         shape1 = tuple(shape1)
         shape2 = tuple(shape2)
