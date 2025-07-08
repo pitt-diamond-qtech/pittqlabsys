@@ -24,6 +24,7 @@ import pkgutil
 import numpy as np
 import h5py
 from pyparsing import empty
+from sympy.codegen import Print
 
 
 def get_project_root() -> Path:  # new feature in Python 3.x i.e. annotations
@@ -449,18 +450,20 @@ class MatlabSaver:
             value_list: List of values that can be made into an array for saving
             dtype_list: List of dtype touples for numpy array
         '''
+        print('adding experiment data if this prints and GUI crashes this method is at fault')
         #ensure the inputs are dictionaries
         data_dic = dict(data_dic)
         settings_dic = dict(settings_dic)
         #list to store dictionary values
         values_list = []
-        data_types_list = []
+        new_data_types_list = []
 
         flat_data_dic = self._flatten_dic(data_dic)
         for key,value in flat_data_dic.items():
+            #goes through each key and value in flattened data dictionary and gets datatype of each
             value_type = self._get_dtype(value)
             value_shape = self._get_shape(value)
-            data_types_list.append((key, value_type, value_shape))
+            new_data_types_list.append((key, value_type, value_shape))
 
             if value_type == 'f4' and value == None:
                 values_list.append(np.nan)
@@ -470,17 +473,19 @@ class MatlabSaver:
         if flatten_settings:
             flat_settings_dic = self._flatten_dic(settings_dic)
             for key, value in flat_settings_dic.items():
+                # goes through each key and value in flattend settings dictionary and gets datatype of each
                 value_type = self._get_dtype(value)
                 value_shape = self._get_shape(value)
-                data_types_list.append((key, value_type, value_shape))
+                new_data_types_list.append((key, value_type, value_shape))
                 if value_type == 'f4' and value == None:
                     values_list.append(np.nan)
                 else:
                     values_list.append(value)
         else:
+            #if not flattening settings will be contained in a 1x1 struct and we just need to append 1 data type
             value_type = self._get_dtype(settings_dic)
             value_shape = self._get_shape(settings_dic)
-            data_types_list.append(('settings', value_type, value_shape))
+            new_data_types_list.append(('settings', value_type, value_shape))
             values_list.append(settings_dic)
 
         #for experiment iterators we want to know the sweep parameters; the iterator_info_dic is inputted similar to settings with optional flattening
@@ -489,24 +494,65 @@ class MatlabSaver:
             for key, value in flat_iterator_dic.items():
                 value_type = self._get_dtype(value)
                 value_shape = self._get_shape(value)
-                data_types_list.append((key, value_type, value_shape))
+                new_data_types_list.append((key, value_type, value_shape))
                 if value_type == 'f4' and value == None:
                     values_list.append(np.nan)
                 else:
                     values_list.append(value)
         elif iterator_info_dic is not None:
-            #iterator_info_dic has the form {'pyton_scan_info':
+            #iterator_info_dic has the form {'scan_param_it_#':'name','scan_current_val_it_#':value,'scan_all_vals_it_#:[...]}
             value_type = self._get_dtype(iterator_info_dic)
             value_shape = self._get_shape(iterator_info_dic)
-            data_types_list.append(('python_scan_info', value_type, value_shape))
+            new_data_types_list.append(('python_scan_info', value_type, value_shape))
             values_list.append(iterator_info_dic)
 
-        self.last_dtype_list = data_types_list
+        if self.last_dtype_list is not None and new_data_types_list != self.last_dtype_list:
+            if len(new_data_types_list) != len(self.last_dtype_list):
+                raise ValueError("Mismatch in data field count between experiments.")
 
-        self.all_dtype_list.append(data_types_list)
+            #self._adjust_previous_data(new_data_types_list)
+            print('Variable data sizes..Changing shape of previous data')
+            print('Current dtype:',new_data_types_list,' Previous dtype:',self.all_dtype_list[-1])
+            index_of_diff_tups = []
+            differences = []
+            new_shape_list = []
+            for i in range(len(new_data_types_list)):
+                diff = self._compare_tuples(new_data_types_list[i], self.last_dtype_list[i])
+                if diff:
+                    for d in diff:
+                        differences.append(d)
+                        index_of_diff_tups.append(i)
+                        if d[0] == 0:
+                            print('different data names...this should not be happening')
+                        elif d[0] == 1:
+                            print('different data types...ideally should not happen')
+                        elif d[0] == 2:
+                            print('different data shapes..changing shape of previous data')
+                            new_shape = self._highest_common_shape(d[1],d[2])
+                            new_shape_list.append(new_shape)
+                            print('new shape:',new_shape)
+
+            print(index_of_diff_tups)
+            print(new_shape_list)
+            for index, element in enumerate(index_of_diff_tups):
+                #want the index of each element in index_of_diff_tupes since it corresponds to same index in new_shape_list
+                #want element as that is the index of experiment data in all_values_list that needs changed
+                for j, exp_data in enumerate(self.all_values_list):
+                    old_exp_data = exp_data
+                    data_to_reshape = old_exp_data[element]
+                    print('old data:', old_exp_data,'\n','data to reshape:', data_to_reshape)
+                    new_data = self._embed_array(data_to_reshape, new_shape_list[index])
+                    print('new data:', new_data)
+                    self.all_values_list[j][element] = new_data
+
+
+        self.last_dtype_list = new_data_types_list
+
+        self.all_dtype_list.append(new_data_types_list)
+        #all_values_list elements are all lists ie the values_list from each experiment
         self.all_values_list.append(values_list)
 
-        return values_list, data_types_list
+        return values_list, new_data_types_list
 
     def get_structured_data(self, return_array=False):
         if self.last_dtype_list is None:
@@ -518,12 +564,56 @@ class MatlabSaver:
         for i in range(len(self.all_values_list)):
             list_of_value_list_tuples.append(tuple(self.all_values_list[i]))
 
+
+        '''for k, row in enumerate(list_of_value_list_tuples):
+            if len(row) != len(self.last_dtype_list):
+                print(f"Row {k} has length {len(row)} — expected {len(self.last_dtype_list)}")
+            else:
+                print(f"Row {k} is good")'''
+
+        #print('len list_of_value_list_tuples:', len(list_of_value_list_tuples), 'len self.last_dtype_list', len(self.last_dtype_list))
+        #print(list_of_value_list_tuples, self.last_dtype_list)
         final_array = np.array(list_of_value_list_tuples, dtype=self.last_dtype_list)
         if return_array:  # for more complex shapes may want to get array to use in another function
             return final_array
         else:
             structured_data = {self.tag: final_array}
             return structured_data
+
+    def _adjust_previous_data_shape(self, new_data_types_list):
+        print('Variable data sizes..Changing shape of previous data')
+        #print('Current dtype:', new_data_types_list, ' Previous dtype:', self.all_dtype_list[-1])
+        index_of_diff_tups = []
+        differences = []
+        new_shape_list = []
+        for i in range(len(new_data_types_list)):
+            diff = self._compare_tuples(new_data_types_list[i], self.last_dtype_list[i])
+            if diff:
+                for d in diff:
+                    differences.append(d)
+                    index_of_diff_tups.append(i)
+                    if d[0] == 0:
+                        print('different data names...this should not be happening')
+                    elif d[0] == 1:
+                        print('different data types...ideally should not happen')
+                    elif d[0] == 2:
+                        print('different data shapes..changing shape of previous data')
+                        new_shape = self._highest_common_shape(d[1], d[2])
+                        new_shape_list.append(new_shape)
+                        print('new shape:', new_shape)
+
+        print(index_of_diff_tups)
+        print(new_shape_list)
+        for index, element in enumerate(index_of_diff_tups):
+            # want the index of each element in index_of_diff_tupes since it corresponds to same index in new_shape_list
+            # want element as that is the index of experiment data in all_values_list that needs changed
+            for j, exp_data in enumerate(self.all_values_list):
+                old_exp_data = exp_data
+                data_to_reshape = old_exp_data[element]
+                print('old data:', old_exp_data, '\n', 'data to reshape:', data_to_reshape)
+                new_data = self._embed_array(data_to_reshape, new_shape_list[index])
+                print('new data:', new_data)
+                self.all_values_list[j][element] = new_data
 
     def _compare_tuples(self, a, b):
         if len(a) != len(b):
@@ -543,7 +633,7 @@ class MatlabSaver:
                 first_tup_val = x
                 second_tup_val = y
                 differences.append((index, first_tup_val, second_tup_val))
-        print('tuple differences:',differences)
+        #print('tuple differences:',differences)
         return differences
 
     def _get_dtype(self, value):
@@ -601,7 +691,7 @@ class MatlabSaver:
         Returns:
             np.ndarray – The larger array with the small array embedded
 
-        FUNCTION WRITTEN BY AI! NEED TESTED!
+        FUNCTION WRITTEN BY AI! NEEDS TESTED!
         """
         small = np.asarray(small)
         target_shape = tuple(target_shape)
@@ -651,7 +741,7 @@ if __name__ == '__main__':
     a = ('random data', '<f8', (3,))
     b = ('random data', '<f8', (5,))
 
-    matlab_saver = matlab_saver()
+    matlab_saver = MatlabSaver()
     dif = matlab_saver._compare_tuples(a,b)
 
     for i in range(len(dif)):
