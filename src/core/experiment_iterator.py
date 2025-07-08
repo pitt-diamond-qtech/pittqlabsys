@@ -519,7 +519,8 @@ class ExperimentIterator(Experiment):
 
             # catch error is _plot function doens't take optional data argument
             try:
-                last_experiment._plot(axes_list, self.data)
+                #new structure of iterator data so just default to use last experiments data dic instead of the iterators data dic
+                last_experiment._plot(axes_list)#, self.data)
             except TypeError as err:
                 print((warnings.warn(
                     'can\'t plot average experiment data because experiment.plot function doens\'t take data as optional argument. Plotting last data set instead')))
