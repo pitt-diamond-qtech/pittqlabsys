@@ -433,6 +433,7 @@ class MatlabSaver:
         #list to be populated by add_experiment_data method to check shape and alter data if needed
         self.all_dtype_list = []
         self.all_values_list = []
+        self.largest_dtype_shapes = []
 
         self.last_dtype_list = None
         self.got_dtype = False
@@ -450,19 +451,20 @@ class MatlabSaver:
             value_list: List of values that can be made into an array for saving
             dtype_list: List of dtype touples for numpy array
         '''
-        print('adding experiment data if this prints and GUI crashes this method is at fault')
         #ensure the inputs are dictionaries
         data_dic = dict(data_dic)
         settings_dic = dict(settings_dic)
         #list to store dictionary values
         values_list = []
         new_data_types_list = []
+        field_shapes = []
 
         flat_data_dic = self._flatten_dic(data_dic)
         for key,value in flat_data_dic.items():
             #goes through each key and value in flattened data dictionary and gets datatype of each
             value_type = self._get_dtype(value)
             value_shape = self._get_shape(value)
+            field_shapes.append(value_shape)
             new_data_types_list.append((key, value_type, value_shape))
 
             if value_type == 'f4' and value == None:
@@ -476,6 +478,7 @@ class MatlabSaver:
                 # goes through each key and value in flattend settings dictionary and gets datatype of each
                 value_type = self._get_dtype(value)
                 value_shape = self._get_shape(value)
+                field_shapes.append(value_shape)
                 new_data_types_list.append((key, value_type, value_shape))
                 if value_type == 'f4' and value == None:
                     values_list.append(np.nan)
@@ -485,6 +488,7 @@ class MatlabSaver:
             #if not flattening settings will be contained in a 1x1 struct and we just need to append 1 data type
             value_type = self._get_dtype(settings_dic)
             value_shape = self._get_shape(settings_dic)
+            field_shapes.append(value_shape)
             new_data_types_list.append(('settings', value_type, value_shape))
             values_list.append(settings_dic)
 
@@ -494,6 +498,7 @@ class MatlabSaver:
             for key, value in flat_iterator_dic.items():
                 value_type = self._get_dtype(value)
                 value_shape = self._get_shape(value)
+                field_shapes.append(value_shape)
                 new_data_types_list.append((key, value_type, value_shape))
                 if value_type == 'f4' and value == None:
                     values_list.append(np.nan)
@@ -503,9 +508,11 @@ class MatlabSaver:
             #iterator_info_dic has the form {'scan_param_it_#':'name','scan_current_val_it_#':value,'scan_all_vals_it_#:[...]}
             value_type = self._get_dtype(iterator_info_dic)
             value_shape = self._get_shape(iterator_info_dic)
+            field_shapes.append(value_shape)
             new_data_types_list.append(('python_scan_info', value_type, value_shape))
             values_list.append(iterator_info_dic)
 
+        self._update_largest_dtype_shapes(field_shapes) #update before checking data size so largest shapes are already calculated
         if self.last_dtype_list is not None and new_data_types_list != self.last_dtype_list:
             if len(new_data_types_list) != len(self.last_dtype_list):
                 raise ValueError("Mismatch in data field count between experiments.")
@@ -513,44 +520,11 @@ class MatlabSaver:
             print('Variable data sizes..Changing shape of previous data')
             self._adjust_previous_data_shape(new_data_types_list)
 
-            #print('Current dtype:',new_data_types_list,' Previous dtype:',self.all_dtype_list[-1])
-            '''index_of_diff_tups = []
-            differences = []
-            new_shape_list = []
-            for i in range(len(new_data_types_list)):
-                diff = self._compare_tuples(new_data_types_list[i], self.last_dtype_list[i])
-                if diff:
-                    for d in diff:
-                        differences.append(d)
-                        index_of_diff_tups.append(i)
-                        if d[0] == 0:
-                            print('different data names...this should not be happening')
-                        elif d[0] == 1:
-                            print('different data types...ideally should not happen')
-                        elif d[0] == 2:
-                            print('different data shapes..changing shape of previous data')
-                            new_shape = self._highest_common_shape(d[1],d[2])
-                            new_shape_list.append(new_shape)
-                            print('new shape:',new_shape)
-
-            print(index_of_diff_tups)
-            print(new_shape_list)
-            for index, element in enumerate(index_of_diff_tups):
-                #want the index of each element in index_of_diff_tupes since it corresponds to same index in new_shape_list
-                #want element as that is the index of experiment data in all_values_list that needs changed
-                for j, exp_data in enumerate(self.all_values_list):
-                    old_exp_data = exp_data
-                    data_to_reshape = old_exp_data[element]
-                    print('old data:', old_exp_data,'\n','data to reshape:', data_to_reshape)
-                    new_data = self._embed_array(data_to_reshape, new_shape_list[index])
-                    print('new data:', new_data)
-                    self.all_values_list[j][element] = new_data'''
-
-
         self.last_dtype_list = new_data_types_list
 
+        #all_dtype_list elements are lists ie the origonal data_types_list from each experiment
         self.all_dtype_list.append(new_data_types_list)
-        #all_values_list elements are all lists ie the values_list from each experiment
+        #all_values_list elements are lists ie the values_list from each experiment
         self.all_values_list.append(values_list)
 
         return values_list, new_data_types_list
@@ -588,7 +562,14 @@ class MatlabSaver:
         new_shape_list = []
 
         for i in range(len(new_data_types_list)):
-            diff = self._compare_tuples(new_data_types_list[i], self.last_dtype_list[i])
+            target_shape = self.largest_dtype_shapes[i]
+            for j, exp_data in enumerate(self.all_values_list):
+                current_shape = self._get_shape(exp_data[i])
+                if current_shape != target_shape:
+                    print(f"Reshaping data at [{j}][{i}] from {current_shape} to {target_shape}")
+                    new_data = self._embed_array(exp_data[i], target_shape)
+                    self.all_values_list[j][i] = new_data
+            '''diff = self._compare_tuples(new_data_types_list[i], self.last_dtype_list[i])
             if diff:
                 for d in diff:
                     differences.append(d)
@@ -599,8 +580,13 @@ class MatlabSaver:
                         print('different data types...ideally should not happen')
                     elif d[0] == 2:
                         print('different data shapes..changing shape of previous data')
-                        new_shape = self._highest_common_shape(d[1], d[2])
+                        previous_largest_shape = self.largest_dtype_shapes[i]
+
+                        new_shape_0 = self._highest_common_shape(d[1], previous_largest_shape)
+                        new_shape = self._highest_common_shape(d[2], new_shape_0)
+
                         new_shape_list.append(new_shape)
+                        self.largest_dtype_shapes[i] = new_shape
                         #print('new shape:', new_shape)
 
         #print(index_of_diff_tups)
@@ -616,6 +602,24 @@ class MatlabSaver:
                 new_data = self._embed_array(data_to_reshape, new_shape_list[index])
                 #print('new data:', new_data)
                 self.all_values_list[j][element] = new_data
+'''
+    def _update_largest_dtype_shapes(self, field_shapes):
+        """
+        Update the stored largest shape for each field based on a new list of shapes.
+        Expands self.largest_dtype_shapes as needed and updates any field whose shape grew.
+
+        Args:
+            field_shapes (List[Tuple]): A list of shapes (tuples), one for each field.
+        """
+        for i, shape in enumerate(field_shapes):
+            if i >= len(self.largest_dtype_shapes):
+                # First time seeing this field, just append
+                self.largest_dtype_shapes.append(shape)
+            else:
+                # Update to largest shape seen so far
+                current_largest = self.largest_dtype_shapes[i]
+                new_largest = self._highest_common_shape(current_largest, shape)
+                self.largest_dtype_shapes[i] = new_largest
 
     def _compare_tuples(self, a, b):
         if len(a) != len(b):
