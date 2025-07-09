@@ -289,7 +289,7 @@ class MatlabSaver:
         self.all_values_list = []
         self.largest_dtype_shapes = []
 
-        self.last_dtype_list = None
+        self.final_dtype_list = None
 
         self.experiment_tuples = [] #stores a tuple with experiment data and settings for each experiment
 
@@ -366,27 +366,25 @@ class MatlabSaver:
             values_list.append(iterator_info_dic)
 
         self._update_largest_dtype_shapes(field_shapes) #update before checking data size so largest shapes are already calculated
-        self._update_final_dtype_list(new_data_types_list) #updates the final dtype list pasted to save function to have largest shapes
 
-        if self.last_dtype_list is not None and new_data_types_list != self.last_dtype_list:
-            if len(new_data_types_list) != len(self.last_dtype_list):
+        # all_dtype_list elements are lists ie the origonal data_types_list from each experiment
+        self.all_dtype_list.append(new_data_types_list)
+        # all_values_list elements are lists ie the values_list from each experiment
+        self.all_values_list.append(values_list)
+
+        if self.final_dtype_list is not None and new_data_types_list != self.final_dtype_list:
+            if len(new_data_types_list) != len(self.final_dtype_list):
                 raise ValueError("Mismatch in data field count between experiments.")
-
             #print('Variable data sizes..Changing shape of previous data')
             self._adjust_previous_data_shape(new_data_types_list)
 
-        self.last_dtype_list = new_data_types_list
-
-        #all_dtype_list elements are lists ie the origonal data_types_list from each experiment
-        self.all_dtype_list.append(new_data_types_list)
-        #all_values_list elements are lists ie the values_list from each experiment
-        self.all_values_list.append(values_list)
+        self._update_final_dtype_list(new_data_types_list)  # updates the final dtype list pasted to save function to have largest shapes
 
         return values_list, new_data_types_list
 
     def get_structured_data(self, return_array=False, verbose=False):
         '''
-        Structures the values (self.all_values_list) and data type (self.last_dtype_list) as calculated by the add_experiment_data function
+        Structures the values (self.all_values_list) and data type (self.final_dtype_list) as calculated by the add_experiment_data function
         to be compabile with matlab as a 1xn struct.
         Args:
             return_array: if you want the numpy array instead of the array added to a dictionary
@@ -394,7 +392,7 @@ class MatlabSaver:
         Returns:
             structured_data suitable for saving to matlab with scipy.io's savemat function
         '''
-        if self.last_dtype_list is None:
+        if self.final_dtype_list is None:
             raise ValueError('Data type list has not been created')
         if self.all_values_list == []:
             raise ValueError('Values list is empty!')
@@ -406,7 +404,9 @@ class MatlabSaver:
         if verbose: #print which rows of data do not match the dtype
             for i, row in enumerate(list_of_value_list_tuples):
                 if len(row) != len(self.final_dtype_list):
-                    print(f"Row {i} has length {len(row)}; expected {len(self.final_dtype_list)}")
+                    print(f"Row {i} length mismatch: {len(row)} vs expected {len(self.final_dtype_list)}")
+                    print("Row data:", row)
+                    print("Expected dtype keys:", [t[0] for t in self.final_dtype_list])
                 else:
                     print(f"Row {i} OK (length {len(row)})")
 
@@ -418,7 +418,7 @@ class MatlabSaver:
             return structured_data
         #unsure if savemat function has a size limit but I have tested up to 2MB and it works fine
 
-    def _adjust_previous_data_shape(self, new_data_types_list):
+    def _adjust_previous_data_shape(self, new_data_types_list, verbose=True):
         '''
         Goes through the experiment data values pertaining to each data type and reshapes if their shape does not match the largest.
         Only runs if the new inputted data types do not match the previous data types.
@@ -433,7 +433,8 @@ class MatlabSaver:
             for j, exp_data in enumerate(self.all_values_list):
                 current_shape = self._get_shape(exp_data[i])
                 if current_shape != target_shape:
-                    #print(f"Reshaping data at [{j}][{i}] from {current_shape} to {target_shape}")
+                    if verbose:
+                        print(f"Reshaping row {j}, field {i}, from {current_shape} to {target_shape}")
                     new_data = self._embed_array(exp_data[i], target_shape)
                     self.all_values_list[j][i] = new_data
 
