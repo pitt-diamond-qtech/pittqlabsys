@@ -110,8 +110,6 @@ class ExperimentIterator(Experiment):
         '''
         Runs either a loop or a parameter sweep over the subexperiments in the order defined by the parameter_list 'experiment_order'
         '''
-        self.matlab_data = []
-        self.matlab_settings = []
         def get_sweep_parameters():
             """
             Returns: the paramter values over which to sweep

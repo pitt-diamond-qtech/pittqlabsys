@@ -193,153 +193,7 @@ def explore_package(module_name):
     return packages
 
 
-def structure_data_for_matlab(data,settings=None,tag=None,return_array=False):
-    '''
-    Args:
-        data: a non-empty list of data dictionaries (can have 1 item)
-        settings: an optional list of settings dictionaries that correspond to each data dictionary; should have equal length as data dictionaries
-        tag: optioal tag to identify the experiment data; if None set to 'unamed_experiment'
-        return_array: whether to return the structured numpy array or a dictionary with the structured numpy array as the value
-
-    Returns:
-        a structured numpy array or a dictionary depending on array argument
-    '''
-    def guess_numpy_dtype(value):
-        #print('value type:', type(value))
-        if isinstance(value, np.ndarray):
-            return value.dtype
-        elif isinstance(value, float) or isinstance(value, list):
-            return 'f8'
-        elif isinstance(value, int):
-            return 'O'
-        elif isinstance(value, str):
-            return 'U{}'.format(len(value)+1) #+1 so empty string (U0) dont casue an error
-        elif isinstance(value, bool):
-            return 'bool'
-        elif value is None:
-            return 'f4' #if value is None will set to nan which is stored as a float
-        elif isinstance(value, dict):
-            print('dictionary detected')
-            return 'O'
-        else:
-            return '0'  # fallback to object may corrupt data
-
-    def get_shape(value):
-        if isinstance(value, np.ndarray):
-            return value.shape
-        elif isinstance(value, (list, tuple)):
-            try:
-                return np.array(value).shape
-            except:
-                return ()  # fallback if conversion fails
-        else:
-            return ()  # scalar or unknown type
-
-    def flatten_dict(d, parent_key='', sep='_'):
-        """Flattens a nested dictionary into a single-layer dictionary with joined keys."""
-        items = {}
-        for k, v in d.items():
-            new_key = f"{parent_key}{sep}{k}" if parent_key else str(k)
-            if isinstance(v, dict):
-                items.update(flatten_dict(v, new_key, sep=sep))
-            else:
-                items[new_key] = v
-        return items
-
-    if not isinstance(data, list):
-        data = [data]
-    if settings:
-        if len(settings) != len(data):
-            raise ValueError("settings and data must be lists of equal length")
-        if not isinstance(settings, list):
-            settings = [settings]
-    if tag is None:
-        tag = 'unnamed_experiment'
-
-    got_dtype = False
-    values_list_tuples = [] #list of tuples of dictionary values; one tuple for each dictionary
-    data_types = [] #list of tuples with name,type, and shape of each dictionary key
-
-    #keys = data[0].keys() #dictionaries should have same keys but different values; use keys from 1st data_dictionary
-    for i, dic in enumerate(data):
-        print(dic)
-        flat_dic = flatten_dict(dic)
-        values_list = [] #list to store dictionary values
-
-        for key in flat_dic.keys():
-            value = flat_dic[key]
-            if not got_dtype:
-                # only need to get data types and shapes once since all data_dictionaries have same data format
-                value_type = guess_numpy_dtype(value)
-                value_shape = get_shape(value)
-
-                key = key[:31] if len(key) > 31 else key
-
-                data_types.append((key, value_type, value_shape))
-            if not isinstance(value, np.ndarray) and isinstance(value, list):
-                if value == None:
-                    values_list.append(np.nan)
-                else:
-                    values_list.append(value)
-            else:
-                values_list.append(value)
-
-        if settings:
-            specific_settings = settings[i] #settings corresponding to the current dic interation
-            '''flat_settings = flatten_dict(specific_settings)
-            for key, value in flat_settings.items():
-                if not got_dtype: #only get data type once; if a dictionary as default will be a 1x1 struct
-                    settings_type = guess_numpy_dtype(value)
-                    settings_shape = get_shape(value)
-
-                    key = key[:31] if len(key) > 31 else key
-
-                    data_types.append((key, settings_type, settings_shape))
-                if value == None:
-                    values_list.append(np.nan)
-                else:
-                    values_list.append(value)'''
-
-
-            if not got_dtype:  # only get data type once; if a dictionary as default will be a 1x1 struct
-                settings_type = guess_numpy_dtype(specific_settings)
-                settings_shape = get_shape(specific_settings)
-
-                data_types.append(('settings', settings_type, settings_shape))
-            values_list.append(specific_settings)
-
-        got_dtype = True
-        values_list_tuples.append(tuple(values_list))
-
-    print(values_list_tuples,'\n',data_types)
-    for i, row in enumerate(values_list_tuples):
-        if len(row) != len(data_types):
-            print(f"Row {i} has length {len(row)} — expected {len(data_types)}")
-        else:
-            print(f"Row {i} is good")
-
-
-    #try:
-    print(values_list_tuples,'\n',data_types)
-    array = np.array(values_list_tuples, dtype=data_types)
-    print("array created")
-    #except Exception as e:
-        #print("Error creating array:", e)
-        #array = None
-
-    if return_array: #for more complex shapes may want to get array to use in another function
-        return array
-    else:
-        structured_data = {tag: array}
-        return structured_data
-
-#!!! Need to make sure the data type of each colunm is the same. Can check each in python before saving matlab file. Only check row above and if no the same have to change
-# the structure of all rows above to include zeros? Probably NaNs if possible
-
-
-
-
-
+#not using hdf5 but keeping function here if needed
 def structure_data_for_hdf5(filename,data,settings=None,tag=None):
     '''
     Takes a list of data dictionaries and saves it as a HDF5 file.
@@ -516,7 +370,7 @@ class MatlabSaver:
             if len(new_data_types_list) != len(self.last_dtype_list):
                 raise ValueError("Mismatch in data field count between experiments.")
 
-            print('Variable data sizes..Changing shape of previous data')
+            #print('Variable data sizes..Changing shape of previous data')
             self._adjust_previous_data_shape(new_data_types_list)
 
         self.last_dtype_list = new_data_types_list
@@ -553,6 +407,7 @@ class MatlabSaver:
         else:
             structured_data = {self.tag: final_array}
             return structured_data
+        #unsure if savemat function has a size limit but I have tested up to 2MB and it works fine
 
     def _adjust_previous_data_shape(self, new_data_types_list):
         '''

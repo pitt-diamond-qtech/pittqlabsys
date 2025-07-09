@@ -79,7 +79,6 @@ class Experiment(QObject):
         #super().__init__(self)
 
         self._experiment_class = self.__class__.__name__
-        print('experiment_class',self._experiment_class)
 
         if name is None:
             name = self.__class__.__name__
