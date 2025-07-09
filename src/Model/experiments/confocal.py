@@ -298,7 +298,7 @@ class ConfocalScan_Fast(Experiment):
             axes_list[0].setAspectLocked(True)
             axes_list[0].setLabel('left', 'y (µm)')
             axes_list[0].setLabel('bottom', 'x (µm)')
-            axes_list[0].setTitle(f"Confocal Scan with z = {self.z_inital:.2f}")
+            axes_list[0].setTitle(f"Confocal Scan with z = {self.settings['z_pos']:.2f}")
 
             if add_colobar:
                 self.colorbar = pg.ColorBarItem(values=(levels[0], levels[1]), label='counts/sec', colorMap='viridis')

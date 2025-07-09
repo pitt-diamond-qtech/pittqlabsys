@@ -366,6 +366,8 @@ class MatlabSaver:
             values_list.append(iterator_info_dic)
 
         self._update_largest_dtype_shapes(field_shapes) #update before checking data size so largest shapes are already calculated
+        self._update_final_dtype_list(new_data_types_list) #updates the final dtype list pasted to save function to have largest shapes
+
         if self.last_dtype_list is not None and new_data_types_list != self.last_dtype_list:
             if len(new_data_types_list) != len(self.last_dtype_list):
                 raise ValueError("Mismatch in data field count between experiments.")
@@ -382,7 +384,7 @@ class MatlabSaver:
 
         return values_list, new_data_types_list
 
-    def get_structured_data(self, return_array=False):
+    def get_structured_data(self, return_array=False, verbose=False):
         '''
         Structures the values (self.all_values_list) and data type (self.last_dtype_list) as calculated by the add_experiment_data function
         to be compabile with matlab as a 1xn struct.
@@ -401,7 +403,14 @@ class MatlabSaver:
         for i in range(len(self.all_values_list)):
             list_of_value_list_tuples.append(tuple(self.all_values_list[i]))
 
-        final_array = np.array(list_of_value_list_tuples, dtype=self.last_dtype_list)
+        if verbose: #print which rows of data do not match the dtype
+            for i, row in enumerate(list_of_value_list_tuples):
+                if len(row) != len(self.final_dtype_list):
+                    print(f"Row {i} has length {len(row)}; expected {len(self.final_dtype_list)}")
+                else:
+                    print(f"Row {i} OK (length {len(row)})")
+
+        final_array = np.array(list_of_value_list_tuples, dtype=self.final_dtype_list)
         if return_array:  # for more complex shapes may want to get array to use in another function
             return final_array
         else:
@@ -445,6 +454,17 @@ class MatlabSaver:
                 current_largest = self.largest_dtype_shapes[i]
                 new_largest = self._highest_common_shape(current_largest, shape)
                 self.largest_dtype_shapes[i] = new_largest
+
+    def _update_final_dtype_list(self, dtype_list):
+        """
+        Rebuild the final dtype list using the largest shapes seen and the most recent types.
+        Uses the field names and types from dtype_list,
+        but replaces shapes with the largest known shape.
+        """
+        self.final_dtype_list = []
+        for i, (name, dtype, _) in enumerate(dtype_list):
+            largest_shape = self.largest_dtype_shapes[i]
+            self.final_dtype_list.append((name, dtype, largest_shape))
 
     def _compare_tuples(self, a, b):
         '''
