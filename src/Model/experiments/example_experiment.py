@@ -205,7 +205,7 @@ Example Experiment that has all different types of parameters (integer, str, flo
                             self.ex_image.setImage(self.data['image_data'], autoLevels=False)
                             self.ex_image.setLevels(levels)
                             self.colorbar.setLevels(levels)
-                        except RuntimeError:
+                        except RuntimeError or AttributeError:
                             # sometimes when clicking other experiments ImageItem is deleted but _plot_refresh is false. This ensures the image can be replotted
                             create_img(add_colobar=False)
 

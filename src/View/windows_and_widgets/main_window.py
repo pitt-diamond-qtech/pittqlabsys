@@ -680,7 +680,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             saves the selected experiment (where is contained in the experiment itself)
             """
             indecies = self.tree_dataset.selectedIndexes()
-            model = indecies[0].model()
+            try:
+                model = indecies[0].model()
+            except IndexError:
+                self.log('No experiment selected.')
             rows = list(set([index.row()for index in indecies]))
 
             for row in rows:
@@ -693,6 +696,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 experiment.save_image_to_disk()
                 experiment.save_aqs()
                 experiment.save_log()
+                experiment.save_data_to_matlab()
 
         def delete_data():
             """
