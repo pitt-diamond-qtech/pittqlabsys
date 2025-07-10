@@ -47,11 +47,3 @@ if __name__ == "__main__":
     else:
         print('launch gui with ', args.filepath)
         launch_gui(args.filepath)
-
-'''
-to test with coverage runtime code tracking run this line in terminal:
-    $env:PYTHONPATH="." ; coverage run --source=src src/app.py
-to get report with good ui run following two lines in terminal:
-    coverage html
-    start htmlcov\index.html
-'''

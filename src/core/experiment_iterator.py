@@ -499,6 +499,12 @@ class ExperimentIterator(Experiment):
         '''
 
         # TODO: be smarter about how we plot ExperimentIterator
+        '''
+        If the current subexperiment is an ExperimentIterator trigger plot of iterator again for recusive down to actual experiment
+        for layered iterators
+        if hasattr(subexperiment, 'get_iterator_type'):
+        
+        '''
         if self._current_subexperiment_stage is not None:
             if self._current_subexperiment_stage['current_subexperiment'] is not None:
                 self._current_subexperiment_stage['current_subexperiment'].plot(figure_list)

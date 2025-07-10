@@ -7,7 +7,7 @@ class MCLNanoDrive(Device):
     """
     This class implements the Mad City Labs NanoDrive. The class loads the madlib.dll library to communicate with the device.
     """
-    _DEFAULT_SETTINGS = Parameter([Parameter('serial',2850,int,'serial of specific Nano Drive. Dutt labs LP100:2849 & HS3:2850 (20 bit systems)'),
+    _DEFAULT_SETTINGS = Parameter([Parameter('serial',2850,[2850,2849],'serial of specific Nano Drive. Dutt labs LP100:2849 & HS3:2850 (20 bit systems)'),
                                    Parameter('x_pos',0,float,'position of x axis in microns'),
                                    Parameter('y_pos', 0, float, 'position of y axis in microns'),
                                    Parameter('z_pos', 0, float, 'position of z axis in microns'),

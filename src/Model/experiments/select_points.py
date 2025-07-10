@@ -127,7 +127,7 @@ Experiment to select points on an image. The selected points are saved and can b
             axes.addItem(self.sp_image)
             axes.setLabel('left', self.plot_settings['ylabel'])
             axes.setLabel('bottom', self.plot_settings['xlabel'])
-            axes.setTitle(self.plot_settings['title'])
+            axes.setTitle('Selet Points on: '+self.plot_settings['title'])
             axes.setAspectLocked(True)
 
             if add_colorbar:
