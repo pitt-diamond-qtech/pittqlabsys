@@ -491,45 +491,77 @@ class ExperimentIterator(Experiment):
 
     def plot(self, figure_list):
         '''
-        When each subexperiment is called, uses its standard plotting
+        NOTE: Plotting is inherently limited with the iterator as you can only plot one experiment at a time.
+
+        Current configuration is to plot the current experiment while running. After running, for a loop iterator
+        attempt to plot the average data or, for a sweep iterator plot the last experiment's data not the iterator data.
+        For proper analysis the data should be saved.
+
+        An option for more complex iterator plotting is to code the get_axes_layout method to have a PlotItem for
+        each experiment and plot each experiment's data separately in the same figure. This may be very useful or
+        it may crowd the screen.
 
         Args:
             figure_list: list of figures passed from the guit
-
         '''
 
-        # TODO: be smarter about how we plot ExperimentIterator
-        '''
-        If the current subexperiment is an ExperimentIterator trigger plot of iterator again for recusive down to actual experiment
-        for layered iterators
-        if hasattr(subexperiment, 'get_iterator_type'):
-        
-        '''
+        # TODO: be smarter about how we plot ExperimentIterator (maybe; TODO added before Dylan's iterator changes and additions)
+
         if self._current_subexperiment_stage is not None:
             if self._current_subexperiment_stage['current_subexperiment'] is not None:
+                #while running plots the current subexperiment; for multilevel iterators will trigger recursivly down to main experiment
                 self._current_subexperiment_stage['current_subexperiment'].plot(figure_list)
 
         if (self.is_running is False) and not (self.data == {} or self.data is None):
-
+            #after running get the last experiment and try to plot it with its own data
             experiment_names = list(self.settings['experiment_order'].keys())
             experiment_indices = [self.settings['experiment_order'][name] for name in experiment_names]
             _, sorted_experiment_names = list(zip(*sorted(zip(experiment_indices, experiment_names))))
 
             last_experiment = self.experiments[sorted_experiment_names[-1]]
-
             last_experiment.force_update()  # since we use the last experiment plot function we force it to refresh
 
             axes_list = last_experiment.get_axes_layout(figure_list)
 
-            # catch error is _plot function doens't take optional data argument
-            try:
-                #new structure of iterator data so just default to use last experiments data dic instead of the iterators data dic
-                last_experiment._plot(axes_list)#, self.data)
-            except TypeError as err:
-                print((warnings.warn(
-                    'can\'t plot average experiment data because experiment.plot function doens\'t take data as optional argument. Plotting last data set instead')))
-                print((str(err)))
-                last_experiment.plot(figure_list)
+            if self.iterator_type == 'loop': #if loop iterator try to plot average data
+                try: # catch error is _plot function doens't take optional data argument
+                    last_experiment._plot(axes_list, self.data)
+                except TypeError as err:
+                    print((warnings.warn(
+                        'can\'t plot average experiment data because experiment.plot function doens\'t take data as optional argument. Plotting last data set instead')))
+                    print((str(err)))
+                    last_experiment.plot(figure_list)
+            elif self.iterator_type == 'sweep':
+                #for sweep just plot last experiment with its own data
+                last_experiment._plot(axes_list)
+
+    def _plot(self, axes_list):
+        '''
+        After running _plot is typically called last so need to mirror plot function so graphs are not blank.
+
+        Args:
+            axes_list: list of axes
+        '''
+        if (self.is_running is False) and not (self.data == {} or self.data is None):
+            experiment_names = list(self.settings['experiment_order'].keys())
+            experiment_indices = [self.settings['experiment_order'][name] for name in experiment_names]
+            _, sorted_experiment_names = list(zip(*sorted(zip(experiment_indices, experiment_names))))
+
+            last_experiment = self.experiments[sorted_experiment_names[-1]]
+            last_experiment.force_update()  # since we use the last experiment plot function we force it to refresh
+
+            if self.iterator_type == 'loop':  # if loop iterator try to plot average data
+                try:  # catch error is _plot function doens't take optional data argument
+                    last_experiment._plot(axes_list, self.data)
+                except TypeError as err:
+                    print((warnings.warn(
+                        'can\'t plot average experiment data because experiment.plot function doens\'t take data as optional argument. Plotting last data set instead')))
+                    print((str(err)))
+                    last_experiment._plot(axes_list) #_plot here as we dont have the figure_list and _plot is triggered
+            elif self.iterator_type == 'sweep':
+                # for sweep just plot last experiment with its own data
+                last_experiment._plot(axes_list)
+
 
     def to_dict(self):
         """
