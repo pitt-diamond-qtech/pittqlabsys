@@ -656,10 +656,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 self.update_experiment_from_item(experiment_item)
                 experiment.is_valid()
                 experiment.plot_validate([self.pyqtgraphwidget_1.graph, self.pyqtgraphwidget_2.graph])
-                #the following 2 lines dont seem to do what I want ie they dont change the viewbox so that mouse position tracking updates for the new plots
+                #i dont think these two lines are necessary since pyqtgraph auto updates when plot_validate is called
                 self.pyqtgraphwidget_1.update()
                 self.pyqtgraphwidget_2.update()
-                print('validate button presss triggered')
 
         def store_experiment_data():
             """
