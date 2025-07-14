@@ -29,7 +29,7 @@ class NV_Locations(Experiment):
         """
         #Experiment.__init__(self, name, settings, log_function= log_function, data_path = data_path)
         super().__init__(name, settings=settings, sub_experiments=experiments, devices=devices,log_function=log_function, data_path=data_path)
-        self.data['nv_locations'] = [] #only the key:value of 'nv_locations' from a previous experiment will be inherited
+        self.data['nv_locations'] = None #only the key:value of 'nv_locations' from a previous experiment will be inherited
 
     def _function(self):
         """
