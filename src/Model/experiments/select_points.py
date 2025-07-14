@@ -52,10 +52,12 @@ Experiment to select points on an image. The selected points are saved and can b
         Waits until stopped to keep experiment live. Gui must handle calling of Toggle_NV function on mouse click.
         If using with an experiment iterator use skip button to stop and go to next experiment
         """
-        self.log('!!! IF USING ExperimentIterator CLICK SelectPoints IN GUI EXPERIMENT TREE !!!')
-        self.log('!!! IF NO IMAGE CLICK EXPERIMENT WITH IMAGE THEN SelectPoints !!!')
-        self.log('!!! In ExperimentIterator use skip button to finish SelectPoints !!!')
+        self.log('!!! If using SelectPoints in an Iterator use SKIP Button to finish !!!')
         self.data = {'nv_locations': [], 'image_data': None, 'extent': None, 'pt_indices': []}
+        #two progress signals here ensure that plot is called so that SelectPoints can properly get Image from previous experiment in iterator
+        self.progress = 49
+        self.updateProgress.emit(self.progress)
+        time.sleep(0.2)
         self.progress = 50
         self.updateProgress.emit(self.progress)
         # keep experiment alive while NVs are selected
