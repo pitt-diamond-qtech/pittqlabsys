@@ -41,7 +41,7 @@ If you want to use it make sure that the right device is defined in _DEVICES = {
     ]
 
     #_DEVICES = {'daq': PXI6733}
-    _DEVICES = {'daq':PXI6733()}
+    #####_DEVICES = {'daq':PXI6733()}
     _EXPERIMENTS = {}
 
     def __init__(self, devices, experiments=None, name=None, settings=None, log_function=None, data_path=None):

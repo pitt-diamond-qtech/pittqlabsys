@@ -20,7 +20,7 @@ import traceback
 from src.core.device import Device
 from src.core.parameter import Parameter
 from src.core.read_write_functions import save_aqs_file, load_aqs_file
-from src.core.helper_functions import module_name_from_path
+from src.core.helper_functions import module_name_from_path, MatlabSaver
 
 from collections import deque
 import os
@@ -31,6 +31,7 @@ import inspect
 import warnings
 import platform
 from PyQt5.QtCore import pyqtSignal, QObject, pyqtSlot
+from scipy.io import savemat
 
 import numpy as np
 from builtins import len as builtin_len
@@ -38,6 +39,9 @@ from matplotlib.backends.backend_pdf import \
     FigureCanvasPdf as FigureCanvas  # use this to avoid error that plotting should only be done on main thread
 from matplotlib.figure import Figure
 from importlib import import_module
+
+import pyqtgraph as pg
+from pyqtgraph.exporters import ImageExporter
 
 # cPickle module implements the same algorithm as pickle, in C instead of Python.
 # It is many times faster than the Python implementation, but does not allow the user to subclass from Pickle.
@@ -131,6 +135,7 @@ class Experiment(QObject):
             'subexperiment_exec_count': {},
             'subexperiment_exec_duration': {}
         }
+
 
     @property
     def data_path(self):
@@ -437,6 +442,7 @@ class Experiment(QObject):
             self.save_data()
             self.save_log()
             self.save_image_to_disk()
+            self.save_data_to_matlab()
 
         success = not self._abort
 
@@ -545,7 +551,7 @@ class Experiment(QObject):
         }}
 
 
-        # if isinstance(self, experimentIterator):
+        # if isinstance(self, ExperimentIterator):
         #     dictator['filepath'] = inspect.getfile(self.__class__),
 
         if self.experiments != {}:
@@ -722,25 +728,29 @@ class Experiment(QObject):
 
         """
 
-        def axes_empty(ax):
+        def check_nonempty(graph):
             """
-            takes an axes object and checks if it is empty
-            the axes object is considered empty it doesn't contain any of the following:
-                - lines
-                - images
-                - patches
-            Returns:
+            takes a GrachicsLayoutWidget (a graph) and checks if the plots it contains have data
+            the graph is considered non-empty if it has
+                -a PlotItem with data
+                -any ImageItem ie. it could be blank
 
+            a picture will be saved of the entire graph if ANY PlotItems are none empty
             """
-
-            is_empty = True
-
-            if ax is not None and len(ax) > 0:
-                for a in ax:
-                    if len(a.lines) + len(a.images) + len(a.patches) != 0:
-                        is_empty = False
-
-            return is_empty
+            if graph is not None:
+                rows = graph.ci.rows
+                for row_index in rows:
+                    for item in rows[row_index].values():
+                        #item is any plot, image, label, etc item added to GraphicsLayoutWidget
+                        if isinstance(item, pg.PlotItem):
+                            for curve in item.listDataItems():
+                                #curve is any data that has been plotted on a PlotItem
+                                if curve.xData is not None and len(curve.xData) > 0:
+                                    return False
+                            for subitem in item.items:
+                                if isinstance(subitem, pg.ImageItem) and subitem.image is not None:
+                                    return False
+            return True
 
         # create and save images
         if (filename_1 is None):
@@ -763,20 +773,21 @@ class Experiment(QObject):
         if os.path.exists(os.path.dirname(filename_2)) is False:
             os.makedirs(os.path.dirname(filename_2))
 
-        fig_1 = Figure()
-        canvas_1 = FigureCanvas(fig_1)
+        graph_1 = pg.GraphicsLayoutWidget()  #graph is the space/object you add plots to
+        scene_1 = graph_1.scene()            #scene houses all the plots; we want to save all plots if nonempty
 
-        fig_2 = Figure()
-        canvas_2 = FigureCanvas(fig_2)
+        graph_2 = pg.GraphicsLayoutWidget()
+        scene_2 = graph_2.scene()
 
         self.force_update()
+        self.plot([graph_1, graph_2])
 
-        self.plot([fig_1, fig_2])
-
-        if filename_1 is not None and not axes_empty(fig_1.axes):
-            fig_1.savefig(filename_1)
-        if filename_2 is not None and not axes_empty(fig_2.axes):
-            fig_2.savefig(filename_2)
+        if filename_1 is not None and not check_nonempty(graph_1):
+            exporter = ImageExporter(scene_1)
+            exporter.export(filename_1)
+        if filename_2 is not None and not check_nonempty(graph_2):
+            exporter = ImageExporter(scene_2)
+            exporter.export(filename_2)
 
     def save(self, filename):
         """
@@ -793,6 +804,26 @@ class Experiment(QObject):
         filename = self.check_filename(filename)
         with open(filename, 'w') as outfile:
             outfile.write(pickle.dumps(self.__dict__))
+
+    def save_data_to_matlab(self, filename=None):
+        if filename is None:
+            filename = self.filename('.mat')
+        filename = self.check_filename(filename)
+
+        tag = self.settings['tag']
+        if ' ' in tag or '.' in tag or '+' in tag or '-' in tag:
+            good_tag = tag.replace(' ', '_').replace('.', '_').replace('+', 'P').replace('-', 'M')
+            #matlab structs cant include spaces, dots, or plus/minus so replace with other characters
+            #other disallowed characters but not used in our naming schemes so checks as of now
+        else:
+            good_tag = tag
+        # add 'data_' to ensure field name does not start with a number
+        good_tag = 'data_' + good_tag
+
+        mat_saver = MatlabSaver(tag=good_tag)
+        mat_saver.add_experiment_data(self.data,self.settings)
+        structured_data = mat_saver.get_structured_data()
+        savemat(filename, structured_data)
 
     @staticmethod
     def load(filename, devices=None):
@@ -1130,7 +1161,6 @@ class Experiment(QObject):
             return sub_experiments, devices_updated
 
         for experiment_name, experiment_info in experiment_dict.items():
-
             # check if experiment already exists
             if experiment_name in list(experiments.keys()):
                 print(('WARNING: experiment {:s} already exists. Did not load!'.format(experiment_name)))
@@ -1139,12 +1169,12 @@ class Experiment(QObject):
                 module, experiment_class_name, experiment_settings, experiment_devices, experiment_sub_experiments, experiment_doc, package = Experiment.get_experiment_information(
                     experiment_info, package=package)
                 # creates all dynamic experiments so they can be imported following the if statement
-                # if experiment_class_name == 'experimentIterator':
-                if 'experimentIterator' in experiment_class_name:
+                # if experiment_class_name == 'ExperimentIterator':
+                if 'ExperimentIterator' in experiment_class_name:
                     # creates all the dynamic classes in the experiment and the class of the experiment itself
                     # and updates the experiment info with these new classes
                     from src.core.experiment_iterator import \
-                        ExperimentIterator  # CAUTION: imports experimentIterator, which inherits from experiment. Local scope should avoid circular imports.
+                        ExperimentIterator  # CAUTION: imports ExperimentIterator, which inherits from experiment. Local scope should avoid circular imports.
 
                     experiment_info, _ = ExperimentIterator.create_dynamic_experiment_class(experiment_info)
 
@@ -1204,7 +1234,6 @@ class Experiment(QObject):
                     print(('experiments', sub_experiments))
 
                 try:
-
                     experiment_instance = eval(class_creation_string)
                 except Exception as err:
                     #print('loading ' + experiment_name + ' failed:')
@@ -1268,7 +1297,7 @@ class Experiment(QObject):
                     package = module_path.split('.')[0]
 
             experiment_class_name = str(experiment_information['class'])
-            if 'experimentIterator' in experiment_class_name:
+            if 'ExperimentIterator' in experiment_class_name:
                 module_path = package + '.core.experiment_iterator'
             if 'devices' in experiment_information:
                 experiment_devices = experiment_information['devices']
@@ -1290,7 +1319,7 @@ class Experiment(QObject):
 
         assert isinstance(package, str)
 
-        # if the experiment has not been created yet, i.e. experiment_class_name: experimentIteratorAQ or experimentIterator
+        # if the experiment has not been created yet, i.e. experiment_class_name: ExperimentIteratorAQ or ExperimentIterator
         if verbose:
             print(('experiment_filepath', experiment_filepath))
             print(('path_to_module', module_path))
@@ -1406,6 +1435,7 @@ class Experiment(QObject):
 
         return experiment_instance
 
+
     def _plot(self, axes_list):
         """
         plots the data only the axes objects that are provided in axes_list
@@ -1413,7 +1443,6 @@ class Experiment(QObject):
             axes_list: a list of axes objects, this should be implemented in each subexperiment
 
         Returns: None
-
         """
         pass
         # not sure if to raise a not implemented error or just give a warning. For now just warning
@@ -1426,7 +1455,6 @@ class Experiment(QObject):
             axes_list: a list of axes objects, this should be implemented in each subexperiment
 
         Returns: None
-
         """
 
         # default behaviour just calls the standard plot function that creates a new image everytime it is called
@@ -1438,7 +1466,6 @@ class Experiment(QObject):
         """
         forces the plot to refresh
         Returns:
-
         """
         self._plot_refresh = True
 
@@ -1461,12 +1488,10 @@ class Experiment(QObject):
         if self._plot_refresh is True:
             self._plot(axes_list)
             self._plot_refresh = False
-            for figure in figure_list:
-                if figure.axes:
-                    figure.set_tight_layout(True)
         else:
             self._update_plot(axes_list)
 
+    #changed this method
     def get_axes_layout(self, figure_list):
         """
         returns the axes objects the experiment needs to plot its data
@@ -1476,19 +1501,15 @@ class Experiment(QObject):
             figure_list: a list of figure objects
         Returns:
             axes_list: a list of axes objects
-
         """
         axes_list = []
         if self._plot_refresh is True:
-            for fig in figure_list:
-                fig.clf()
-                # expecting an axis object here not a figure object
-                #ax.cla()
-                axes_list.append(fig.add_subplot(111))
-
+            for graph in figure_list:
+                graph.clear()
+                axes_list.append(graph.addPlot(row=0,col=0))
         else:
-            for fig in figure_list:
-                axes_list.append(fig.axes[0])
+            for graph in figure_list:
+                axes_list.append(graph.getItem(row=0,col=0))
 
         return axes_list
 
@@ -1496,7 +1517,6 @@ class Experiment(QObject):
         """
         plots the data contained in self.data, which should be a dictionary or a deque of dictionaries
         for the latter use the last entry
-
         """
         axes_list = self.get_axes_layout_validate(figure_list)
         self._plot_validate(axes_list)

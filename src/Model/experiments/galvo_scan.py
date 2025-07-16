@@ -64,7 +64,7 @@ class GalvoScan(GalvoScanGeneric):
         Parameter('plot_style', "main", ['main', 'aux', '2D', 'two'])
     ]
 
-    _DEVICES = {'daq': PXI6733(),'daq2': NI6281()}
+    #####_DEVICES = {'daq': PXI6733(),'daq2': NI6281()}
 
     def __init__(self, devices=None, name=None, settings=None, log_function=None, data_path=None):
         '''

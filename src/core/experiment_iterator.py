@@ -12,7 +12,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
-
+import copy
 
 from src.core import Parameter, Experiment
 import numpy as np
@@ -24,17 +24,20 @@ import inspect
 from src.core import helper_functions as hf
 import importlib
 from functools import reduce
+from src.core.helper_functions import MatlabSaver
+from scipy.io import savemat
 
 import random
+from time import sleep
 
 
 class ExperimentIterator(Experiment):
     '''
-This is a template class for experiments that iterate over a series of subexperiments in either a loop /
-a parameter sweep / future: list of points.
-CAUTION: This class has some circular dependencies with experiment that are avoided by only importing it in very local scope
-in experiment (since this inherits from experiment, it can't be imported globally in experiment). Use caution when making changes in
-experiment.
+    This is a template class for experiments that iterate over a series of subexperiments in either a loop /
+    a parameter sweep / future: list of points.
+    CAUTION: This class has some circular dependencies with experiment that are avoided by only importing it in very local scope
+    in experiment (since this inherits from experiment, it can't be imported globally in experiment). Use caution when making changes in
+    experiment.
     '''
 
     _DEFAULT_SETTINGS = []
@@ -43,20 +46,22 @@ experiment.
     _EXPERIMENTS = {}
     # _EXPERIMENTS is populated dynamically with the required subexperiments
 
-    _number_of_classes = 0  # keeps track of the number of dynamically created experimentIterator classes that have been created
-    _class_list = []  # list of current dynamically created experimentIterator classes
+    _number_of_classes = 0  # keeps track of the number of dynamically created ExperimentIterator classes that have been created
+    _class_list = []  # list of current dynamically created ExperimentIterator classes
 
     ITER_TYPES = ['loop', 'sweep']
 
-    def __init__(self, sub_experiments, name=None, settings=None, log_function=None, data_path=None):
+    def __init__(self, experiments, name=None, settings=None, log_function=None, data_path=None):
         """
         Default experiment initialization
         """
-        Experiment.__init__(self, name, sub_experiments=sub_experiments, settings=settings, log_function=log_function,
-                            data_path=data_path)
-        self.iterator_type = self.get_iterator_type(self.settings, sub_experiments)
+        Experiment.__init__(self, name, sub_experiments=experiments, settings=settings, log_function=log_function, data_path=data_path)
+        self.iterator_type = self.get_iterator_type(self.settings, experiments)
 
         self._current_subexperiment_stage = None
+        # for multi iterator experiments tracks how many iterator levels there is; value equal num layers below
+        self.iterator_level = self.detect_iterator_depth(self.experiments)
+        print('iterator level',self.iterator_level)
 
         self._skippable = True
 
@@ -90,11 +95,21 @@ experiment.
 
         return iterator_type
 
+    def detect_iterator_depth(self, experiments, current_level=1):
+        max_level = current_level
+        for key, value in experiments.items():
+            if hasattr(value, 'get_iterator_type'):
+                print(f'Sub iterator detected at level {current_level}: {key}')
+                # Recurse into sub-experiments
+                sub_experiments = getattr(value, 'experiments', {})
+                sub_level = self.detect_iterator_depth(sub_experiments, current_level + 1)
+                max_level = max(max_level, sub_level)
+        return max_level
+
     def _function(self):
         '''
         Runs either a loop or a parameter sweep over the subexperiments in the order defined by the parameter_list 'experiment_order'
         '''
-
         def get_sweep_parameters():
             """
             Returns: the paramter values over which to sweep
@@ -102,14 +117,14 @@ experiment.
             # in both cases, param values have tolist to make sure that they are python types (ex float) rather than numpy
             # types (ex np.float64), the latter of which can cause typing issues
             sweep_range = self.settings['sweep_range']
-            param_values = np.empty(sweep_range['N/value_step']).tolist()
+            param_values = np.empty(int(sweep_range['N/value_step'])).tolist()
             if self.settings['stepping_mode'] == 'N':
                 param_values = np.linspace(sweep_range['min_value'], sweep_range['max_value'],
                                            int(sweep_range['N/value_step']), endpoint=True).tolist()
             elif self.settings['stepping_mode'] == 'value_step':
                 param_values = np.linspace(sweep_range['min_value'], sweep_range['max_value'],
-                                           (sweep_range['max_value'] - sweep_range['min_value']) / sweep_range[
-                                               'N/value_step'] + 1, endpoint=True).tolist()
+                                           int((sweep_range['max_value'] - sweep_range['min_value']) / sweep_range[
+                                               'N/value_step']) + 1, endpoint=True).tolist()
             return param_values
 
         experiment_names = list(self.settings['experiment_order'].keys())
@@ -136,13 +151,14 @@ experiment.
 
             param_values = get_sweep_parameters()
 
-            print('GD parametes before', param_values)
+            print('GD parameters before', param_values)
             if self.settings['sweep_range']['randomize'] == True:
                 np.random.shuffle(param_values)
-            print('GD parametes after', param_values)
+            print('GD parameters after', param_values)
 
             for i, value in enumerate(param_values):
                 self.iterator_progress = float(i) / len(param_values)
+                previous_data = None
 
                 experiment_list, parameter_list = get_experiment_and_settings_from_str(self.settings['sweep_param'])
                 experiment = self
@@ -170,13 +186,33 @@ experiment.
 
                     curr_experiment_exec_freq = self.settings['experiment_execution_freq'][experiment_name]
                     if curr_experiment_exec_freq != 0 and (j % curr_experiment_exec_freq == 0):
+
+                        #for some experiments we want to inherit data from the previous experiment (for example NV locations from SelectPoints to use in say ODMR
+                        #to use you want an inherit data parameter in the experiment settings. Could be expanded depending on use cases
+                        if previous_data is not None:
+                            if 'inherit_data' in self.experiments[experiment_name].settings and self.experiments[experiment_name].settings['inherit_data']:
+                                common_keys = self.experiments[experiment_name].data.keys() & previous_data.keys()
+                                for key in common_keys:
+                                    self.experiments[experiment_name].data[key] = previous_data[key]
+
                         # i+1 so first execution is mth loop, not first
                         self.log('starting {:s}'.format(experiment_name))
                         tag = self.experiments[experiment_name].settings['tag']
-                        self.experiments[experiment_name].settings['tag'] = '{:s}_{:s}_{:0.3e}'.format(tag, parameter_name,
-                                                                                               value)
+                        self.experiments[experiment_name].settings['tag'] = '{:s}_{:s}_{:0.3e}'.format(tag, parameter_name,value)
+                        #ensure settings and data are deepcopys so multiple iterations dont change old values
+                        settings = copy.deepcopy(self.experiments[experiment_name].settings)
                         self.experiments[experiment_name].run()
+
+                        it_level_str = f'_iterator_{self.iterator_level}'
+                        python_scan_info_dic = {'scan_parameter'+it_level_str:parameter_name,'scan_current_value'+it_level_str:value, 'scan_all_values'+it_level_str:list(param_values)}
+                        data = copy.deepcopy(self.experiments[experiment_name].data)
+
+                        #adds to self.data a key of the current experiment tage with a value that is a lsit of [data, settings, scan_infor] for current experiment
+                        self.data[self.experiments[experiment_name].settings['tag']] = [data, settings, python_scan_info_dic]
+
                         self.experiments[experiment_name].settings['tag'] = tag
+                        previous_data = self.experiments[experiment_name].data
+
 
         elif self.iterator_type == 'loop':
 
@@ -188,6 +224,7 @@ experiment.
             self.data = {}
             for i in range(num_loops):
                 self.iterator_progress = float(i) / num_loops
+                previous_data = None
 
                 for experiment_name in sorted_experiment_names:
                     if self._abort:
@@ -197,6 +234,15 @@ experiment.
                     curr_experiment_execution_freq = self.settings['experiment_execution_freq'][experiment_name]
 
                     if curr_experiment_execution_freq != 0 and (j % curr_experiment_execution_freq == 0):
+
+                        #for some experiments we want to inherit data from the previous experiment (for example NV locations from SelectPoints to use in say ODMR
+                        #to use you want an inherit data parameter in the experiment settings. Could be expanded depending on use cases
+                        if previous_data is not None:
+                            if 'inherit_data' in self.experiments[experiment_name].settings and self.experiments[experiment_name].settings['inherit_data']:
+                                common_keys = self.experiments[experiment_name].data.keys() & previous_data.keys()
+                                for key in common_keys:
+                                    self.experiments[experiment_name].data[key] = previous_data[key]
+
                         # i+1 so first execution is mth loop, not first
                         self.log('starting {:s} \t iteration {:d} of {:d}'.format(experiment_name, i + 1, num_loops))
                         tag = self.experiments[experiment_name].settings['tag']
@@ -204,6 +250,8 @@ experiment.
                         self.experiments[experiment_name].settings['tag'] = tmp.format(i)
                         self.experiments[experiment_name].run()
                         self.experiments[experiment_name].settings['tag'] = tag
+
+                        previous_data = self.experiments[experiment_name].data
 
                 # from the last experiment we take the average of the data as the data of the iterator experiment
                 if isinstance(self.experiments[experiment_name].data, dict):
@@ -370,59 +418,169 @@ experiment.
         loop_index = max(self._current_subexperiment_stage['subexperiment_exec_count'].values())
         return loop_index
 
+    def save_data_to_matlab(self, filename=None):
+        if self.iterator_type == 'loop':
+            #for loop the experiment data is averaged so its structure is similar to a single experiment; default to normal behavior
+            Experiment.save_data_to_matlab(self)
+
+        elif self.iterator_type == 'sweep': #for sweeps need more complex structure
+            #does not include the settings of each iterator level as the important info is in the inherited scan info
+            def extract_data(dic, current_level, target_level, inherited_scan_info=None):
+                it_level_str = f'_iterator_{target_level-current_level+1}'
+                if inherited_scan_info is None:
+                    inherited_scan_info = {}
+                result = []
+                for key, value in dic.items():
+                    #sweep_1_y_1.000e+00:[{exp_1:[dic(data),dic(settings),dic(scan_params),'exp_2:[dic(data),dic(settings),dic(scan_params),'exp_3:[dic(data),dic(settings),dic(scan_params)]},
+                                         #dic(settings),dic(scan_params)
+                    next_dic_level = value[0]
+                    current_level_settings = value[1]
+                    current_level_scan_info_raw = value[2]
+
+                    scan_variable = current_level_scan_info_raw.get('scan_parameter' + it_level_str)
+                    scan_var_current_value = current_level_scan_info_raw.get('scan_current_value' + it_level_str)
+                    scan_var_all_values = current_level_scan_info_raw.get('scan_all_values' + it_level_str)
+
+                    updated_scan_info = dict(inherited_scan_info)
+                    updated_scan_info['scan_parameter' + it_level_str] = scan_variable
+                    updated_scan_info['scan_current_value' + it_level_str] = scan_var_current_value
+                    updated_scan_info['scan_all_values' + it_level_str] = scan_var_all_values
+
+                    if current_level < target_level:
+
+                        if isinstance(value, list) and isinstance(value[0], dict):
+                            result.extend(extract_data(next_dic_level, current_level+1, target_level, updated_scan_info))
+                        else:
+                            raise ValueError(f"In matlab saving: Unexpected structure at level {current_level}: {key} → {value}")
+
+                    elif current_level == target_level:
+                        if isinstance(value, list) and len(value) == 3:
+
+                            result.append((next_dic_level, current_level_settings, updated_scan_info))
+                        else:
+                            raise ValueError(f"In matlab saving: Invalid leaf data at level {current_level}: {key} → {value}")
+
+                return result
+
+
+            if filename is None:
+                filename = self.filename('.mat')
+            filename = self.check_filename(filename)
+
+            tag = self.settings['tag']
+            if ' ' in tag or '.' in tag or '+' in tag or '-' in tag:
+                good_tag = tag.replace(' ', '_').replace('.', '_').replace('+', 'P').replace('-', 'M')
+                # matlab structs cant include spaces, dots, or plus/minus so replace with other characters
+                # other disallowed characters but not used in our naming schemes so checks as of now
+            else:
+                good_tag = tag
+            #add 'data_' to ensure field name does not start with a number
+            good_tag = 'data_' + good_tag
+
+            mat_saver = MatlabSaver(tag=good_tag)
+            data_tuples = extract_data(self.data, current_level=1, target_level=self.iterator_level)
+            #print('data_tuples',data_tuples)
+            for data, settings, combined_scan_info in data_tuples:
+                mat_saver.add_experiment_data(data, settings, iterator_info_dic=combined_scan_info)
+
+            structured_data = mat_saver.get_structured_data()
+            savemat(filename, structured_data)
+
+        else:
+            raise TypeError('wrong iterator type')
+
     def plot(self, figure_list):
         '''
-        When each subexperiment is called, uses its standard plotting
+        NOTE: Plotting is inherently limited with the iterator as you can only plot one experiment at a time.
+
+        Current configuration is to plot the current experiment while running. After running, for a loop iterator
+        attempt to plot the average data or, for a sweep iterator plot the last experiment's data not the iterator data.
+        For proper analysis the data should be saved.
+
+        An option for more complex iterator plotting is to code the get_axes_layout method to have a PlotItem for
+        each experiment and plot each experiment's data separately in the same figure. This may be very useful or
+        it may crowd the screen.
 
         Args:
             figure_list: list of figures passed from the guit
-
         '''
 
-        # TODO: be smarter about how we plot experimentIterator
+        # TODO: be smarter about how we plot ExperimentIterator (maybe; TODO added before Dylan's iterator changes and additions)
+
         if self._current_subexperiment_stage is not None:
             if self._current_subexperiment_stage['current_subexperiment'] is not None:
+                #while running plots the current subexperiment; for multilevel iterators will trigger recursivly down to main experiment
                 self._current_subexperiment_stage['current_subexperiment'].plot(figure_list)
 
         if (self.is_running is False) and not (self.data == {} or self.data is None):
-
+            #after running get the last experiment and try to plot it with its own data
             experiment_names = list(self.settings['experiment_order'].keys())
             experiment_indices = [self.settings['experiment_order'][name] for name in experiment_names]
             _, sorted_experiment_names = list(zip(*sorted(zip(experiment_indices, experiment_names))))
 
             last_experiment = self.experiments[sorted_experiment_names[-1]]
-
             last_experiment.force_update()  # since we use the last experiment plot function we force it to refresh
 
             axes_list = last_experiment.get_axes_layout(figure_list)
 
-            # catch error is _plot function doens't take optional data argument
-            try:
-                last_experiment._plot(axes_list, self.data)
-            except TypeError as err:
-                print((warnings.warn(
-                    'can\'t plot average experiment data because experiment.plot function doens\'t take data as optional argument. Plotting last data set instead')))
-                print((str(err)))
-                last_experiment.plot(figure_list)
+            if self.iterator_type == 'loop': #if loop iterator try to plot average data
+                try: # catch error is _plot function doens't take optional data argument
+                    last_experiment._plot(axes_list, self.data)
+                except TypeError as err:
+                    print((warnings.warn(
+                        'can\'t plot average experiment data because experiment.plot function doens\'t take data as optional argument. Plotting last data set instead')))
+                    print((str(err)))
+                    last_experiment.plot(figure_list)
+            elif self.iterator_type == 'sweep':
+                #for sweep just plot last experiment with its own data
+                last_experiment._plot(axes_list)
+
+    def _plot(self, axes_list):
+        '''
+        After running _plot is typically called last so need to mirror plot function so graphs are not blank.
+
+        Args:
+            axes_list: list of axes
+        '''
+        if (self.is_running is False) and not (self.data == {} or self.data is None):
+            experiment_names = list(self.settings['experiment_order'].keys())
+            experiment_indices = [self.settings['experiment_order'][name] for name in experiment_names]
+            _, sorted_experiment_names = list(zip(*sorted(zip(experiment_indices, experiment_names))))
+
+            last_experiment = self.experiments[sorted_experiment_names[-1]]
+            last_experiment.force_update()  # since we use the last experiment plot function we force it to refresh
+
+            if self.iterator_type == 'loop':  # if loop iterator try to plot average data
+                try:  # catch error is _plot function doens't take optional data argument
+                    last_experiment._plot(axes_list, self.data)
+                except TypeError as err:
+                    print((warnings.warn(
+                        'can\'t plot average experiment data because experiment.plot function doens\'t take data as optional argument. Plotting last data set instead')))
+                    print((str(err)))
+                    last_experiment._plot(axes_list) #_plot here as we dont have the figure_list and _plot is triggered
+            elif self.iterator_type == 'sweep':
+                # for sweep just plot last experiment with its own data
+                last_experiment._plot(axes_list)
+
 
     def to_dict(self):
         """
         Returns: itself as a dictionary
         """
         dictator = Experiment.to_dict(self)
-        # the dynamically created experimentIterator classes have a generic name
-        # replace this with experimentIterator to indicate that this class is of type experimentIterator
-        dictator[self.name]['class'] = 'experimentIterator'
+        # the dynamically created ExperimentIterator classes have a generic name
+        # replace this with ExperimentIterator to indicate that this class is of type ExperimentIterator
+        dictator[self.name]['class'] = 'ExperimentIterator'
 
         return dictator
 
     @staticmethod
     def get_iterator_default_experiment(iterator_type):
         """
-        This function might be overwritten by functions that inherit from experimentIterator
+        This function might be overwritten by functions that inherit from ExperimentIterator
         Returns:
             sub_experiments: a dictionary with the default experiments for the experiment_iterator
-            experiment_settings: a dictionary with the experiment_settingsfor the default experiments
+            experiment_settings: a dictionary with the experiment_settings for the default experiments
 
         """
 
@@ -436,12 +594,12 @@ experiment.
 
         Args:
             experiment_order:
-                a dictionary giving the order that the experiments in the experimentIterator should be executed.
+                a dictionary giving the order that the experiments in the ExperimentIterator should be executed.
                 Must be in the form {'experiment_name': int}. experiments are executed from lowest number to highest
 
         Returns:
             experiment_order_parameter:
-                A list of parameters giving the order that the experiments in the experimentIterator should be executed.
+                A list of parameters giving the order that the experiments in the ExperimentIterator should be executed.
             experiment_execution_freq:
                 A list of parameters giving the frequency with which each experiment should be executed,
                 e.g. 1 is every loop, 3 is every third loop, 0 is never
@@ -464,7 +622,7 @@ experiment.
         """
         assigning the actual experiment settings depending on the iterator type
 
-        this might be overwritten by classes that inherit form experimentIterator
+        this might be overwritten by classes that inherit form ExperimentIterator
 
         Args:
             sub_experiments: dictionary with the subexperiments
@@ -522,7 +680,7 @@ experiment.
                     experiment_trace = experiment_name
                 else:
                     experiment_trace = experiment_trace + '->' + experiment_name
-                if issubclass(experiments[experiment_name], ExperimentIterator):  # gets subexperiments of experimentIterator objects
+                if issubclass(experiments[experiment_name], ExperimentIterator):  # gets subexperiments of ExperimentIterator objects
                     populate_sweep_param(vars(experiments[experiment_name])['_EXPERIMENTS'], parameter_list=parameter_list,
                                          trace=experiment_trace)
                 else:
@@ -571,13 +729,13 @@ experiment.
         and updates the experiment info with these new classes
 
         Args:
-            experiment_information: A dictionary describing the experimentIterator, or an existing object
-            experiment_iterators: dictionary with the experimentiterators (optional)
+            experiment_information: A dictionary describing the ExperimentIterator, or an existing object
+            experiment_iterators: dictionary with the Experimentiterators (optional)
 
         Returns:
-            experiment_information:  The updated dictionary describing the newly created experimentIterator class
-            experiment_iterators: updated dictionary with the experimentiterators
-        Poststate: Dynamically created classes inheriting from experimentIterator are added to AQuISS.experiments
+            experiment_information:  The updated dictionary describing the newly created ExperimentIterator class
+            experiment_iterators: updated dictionary with the Experimentiterators
+        Poststate: Dynamically created classes inheriting from ExperimentIterator are added to AQuISS.experiments
 
         '''
 
@@ -599,7 +757,7 @@ experiment.
             if verbose:
                 print(('experiment_information', experiment_information))
             sub_experiments = {}  # dictonary of experiment classes that are to be subexperiments of the dynamic class. Should be in the dictionary form {'class_name': <class_object>} (btw. class_object is not the instance)
-            experiment_order = []  # A list of parameters giving the order that the experiments in the experimentIterator should be executed. Must be in the form {'experiment_name': int}. experiments are executed from lowest number to highest
+            experiment_order = []  # A list of parameters giving the order that the experiments in the ExperimentIterator should be executed. Must be in the form {'experiment_name': int}. experiments are executed from lowest number to highest
             experiment_execution_freq = []  # A list of parameters giving the frequency with which each experiment should be executed
             _, experiment_class_name, experiment_settings, _, experiment_sub_experiments, _, package = Experiment.get_experiment_information(
                 experiment_information)
@@ -626,7 +784,7 @@ experiment.
                         # identically named one already loaded, vs using that loaded experiment
 
                         raise NotImplementedError
-                    elif experiment_sub_experiments[sub_experiment_name]['class'] == 'experimentIterator':
+                    elif experiment_sub_experiments[sub_experiment_name]['class'] == 'ExperimentIterator':
                         # raise NotImplementedError # has to be dynamic maybe???
                         experiment_information_subclass, experiment_iterators = ExperimentIterator.create_dynamic_experiment_class(
                             experiment_sub_experiments[sub_experiment_name], experiment_iterators)
@@ -676,18 +834,18 @@ experiment.
 
         def create_experiment_iterator_class(sub_experiments, experiment_settings, experiment_iterator_base_class, verbose=verbose):
             """
-            A 'factory' to create a experimentIterator class at runtime with the given inputs.
+            A 'factory' to create a ExperimentIterator class at runtime with the given inputs.
 
             Args:
                 sub_experiments: dictonary of experiment classes that are to be subexperiments of the dynamic class. Should be in the dictionary
                          form {'class_name': <class_object>} (btw. class_object is not the instance)
                 experiment_default_settings: the default settings of the dynamically created object. Should be a list of Parameter objects.
 
-            Returns: A newly created class inheriting from experimentIterator, with the given subexperiments and default settings
+            Returns: A newly created class inheriting from ExperimentIterator, with the given subexperiments and default settings
 
             """
 
-            # dynamically import the module, i.e. the namespace for the experimentiterator
+            # dynamically import the module, i.e. the namespace for the Experimentiterator
             experiment_iterator_module = __import__(experiment_iterator_base_class.__module__)
 
             if verbose:
@@ -752,7 +910,7 @@ experiment.
         class_name, dynamic_class = create_experiment_iterator_class(sub_experiments, experiment_default_settings,
                                                                  experiment_iterators[package], verbose=verbose)
 
-        # update the generic name (e.g. experimentIterator) to a unique name  (e.g. experimentIterator_01)
+        # update the generic name (e.g. ExperimentIterator) to a unique name  (e.g. ExperimentIterator_01)
         experiment_information['class'] = class_name
 
         if 'iterator_type' in experiment_information['settings']:
@@ -796,7 +954,7 @@ experiment.
                     print(p, name, c)
 
                 if issubclass(c, ExperimentIterator):
-                    # update dictionary with 'Package name , e.g. AQuISS or b103_toolkit': <experimentIterator_class>
+                    # update dictionary with 'Package name , e.g. AQuISS or b103_toolkit': <ExperimentIterator_class>
                     experiment_iterator.update({c.__module__.split('.')[0]: c})
 
         return experiment_iterator

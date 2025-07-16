@@ -17,6 +17,7 @@ from src.core import Device, Parameter
 from PyQt5.QtCore import QThread
 import random, time
 import numpy as np
+
 class ExampleDevice(Device):
     '''
     Dummy device

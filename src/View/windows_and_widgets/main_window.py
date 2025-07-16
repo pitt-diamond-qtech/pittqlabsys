@@ -14,13 +14,14 @@
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 from PyQt5 import QtGui, QtCore, QtWidgets
 from PyQt5.uic import loadUiType
-from PyQt5.QtCore import QThread, pyqtSlot
+from PyQt5.QtCore import QThread, pyqtSlot, Qt
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
+import pyqtgraph as pg
 
 from src.core import Parameter, Device, Experiment, Probe
 from src.core.experiment_iterator import ExperimentIterator
 from src.core.read_probes import ReadProbes
-from src.View.windows_and_widgets import AQuISSQTreeItem, MatplotlibWidget, LoadDialog, LoadDialogProbes, ExportDialog
+from src.View.windows_and_widgets import AQuISSQTreeItem, LoadDialog, LoadDialogProbes, ExportDialog, PyQtgraphWidget, PyQtCoordinatesBar
 from src.Model.experiments.select_points import SelectPoints
 from src.core.read_write_functions import load_aqs_file
 from src.core.helper_functions import get_project_root
@@ -111,6 +112,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.tree_gui_settings.doubleClicked.connect(self.edit_tree_item)
 
             self.current_experiment = None
+            self.previous_data = None
             self.probe_to_plot = None
 
             # create models for tree structures, the models reflect the data
@@ -387,20 +389,30 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         self.tree_settings.blockSignals(False)
 
-
     def plot_clicked(self, mouse_event):
         """
         gets activated when the user clicks on a plot
         Args:
             mouse_event:
         """
-        if isinstance(self.current_experiment, SelectPoints) and self.current_experiment.is_running:
-            if (not (mouse_event.xdata == None)):
-                if (mouse_event.button == 1):
-                    pt = np.array([mouse_event.xdata, mouse_event.ydata])
-                    self.current_experiment.toggle_NV(pt)
-                    self.current_experiment.plot([self.matplotlibwidget_1.figure])
-                    self.matplotlibwidget_1.draw()
+        # get viewbox and mouse coordinates from primary PlotItem
+        viewbox = self.pyqtgraphwidget_1.graph.getItem(row=0, col=0).vb
+        mouse_point = viewbox.mapSceneToView(mouse_event.scenePos())
+
+        if (isinstance(self.current_experiment, SelectPoints) and self.current_experiment.is_running):
+            #if running the SelectPoints experiment triggers function to plot and save NV locations
+            if mouse_event.button() == Qt.LeftButton:
+                pt = np.array([mouse_point.x(), mouse_point.y()])
+                self.current_experiment.toggle_NV(pt)
+                self.current_experiment.plot([self.pyqtgraphwidget_1.graph])
+
+        if isinstance(self.current_experiment,ExperimentIterator) and self.current_experiment.is_running and isinstance(self.current_experiment._current_subexperiment_stage['current_subexperiment'], SelectPoints):
+            #if running an ExperimentIterator and the current subexperiment is SelectPoints triggers function to plot and save NV locations
+            select_points_instance = self.current_experiment._current_subexperiment_stage['current_subexperiment']
+            if mouse_event.button() == Qt.LeftButton:
+                pt = np.array([mouse_point.x(), mouse_point.y()])
+                select_points_instance.toggle_NV(pt)
+                select_points_instance.plot([self.pyqtgraphwidget_1.graph])
 
         item = self.tree_experiments.currentItem()
 
@@ -408,16 +420,16 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             if item.is_point():
                # item_x = item.child(1)
                 item_x = item.child(0)
-                if mouse_event.xdata is not None:
+                if mouse_point.x() is not None:
                     self.tree_experiments.setCurrentItem(item_x)
-                    item_x.value = float(mouse_event.xdata)
-                    item_x.setText(1, '{:0.3f}'.format(float(mouse_event.xdata)))
+                    item_x.value = float(mouse_point.x())
+                    item_x.setText(1, '{:0.3f}'.format(float(mouse_point.x())))
                # item_y = item.child(0)
                 item_y = item.child(1)
-                if mouse_event.ydata is not None:
+                if mouse_point.y() is not None:
                     self.tree_experiments.setCurrentItem(item_y)
-                    item_y.value = float(mouse_event.ydata)
-                    item_y.setText(1, '{:0.3f}'.format(float(mouse_event.ydata)))
+                    item_y.value = float(mouse_point.y())
+                    item_y.setText(1, '{:0.3f}'.format(float(mouse_point.y())))
 
                 # focus back on item
                 self.tree_experiments.setCurrentItem(item)
@@ -425,11 +437,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 if item.parent() is not None:
                     if item.parent().is_point():
                         if item == item.parent().child(1):
-                            if mouse_event.xdata is not None:
-                                item.setData(1, 2, float(mouse_event.xdata))
+                            if mouse_point.x() is not None:
+                                item.setData(1, 2, float(mouse_point.x()))
                         if item == item.parent().child(0):
-                            if mouse_event.ydata is not None:
-                                item.setData(1, 2, float(mouse_event.ydata))
+                            if mouse_point.y() is not None:
+                                item.setData(1, 2, float(mouse_point.y()))
 
     def get_time(self):
         """
@@ -452,53 +464,53 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.history_model.insertRow(0, QtGui.QStandardItem(msg))
 
     def create_figures(self):
-        """
-        creates the maplotlib figures]
-        self.matplotlibwidget_1
-        self.matplotlibwidget_2
-        and toolbars
-        self.mpl_toolbar_1
-        self.mpl_toolbar_2
-        Returns:
-
-        """
-
 
         try:
-            self.horizontalLayout_14.removeWidget(self.matplotlibwidget_1)
-            self.matplotlibwidget_1.close()
+            self.horizontalLayout_14.removeWidget(self.pyqtgraphwidget_1)
+            self.pyqtgraphwidget_1.close()
         except AttributeError:
             pass
         try:
-            self.horizontalLayout_15.removeWidget(self.matplotlibwidget_2)
-            self.matplotlibwidget_2.close()
+            self.horizontalLayout_15.removeWidget(self.pyqtgraphwidget_2)
+            self.pyqtgraphwidget_2.close()
         except AttributeError:
             pass
-        self.matplotlibwidget_2 = MatplotlibWidget(self.plot_2)
+
+        #adds 2 graphics layout widgets. _1 is top layout and _2 is bottom layout
+        self.pyqtgraphwidget_2 = PyQtgraphWidget(self.plot_2)
         sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
-        sizePolicy.setHeightForWidth(self.matplotlibwidget_2.sizePolicy().hasHeightForWidth())
-        self.matplotlibwidget_2.setSizePolicy(sizePolicy)
-        self.matplotlibwidget_2.setMinimumSize(QtCore.QSize(200, 200))
-        self.matplotlibwidget_2.setObjectName("matplotlibwidget_2")
-        self.horizontalLayout_16.addWidget(self.matplotlibwidget_2)
-        self.matplotlibwidget_1 = MatplotlibWidget(self.plot_1)
-        self.matplotlibwidget_1.setMinimumSize(QtCore.QSize(200, 200))
-        self.matplotlibwidget_1.setObjectName("matplotlibwidget_1")
-        self.horizontalLayout_15.addWidget(self.matplotlibwidget_1)
+        sizePolicy.setHeightForWidth(self.pyqtgraphwidget_2.sizePolicy().hasHeightForWidth())
+        self.pyqtgraphwidget_2.setSizePolicy(sizePolicy)
+        self.pyqtgraphwidget_2.setMinimumSize(QtCore.QSize(200, 200))
+        self.pyqtgraphwidget_2.setObjectName("pyqtgraphwidget_2")
+        self.horizontalLayout_16.addWidget(self.pyqtgraphwidget_2)
+        self.pyqtgraphwidget_1 = PyQtgraphWidget(parent=self.plot_1)
+        self.pyqtgraphwidget_1.setMinimumSize(QtCore.QSize(200, 200))
+        self.pyqtgraphwidget_1.setObjectName("pyqtgraphwidget_1")
+        self.horizontalLayout_15.addWidget(self.pyqtgraphwidget_1)
 
-        self.matplotlibwidget_1.mpl_connect('button_press_event', self.plot_clicked)
-        self.matplotlibwidget_2.mpl_connect('button_press_event', self.plot_clicked)
+        #adds 2 coordinate bars (1 for each graphics widget)
+        self.cordbar_2 = PyQtCoordinatesBar(self.pyqtgraphwidget_2.get_graph)
+        self.cordbar_1 = PyQtCoordinatesBar(self.pyqtgraphwidget_1.get_graph)
+        self.horizontalLayout_9.addWidget(self.cordbar_2)
+        self.horizontalLayout_14.addWidget(self.cordbar_1)
 
-        # adds a toolbar to the plots
-        self.mpl_toolbar_1 = NavigationToolbar(self.matplotlibwidget_1.canvas, self.toolbar_space_1)
-        self.mpl_toolbar_2 = NavigationToolbar(self.matplotlibwidget_2.canvas, self.toolbar_space_2)
-        self.horizontalLayout_9.addWidget(self.mpl_toolbar_2)
-        self.horizontalLayout_14.addWidget(self.mpl_toolbar_1)
+        sizePolicy.setHeightForWidth(self.cordbar_2.sizePolicy().hasHeightForWidth())
+        self.cordbar_2.setSizePolicy(sizePolicy)
+        self.cordbar_2 .setMinimumSize(QtCore.QSize(200, 50))
+        self.cordbar_2 .setObjectName('cordinatebar_2')
 
-        self.matplotlibwidget_1.figure.set_tight_layout(True)
-        self.matplotlibwidget_2.figure.set_tight_layout(True)
+        sizePolicy.setHeightForWidth(self.cordbar_1.sizePolicy().hasHeightForWidth())
+        self.cordbar_1.setSizePolicy(sizePolicy)
+        self.cordbar_1.setMinimumSize(QtCore.QSize(200, 50))
+        self.cordbar_1.setObjectName('cordinatebar_1')
+
+        # connects plots so when clicked on the plot_clicked method triggers
+        self.pyqtgraphwidget_1.graph.scene().sigMouseClicked.connect(self.plot_clicked)
+        self.pyqtgraphwidget_2.graph.scene().sigMouseClicked.connect(self.plot_clicked)
+
 
     def load_experiments(self):
             """
@@ -590,6 +602,15 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 experiment.finished.connect(experiment_thread.quit)  # clean up. quit thread after experiment is finished
                 experiment.finished.connect(self.experiment_finished) # connect finished signal of experiment to finished slot of gui
 
+                # for some experiments we want to inherit data from the previous experiment (for example NV locations from SelectPoints to use in say ODMR)
+                # to use you want an inherit data parameter in the experiment settings. Could be expanded depending on use cases
+                if self.previous_data is not None:
+                    if 'inherit_data' in experiment.settings and experiment.settings['inherit_data']:
+                        common_keys = experiment.data.keys() & self.previous_data.keys()
+                        #print('common keys',common_keys)
+                        for key in common_keys:
+                            experiment.data[key] = self.previous_data[key]
+
                 # start thread, i.e. experiment
                 experiment_thread.start()
 
@@ -634,9 +655,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 experiment, path_to_experiment, experiment_item = item.get_experiment()
                 self.update_experiment_from_item(experiment_item)
                 experiment.is_valid()
-                experiment.plot_validate([self.matplotlibwidget_1.figure, self.matplotlibwidget_2.figure])
-                self.matplotlibwidget_1.draw()
-                self.matplotlibwidget_2.draw()
+                experiment.plot_validate([self.pyqtgraphwidget_1.graph, self.pyqtgraphwidget_2.graph])
+                #i dont think these two lines are necessary since pyqtgraph auto updates when plot_validate is called
+                self.pyqtgraphwidget_1.update()
+                self.pyqtgraphwidget_2.update()
 
         def store_experiment_data():
             """
@@ -657,7 +679,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             saves the selected experiment (where is contained in the experiment itself)
             """
             indecies = self.tree_dataset.selectedIndexes()
-            model = indecies[0].model()
+            try:
+                model = indecies[0].model()
+            except IndexError:
+                self.log('No experiment selected.')
             rows = list(set([index.row()for index in indecies]))
 
             for row in rows:
@@ -670,6 +695,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 experiment.save_image_to_disk()
                 experiment.save_aqs()
                 experiment.save_log()
+                experiment.save_data_to_matlab()
 
         def delete_data():
             """
@@ -885,10 +911,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 item = iterator.value()
                 iterator +=1
 
-
         self.tree_experiments.setColumnWidth(0, 200)
         self.tree_experiments.setColumnWidth(1, 400)
         self.tree_experiments.setColumnWidth(2, 50)
+
     def update_parameters(self, treeWidget):
         """
         updates the internal dictionaries for experiments and devices with values from the respective trees
@@ -956,9 +982,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             experiment: experiment to be plotted
         """
 
-        experiment.plot([self.matplotlibwidget_1.figure, self.matplotlibwidget_2.figure])
-        self.matplotlibwidget_1.draw()
-        self.matplotlibwidget_2.draw()
+        experiment.plot([self.pyqtgraphwidget_1.graph, self.pyqtgraphwidget_2.graph])
+        #self.matplotlibwidget_1.draw()
+        #self.matplotlibwidget_2.draw()
 
 
     @pyqtSlot(int)
@@ -999,6 +1025,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         waits for the experiment to emit the experiment_finshed signal
         """
         experiment = self.current_experiment
+        self.previous_data = experiment.data
         experiment.updateProgress.disconnect(self.update_status)
         self.experiment_thread.started.disconnect()
         experiment.finished.disconnect()
@@ -1018,9 +1045,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         """
 
-        experiment.plot_validate([self.matplotlibwidget_1.figure, self.matplotlibwidget_2.figure])
-        self.matplotlibwidget_1.draw()
-        self.matplotlibwidget_2.draw()
+        experiment.plot_validate([self.pyqtgraphwidget_1.graph, self.pyqtgraphwidget_2.graph])
+        #self.matplotlibwidget_1.draw()
+        #self.matplotlibwidget_2.draw()
 
     def update_probes(self, progress):
         """
