@@ -19,5 +19,4 @@ from .ni_daq import PXI6733,NIDAQ,NI6281,PCI6229,PCI6601
 from .microwave_generator import MicrowaveGenerator
 from .nanodrive import MCLNanoDrive
 from .adwin import ADwinGold
-
-
+from .pulse_blaster import PulseBlaster
