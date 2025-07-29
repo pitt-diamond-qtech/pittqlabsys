@@ -31,15 +31,54 @@ _DEFAULTS = {
 }
 
 def load_json(path: Path) -> dict:
-    if path.exists():
-        return json.loads(path.read_text()) or {}
-    return {}
+    """
+    Load JSON data from a file with error handling.
+    
+    Args:
+        path: Path to the JSON file
+        
+    Returns:
+        Dictionary containing the JSON data, or empty dict if file doesn't exist
+        or contains invalid JSON
+    """
+    if not path.exists():
+        return {}
+    
+    content = path.read_text().strip()
+    if not content:
+        return {}
+    
+    try:
+        return json.loads(content) or {}
+    except json.JSONDecodeError:
+        # Return empty dict for invalid JSON instead of raising
+        return {}
 
 def resolve_paths(config_path: Path = None) -> dict:
     """
-    Merge _DEFAULTS with any overrides under top-level "paths" in config JSON.
-    Creates any missing directories (except for gui_settings file).
-    Returns a dict of Path objects.
+    Resolve configuration paths by merging defaults with overrides from config file.
+    
+    This function takes the default paths and merges them with any overrides
+    specified in a configuration file. It automatically creates missing directories
+    for all paths except the gui_settings file.
+    
+    Args:
+        config_path: Optional path to configuration file containing path overrides
+        
+    Returns:
+        Dictionary mapping path keys to resolved Path objects
+        
+    Example:
+        >>> paths = resolve_paths()
+        >>> print(paths["data_folder"])
+        /home/user/Experiments/AQuISS_default_save_location/data
+        
+        >>> # With custom config file
+        >>> custom_config = Path("custom_config.json")
+        >>> custom_config.write_text('{"paths": {"data_folder": "/custom/data"}}')
+        >>> paths = resolve_paths(custom_config)
+        >>> print(paths["data_folder"])
+        /custom/data
     """
     overrides = {}
     if config_path and config_path.exists():

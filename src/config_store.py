@@ -20,18 +20,71 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 def load_config(path: Path) -> Dict[str, Any]:
-    if path.exists():
-        return json.loads(path.read_text()) or {}
-    return {}
+    """
+    Load configuration from a JSON file.
+    
+    Args:
+        path: Path to the JSON configuration file
+        
+    Returns:
+        Dictionary containing the configuration data
+        
+    Raises:
+        json.JSONDecodeError: If the file contains invalid JSON
+    """
+    if not path.exists():
+        return {}
+    
+    content = path.read_text().strip()
+    if not content:
+        return {}
+    
+    try:
+        return json.loads(content) or {}
+    except json.JSONDecodeError:
+        # Re-raise with more context
+        raise json.JSONDecodeError(
+            f"Invalid JSON in config file: {path}", 
+            content, 
+            0
+        )
 
 def save_config(path: Path, data: Dict[str, Any]) -> None:
     """
-    Atomically write `data` as JSON to `path`, creating parent dirs.
+    Atomically write data as JSON to path, creating parent directories.
+    
+    This function ensures that the file is written atomically to prevent
+    corruption if the process is interrupted during writing.
+    
+    Args:
+        path: Path where the configuration file should be saved
+        data: Dictionary containing the configuration data to save
+        
+    Raises:
+        OSError: If the file cannot be written or directories cannot be created
+        TypeError: If the data contains non-serializable objects
     """
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(json.dumps(data, indent=4))
-    tmp.replace(path)
+    try:
+        # Create parent directories if they don't exist
+        path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Create temporary file for atomic write
+        tmp = path.with_suffix(path.suffix + ".tmp")
+        
+        # Write data to temporary file
+        tmp.write_text(json.dumps(data, indent=4))
+        
+        # Atomically replace the original file
+        tmp.replace(path)
+        
+    except (OSError, TypeError) as e:
+        # Clean up temporary file if it exists
+        if tmp.exists():
+            try:
+                tmp.unlink()
+            except OSError:
+                pass  # Ignore cleanup errors
+        raise
 
 def merge_config(
     base: Dict[str, Any],
@@ -43,9 +96,34 @@ def merge_config(
     probes: Optional[Dict[str, str]] = None
 ) -> Dict[str, Any]:
     """
-    Merge the various pieces into one JSON‐serializable dict.
+    Merge various configuration sections into one JSON-serializable dictionary.
+    
+    This function takes a base configuration dictionary and optionally adds
+    new sections for GUI settings, hidden parameters, devices, experiments,
+    and probes. Only sections that are not None are added to the result.
+    
+    Args:
+        base: Base configuration dictionary
+        gui_settings: Optional GUI settings dictionary
+        hidden_params: Optional hidden parameters dictionary (stored as "experiments_hidden_parameters")
+        devices: Optional devices configuration dictionary
+        experiments: Optional experiments configuration dictionary
+        probes: Optional probes configuration dictionary
+        
+    Returns:
+        Merged configuration dictionary with all specified sections
+        
+    Example:
+        >>> base = {"version": "1.0"}
+        >>> merged = merge_config(
+        ...     base,
+        ...     gui_settings={"theme": "dark"},
+        ...     devices={"microwave": {"type": "MicrowaveGenerator"}}
+        ... )
+        >>> print(merged)
+        {'version': '1.0', 'gui_settings': {'theme': 'dark'}, 'devices': {'microwave': {'type': 'MicrowaveGenerator'}}}
     """
-    out = dict(base)  # shallow copy
+    out = dict(base)  # shallow copy to avoid modifying the original
 
     if gui_settings is not None:
         out["gui_settings"] = gui_settings
