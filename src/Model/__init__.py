@@ -18,5 +18,6 @@ from src.Model.experiments.daq_read_counter import Pxi6733ReadCounter
 from src.Model.experiments.galvo_scan import GalvoScan
 from src.Model.experiments.galvo_scan_generic import GalvoScanGeneric
 from src.Model.experiments.select_points import SelectPoints
+from src.Model.experiments.odmr_experiment import ODMRExperiment, ODMRRabiExperiment
 
 
