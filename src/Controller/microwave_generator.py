@@ -366,6 +366,18 @@ class MicrowaveGenerator(Device):
             raise KeyError
 
 
+class SG384(MicrowaveGenerator):
+    """
+    Just a clone of MicrowaveGenerator, except that this only allows Type-N output
+    """
+
+    _DEFAULT_SETTINGS = Parameter([
+        Parameter('connection_type', 'LAN', ['GPIB', 'RS232', 'LAN'], 'type of connection to open to controller'),
+        Parameter('port', 5025, int, 'GPIB, COM, or LAN port on which to connect'),
+        ## JG: what out for the ports this might be different on each computer and might cause issues when running export default
+        Parameter('GPIB_num', 0, int, 'GPIB device on which to connect'),
+        Parameter('ip_address', 
+        ])
 
 class RFGenerator(MicrowaveGenerator):
     """

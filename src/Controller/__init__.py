@@ -20,3 +20,16 @@ from .microwave_generator import MicrowaveGenerator
 from .nanodrive import MCLNanoDrive
 from .adwin import ADwinGold
 from .pulse_blaster import PulseBlaster
+from .awg520 import AWG520
+# registry maps your config “type” strings → classes
+_DEVICE_REGISTRY = {
+    "srs385": SRS385,
+    "wfk28":  WFK28,
+    "awg520": AWG520Driver,
+}
+
+def create_device(kind: str, **kwargs):
+    cls = _DEVICE_REGISTRY.get(kind.lower())
+    if cls is None:
+        raise ValueError(f"Unknown device type: {kind}")
+    return cls(**kwargs)

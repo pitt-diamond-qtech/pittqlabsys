@@ -25,18 +25,26 @@ from src.View.windows_and_widgets import AQuISSQTreeItem, LoadDialog, LoadDialog
 from src.Model.experiments.select_points import SelectPoints
 from src.core.read_write_functions import load_aqs_file
 from src.core.helper_functions import get_project_root
-
+from config_store import load_config, merge_config, save_config
+from pathlib import Path
+from config_paths import resolve_paths
 import os, io, json, webbrowser, datetime, operator
 import numpy as np
 from collections import deque
 from functools import reduce
-from pathlib import Path
 
 
 
 
 # load the basic old_gui either from .ui file or from precompiled .py file
-print(os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir)))
+# load your global config.json (adjust the filename/path as needed)
+_CONFIG_PATH = Path(__file__).parent.parent / "config.json"
+
+# this gives you a dict of real Path objects for data_folder, experiments_folder, etc.
+paths = resolve_paths(_CONFIG_PATH)
+
+# now you can inspect any one, for example:
+print(f"Experiments folder: {paths['experiments_folder']}")
 try:
     thisdir = get_project_root()
     #qtdesignerfile = thisdir / 'View/ui_files/main_window.ui'  # this is the .ui file created in QtCreator
@@ -59,24 +67,24 @@ class CustomEventFilter(QtCore.QObject):
 
 
 class MainWindow(QMainWindow, Ui_MainWindow):
-    application_path = os.path.abspath(os.path.join(os.path.expanduser("~"), 'Experiments\\AQuISS_default_save_location'))
+    # application_path = os.path.abspath(os.path.join(os.path.expanduser("~"), 'Experiments\\AQuISS_default_save_location'))
+    #
+    # _DEFAULT_CONFIG = {
+    #     "data_folder": os.path.join(application_path, "data"),
+    #     "probes_folder": os.path.join(application_path,"probes_auto_generated"),
+    #     "device_folder": os.path.join(application_path, "devices_auto_generated"),
+    #     "experiments_folder": os.path.join(application_path, "experiments_auto_generated"),
+    #     "probes_log_folder": os.path.join(application_path, "aqs_tmp"),
+    #     "gui_settings": os.path.join(application_path, "src_config.aqs")
+    # }
+    #
+    #
+    # startup_msg = '\n\n\
+    # ======================================================\n\
+    # =============== Starting AQuISS Python LAB  =============\n\
+    # ======================================================\n\n'
 
-    _DEFAULT_CONFIG = {
-        "data_folder": os.path.join(application_path, "data"),
-        "probes_folder": os.path.join(application_path,"probes_auto_generated"),
-        "device_folder": os.path.join(application_path, "devices_auto_generated"),
-        "experiments_folder": os.path.join(application_path, "experiments_auto_generated"),
-        "probes_log_folder": os.path.join(application_path, "aqs_tmp"),
-        "gui_settings": os.path.join(application_path, "src_config.aqs")
-    }
-
-
-    startup_msg = '\n\n\
-    ======================================================\n\
-    =============== Starting AQuISS Python LAB  =============\n\
-    ======================================================\n\n'
-
-    def __init__(self, filepath=None):
+    def __init__(self, config_file: str, gui_config_file: str, *args, **kwargs):
         """
         MainWindow(intruments, experiments, probes)
             - intruments: depth 1 dictionary where keys are device names and keys are device classes
@@ -89,9 +97,45 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         Returns:
 
         """
+        super().__init__(*args, **kwargs)
 
+        # 1) Resolve your application folders from config_file:
+        cfg_path = Path(config_file)
+        self.paths = resolve_paths(cfg_path)
+        # now self.paths["data_folder"], self.paths["experiments_folder"], etc.
+
+        # 2) Load any other globals you need:
+        self.global_cfg = load_config(cfg_path)
+
+        if gui_config_path:
+            gui_cfg_file = Path(gui_config_path)
+        else:
+            # default to gui_config.json next to your project root
+            gui_cfg_file = Path(__file__).parent.parent / "gui_config.json"
+
+            # 3) Load the GUI config (or start fresh if it doesn't exist)
+        gui_cfg = load_config(gui_cfg_file)
+        self.config_filepath = gui_cfg_file
+        self.gui_settings = gui_cfg.get("gui_settings", {})
+        self.gui_settings_hidden = gui_cfg.get("experiments_hidden_parameters", {})
+        # 4) Log what we loaded
+        if gui_cfg:
+            self.log(f"Loaded GUI configuration from {gui_cfg_file}")
+        else:
+            self.log(f"No GUI config found; will save new settings to {gui_cfg_file}")
+        # 5) Build your startup message now that you have real paths:
+        self.startup_msg = (
+            "\n\n"
+            "======================================================\n"
+            "=============== Starting AQuISS Python LAB  =============\n"
+            "======================================================\n\n"
+            f"Data folder:        {self.paths['data_folder']}\n"
+            f"Experiments folder: {self.paths['experiments_folder']}\n"
+            f"GUI settings file:  {self.gui_settings or '<none>'}\n"
+        )
+        self.log(self.startup_msg)
         print(self.startup_msg)
-        self.config_filepath = None
+        #self.config_filepath = None
         super(MainWindow, self).__init__()
         self.setupUi(self)
 
@@ -203,23 +247,23 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         connect_controls()
 
-        if filepath is None:
-            path_to_config = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir, 'save_config.json'))
-            if os.path.isfile(path_to_config) and os.access(path_to_config, os.R_OK):
-                print('path_to_config', path_to_config)
-                with open(path_to_config) as f:
-                    config_data = json.load(f)
-                if 'last_save_path' in config_data.keys():
-                    self.config_filepath = config_data['last_save_path']
-                    self.log('Checking for previous save of GUI here: {0}'.format(self.config_filepath))
-            else:
-                self.log('Starting with blank GUI; configuration files will be saved here: {0}'.format(self._DEFAULT_CONFIG["gui_settings"]))
+        # if filepath is None:
+        #     path_to_config = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir, 'save_config.json'))
+        #     if os.path.isfile(path_to_config) and os.access(path_to_config, os.R_OK):
+        #         print('path_to_config', path_to_config)
+        #         with open(path_to_config) as f:
+        #             config_data = json.load(f)
+        #         if 'last_save_path' in config_data.keys():
+        #             self.config_filepath = config_data['last_save_path']
+        #             self.log('Checking for previous save of GUI here: {0}'.format(self.config_filepath))
+        #     else:
+        #         self.log('Starting with blank GUI; configuration files will be saved here: {0}'.format(self._DEFAULT_CONFIG["gui_settings"]))
 
-        elif os.path.isfile(filepath) and os.access(filepath, os.R_OK):
-            self.config_filepath = filepath
+        # elif os.path.isfile(filepath) and os.access(filepath, os.R_OK):
+        #     self.config_filepath = filepath
 
-        elif not os.path.isfile(filepath):
-            self.log('Could not find file given to open --- starting with a blank GUI')
+        # elif not os.path.isfile(filepath):
+        #     self.log('Could not find file given to open --- starting with a blank GUI')
 
         self.devices = {}
         self.experiments = {}
@@ -227,7 +271,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.gui_settings = {'experiments_folder': '', 'data_folder': ''}
         self.gui_settings_hidden = {'experiments_source_folder': ''}
 
-        self.load_config(self.config_filepath)
+        #self.load_config(self.config_filepath)
 
         self.data_sets = {}  # todo: load datasets from tmp folder
         self.read_probes = ReadProbes(self.probes)
@@ -242,8 +286,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.actionExport.setShortcut(self.tr('Ctrl+E'))
         self.list_history.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
 
-        if self.config_filepath is None:
-            self.config_filepath = os.path.join(self._DEFAULT_CONFIG["gui_settings"], 'gui.aqs')
+        # if self.config_filepath is None:
+        #     self.config_filepath = os.path.join(self._DEFAULT_CONFIG["gui_settings"], 'gui.aqs')
 
     def closeEvent(self, event):
         """
@@ -1391,81 +1435,144 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         # else:
         #     print('WARNING: no settings for hiding parameters all set to default')
 
+    # def save_config(self, filepath):
+    #     """
+    #     saves gui configuration to out_file_name
+    #     Args:
+    #         filepath: name of file
+    #     """
+    #     def get_hidden_parameter(item):
+    #
+    #         num_sub_elements = item.childCount()
+    #
+    #         if num_sub_elements == 0:
+    #             dictator = {item.name : item.visible}
+    #         else:
+    #             dictator = {item.name:{}}
+    #             for child_id in range(num_sub_elements):
+    #                 dictator[item.name].update(get_hidden_parameter(item.child(child_id)))
+    #         return dictator
+    #
+    #
+    #
+    #
+    #     print('GD tmp filepath', filepath)
+    #     try:
+    #         filepath = str(filepath)
+    #         if not os.path.exists(os.path.dirname(filepath)):
+    #             os.makedirs(os.path.dirname(filepath))
+    #             self.log('ceated dir ' + os.path.dirname(filepath))
+    #
+    #         # build a dictionary for the configuration of the hidden parameters
+    #         dictator = {}
+    #         for index in range(self.tree_experiments.topLevelItemCount()):
+    #             experiment_item = self.tree_experiments.topLevelItem(index)
+    #             dictator.update(get_hidden_parameter(experiment_item))
+    #
+    #         dictator = {"gui_settings": self.gui_settings, "gui_settings_hidden": self.gui_settings_hidden, "experiments_hidden_parameters":dictator}
+    #
+    #         # update the internal dictionaries from the trees in the gui
+    #         for index in range(self.tree_experiments.topLevelItemCount()):
+    #             experiment_item = self.tree_experiments.topLevelItem(index)
+    #             self.update_experiment_from_item(experiment_item)
+    #
+    #         dictator.update({'devices': {}, 'experiments': {}, 'probes': {}})
+    #
+    #         for device in self.devices.values():
+    #             dictator['devices'].update(device.to_dict())
+    #         for experiment in self.experiments.values():
+    #             dictator['experiments'].update(experiment.to_dict())
+    #
+    #         for device, probe_dict in self.probes.items():
+    #             dictator['probes'].update({device: ','.join(list(probe_dict.keys()))})
+    #
+    #         with open(filepath, 'w') as outfile:
+    #             json.dump(dictator, outfile, indent=4)
+    #         self.log('Saved GUI configuration (location: {:s})'.format(filepath))
+    #
+    #     except Exception:
+    #         msg = QtWidgets.QMessageBox()
+    #         msg.setText("Saving to {:s} failed."
+    #                     "Please use 'save as' to define a valid path for the gui.".format(filepath))
+    #         msg.exec_()
+    #     try:
+    #         save_config_path = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir, 'save_config.json'))
+    #         if os.path.isfile(save_config_path) and os.access(save_config_path, os.R_OK):
+    #             with open(save_config_path, 'w') as outfile:
+    #                 json.dump({'last_save_path': filepath}, outfile, indent=4)
+    #         else:
+    #             with io.open(save_config_path, 'w') as save_config_file:
+    #                 save_config_file.write(json.dumps({'last_save_path': filepath}))
+    #         self.log('Saved save_config.json')
+    #     except Exception:
+    #         msg = QtWidgets.QMessageBox()
+    #         msg.setText("Saving save_config.json failed (:s). Check if use has write access to this folder.".format(save_config_path))
+    #         msg.exec_()
+
     def save_config(self, filepath):
         """
-        saves gui configuration to out_file_name
-        Args:
-            filepath: name of file
+        Gather GUI state and write out a unified config.json.
         """
-        def get_hidden_parameter(item):
-
-            num_sub_elements = item.childCount()
-
-            if num_sub_elements == 0:
-                dictator = {item.name : item.visible}
-            else:
-                dictator = {item.name:{}}
-                for child_id in range(num_sub_elements):
-                    dictator[item.name].update(get_hidden_parameter(item.child(child_id)))
-            return dictator
-
-
-
-
-        print('GD tmp filepath', filepath)
+        fp = Path(filepath)
         try:
-            filepath = str(filepath)
-            if not os.path.exists(os.path.dirname(filepath)):
-                os.makedirs(os.path.dirname(filepath))
-                self.log('ceated dir ' + os.path.dirname(filepath))
+            # 1) Load any existing base config (preserves other keys: paths, devices, etc.)
+            base = load_config(fp)
 
-            # build a dictionary for the configuration of the hidden parameters
-            dictator = {}
-            for index in range(self.tree_experiments.topLevelItemCount()):
-                experiment_item = self.tree_experiments.topLevelItem(index)
-                dictator.update(get_hidden_parameter(experiment_item))
+            # 2) Build your dicts
+            # 2a) Hidden parameters tree
+            def get_hidden(item):
+                if item.childCount() == 0:
+                    return {item.name: item.visible}
+                d = {}
+                for i in range(item.childCount()):
+                    d.update(get_hidden(item.child(i)))
+                return {item.name: d}
 
-            dictator = {"gui_settings": self.gui_settings, "gui_settings_hidden": self.gui_settings_hidden, "experiments_hidden_parameters":dictator}
+            hidden = {}
+            for idx in range(self.tree_experiments.topLevelItemCount()):
+                hidden.update(get_hidden(self.tree_experiments.topLevelItem(idx)))
 
-            # update the internal dictionaries from the trees in the gui
-            for index in range(self.tree_experiments.topLevelItemCount()):
-                experiment_item = self.tree_experiments.topLevelItem(index)
-                self.update_experiment_from_item(experiment_item)
+            # 2b) Device & experiment state
+            dev_dict = {}
+            for dev in self.devices.values():
+                dev_dict.update(dev.to_dict())
 
-            dictator.update({'devices': {}, 'experiments': {}, 'probes': {}})
+            exp_dict = {}
+            for exp in self.experiments.values():
+                exp_dict.update(exp.to_dict())
 
-            for device in self.devices.values():
-                dictator['devices'].update(device.to_dict())
-            for experiment in self.experiments.values():
-                dictator['experiments'].update(experiment.to_dict())
+            probe_dict = {
+                dev: ",".join(self.probes[dev].keys())
+                for dev in self.probes
+            }
 
-            for device, probe_dict in self.probes.items():
-                dictator['probes'].update({device: ','.join(list(probe_dict.keys()))})
+            # 3) Merge everything
+            merged = merge_config(
+                base,
+                gui_settings=self.gui_settings,
+                hidden_params=hidden,
+                devices=dev_dict,
+                experiments=exp_dict,
+                probes=probe_dict
+            )
 
-            with open(filepath, 'w') as outfile:
-                json.dump(dictator, outfile, indent=4)
-            self.log('Saved GUI configuration (location: {:s})'.format(filepath))
+            # 4) Save atomic JSON
+            save_config(fp, merged)
+            self.log(f"Saved GUI configuration to {fp}")
 
-        except Exception:
-            msg = QtWidgets.QMessageBox()
-            msg.setText("Saving to {:s} failed."
-                        "Please use 'save as' to define a valid path for the gui.".format(filepath))
-            msg.exec_()
-        try:
-            save_config_path = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir, 'save_config.json'))
-            if os.path.isfile(save_config_path) and os.access(save_config_path, os.R_OK):
-                with open(save_config_path, 'w') as outfile:
-                    json.dump({'last_save_path': filepath}, outfile, indent=4)
-            else:
-                with io.open(save_config_path, 'w') as save_config_file:
-                    save_config_file.write(json.dumps({'last_save_path': filepath}))
-            self.log('Saved save_config.json')
-        except Exception:
-            msg = QtWidgets.QMessageBox()
-            msg.setText("Saving save_config.json failed (:s). Check if use has write access to this folder.".format(save_config_path))
-            msg.exec_()
+            # 5) Also remember last save path
+            last_cfg = Path(__file__).parent.parent / "gui_config.json"
+            last = load_config(last_cfg)
+            last["last_save_path"] = str(fp)
+            save_config(last_cfg, last)
+            self.log(f"Updated last_save_path in {last_cfg}")
 
-
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(
+                self,
+                "Save Error",
+                f"Failed to save config:\n{e}"
+            )
 
 
     def save_dataset(self, out_file_name):
