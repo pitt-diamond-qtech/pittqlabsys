@@ -12,7 +12,14 @@ This file lists all contributors to the AQuISS project.
 
 ### Student Contributors
 *Note: This section will be updated as students contribute to the project*
-
+- ** Abby Bakkenist** - *Undergraduate student researcher*
+  - Email: AEB200@pitt.edu
+  - Institution: University of Pittsburgh
+  - Role: Pulseblaster, NI PCI6229,PCI6601 board integration 
+- ** Dylan Staples** - *Undergraduate student researcher*
+  - Email: DYS21@pitt.edu
+  - Institution: University of Pittsburgh
+  - Role: Adwin, MCL Nanodrive, GUI improvements
 ## How to Add Your Name
 
 If you've contributed to AQuISS, please add your name to this file by:
