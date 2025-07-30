@@ -261,5 +261,7 @@ if __name__ == '__main__':
     for i in range(15):
         time.sleep(0.1)
         print((d.read_probes('output')))
-    d.save_aqs("C:\\Users\\l00055843\\PycharmProjects\\AQuISS\\aqsfiles\\example_device.aqs")
+    # Example path - replace with your actual path
+    # d.save_aqs("C:\\Users\\l00055843\\PycharmProjects\\AQuISS\\aqsfiles\\example_device.aqs")
+    print("Note: save_aqs path should be updated to use pathlib for cross-platform compatibility")
     print('done')

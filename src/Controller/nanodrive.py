@@ -1,6 +1,6 @@
 from src.core import Device,Parameter
 from ctypes import *
-import os
+from pathlib import Path
 
 
 class MCLNanoDrive(Device):
@@ -52,7 +52,8 @@ class MCLNanoDrive(Device):
 
     def __init__(self, name=None, settings=None):
         try:            #Loads DLL file. Should be in 'binary_files' folder in 'Controller' folder that houses nanodrive.py
-            self.DLL = windll.LoadLibrary(os.path.join(os.path.dirname(__file__),'binary_files','madlib.dll'))
+            dll_path = Path(__file__).parent / 'binary_files' / 'madlib.dll'
+            self.DLL = windll.LoadLibrary(str(dll_path))
         except (OSError, WindowsError) as error:
             print('Unable to load Mad City Labs DLL')
             raise

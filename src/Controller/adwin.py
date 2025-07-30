@@ -112,13 +112,10 @@ class ADwinGold(Device):
         Args:
             filepath: file location of ADbasic script
                 -If the ADbasic files are in an 'ADbasic' subfolder in the same location as the controller can use
-                    os.path.join(os.path.dirname(__file__),'ADbasic\\__name__.__(processor & number)__')
+                    Path(__file__).parent / 'ADbasic' / '__name__.__(processor & number)__'
                 -If using in GUI can copy path and paste.
 
-        Note: There is some subtlties with python handling paths. The direction and number of slashes should follow
-              the example path of test_script
-
-        test_script located at 'D:/PyCharmProjects/pittqlabsys-main/src/Controller\ADbasic\\Test_controller.TB1'
+        Note: Path handling is now cross-platform compatible using pathlib.Path
         '''
         self.adw.Load_Process(filepath)
 
