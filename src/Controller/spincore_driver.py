@@ -13,7 +13,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 ### services/spincore_driver.py
-from pulseblaster import PulseBlaster  # existing low-level library
+from .pulse_blaster import PulseBlaster  # existing low-level library
 import logging
 
 class SpinCoreDriver:

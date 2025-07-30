@@ -15,7 +15,7 @@
 
 from src.core import Device, Parameter
 import numpy as np
-import ctypes
+from ctypes import cdll, c_char_p, c_double, c_uint, c_int
 
 # constants defined by spincore
 _PULSE_PROGRAM = 0
@@ -55,14 +55,14 @@ class PulseBlaster(Device):
         self.libraryHeader = library_header
 
         try:
-            self._dll = ctypes.cdll.LoadLibrary(library_file)
+            self._dll = cdll.LoadLibrary(library_file)
             super(PulseBlaster, self).__init__(name, settings)
         except OSError:
             raise
 
     # Check if the command has given an error. If so, print and return the error's description.
     def chk(self, error):
-        self._dll.pb_get_error.restype = ctypes.c_char_p
+        self._dll.pb_get_error.restype = c_char_p
         recent_error = self._dll.pb_get_error()
         if error != 0:
             print(recent_error)
@@ -82,10 +82,10 @@ class PulseBlaster(Device):
         try:
             getattr(self._dll, 'pb_core_clock')
         except (AttributeError, NameError):
-            return self.chk(self._dll.pb_set_clock(ctypes.c_double(clock_rate)))
+            return self.chk(self._dll.pb_set_clock(c_double(clock_rate)))
             # print 'pb set clock loaded'
         else:
-            return self.chk(self._dll.pb_core_clock(ctypes.c_double(clock_rate)))
+            return self.chk(self._dll.pb_core_clock(c_double(clock_rate)))
             # print 'pb core clock loaded'
 
     # Start programming the PB board.
@@ -107,8 +107,8 @@ class PulseBlaster(Device):
         except (AttributeError, NameError):
             print('Function pb_inst_pbonly not found.')
         else:
-            address = self._dll.pb_inst_pbonly(ctypes.c_uint(flags), ctypes.c_int(inst), ctypes.c_int(inst_data),
-                                               ctypes.c_double(length))
+            address = self._dll.pb_inst_pbonly(c_uint(flags), c_int(inst), c_int(inst_data),
+                                               c_double(length))
             return address
 
     # Stop programming the PB board.
@@ -134,7 +134,7 @@ class PulseBlaster(Device):
     # Get the current version of SpinAPI being used by the board.
     # not currently working.
     def get_version(self):
-        self._dll.pb_get_version.restype = ctypes.c_char_p
+        self._dll.pb_get_version.restype = c_char_p
         return self._dll.pb_get_version()
 
     # Get the current status of the board. The status functiong provided by the spinapi .dll file

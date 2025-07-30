@@ -1,5 +1,14 @@
 from src.core import Device,Parameter
-from ctypes import *
+from ctypes import (
+    c_int, c_short, c_double, c_uint, c_ushort, c_bool, 
+    byref
+)
+import platform
+if platform.system() == 'Windows':
+    from ctypes import windll
+else:
+    # On non-Windows systems, we'll use cdll for compatibility
+    from ctypes import cdll as windll
 from pathlib import Path
 
 
