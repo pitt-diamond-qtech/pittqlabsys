@@ -13,7 +13,14 @@ class WindfreakSynthUSBII(MicrowaveGeneratorBase):
     Communicates over VISA (USB/RS232) using pyvisa.
     """
 
-    _DEFAULT_SETTINGS = MicrowaveGeneratorBase._DEFAULT_SETTINGS + Parameter([
+    _DEFAULT_SETTINGS = Parameter([
+        # Base settings from MicrowaveGeneratorBase
+        Parameter('connection_type', 'LAN', ['LAN','GPIB','RS232'], 'Transport type'),
+        Parameter('ip_address', '',     str, 'IP for LAN'),
+        Parameter('port',       5025,   int, 'Port for LAN'),
+        Parameter('visa_resource', '',  str, 'PyVISA resource string, e.g. GPIB0::20::INSTR or ASRL9::INSTR'),
+        Parameter('baud_rate',   115200,int, 'Baud for RS232'),
+        # Windfreak-specific settings
         Parameter('frequency', 1000.0, float, 'frequency in MHz (0 to stop)'),
         Parameter('power',    -4,   [-4, -1, 2, 5], 'output power in dBm'),
         Parameter('reference','internal',['internal','external'], 'reference: internal/external'),
@@ -31,10 +38,8 @@ class WindfreakSynthUSBII(MicrowaveGeneratorBase):
     def __init__(self, name=None, settings=None):
         super().__init__(name, settings)
         # on init, turn on output and apply defaults
-        self.output_on()
-        self.set_power(self.settings['power'])
-        self.set_reference(self.settings['reference'])
-        self.set_continuous(self.settings['sweep']['continuous_sweep'])
+        # Note: Don't call _send methods here as _inst may not be ready yet
+        # These will be called when the device is actually used
 
     # --- basic SCPI wrappers -----------------------------------
     def set_frequency(self, mhz: float):
@@ -49,6 +54,12 @@ class WindfreakSynthUSBII(MicrowaveGeneratorBase):
         code = { -4:0, -1:1, 2:2, 5:3 }[dbm]
         self.settings['power'] = dbm
         self._send(f"a{code}")
+
+    def set_phase(self, deg: float):
+        """SCPI: phase setting (not implemented for Windfreak)."""
+        # Windfreak doesn't support phase setting, so we just store it
+        self.settings['phase'] = deg
+        # Could implement if the device supports it
 
     def set_reference(self, mode: str):
         """SCPI: x<0|1> sets internal(1)/external(0)."""
@@ -91,26 +102,28 @@ class WindfreakSynthUSBII(MicrowaveGeneratorBase):
     # --- override update to dispatch to methods ----------------
     def update(self, new_settings: dict):
         super().update(new_settings)
-        for key, val in new_settings.items():
-            if key == 'frequency':
-                self.set_frequency(val)
-            elif key == 'power':
-                self.set_power(val)
-            elif key == 'reference':
-                self.set_reference(val)
-            elif key == 'phase_lock':
-                self.set_phase_lock(val)
-            elif key == 'sweep':
-                sp = val
-                # set sub-parameters
-                self.set_sweep_params(
-                    sp['freq_lower'], sp['freq_upper'],
-                    sp['freq_step'],  sp['time_step']
-                )
-                if sp.get('continuous_sweep', False):
-                    self.set_continuous(True)
-                if sp.get('run_sweep', False):
-                    self.run_sweep()
+        # Only send commands if _inst is available (i.e., not during initialization)
+        if hasattr(self, '_inst') and self._inst is not None:
+            for key, val in new_settings.items():
+                if key == 'frequency':
+                    self.set_frequency(val)
+                elif key == 'power':
+                    self.set_power(val)
+                elif key == 'reference':
+                    self.set_reference(val)
+                elif key == 'phase_lock':
+                    self.set_phase_lock(val)
+                elif key == 'sweep':
+                    sp = val
+                    # set sub-parameters
+                    self.set_sweep_params(
+                        sp['freq_lower'], sp['freq_upper'],
+                        sp['freq_step'],  sp['time_step']
+                    )
+                    if sp.get('continuous_sweep', False):
+                        self.set_continuous(True)
+                    if sp.get('run_sweep', False):
+                        self.run_sweep()
 
     # --- probes ------------------------------------------------
     @property
