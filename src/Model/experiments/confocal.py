@@ -12,8 +12,44 @@ from pathlib import Path
 
 from src.Controller import MCLNanoDrive, ADwinGold
 from src.core import Parameter, Experiment
+from src.core.helper_functions import get_project_root
 from time import sleep
 import pyqtgraph as pg
+
+
+def get_binary_file_path(filename: str) -> Path:
+    """
+    Get the path to a binary file in the Controller/binary_files/ADbasic directory.
+    
+    Args:
+        filename: Name of the binary file (e.g., 'One_D_Scan.TB2')
+        
+    Returns:
+        Path object pointing to the binary file
+        
+    Raises:
+        FileNotFoundError: If the binary file doesn't exist
+    """
+    project_root = get_project_root()
+    binary_path = project_root / 'src' / 'Controller' / 'binary_files' / 'ADbasic' / filename
+    
+    if not binary_path.exists():
+        # Try to provide helpful error message
+        print(f"Warning: Binary file not found: {binary_path}")
+        print(f"Project root: {project_root}")
+        print(f"Expected location: {binary_path}")
+        print(f"Available files in ADbasic directory:")
+        adbasic_dir = project_root / 'src' / 'Controller' / 'binary_files' / 'ADbasic'
+        if adbasic_dir.exists():
+            for file in adbasic_dir.iterdir():
+                if file.is_file():
+                    print(f"  - {file.name}")
+        else:
+            print(f"  ADbasic directory does not exist: {adbasic_dir}")
+        raise FileNotFoundError(f"Binary file not found: {binary_path}")
+    
+    return binary_path
+
 
 class ConfocalScan_Fast(Experiment):
     '''
@@ -39,7 +75,7 @@ class ConfocalScan_Fast(Experiment):
         Parameter('ending_behavior', 'return_to_origin', ['return_to_inital_pos', 'return_to_origin', 'leave_at_corner'],'Nanodrive position after scan'),
         Parameter('3D_scan',#using experiment iterator to sweep z-position can give an effective 3D scan as successive images. Useful for finding where NVs are in focal plane
                   [Parameter('enable',False,bool,'T/F to enable 3D scan'),
-                         Parameter('folderpath',str(Path.home() / 'Data' / 'confocal_scans'),str,'folder location to save images at each z-value')]),
+                         Parameter('folderpath',str(Path.home() / 'Experiments' / 'AQuISS_default_save_location' / 'confocal_scans'),str,'folder location to save images at each z-value')]),
         #!!! If you see horizontial lines in the confocal image, the adwin arrays likely are corrupted. The fix is to reboot the adwin. You will nuke all
         #other process, variables, and arrays in the adwin. This parameter is added to make that easy to do in the GUI.
         Parameter('reboot_adwin',False,bool,'Will reboot adwin when experiment is executed. Useful is data looks fishy'),
@@ -74,9 +110,8 @@ class ConfocalScan_Fast(Experiment):
         sleep(0.1)
         self.adw.clear_process(2)
         
-        # Use pathlib to find the binary file
-        current_file = Path(__file__)
-        one_d_scan_path = current_file.parent.parent.parent / 'Controller' / 'binary_files' / 'ADbasic' / 'One_D_Scan.TB2'
+        # Use the helper function to find the binary file
+        one_d_scan_path = get_binary_file_path('One_D_Scan.TB2')
         self.adw.update({'process_2': {'load': str(one_d_scan_path)}})
         # one_d_scan script increments an index then adds count values to an array in a constant time interval
         self.nd.clock_functions('Frame', reset=True)  # reset ALL clocks to default settings
@@ -343,9 +378,14 @@ class ConfocalScan_Fast(Experiment):
                         
                         # Use pathlib for cross-platform path handling
                         folder_path = Path(self.settings['3D_scan']['folderpath'])
-                        folder_path.mkdir(parents=True, exist_ok=True)  # Create directory if it doesn't exist
-                        filename = folder_path / f'confocal_scan_z_{self.z_inital:.2f}.png'
-                        exporter.export(str(filename))
+                        try:
+                            folder_path.mkdir(parents=True, exist_ok=True)  # Create directory if it doesn't exist
+                            filename = folder_path / f'confocal_scan_z_{self.z_inital:.2f}.png'
+                            exporter.export(str(filename))
+                            print(f"Saved 3D scan image to: {filename}")
+                        except Exception as e:
+                            print(f"Warning: Failed to save 3D scan image: {e}")
+                            print(f"Attempted to save to: {folder_path}")
 
                 except RuntimeError:
                     # sometimes when clicking other experiments ImageItem is deleted but _plot_refresh is false. This ensures the image can be replotted
@@ -402,7 +442,7 @@ class ConfocalScan_Slow(Experiment):
         Parameter('ending_behavior', 'return_to_origin', ['return_to_inital_pos', 'return_to_origin', 'leave_at_corner'],'Nanodrive position after scan'),
         Parameter('3D_scan',# using experiment iterator to sweep z-position can give an effective 3D scan as successive images. Useful for finding where NVs are in focal plane
                   [Parameter('enable', False, bool, 'T/F to enable 3D scan'),
-                   Parameter('folderpath', str(Path.home() / 'Data' / 'confocal_scans'), str,'folder location to save images at each z-value')]),
+                   Parameter('folderpath', str(Path.home() / 'Experiments' / 'AQuISS_default_save_location' / 'confocal_scans'), str,'folder location to save images at each z-value')]),
         # !!! If you see horizontial lines in the confocal image, the adwin arrays likely are corrupted. The fix is to reboot the adwin. You will nuke all
         # other process, variables, and arrays in the adwin. This parameter is added to make that easy to do in the GUI.
         Parameter('reboot_adwin', False, bool,'Will reboot adwin when experiment is executed. Useful is data looks fishy'),
@@ -434,9 +474,8 @@ class ConfocalScan_Slow(Experiment):
         sleep(0.1)
         self.adw.clear_process(1)
         
-        # Use pathlib to find the binary file
-        current_file = Path(__file__)
-        trial_counter_path = current_file.parent.parent.parent / 'Controller' / 'binary_files' / 'ADbasic' / 'Trial_Counter.TB1'
+        # Use the helper function to find the binary file
+        trial_counter_path = get_binary_file_path('Trial_Counter.TB1')
         self.adw.update({'process_1': {'load': str(trial_counter_path)}})
         #trial counter simply reads the counter value
         self.nd.clock_functions('Frame', reset=True)  # reset ALL clocks to default settings
@@ -656,9 +695,14 @@ class ConfocalScan_Slow(Experiment):
                         
                         # Use pathlib for cross-platform path handling
                         folder_path = Path(self.settings['3D_scan']['folderpath'])
-                        folder_path.mkdir(parents=True, exist_ok=True)  # Create directory if it doesn't exist
-                        filename = folder_path / f'confocal_scan_z_{self.z_inital:.2f}.png'
-                        exporter.export(str(filename))
+                        try:
+                            folder_path.mkdir(parents=True, exist_ok=True)  # Create directory if it doesn't exist
+                            filename = folder_path / f'confocal_scan_z_{self.z_inital:.2f}.png'
+                            exporter.export(str(filename))
+                            print(f"Saved 3D scan image to: {filename}")
+                        except Exception as e:
+                            print(f"Warning: Failed to save 3D scan image: {e}")
+                            print(f"Attempted to save to: {folder_path}")
 
                 except RuntimeError:
                     # sometimes when clicking other experiments ImageItem is deleted but _plot_refresh is false. This ensures the image can be replotted
@@ -722,9 +766,8 @@ class Confocal_Point(Experiment):
         sleep(0.1)
         self.adw.clear_process(1)
         
-        # Use pathlib to find the binary file
-        current_file = Path(__file__)
-        trial_counter_path = current_file.parent.parent.parent / 'Controller' / 'binary_files' / 'ADbasic' / 'Averagable_Trial_Counter.TB1'
+        # Use the helper function to find the binary file
+        trial_counter_path = get_binary_file_path('Averagable_Trial_Counter.TB1')
         self.adw.update({'process_1': {'load': str(trial_counter_path)}})
         self.nd.clock_functions('Frame', reset=True)  # reset ALL clocks to default settings
 

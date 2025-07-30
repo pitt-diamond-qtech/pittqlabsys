@@ -29,7 +29,7 @@ from sympy.codegen import Print
 
 def get_project_root() -> Path:  # new feature in Python 3.x i.e. annotations
     """Returns project root folder."""
-    return Path(__file__).parent.parent
+    return Path(__file__).parent.parent.parent
 
 
 def module_name_from_path(folder_name, verbose=False):

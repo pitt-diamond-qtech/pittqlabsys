@@ -376,8 +376,8 @@ class SG384(MicrowaveGenerator):
         Parameter('port', 5025, int, 'GPIB, COM, or LAN port on which to connect'),
         ## JG: what out for the ports this might be different on each computer and might cause issues when running export default
         Parameter('GPIB_num', 0, int, 'GPIB device on which to connect'),
-        Parameter('ip_address', 
-        ])
+        Parameter('ip_address', '169.254.146.198', str, 'ip address of signal generator')
+    ])
 
 class RFGenerator(MicrowaveGenerator):
     """

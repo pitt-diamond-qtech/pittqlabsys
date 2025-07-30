@@ -20,12 +20,10 @@ from .microwave_generator import MicrowaveGenerator
 from .nanodrive import MCLNanoDrive
 from .adwin import ADwinGold
 from .pulse_blaster import PulseBlaster
-from .awg520 import AWG520
-# registry maps your config “type” strings → classes
+from .awg520 import AWG520Device
+# registry maps your config "type" strings → classes
 _DEVICE_REGISTRY = {
-    "srs385": SRS385,
-    "wfk28":  WFK28,
-    "awg520": AWG520Driver,
+    "awg520": AWG520Device,
 }
 
 def create_device(kind: str, **kwargs):

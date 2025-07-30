@@ -14,6 +14,9 @@
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 import socket
+import numpy as np
+import logging
+from ftplib import FTP
 from src.core import Parameter, Device
 from PyQt5.QtCore import QThread, pyqtSignal, QObject
 
