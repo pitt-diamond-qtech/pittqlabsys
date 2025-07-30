@@ -21,9 +21,24 @@ from .nanodrive import MCLNanoDrive
 from .adwin import ADwinGold
 from .pulse_blaster import PulseBlaster
 from .awg520 import AWG520Device
+from .sg384 import SG384Generator
+from .windfreak_synth_usbii import WindfreakSynthUSBII
 # registry maps your config "type" strings → classes
 _DEVICE_REGISTRY = {
-    "awg520": AWG520Device,
+    "awg520": AWG520Device, 
+    "sg384": SG384Generator,
+    "windfreak_synth_usbii": WindfreakSynthUSBII,
+    "nanodrive": MCLNanoDrive,
+    "adwin": ADwinGold,
+    "pulseblaster": PulseBlaster,
+    "example_device": ExampleDevice,
+    "plant": Plant,
+    "pi_controller": PIController,
+    "ni_daq": NIDAQ,
+    "pxi6733": PXI6733,
+    "ni6281": NI6281,
+    "pci6229": PCI6229,
+    "pci6601": PCI6601,
 }
 
 def create_device(kind: str, **kwargs):

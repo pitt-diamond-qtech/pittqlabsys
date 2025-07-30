@@ -11,7 +11,19 @@ class SG384Generator(MicrowaveGeneratorBase):
     Stanford Research Systems SG384 concrete implementation.
     Adds any SG384‐specific settings and maps them to SCPI.
     """
-    _DEFAULT_SETTINGS = MicrowaveGeneratorBase._DEFAULT_SETTINGS + Parameter([
+    _DEFAULT_SETTINGS = Parameter([
+        # Base settings from MicrowaveGeneratorBase
+        Parameter('connection_type', 'LAN', ['LAN','GPIB','RS232'], 'Transport type'),
+        Parameter('ip_address', '',     str, 'IP for LAN'),
+        Parameter('port',       5025,   int, 'Port for LAN'),
+        Parameter('visa_resource', '',  str, 'PyVISA resource string, e.g. GPIB0::20::INSTR or ASRL9::INSTR'),
+        Parameter('baud_rate',   115200,int, 'Baud for RS232'),
+        # Common parameters
+        Parameter('frequency', 1e9, float, 'Frequency in Hz'),
+        Parameter('power', -10, float, 'Power in dBm'),
+        Parameter('phase', 0, float, 'Phase in degrees'),
+        Parameter('amplitude', -10, float, 'Amplitude in dBm'),
+        # SG384-specific settings
         Parameter('modulation_type',   'FM',  ['AM','FM','PM','Sweep'],    'Modulation type'),
         Parameter('modulation_depth',  1e6,   float,   'Deviation in Hz'),
         # add more SG384‐only knobs here…
