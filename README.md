@@ -83,7 +83,7 @@ AQuISS includes drivers for the following instruments:
   - PCI6601
 
 ### Signal Generation
-- **Microwave Generators**: SRS385, WFK28
+- **Microwave Generators**: SRS385, Windfreak Synth USB II
 - **Arbitrary Waveform Generators**: AWG520
 - **Pulse Blasters**: Digital pulse generation
 
