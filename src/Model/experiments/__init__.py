@@ -19,5 +19,7 @@ from .galvo_scan_generic import GalvoScanGeneric
 from .select_points import SelectPoints
 from .confocal import ConfocalScan_Fast, ConfocalScan_Slow, Confocal_Point
 from .odmr_experiment import ODMRExperiment, ODMRRabiExperiment
+from .odmr_enhanced import EnhancedODMRExperiment
+from .odmr_simple_adwin import SimpleODMRExperiment
 
 from src.core.experiment_iterator import ExperimentIterator

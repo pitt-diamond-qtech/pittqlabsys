@@ -18,6 +18,7 @@ import time
 
 from src.core import Experiment, Parameter
 from src.Controller import MicrowaveGenerator, ADwinGold, MCLNanoDrive
+from src.core.adwin_helpers import setup_adwin_for_odmr, read_adwin_odmr_data
 
 
 class ODMRExperiment(Experiment):
@@ -166,6 +167,10 @@ class ODMRExperiment(Experiment):
         # Configure ADwin for photon counting
         self._setup_adwin()
         
+        # Start ADwin process
+        self.adwin.start_process(2)
+        time.sleep(0.1)  # Allow process to start
+        
         # Move to scan position if 2D scan
         if self.settings['scan_mode'] == '2d_scan':
             self._setup_2d_scan()
@@ -174,15 +179,19 @@ class ODMRExperiment(Experiment):
         
     def _setup_adwin(self):
         """Configure ADwin for photon counting."""
-        # Load appropriate ADbasic program for photon counting
-        # This would depend on your specific ADwin setup
         self.log("Configuring ADwin for photon counting...")
         
-        # Example configuration (adjust based on your setup)
-        self.adwin.update({
-            'integration_time': self.settings['acquisition']['integration_time'],
-            'trigger_mode': 'internal'
-        })
+        # Convert integration time from seconds to milliseconds
+        integration_time_ms = self.settings['acquisition']['integration_time'] * 1000.0
+        
+        # Setup ADwin for ODMR using our helper function
+        setup_adwin_for_odmr(
+            self.adwin,
+            integration_time_ms=integration_time_ms,
+            num_averages=1,  # Single sample per point for basic ODMR
+            enable_laser_tracking=False,  # No laser tracking for basic ODMR
+            enable_fm_modulation=False    # No FM modulation for basic ODMR
+        )
         
     def _setup_2d_scan(self):
         """Setup 2D scan parameters."""
@@ -354,41 +363,11 @@ class ODMRExperiment(Experiment):
     
     def _acquire_counts(self) -> float:
         """Acquire photon counts from ADwin."""
-        # This would depend on your specific ADwin setup
-        # For now, return a simulated count rate
+        # Read data from ADwin using our helper function
+        adwin_data = read_adwin_odmr_data(self.adwin)
         
-        integration_time = self.settings['acquisition']['integration_time']
-        
-        # Simulate NV center fluorescence with ODMR dips
-        base_count_rate = 1000  # counts/second
-        resonance_dips = []
-        
-        # Add resonance dips at NV center frequencies
-        if self.settings['magnetic_field']['enabled']:
-            # Calculate resonance frequencies with magnetic field
-            B = self.settings['magnetic_field']['strength']
-            resonance_freqs = [
-                self.nv_zero_field_splitting + self.nv_gyromagnetic_ratio * B,
-                self.nv_zero_field_splitting - self.nv_gyromagnetic_ratio * B
-            ]
-        else:
-            # Zero field splitting
-            resonance_freqs = [self.nv_zero_field_splitting]
-        
-        # Simulate fluorescence signal
-        current_freq = self.microwave.settings['frequency']
-        count_rate = base_count_rate
-        
-        for res_freq in resonance_freqs:
-            # Lorentzian dip
-            width = 1e6  # 1 MHz linewidth
-            dip_depth = 0.3  # 30% dip
-            detuning = current_freq - res_freq
-            count_rate *= (1 - dip_depth * width**2 / (width**2 + detuning**2))
-        
-        # Add noise
-        noise = np.random.poisson(count_rate * integration_time)
-        return noise
+        # Return the counts
+        return adwin_data['counts']
     
     def _analyze_data(self):
         """Analyze ODMR data and fit resonances."""
