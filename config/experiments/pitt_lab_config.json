@@ -1,0 +1,27 @@
+{
+    "description": "University of Pittsburgh Quantum Lab Configuration",
+    "device_config": {
+        "microwave": "sg384",
+        "daq": "adwin",
+        "scanner": "nanodrive",
+        "pulse_generator": "pulseblaster"
+    },
+    "settings": {
+        "default_integration_time": 0.1,
+        "default_laser_power": 1.0,
+        "default_microwave_power": -10.0,
+        "default_frequency_range": {
+            "start": 2.7e9,
+            "stop": 3.0e9,
+            "steps": 100
+        }
+    },
+    "metadata": {
+        "lab_manager": "Gurudev Dutt",
+        "contact": "gdutt@pitt.edu",
+        "location": "Pittsburgh, PA",
+        "created": "2024-01-01",
+        "version": "1.0",
+        "notes": "Standard hardware configuration for Pitt Quantum Lab"
+    }
+} 

@@ -17,7 +17,7 @@ from typing import List, Dict, Any, Optional, Tuple
 import time
 
 from src.core import Experiment, Parameter
-from src.Controller import MicrowaveGenerator, ADwinGold, MCLNanoDrive
+from src.Controller import SG384Generator, ADwinGold, MCLNanoDrive
 
 
 class ODMRExperiment(Experiment):
@@ -90,7 +90,7 @@ class ODMRExperiment(Experiment):
     ]
     
     _DEVICES = {
-        'microwave': MicrowaveGenerator,
+        'microwave': SG384Generator,
         'adwin': ADwinGold,
         'nanodrive': MCLNanoDrive
     }
@@ -148,20 +148,16 @@ class ODMRExperiment(Experiment):
             self.fluorescence_data = np.zeros(steps)
         
         # Configure microwave generator
-        self.microwave.update({
-            'frequency': self.frequencies[0],
-            'amplitude': self.settings['microwave']['power'],
-            'enable_output': False
-        })
+        self.microwave.set_frequency(self.frequencies[0])
+        self.microwave.set_power(self.settings['microwave']['power'])
+        self.microwave.output_off()
         
         # Configure modulation if enabled
         if self.settings['microwave']['modulation']:
-            self.microwave.update({
-                'enable_modulation': True,
-                'modulation_type': 'FM',
-                'dev_width': self.settings['microwave']['mod_depth'],
-                'mod_rate': self.settings['microwave']['mod_freq']
-            })
+            self.microwave.enable_modulation()
+            self.microwave.set_modulation_type('FM')
+            self.microwave.set_modulation_depth(self.settings['microwave']['mod_depth'])
+            # Note: mod_freq is not directly supported in SG384, would need custom implementation
         
         # Configure ADwin for photon counting
         self._setup_adwin()
@@ -200,7 +196,7 @@ class ODMRExperiment(Experiment):
         self.log("Cleaning up ODMR experiment...")
         
         # Turn off microwave
-        self.microwave.update({'enable_output': False})
+        self.microwave.output_off()
         
         # Stop ADwin acquisition
         self.adwin.stop_process(2)
@@ -244,7 +240,7 @@ class ODMRExperiment(Experiment):
         self.log("Running single ODMR sweep...")
         
         # Enable microwave output
-        self.microwave.update({'enable_output': True})
+        self.microwave.output_on()
         
         # Sweep through frequencies
         for i, freq in enumerate(self.frequencies):
@@ -252,7 +248,7 @@ class ODMRExperiment(Experiment):
                 break
                 
             # Set frequency
-            self.microwave.update({'frequency': freq})
+            self.microwave.set_frequency(freq)
             
             # Settle time
             time.sleep(self.settings['acquisition']['settle_time'])
@@ -270,7 +266,7 @@ class ODMRExperiment(Experiment):
                 self._update_plots()
         
         # Disable microwave
-        self.microwave.update({'enable_output': False})
+        self.microwave.output_off()
     
     def _run_continuous_sweeps(self):
         """Run continuous ODMR sweeps."""
@@ -607,7 +603,7 @@ class ODMRRabiExperiment(Experiment):
     ]
     
     _DEVICES = {
-        'microwave': MicrowaveGenerator,
+        'microwave': SG384Generator,
         'adwin': ADwinGold,
         'pulse_blaster': 'PulseBlaster'  # Would need to be implemented
     }
@@ -642,11 +638,9 @@ class ODMRRabiExperiment(Experiment):
         self.rabi_data = np.zeros(steps)
         
         # Configure microwave
-        self.microwave.update({
-            'frequency': self.settings['rabi_settings']['frequency'],
-            'amplitude': self.settings['rabi_settings']['power'],
-            'enable_output': False
-        })
+        self.microwave.set_frequency(self.settings['rabi_settings']['frequency'])
+        self.microwave.set_power(self.settings['rabi_settings']['power'])
+        self.microwave.output_off()
         
         # Run Rabi measurement
         for i, pulse_duration in enumerate(self.pulse_durations):

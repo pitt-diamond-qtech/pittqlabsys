@@ -1,0 +1,12 @@
+{
+  "description": "MIT Quantum Lab",
+  "device_config": {
+    "microwave": "windfreak_synth_usbii",
+    "daq": "nidaq",
+    "scanner": "galvo_scanner"
+  },
+  "settings": {
+    "default_integration_time": 0.05,
+    "default_laser_power": 0.5
+  }
+}

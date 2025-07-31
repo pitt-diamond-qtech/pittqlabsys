@@ -1,0 +1,18 @@
+{
+  "experiment_type": "ODMR",
+  "date": "2025-07-31T12:51:26.853866",
+  "parameters": {
+    "frequency_range": [
+      2700000000.0,
+      2900000000.0
+    ],
+    "integration_time": 0.1,
+    "averages": 2
+  },
+  "data_files": [
+    "odmr_spectrum.npy",
+    "scan_image.npy",
+    "time_trace.npy"
+  ],
+  "notes": "Example data files for demonstration"
+}

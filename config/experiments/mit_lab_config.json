@@ -1,0 +1,27 @@
+{
+    "description": "MIT Quantum Lab Configuration",
+    "device_config": {
+        "microwave": "windfreak_synth_usbii",
+        "daq": "nidaq",
+        "scanner": "galvo_scanner",
+        "pulse_generator": "awg520"
+    },
+    "settings": {
+        "default_integration_time": 0.05,
+        "default_laser_power": 0.5,
+        "default_microwave_power": -15.0,
+        "default_frequency_range": {
+            "start": 2.8e9,
+            "stop": 2.9e9,
+            "steps": 50
+        }
+    },
+    "metadata": {
+        "lab_manager": "MIT Researcher",
+        "contact": "researcher@mit.edu",
+        "location": "Cambridge, MA",
+        "created": "2024-01-01",
+        "version": "1.0",
+        "notes": "MIT Lab uses different hardware: Windfreak microwave, NI-DAQ, Galvo scanner"
+    }
+} 

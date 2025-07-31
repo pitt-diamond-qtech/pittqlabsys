@@ -1,0 +1,12 @@
+{
+  "description": "University of Pittsburgh Quantum Lab",
+  "device_config": {
+    "microwave": "sg384",
+    "daq": "adwin",
+    "scanner": "nanodrive"
+  },
+  "settings": {
+    "default_integration_time": 0.1,
+    "default_laser_power": 1.0
+  }
+}

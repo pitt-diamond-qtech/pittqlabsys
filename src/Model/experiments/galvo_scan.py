@@ -16,7 +16,8 @@
 import numpy as np
 import time
 from src.core import Parameter, Experiment
-from src.Controller import PXI6733, NI6281, PCI6229, PCI6601, MicrowaveGenerator, NIDAQ
+from src.Controller import PXI6733, NI6281, PCI6229, PCI6601, NIDAQ
+# from src.Controller import MicrowaveGenerator  # Commented out - using new microwave generator classes
 from src.Model.experiments.galvo_scan_generic import GalvoScanGeneric
 
 

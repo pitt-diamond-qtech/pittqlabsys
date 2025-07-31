@@ -1,0 +1,26 @@
+{
+    "experiment_name": "my_custom_experiment",
+    "description": "My custom experiment configuration",
+    "device_config": {
+        "microwave": "windfreak_synth_usbii",
+        "daq": "nidaq",
+        "scanner": "nanodrive"
+    },
+    "settings": {
+        "frequency_range": {
+            "start": 2800000000.0,
+            "stop": 2900000000.0,
+            "steps": 50
+        },
+        "microwave": {
+            "power": -15.0,
+            "modulation": true,
+            "mod_depth": 2000000.0
+        }
+    },
+    "metadata": {
+        "created": "2024-01-01",
+        "author": "User",
+        "notes": "Custom configuration for specific experiment"
+    }
+}

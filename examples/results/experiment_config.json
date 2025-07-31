@@ -1,0 +1,30 @@
+{
+  "experiment_name": "demo_experiment",
+  "description": "Demo experiment for examples",
+  "device_config": {
+    "microwave": "mock_microwave",
+    "daq": "mock_daq",
+    "scanner": "mock_scanner"
+  },
+  "settings": {
+    "frequency_range": {
+      "start": 2700000000.0,
+      "stop": 2900000000.0,
+      "steps": 20
+    },
+    "microwave": {
+      "power": -10.0,
+      "modulation": false
+    },
+    "acquisition": {
+      "integration_time": 0.1,
+      "averages": 2
+    }
+  },
+  "metadata": {
+    "created": "2025-07-31T12:51:26.405992",
+    "author": "Demo Script",
+    "purpose": "Demonstration of role-based experiment system",
+    "notes": "This is a mock experiment for demonstration purposes"
+  }
+}

@@ -1,0 +1,90 @@
+{
+  "experiment_info": {
+    "name": "demo_experiment",
+    "timestamp": "2025-07-31T12:51:26.626110",
+    "devices": {
+      "microwave": {
+        "type": "mock_microwave",
+        "name": "mock_microwave"
+      },
+      "daq": {
+        "type": "mock_daq",
+        "name": "mock_daq"
+      },
+      "scanner": {
+        "type": "mock_scanner",
+        "name": "mock_scanner"
+      }
+    }
+  },
+  "experiment_logs": [
+    "Created mock_microwave for role microwave",
+    "Created mock_daq for role daq",
+    "Created mock_scanner for role scanner",
+    "Setting up experiment...",
+    "Experiment setup complete",
+    "Running experiment...",
+    "Experiment completed, acquired 20 data points",
+    "Cleaning up experiment...",
+    "Cleanup complete"
+  ],
+  "device_logs": {
+    "microwave": [
+      "Set frequency to 2800000000.0 Hz",
+      "Set power to -10.0 dBm",
+      "Microwave output enabled",
+      "Set frequency to 2700000000.0 Hz",
+      "Set frequency to 2710526315.7894735 Hz",
+      "Set frequency to 2721052631.5789475 Hz",
+      "Set frequency to 2731578947.368421 Hz",
+      "Set frequency to 2742105263.1578946 Hz",
+      "Set frequency to 2752631578.9473686 Hz",
+      "Set frequency to 2763157894.736842 Hz",
+      "Set frequency to 2773684210.5263157 Hz",
+      "Set frequency to 2784210526.3157897 Hz",
+      "Set frequency to 2794736842.105263 Hz",
+      "Set frequency to 2805263157.894737 Hz",
+      "Set frequency to 2815789473.6842103 Hz",
+      "Set frequency to 2826315789.4736843 Hz",
+      "Set frequency to 2836842105.263158 Hz",
+      "Set frequency to 2847368421.0526314 Hz",
+      "Set frequency to 2857894736.8421054 Hz",
+      "Set frequency to 2868421052.631579 Hz",
+      "Set frequency to 2878947368.4210525 Hz",
+      "Set frequency to 2889473684.2105265 Hz",
+      "Set frequency to 2900000000.0 Hz",
+      "Microwave output disabled",
+      "Microwave generator closed"
+    ],
+    "daq": [
+      "Configured ai0 with range 10.0V, rate 1000Hz",
+      "Started data acquisition",
+      "Read 100 samples from ai0",
+      "Read 100 samples from ai0",
+      "Read 100 samples from ai0",
+      "Read 100 samples from ai0",
+      "Read 100 samples from ai0",
+      "Read 100 samples from ai0",
+      "Read 100 samples from ai0",
+      "Read 100 samples from ai0",
+      "Read 100 samples from ai0",
+      "Read 100 samples from ai0",
+      "Read 100 samples from ai0",
+      "Read 100 samples from ai0",
+      "Read 100 samples from ai0",
+      "Read 100 samples from ai0",
+      "Read 100 samples from ai0",
+      "Read 100 samples from ai0",
+      "Read 100 samples from ai0",
+      "Read 100 samples from ai0",
+      "Read 100 samples from ai0",
+      "Read 100 samples from ai0",
+      "Stopped data acquisition",
+      "Data acquisition closed"
+    ],
+    "scanner": [
+      "Moved to position (5.0, 5.0, 0.0)",
+      "Scanner closed"
+    ]
+  }
+}

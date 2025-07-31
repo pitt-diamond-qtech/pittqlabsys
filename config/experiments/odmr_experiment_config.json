@@ -1,0 +1,56 @@
+{
+    "experiment_name": "odmr_experiment",
+    "description": "ODMR Experiment Configuration for Pitt Lab",
+    "device_config": {
+        "microwave": "sg384",
+        "daq": "adwin",
+        "scanner": "nanodrive"
+    },
+    "settings": {
+        "frequency_range": {
+            "start": 2.7e9,
+            "stop": 3.0e9,
+            "steps": 100
+        },
+        "microwave": {
+            "power": -10.0,
+            "modulation": false,
+            "mod_depth": 1e6,
+            "mod_freq": 1e3
+        },
+        "acquisition": {
+            "integration_time": 0.1,
+            "averages": 1,
+            "settle_time": 0.01
+        },
+        "laser": {
+            "power": 1.0,
+            "wavelength": 532.0
+        },
+        "magnetic_field": {
+            "enabled": false,
+            "strength": 0.0,
+            "direction": [0.0, 0.0, 1.0]
+        },
+        "scan_mode": "single",
+        "2d_scan_settings": {
+            "x_range": [0.0, 10.0],
+            "y_range": [0.0, 10.0],
+            "x_steps": 10,
+            "y_steps": 10
+        },
+        "analysis": {
+            "auto_fit": true,
+            "smoothing": true,
+            "smooth_window": 5,
+            "background_subtraction": true
+        }
+    },
+    "metadata": {
+        "created": "2024-01-01",
+        "version": "1.0",
+        "author": "Gurudev Dutt",
+        "lab": "Pitt Quantum Lab",
+        "notes": "Standard ODMR configuration for NV center measurements"
+    }
+} 
