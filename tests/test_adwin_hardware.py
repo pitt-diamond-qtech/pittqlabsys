@@ -16,7 +16,7 @@ Usage:
     pytest tests/test_adwin_hardware.py -m "not hardware"
 """
 
-from src.Controller.adwin import ADwinGold
+from src.Controller.adwin_gold import AdwinGoldDevice
 from src.core.adwin_helpers import get_adwin_binary_path, get_adwin_process_config
 import pytest
 import os
@@ -35,7 +35,7 @@ def adwin_instance():
     if USE_REAL_HARDWARE:
         # Use real hardware
         try:
-            adwin = ADwinGold()
+            adwin = AdwinGoldDevice()
             if not adwin.is_connected:
                 pytest.skip("ADwin hardware not connected")
             yield adwin
@@ -92,7 +92,7 @@ def adwin_instance():
             mock_adw.Get_Last_Error = Mock(return_value=0)
             mock_adw.Workload = Mock(return_value=25.5)
             
-            adwin = ADwinGold(boot=False)
+            adwin = AdwinGoldDevice(boot=False)
             yield adwin
             
             # Clean up

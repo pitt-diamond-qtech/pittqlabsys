@@ -1,4 +1,4 @@
-from src.Controller.adwin import ADwinGold
+from src.Controller.adwin_gold import AdwinGoldDevice
 from src.core.adwin_helpers import get_adwin_binary_path, get_adwin_process_config
 import pytest
 import numpy as np
@@ -66,7 +66,7 @@ def mock_adwin():
         mock_adw.Workload = Mock(return_value=25.5)
         
         # Create ADwinGold instance with mocked ADwin
-        adwin_gold = ADwinGold(boot=False)  # Don't boot to avoid hardware connection
+        adwin_gold = AdwinGoldDevice(boot=False)  # Don't boot to avoid hardware connection
         
         # The is_connected property will now work because mock_adw.Test_Version() returns successfully
         
@@ -256,7 +256,7 @@ def test_mock_cleanup():
         mock_adw.Clear_Process = Mock()
         
         # Create and immediately destroy an ADwinGold instance
-        adwin = ADwinGold(boot=False)
+        adwin = AdwinGoldDevice(boot=False)
         del adwin  # This should trigger __del__ without warnings
 
 
@@ -268,7 +268,7 @@ def test_adwin_hardware_connection():
     '''
     adwin = None
     try:
-        adwin = ADwinGold()
+        adwin = AdwinGoldDevice()
         assert adwin.is_connected
         print(f"Successfully connected to ADwin hardware")
         
@@ -293,7 +293,7 @@ def test_adwin_hardware_process_loading():
     '''
     adwin = None
     try:
-        adwin = ADwinGold()
+        adwin = AdwinGoldDevice()
         assert adwin.is_connected
         
         # Test loading a real binary file

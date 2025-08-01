@@ -26,7 +26,7 @@ from typing import List, Dict, Any, Optional, Tuple
 import time
 
 from src.core import Experiment, Parameter
-from src.Controller import SG384Generator, ADwinGold
+from src.Controller import SG384Generator, AdwinGoldDevice
 from src.core.adwin_helpers import setup_adwin_for_odmr, read_adwin_odmr_data
 
 
@@ -90,7 +90,7 @@ class EnhancedODMRExperiment(Experiment):
     
     _DEVICES = {
         'microwave': SG384Generator,
-        'adwin': ADwinGold
+        'adwin': AdwinGoldDevice
     }
     
     _EXPERIMENTS = {}

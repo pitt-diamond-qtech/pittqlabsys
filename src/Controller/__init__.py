@@ -18,7 +18,7 @@ from .example_device import ExampleDevice,Plant,PIController
 from .ni_daq import PXI6733,NIDAQ,NI6281,PCI6229,PCI6601
 # from .microwave_generator import MicrowaveGenerator  # Deprecated - use SG384Generator instead
 from .nanodrive import MCLNanoDrive
-from .adwin import ADwinGold
+from .adwin_gold import AdwinGoldDevice
 from .pulse_blaster import PulseBlaster
 from .awg520 import AWG520Device
 from .sg384 import SG384Generator
@@ -29,7 +29,7 @@ _DEVICE_REGISTRY = {
     "sg384": SG384Generator,
     "windfreak_synth_usbii": WindfreakSynthUSBII,
     "nanodrive": MCLNanoDrive,
-    "adwin": ADwinGold,
+    "adwin": AdwinGoldDevice,
     "pulseblaster": PulseBlaster,
     "example_device": ExampleDevice,
     "plant": Plant,

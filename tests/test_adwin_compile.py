@@ -18,7 +18,7 @@ sys.path.insert(0, str(project_root))
 # Now we can import from the project
 from src.core.helper_functions import get_project_root
 from src.core.adbasic_compiler import ADbasicCompiler, compile_adbasic_file, create_license_template
-from src.Controller.adwin import ADwinGold
+from src.Controller.adwin_gold import AdwinGoldDevice
 
 
 class TestADbasicCompiler:
@@ -115,7 +115,7 @@ class TestADbasicCompiler:
         """Test the ADwin integration with the compiler."""
         try:
             # Initialize ADwin (this will fail if no ADwin is connected)
-            adwin = ADwinGold(boot=False)  # Don't boot to avoid issues if no hardware
+            adwin = AdwinGoldDevice(boot=False)  # Don't boot to avoid issues if no hardware
             
             # Test license status checking
             try:

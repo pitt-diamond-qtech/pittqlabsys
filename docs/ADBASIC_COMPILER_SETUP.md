@@ -170,10 +170,10 @@ print(f"Compiled to: {compiled_file}")
 ### ADwin Integration
 
 ```python
-from src.Controller.adwin import ADwinGold
+from src.Controller.adwin_gold import AdwinGoldDevice
 
 # Initialize ADwin
-adwin = ADwinGold()
+adwin = AdwinGoldDevice()
 
 # Check license status
 license_status = adwin.check_license_status()
@@ -181,9 +181,9 @@ print(f"License status: {license_status['status']}")
 
 # Compile and load a single file
 compiled_file = adwin.compile_and_load_process(
-    'path/to/file.bas', 
-    process_number=1, 
-    auto_start=True
+   'path/to/file.bas',
+   process_number=1,
+   auto_start=True
 )
 
 # Compile and load all files in a directory
@@ -271,8 +271,8 @@ With a valid license, you get:
 4. **Place the license file** in one of the supported locations
 5. **Test the license**:
    ```python
-   from src.Controller.adwin import ADwinGold
-   adwin = ADwinGold()
+   from src.Controller.adwin_gold import AdwinGoldDevice
+   adwin = AdwinGoldDevice()
    status = adwin.check_license_status()
    print(status['status'])
    ```
