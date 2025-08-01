@@ -1,17 +1,17 @@
 """
-Enhanced Optically Detected Magnetic Resonance (ODMR) Experiment with SG384 Sweep
+Enhanced Optically Detected Magnetic Resonance (ODMR) Experiment with External FM Modulation
 
-This module implements an enhanced ODMR experiment that uses the SG384's built-in
-sweep function for much faster frequency sweeps compared to step-by-step frequency
-setting. The sweep is handled internally by the microwave generator, making it
-much more efficient for ODMR measurements.
+This module implements an enhanced ODMR experiment that uses external FM modulation
+of the SG384 microwave generator. The ADwin generates a voltage ramp on AO1 that
+is connected to the SG384's FM input, providing synchronized frequency sweeping
+and data acquisition.
 
 Key Features:
-- Uses SG384's built-in frequency sweep function
-- Fast frequency sweeps (limited by sweep rate < 120 Hz)
+- Uses external FM modulation for frequency sweeping
+- Synchronized data acquisition with voltage ramp
 - Automatic validation of sweep parameters
 - Real-time data acquisition synchronized with sweep
-- Support for different sweep functions (Triangle, Ramp, etc.)
+- Support for different sweep functions and bidirectional sweeps
 
 Author: Gurudev Dutt <gdutt@pitt.edu>
 Created: 2024
@@ -32,11 +32,12 @@ from src.core.adwin_helpers import setup_adwin_for_sweep_odmr, read_adwin_sweep_
 
 class EnhancedODMRSweepExperiment(Experiment):
     """
-    Enhanced ODMR Experiment using SG384's built-in sweep function.
+    Enhanced ODMR Experiment using external FM modulation.
     
-    This experiment performs ODMR measurements using the SG384's internal sweep
-    capability, which is much faster than step-by-step frequency setting. The
-    sweep is synchronized with data acquisition for efficient measurements.
+    This experiment performs ODMR measurements using external FM modulation of the
+    SG384 microwave generator. The ADwin generates a voltage ramp on AO1 that is
+    connected to the SG384's FM input, providing synchronized frequency sweeping
+    and data acquisition.
     
     The sweep parameters are automatically validated to ensure they're within
     the SG384's frequency range (1.9 GHz - 4.1 GHz).
@@ -46,7 +47,7 @@ class EnhancedODMRSweepExperiment(Experiment):
         Parameter('sweep_parameters', [
             Parameter('center_frequency', 2.87e9, float, 'Center frequency in Hz', units='Hz'),
             Parameter('deviation', 50e6, float, 'Frequency deviation (half sweep width) in Hz', units='Hz'),
-            Parameter('sweep_rate', 1.0, float, 'Sweep rate in Hz (must be < 120 Hz)', units='Hz'),
+            Parameter('fm_sensitivity', 1e6, float, 'FM sensitivity in Hz/V', units='Hz/V'),
             Parameter('sweep_function', 'Triangle', ['Triangle', 'Ramp', 'Sine', 'Square', 'Noise', 'External'], 
                      'Sweep function type')
         ]),
@@ -101,13 +102,13 @@ class EnhancedODMRSweepExperiment(Experiment):
         # Validate sweep parameters
         self._validate_sweep_parameters()
         
-        # Calculate frequency array for plotting
+        # Calculate frequency array
         self._calculate_frequency_array()
         
-        # Setup microwave generator with sweep
-        self._setup_microwave_sweep()
+        # Setup microwave generator
+        self._setup_microwave()
         
-        # Setup ADwin for data acquisition
+        # Setup ADwin for synchronized data acquisition
         self._setup_adwin()
         
         # Initialize data arrays
@@ -116,56 +117,58 @@ class EnhancedODMRSweepExperiment(Experiment):
         self.log("Enhanced ODMR sweep experiment setup complete")
     
     def _validate_sweep_parameters(self):
-        """Validate sweep parameters to ensure they're within SG384 limits."""
+        """Validate sweep parameters are within SG384 limits."""
         center_freq = self.settings['sweep_parameters']['center_frequency']
         deviation = self.settings['sweep_parameters']['deviation']
-        sweep_rate = self.settings['sweep_parameters']['sweep_rate']
         
-        # Validate all sweep parameters including rate
-        try:
-            self.microwave.validate_sweep_parameters(center_freq, deviation, sweep_rate)
-        except ValueError as e:
-            self.log(f"Sweep parameter validation failed: {e}", flag='error')
-            raise
+        # Check frequency range
+        min_freq = center_freq - deviation
+        max_freq = center_freq + deviation
         
-        # Log sweep parameters
-        sweep_min = center_freq - deviation
-        sweep_max = center_freq + deviation
-        self.log(f"Sweep range: {sweep_min/1e9:.3f} - {sweep_max/1e9:.3f} GHz")
-        self.log(f"Sweep rate: {sweep_rate} Hz")
-        self.log(f"Sweep function: {self.settings['sweep_parameters']['sweep_function']}")
+        if min_freq < 1.9e9:
+            raise ValueError(f"Minimum frequency {min_freq/1e9:.2f} GHz is below SG384 limit of 1.9 GHz")
+        
+        if max_freq > 4.1e9:
+            raise ValueError(f"Maximum frequency {max_freq/1e9:.2f} GHz is above SG384 limit of 4.1 GHz")
+        
+        self.log(f"Frequency range: {min_freq/1e9:.3f} - {max_freq/1e9:.3f} GHz")
     
     def _calculate_frequency_array(self):
-        """Calculate frequency array for plotting based on sweep parameters."""
+        """Calculate the frequency array for the sweep."""
         center_freq = self.settings['sweep_parameters']['center_frequency']
         deviation = self.settings['sweep_parameters']['deviation']
+        num_steps = self.settings['acquisition']['num_steps']
         
-        # Create frequency array for plotting
-        # We'll use 1000 points for smooth plotting
-        num_points = 1000
-        self.frequencies = np.linspace(center_freq - deviation, center_freq + deviation, num_points)
+        # Create frequency array from -deviation to +deviation
+        self.frequencies = np.linspace(
+            center_freq - deviation,
+            center_freq + deviation,
+            num_steps
+        )
+        
+        self.log(f"Frequency array: {num_steps} points from {self.frequencies[0]/1e9:.3f} to {self.frequencies[-1]/1e9:.3f} GHz")
     
-    def _setup_microwave_sweep(self):
-        """Setup microwave generator for sweep operation."""
-        self.log("Setting up microwave sweep...")
+    def _setup_microwave(self):
+        """Setup microwave generator for external FM modulation."""
+        self.log("Setting up microwave generator for external FM modulation...")
         
-        # Set basic parameters
+        # Set center frequency and power
         self.microwave.update({
             'frequency': self.settings['sweep_parameters']['center_frequency'],
-            'amplitude': self.settings['microwave']['power'],
-            'enable_output': self.settings['microwave']['enable_output'],
-            'enable_modulation': True,
-            'modulation_type': 'Freq sweep'
+            'power': self.settings['microwave']['power'],
+            'enable_output': self.settings['microwave']['enable_output']
         })
         
-        # Set sweep parameters
+        # Enable external FM modulation
+        # The ADwin will generate the modulation signal on AO1
         self.microwave.update({
-            'sweep_function': self.settings['sweep_parameters']['sweep_function'],
-            'sweep_rate': self.settings['sweep_parameters']['sweep_rate'],
-            'sweep_deviation': self.settings['sweep_parameters']['deviation']
+            'enable_modulation': True,
+            'modulation_function': 'External',  # Use external modulation input
+            'modulation_frequency': 0,  # Not used for external modulation
+            'modulation_amplitude': 1.0  # Full modulation depth
         })
         
-        self.log("Microwave sweep setup complete")
+        self.log("Microwave generator setup complete")
     
     def _setup_adwin(self):
         """Setup ADwin for synchronized sweep data acquisition."""
@@ -198,6 +201,20 @@ class EnhancedODMRSweepExperiment(Experiment):
             time.sleep(0.1)  # Allow process to start
             
             start_time = time.time()
+            bidirectional = self.settings['acquisition']['bidirectional']
+            
+            # Initialize data structures for bidirectional sweeps
+            if bidirectional:
+                self.forward_sweep_data = np.zeros((self.settings['acquisition']['sweeps_per_average'], 
+                                                   self.settings['acquisition']['num_steps']))
+                self.reverse_sweep_data = np.zeros((self.settings['acquisition']['sweeps_per_average'], 
+                                                   self.settings['acquisition']['num_steps']))
+                self.forward_average_data = np.zeros(self.settings['acquisition']['num_steps'])
+                self.reverse_average_data = np.zeros(self.settings['acquisition']['num_steps'])
+            else:
+                self.sweep_data = np.zeros((self.settings['acquisition']['sweeps_per_average'], 
+                                          self.settings['acquisition']['num_steps']))
+                self.average_data = np.zeros(self.settings['acquisition']['num_steps'])
             
             # Run sweeps
             for sweep_num in range(self.settings['acquisition']['sweeps_per_average']):
@@ -213,21 +230,51 @@ class EnhancedODMRSweepExperiment(Experiment):
                 if self.is_stopped():
                     break
                 
-                # Store data
-                self.sweep_data[sweep_num] = sweep_data
-                
-                # Calculate current average
-                self.average_data = np.mean(self.sweep_data[0:(sweep_num + 1)], axis=0)
-                
-                # Fit to the data
-                fit_params = self._fit_esr_peaks(self.frequencies, self.average_data)
-                
-                # Update data dictionary
-                self.data.update({
-                    'frequency': self.frequencies,
-                    'data': self.average_data,
-                    'fit_params': fit_params
-                })
+                # Store data based on sweep type
+                if bidirectional:
+                    # Store bidirectional sweep data
+                    self.forward_sweep_data[sweep_num] = sweep_data['forward_data']
+                    self.reverse_sweep_data[sweep_num] = sweep_data['reverse_data']
+                    
+                    # Calculate current averages
+                    self.forward_average_data = np.mean(self.forward_sweep_data[0:(sweep_num + 1)], axis=0)
+                    self.reverse_average_data = np.mean(self.reverse_sweep_data[0:(sweep_num + 1)], axis=0)
+                    
+                    # Store frequency arrays (same for all sweeps)
+                    self.forward_frequencies = sweep_data['forward_frequencies']
+                    self.reverse_frequencies = sweep_data['reverse_frequencies']
+                    
+                    # Fit to the data (use forward sweep for fitting)
+                    fit_params = self._fit_esr_peaks(self.forward_frequencies, self.forward_average_data)
+                    
+                    # Update data dictionary
+                    self.data.update({
+                        'forward_frequency': self.forward_frequencies,
+                        'reverse_frequency': self.reverse_frequencies,
+                        'forward_data': self.forward_average_data,
+                        'reverse_data': self.reverse_average_data,
+                        'fit_params': fit_params
+                    })
+                    
+                else:
+                    # Store unidirectional sweep data
+                    self.sweep_data[sweep_num] = sweep_data['forward_data']
+                    
+                    # Calculate current average
+                    self.average_data = np.mean(self.sweep_data[0:(sweep_num + 1)], axis=0)
+                    
+                    # Store frequency array
+                    self.frequencies = sweep_data['forward_frequencies']
+                    
+                    # Fit to the data
+                    fit_params = self._fit_esr_peaks(self.frequencies, self.average_data)
+                    
+                    # Update data dictionary
+                    self.data.update({
+                        'frequency': self.frequencies,
+                        'data': self.average_data,
+                        'fit_params': fit_params
+                    })
                 
                 # Update progress
                 progress = int(100 * (sweep_num + 1) / self.settings['acquisition']['sweeps_per_average'])
@@ -235,7 +282,13 @@ class EnhancedODMRSweepExperiment(Experiment):
             
             # Save full data if requested
             if self.settings['acquisition']['save_full_data']:
-                self.data.update({'sweep_data': self.sweep_data})
+                if bidirectional:
+                    self.data.update({
+                        'forward_sweep_data': self.forward_sweep_data,
+                        'reverse_sweep_data': self.reverse_sweep_data
+                    })
+                else:
+                    self.data.update({'sweep_data': self.sweep_data})
             
             # Analyze final data
             self._analyze_data()
@@ -250,54 +303,90 @@ class EnhancedODMRSweepExperiment(Experiment):
             self.cleanup()
             raise
     
-    def _run_single_sweep(self) -> np.ndarray:
+    def _run_single_sweep(self) -> Dict[str, np.ndarray]:
         """
-        Run a single frequency sweep.
+        Run a single bidirectional frequency sweep.
         
         Returns:
-            Array of fluorescence data for each frequency point
+            Dictionary containing:
+            - 'forward_data': Array of forward sweep data
+            - 'reverse_data': Array of reverse sweep data
+            - 'forward_frequencies': Array of forward sweep frequencies
+            - 'reverse_frequencies': Array of reverse sweep frequencies
         """
         num_steps = self.settings['acquisition']['num_steps']
         integration_time_s = self.settings['acquisition']['integration_time'] / 1000.0
+        bidirectional = self.settings['acquisition']['bidirectional']
         
-        # Initialize data array
-        sweep_data = np.zeros(num_steps)
-        
-        # Wait for sweep to start and collect data
+        # Wait for sweep to complete
         sweep_complete = False
-        step_index = 0
+        data_ready = False
         
-        while not sweep_complete and step_index < num_steps:
+        while not sweep_complete:
             # Read data from ADwin
             adwin_data = read_adwin_sweep_odmr_data(self.adwin)
             
             # Check if sweep is complete
-            if adwin_data['sweep_complete']:
+            if adwin_data['sweep_complete'] and adwin_data['data_ready']:
                 sweep_complete = True
+                data_ready = True
                 break
-            
-            # Store data for current step
-            current_step = adwin_data['step_index']
-            if current_step < num_steps:
-                # Convert counts to kcounts/sec
-                counts_per_sec = adwin_data['total_counts'] * (0.001 / integration_time_s)
-                sweep_data[current_step] = counts_per_sec
-            
-            # Update step index
-            step_index = current_step
             
             # Small delay to avoid overwhelming the ADwin
             time.sleep(0.001)
         
-        # Resample to match our frequency array if needed
-        if len(sweep_data) != len(self.frequencies):
-            from scipy.interpolate import interp1d
-            x_old = np.linspace(0, 1, len(sweep_data))
-            x_new = np.linspace(0, 1, len(self.frequencies))
-            f = interp1d(x_old, sweep_data, kind='linear', bounds_error=False, fill_value=0)
-            sweep_data = f(x_new)
+        if not data_ready:
+            raise RuntimeError("Sweep did not complete properly")
         
-        return sweep_data
+        # Process the completed sweep data
+        if bidirectional and adwin_data['forward_counts'] is not None and adwin_data['reverse_counts'] is not None:
+            # Bidirectional sweep - process both directions
+            
+            # Convert counts to kcounts/sec
+            forward_counts_per_sec = np.array(adwin_data['forward_counts']) * (0.001 / integration_time_s)
+            reverse_counts_per_sec = np.array(adwin_data['reverse_counts']) * (0.001 / integration_time_s)
+            
+            # Convert voltages to frequencies using FM sensitivity
+            fm_sensitivity = self.settings['sweep_parameters']['fm_sensitivity']
+            center_freq = self.settings['sweep_parameters']['center_frequency']
+            
+            forward_voltages = np.array(adwin_data['forward_voltages'])
+            reverse_voltages = np.array(adwin_data['reverse_voltages'])
+            
+            # Calculate frequencies: f = f_center + V * fm_sensitivity
+            forward_frequencies = center_freq + forward_voltages * fm_sensitivity
+            reverse_frequencies = center_freq + reverse_voltages * fm_sensitivity
+            
+            return {
+                'forward_data': forward_counts_per_sec,
+                'reverse_data': reverse_counts_per_sec,
+                'forward_frequencies': forward_frequencies,
+                'reverse_frequencies': reverse_frequencies,
+                'forward_voltages': forward_voltages,
+                'reverse_voltages': reverse_voltages
+            }
+            
+        else:
+            # Unidirectional sweep - use only forward data
+            if adwin_data['forward_counts'] is not None:
+                forward_counts_per_sec = np.array(adwin_data['forward_counts']) * (0.001 / integration_time_s)
+                forward_voltages = np.array(adwin_data['forward_voltages'])
+                
+                # Convert voltages to frequencies
+                fm_sensitivity = self.settings['sweep_parameters']['fm_sensitivity']
+                center_freq = self.settings['sweep_parameters']['center_frequency']
+                forward_frequencies = center_freq + forward_voltages * fm_sensitivity
+                
+                return {
+                    'forward_data': forward_counts_per_sec,
+                    'reverse_data': None,
+                    'forward_frequencies': forward_frequencies,
+                    'reverse_frequencies': None,
+                    'forward_voltages': forward_voltages,
+                    'reverse_voltages': None
+                }
+            else:
+                raise RuntimeError("No sweep data available")
     
     def _analyze_data(self):
         """Analyze the collected data."""
@@ -368,91 +457,113 @@ class EnhancedODMRSweepExperiment(Experiment):
                         'center': popt[1],
                         'width': popt[2],
                         'offset': popt[3],
-                        'peak_index': i
+                        'center_ghz': popt[1] / 1e9,
+                        'width_mhz': popt[2] / 1e6
                     })
                     
                 except Exception as e:
-                    self.log(f"Peak fitting failed for peak at index {i}: {e}")
+                    self.log(f"Failed to fit peak at index {i}: {e}")
+                    continue
         
+        self.log(f"Found {len(peaks)} ESR peaks")
         return peaks
     
     def cleanup(self):
-        """Cleanup experiment resources."""
+        """Cleanup after experiment."""
         self.log("Cleaning up enhanced ODMR sweep experiment...")
         
         # Stop ADwin process
-        self.adwin.stop_process(1)
+        try:
+            self.adwin.stop_process(1)
+        except:
+            pass
         
         # Turn off microwave if requested
         if self.settings['microwave']['turn_off_after']:
             self.microwave.update({'enable_output': False})
         
-        self.log("Enhanced ODMR sweep experiment cleanup complete")
+        self.log("Cleanup complete")
     
     def _plot(self, axes_list: List[pg.PlotItem]):
-        """Plot the enhanced ODMR sweep data."""
+        """Plot the experiment data."""
         if not axes_list:
             return
         
-        ax = axes_list[0]
-        ax.clear()
+        # Plot frequency vs intensity
+        axes = axes_list[0]
+        axes.clear()
         
-        # Plot main ESR data
-        ax.plot(self.frequencies / 1e9, self.data['data'], 
-               pen='b', name='ESR Sweep')
-        
-        # Plot fit results if available
-        if 'fit_params' in self.data and self.data['fit_params']:
-            for i, peak in enumerate(self.data['fit_params']):
-                # Generate fit curve
-                def lorentzian(x, amplitude, center, width, offset):
-                    return amplitude * (width**2 / ((x - center)**2 + width**2)) + offset
-                
-                x_fit = np.linspace(self.frequencies[0], self.frequencies[-1], 1000)
-                y_fit = lorentzian(x_fit, peak['amplitude'], peak['center'], peak['width'], peak['offset'])
-                
-                ax.plot(x_fit / 1e9, y_fit, pen='g', name=f'Fit {i+1}')
-                
-                # Mark peak center
-                ax.plot([peak['center'] / 1e9], [peak['amplitude'] + peak['offset']], 
-                       symbol='o', symbolBrush='g', symbolSize=10)
-        
-        ax.setLabel('left', 'Fluorescence (kcounts/s)')
-        ax.setLabel('bottom', 'Frequency (GHz)')
-        ax.setTitle('Enhanced ODMR Sweep Spectrum (SG384)')
-        ax.showGrid(x=True, y=True)
-        
-        # Add legend
-        ax.addLegend()
+        # Check if we have bidirectional data
+        if 'forward_frequency' in self.data and 'reverse_frequency' in self.data:
+            # Bidirectional sweep - plot both directions
+            forward_frequencies = self.data['forward_frequency'] / 1e9  # Convert to GHz
+            reverse_frequencies = self.data['reverse_frequency'] / 1e9  # Convert to GHz
+            forward_data = self.data['forward_data']
+            reverse_data = self.data['reverse_data']
+            
+            # Plot forward sweep
+            axes.plot(forward_frequencies, forward_data, pen='b', name='Forward Sweep')
+            
+            # Plot reverse sweep
+            axes.plot(reverse_frequencies, reverse_data, pen='r', name='Reverse Sweep')
+            
+            # Plot fit if available (use forward sweep for fitting)
+            if 'fit_params' in self.data and self.data['fit_params']:
+                for peak in self.data['fit_params']:
+                    # Define Lorentzian function
+                    def lorentzian(x, amplitude, center, width, offset):
+                        return amplitude * (width**2 / ((x - center)**2 + width**2)) + offset
+                    
+                    # Generate fit curve
+                    x_fit = np.linspace(forward_frequencies[0], forward_frequencies[-1], 1000)
+                    y_fit = lorentzian(x_fit * 1e9, peak['amplitude'], peak['center'], peak['width'], peak['offset'])
+                    
+                    axes.plot(x_fit, y_fit, pen='g', name=f'Peak at {peak["center_ghz"]:.3f} GHz')
+            
+            axes.setLabel('left', 'Intensity', units='kcounts/s')
+            axes.setLabel('bottom', 'Frequency', units='GHz')
+            axes.setTitle('Enhanced ODMR Sweep (Bidirectional)')
+            axes.showGrid(x=True, y=True)
+            axes.addLegend()
+            
+        elif 'frequency' in self.data and 'data' in self.data:
+            # Unidirectional sweep
+            frequencies = self.data['frequency'] / 1e9  # Convert to GHz
+            data = self.data['data']
+            
+            # Plot data
+            axes.plot(frequencies, data, pen='b', name='ODMR Data')
+            
+            # Plot fit if available
+            if 'fit_params' in self.data and self.data['fit_params']:
+                for peak in self.data['fit_params']:
+                    # Define Lorentzian function
+                    def lorentzian(x, amplitude, center, width, offset):
+                        return amplitude * (width**2 / ((x - center)**2 + width**2)) + offset
+                    
+                    # Generate fit curve
+                    x_fit = np.linspace(frequencies[0], frequencies[-1], 1000)
+                    y_fit = lorentzian(x_fit * 1e9, peak['amplitude'], peak['center'], peak['width'], peak['offset'])
+                    
+                    axes.plot(x_fit, y_fit, pen='r', name=f'Peak at {peak["center_ghz"]:.3f} GHz')
+            
+            axes.setLabel('left', 'Intensity', units='kcounts/s')
+            axes.setLabel('bottom', 'Frequency', units='GHz')
+            axes.setTitle('Enhanced ODMR Sweep')
+            axes.showGrid(x=True, y=True)
+            axes.addLegend()
     
     def get_axes_layout(self, figure_list: List[str]) -> List[List[str]]:
         """Get the axes layout for plotting."""
-        return [[figure_list[0]]]  # Single plot
+        return [['ODMR Sweep']]
     
     def get_experiment_info(self) -> Dict[str, Any]:
-        """Get experiment information and metadata."""
-        center_freq = self.settings['sweep_parameters']['center_frequency']
-        deviation = self.settings['sweep_parameters']['deviation']
-        
+        """Get information about the experiment."""
         return {
-            'experiment_type': 'Enhanced ODMR Sweep (SG384)',
-            'sweep_parameters': {
-                'center_frequency': center_freq,
-                'deviation': deviation,
-                'sweep_range': f"{(center_freq - deviation)/1e9:.3f} - {(center_freq + deviation)/1e9:.3f} GHz",
-                'sweep_rate': self.settings['sweep_parameters']['sweep_rate'],
-                'sweep_function': self.settings['sweep_parameters']['sweep_function']
-            },
-            'microwave_settings': {
-                'power': self.settings['microwave']['power'],
-                'enable_output': self.settings['microwave']['enable_output']
-            },
-            'acquisition_settings': {
-                'integration_time': self.settings['acquisition']['integration_time'],
-                'sweeps_per_average': self.settings['acquisition']['sweeps_per_average']
-            },
-            'fit_results': {
-                'num_peaks': len(self.data['fit_params']) if 'fit_params' in self.data and self.data['fit_params'] else 0,
-                'peaks': self.data['fit_params'] if 'fit_params' in self.data and self.data['fit_params'] else []
-            }
+            'name': 'Enhanced ODMR Sweep',
+            'description': 'ODMR experiment using external FM modulation',
+            'center_frequency': self.settings['sweep_parameters']['center_frequency'] / 1e9,
+            'deviation': self.settings['sweep_parameters']['deviation'] / 1e6,
+            'num_steps': self.settings['acquisition']['num_steps'],
+            'sweeps_per_average': self.settings['acquisition']['sweeps_per_average']
         } 

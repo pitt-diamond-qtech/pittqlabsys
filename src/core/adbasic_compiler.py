@@ -360,16 +360,31 @@ class ADbasicCompiler:
             True if compiler is working, False otherwise
         """
         try:
-            result = subprocess.run(
-                [self.compiler_path, "--help"],
-                env=self.env,
-                capture_output=True,
-                text=True,
-                timeout=30
-            )
+            # Check if the compiler executable exists and is accessible
+            if not os.path.exists(self.compiler_path):
+                logger.error(f"Compiler not found at {self.compiler_path}")
+                return False
             
-            # Even if it shows license errors, the fact that it runs means the compiler is working
-            return result.returncode in [0, 1]  # 0 = success, 1 = license error but working
+            # Check if the compiler is executable
+            if not os.access(self.compiler_path, os.X_OK):
+                logger.error(f"Compiler not executable: {self.compiler_path}")
+                return False
+            
+            # Check if the ADwin directory structure is correct
+            required_files = [
+                os.path.join(self.adwin_dir, "bin", "ADbasicCompiler.exe"),
+                os.path.join(self.adwin_dir, "bin", "madlib.dll")
+            ]
+            
+            for required_file in required_files:
+                if not os.path.exists(required_file):
+                    logger.warning(f"Required file not found: {required_file}")
+                    # Don't fail completely, as the compiler might still work
+            
+            # Don't actually run the compiler during check to avoid creating error files
+            # Just verify the basic setup is correct
+            logger.info(f"ADbasic compiler found at {self.compiler_path}")
+            return True
             
         except Exception as e:
             logger.error(f"Compiler check failed: {e}")

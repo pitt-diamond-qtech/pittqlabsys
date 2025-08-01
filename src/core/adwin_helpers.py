@@ -280,6 +280,9 @@ def read_adwin_sweep_odmr_data(adwin_instance) -> Dict[str, Any]:
     """
     Read data from ADwin sweep ODMR experiment using ODMR_Sweep_Counter.
     
+    This function reads the separate forward and reverse sweep data arrays
+    with clear synchronization between voltage/frequency and counts.
+    
     Args:
         adwin_instance: ADwinGold instance
         
@@ -288,20 +291,75 @@ def read_adwin_sweep_odmr_data(adwin_instance) -> Dict[str, Any]:
         - 'counts': Current counts (Par_1)
         - 'step_index': Current step index (Par_4)
         - 'voltage': Current voltage output (Par_6)
-        - 'sweep_complete': Whether sweep is complete (Par_7)
+        - 'sweep_complete': Sweep complete flag (Par_7)
         - 'total_counts': Total counts for current step (Par_8)
+        - 'sweep_cycle': Sweep cycle (0=forward, 1=reverse, 2=complete) (Par_9)
+        - 'data_ready': Data ready flag (Par_10)
+        - 'forward_counts': Array of forward sweep counts (Data_1)
+        - 'reverse_counts': Array of reverse sweep counts (Data_2)
+        - 'forward_voltages': Array of forward sweep voltages (Data_3)
+        - 'reverse_voltages': Array of reverse sweep voltages (Data_4)
+        - 'sweep_direction': Current sweep direction (Par_5)
     """
-    # Read all relevant parameters
-    counts = adwin_instance.get_int_var(1)
-    step_index = adwin_instance.get_int_var(4)
-    voltage = adwin_instance.get_float_var(6)
-    sweep_complete = adwin_instance.get_int_var(7)
-    total_counts = adwin_instance.get_int_var(8)
+    # Read parameters from ADwin
+    # Par_1: Current counter value
+    counts = adwin_instance.read_probes('int_var', 1)
+    
+    # Par_4: Current step index
+    step_index = adwin_instance.read_probes('int_var', 4)
+    
+    # Par_5: Current sweep direction
+    sweep_direction = adwin_instance.read_probes('int_var', 5)
+    
+    # Par_6: Current voltage output (as integer, needs conversion)
+    voltage_raw = adwin_instance.read_probes('int_var', 6)
+    voltage = float(voltage_raw) / 1000.0  # Convert from millivolts to volts
+    
+    # Par_7: Sweep complete flag
+    sweep_complete = adwin_instance.read_probes('int_var', 7)
+    
+    # Par_8: Total counts for current step
+    total_counts = adwin_instance.read_probes('int_var', 8)
+    
+    # Par_9: Sweep cycle counter
+    sweep_cycle = adwin_instance.read_probes('int_var', 9)
+    
+    # Par_10: Data ready flag
+    data_ready = adwin_instance.read_probes('int_var', 10)
+    
+    # Read data arrays if sweep is complete
+    forward_counts = None
+    reverse_counts = None
+    forward_voltages = None
+    reverse_voltages = None
+    
+    if sweep_complete and data_ready:
+        # Get number of steps from Par_3
+        num_steps = adwin_instance.read_probes('int_var', 3)
+        
+        # Read forward sweep data
+        forward_counts = adwin_instance.read_probes('data', 1, num_steps)
+        forward_voltages = adwin_instance.read_probes('data', 3, num_steps)
+        
+        # Read reverse sweep data
+        reverse_counts = adwin_instance.read_probes('data', 2, num_steps)
+        reverse_voltages = adwin_instance.read_probes('data', 4, num_steps)
+        
+        # Convert voltages from millivolts to volts
+        forward_voltages = [float(v) / 1000.0 for v in forward_voltages]
+        reverse_voltages = [float(v) / 1000.0 for v in reverse_voltages]
     
     return {
-        'counts': float(counts),
-        'step_index': int(step_index),
-        'voltage': float(voltage),
+        'counts': counts,
+        'step_index': step_index,
+        'voltage': voltage,
         'sweep_complete': bool(sweep_complete),
-        'total_counts': float(total_counts)
+        'total_counts': total_counts,
+        'sweep_cycle': sweep_cycle,
+        'data_ready': bool(data_ready),
+        'forward_counts': forward_counts,
+        'reverse_counts': reverse_counts,
+        'forward_voltages': forward_voltages,
+        'reverse_voltages': reverse_voltages,
+        'sweep_direction': sweep_direction
     } 
