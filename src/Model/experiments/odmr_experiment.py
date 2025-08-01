@@ -17,7 +17,7 @@ from typing import List, Dict, Any, Optional, Tuple
 import time
 
 from src.core import Experiment, Parameter
-from src.Controller import MicrowaveGenerator, ADwinGold, MCLNanoDrive
+from src.Controller import SG384Generator, ADwinGold, MCLNanoDrive
 from src.core.adwin_helpers import setup_adwin_for_odmr, read_adwin_odmr_data
 
 
@@ -91,7 +91,7 @@ class ODMRExperiment(Experiment):
     ]
     
     _DEVICES = {
-        'microwave': MicrowaveGenerator,
+        'microwave': SG384Generator,
         'adwin': ADwinGold,
         'nanodrive': MCLNanoDrive
     }
@@ -586,7 +586,7 @@ class ODMRRabiExperiment(Experiment):
     ]
     
     _DEVICES = {
-        'microwave': MicrowaveGenerator,
+        'microwave': SG384Generator,
         'adwin': ADwinGold,
         'pulse_blaster': 'PulseBlaster'  # Would need to be implemented
     }

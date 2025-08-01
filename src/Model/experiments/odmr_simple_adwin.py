@@ -26,7 +26,7 @@ import time
 import random
 
 from src.core import Experiment, Parameter
-from src.Controller import MicrowaveGenerator, ADwinGold
+from src.Controller import SG384Generator, ADwinGold
 from src.core.adwin_helpers import setup_adwin_for_odmr, read_adwin_odmr_data
 
 
@@ -77,7 +77,7 @@ class SimpleODMRExperiment(Experiment):
     ]
     
     _DEVICES = {
-        'microwave': MicrowaveGenerator,
+        'microwave': SG384Generator,
         'adwin': ADwinGold
     }
     

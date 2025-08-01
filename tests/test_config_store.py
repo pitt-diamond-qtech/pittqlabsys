@@ -11,12 +11,14 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch, mock_open
 import pytest
+from src.core.helper_functions import get_project_root
 
 # Import the module under test
 import sys
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-from config_store import load_config, merge_config, save_config
-from config_paths import load_json, resolve_paths, _DEFAULTS, DEFAULT_BASE
+project_root = get_project_root()
+sys.path.insert(0, str(project_root))
+from src.config_store import load_config, merge_config, save_config
+from src.config_paths import load_json, resolve_paths, _DEFAULTS, DEFAULT_BASE
 
 
 class TestLoadConfig:
@@ -65,7 +67,7 @@ class TestLoadConfig:
         payload = {
             "devices": {
                 "microwave": {
-                    "type": "MicrowaveGenerator",
+                    "type": "sg384",
                     "settings": {
                         "frequency": 2.87e9,
                         "power": -10.0
@@ -248,7 +250,7 @@ class TestMergeConfig:
         
         complex_devices = {
             "microwave": {
-                "type": "MicrowaveGenerator",
+                "type": "sg384",
                 "settings": {
                     "frequency": 2.87e9,
                     "power": -10.0
@@ -265,7 +267,7 @@ class TestMergeConfig:
         assert merged["version"] == "1.0"
         assert merged["gui_settings"]["theme"] == "dark"
         assert merged["gui_settings"]["window"]["size"] == [1024, 768]
-        assert merged["devices"]["microwave"]["type"] == "MicrowaveGenerator"
+        assert merged["devices"]["microwave"]["type"] == "sg384"
         assert merged["devices"]["microwave"]["settings"]["frequency"] == 2.87e9
 
 
@@ -402,7 +404,7 @@ class TestIntegration:
         merged = merge_config(
             base_config,
             gui_settings={"theme": "dark"},
-            devices={"microwave": {"type": "MicrowaveGenerator"}}
+            devices={"microwave": {"type": "sg384"}}
         )
         
         # Save merged config
@@ -413,7 +415,7 @@ class TestIntegration:
         loaded = load_config(config_file)
         assert loaded["version"] == "1.0"
         assert loaded["gui_settings"]["theme"] == "dark"
-        assert loaded["devices"]["microwave"]["type"] == "MicrowaveGenerator"
+        assert loaded["devices"]["microwave"]["type"] == "sg384"
     
     def test_paths_and_config_integration(self, tmp_path):
         """Test integration between path resolution and config loading."""

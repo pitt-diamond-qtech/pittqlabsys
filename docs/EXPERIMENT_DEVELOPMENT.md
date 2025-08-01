@@ -44,7 +44,7 @@ class MyExperiment(Experiment):
     
     _DEVICES = {
         'daq': 'NIDAQ',  # Device type string
-        'microwave': 'MicrowaveGenerator',  # Device type string
+        'microwave': 'sg384',  # Device type string
         'positioner': 'MCLNanoDrive'  # Device type string
     }
     
@@ -269,7 +269,7 @@ Define required devices in `_DEVICES`:
 ```python
 _DEVICES = {
     'daq': 'NIDAQ',  # Device type string
-    'microwave': 'MicrowaveGenerator',
+    'microwave': 'sg384',
     'positioner': 'MCLNanoDrive'
 }
 ```
