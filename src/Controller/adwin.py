@@ -192,7 +192,13 @@ class ADwinGold(Device):
             self.adw = new_adw_handle
 
     def __del__(self):  #should stop all processes when ADwin is closed or a crash occures
-        self.close()
+        try:
+            # Only call close if the object was properly initialized
+            if hasattr(self, 'adw') and self.adw is not None:
+                self.close()
+        except:
+            # Ignore any errors during cleanup
+            pass
 
     def read_probes(self, key, id=1, length=100):
         '''
