@@ -362,55 +362,7 @@ class MicrowaveGenerator(Device):
             raise KeyError
         return mapping[value]
 
-    def example_function_mapping(self, operation_type, *args, **kwargs):
-        """
-        Example of how to use mapping dictionary to select functions
-        """
-        # Define the mapping of operation types to functions
-        function_mapping = {
-            'add': self._add_numbers,
-            'multiply': self._multiply_numbers,
-            'power': self._power_numbers,
-            'divide': self._divide_numbers
-        }
-        
-        # Get the function from the mapping
-        if operation_type not in function_mapping:
-            raise ValueError(f"Unknown operation: {operation_type}")
-        
-        # Execute the selected function
-        return function_mapping[operation_type](*args, **kwargs)
-    
-    def _add_numbers(self, a, b):
-        return a + b
-    
-    def _multiply_numbers(self, a, b):
-        return a * b
-    
-    def _power_numbers(self, a, b):
-        return a ** b
-    
-    def _divide_numbers(self, a, b):
-        return a / b if b != 0 else float('inf')
 
-    def example_with_get_method(self, value):
-        """
-        Alternative approach using get() method for cleaner error handling
-        """
-        mapping = {
-            0: 'Sine',
-            1: 'Ramp', 
-            2: 'Triangle',
-            3: 'Square',
-            4: 'Noise',
-            5: 'External'
-        }
-        
-        # Using get() with a default value
-        result = mapping.get(value, None)
-        if result is None:
-            raise KeyError(f"Invalid value: {value}")
-        return result
 
 
 class SG384(MicrowaveGenerator):
