@@ -219,6 +219,128 @@ def test_sg384_error_handling(sg384_hardware):
     print("✓ Error handling works correctly")
 
 
+@pytest.mark.hardware
+def test_sg384_sweep_function_setting(sg384_hardware):
+    """Test setting and reading sweep function."""
+    # Test sweep function setting
+    test_function = 'Triangle'
+    sg384_hardware.update({'sweep_function': test_function})
+    time.sleep(0.1)
+    
+    # Read back sweep function
+    actual_function = sg384_hardware.read_probes('sweep_function')
+    assert actual_function == test_function
+    print(f"✓ Set sweep function: {test_function}, Read: {actual_function}")
+
+
+@pytest.mark.hardware
+def test_sg384_sweep_rate_setting(sg384_hardware):
+    """Test setting and reading sweep rate."""
+    # Test valid sweep rate
+    test_rate = 1.0  # 1 Hz
+    sg384_hardware.update({'sweep_rate': test_rate})
+    time.sleep(0.1)
+    
+    # Read back sweep rate
+    actual_rate = sg384_hardware.read_probes('sweep_rate')
+    assert abs(actual_rate - test_rate) < 0.1  # Within 0.1 Hz tolerance
+    print(f"✓ Set sweep rate: {test_rate} Hz, Read: {actual_rate} Hz")
+    
+    # Test invalid sweep rate (should raise error)
+    with pytest.raises(ValueError, match="less than 120 Hz"):
+        sg384_hardware.update({'sweep_rate': 150.0})
+    print("✓ Invalid sweep rate rejected")
+
+
+@pytest.mark.hardware
+def test_sg384_sweep_deviation_setting(sg384_hardware):
+    """Test setting and reading sweep deviation."""
+    # Test sweep deviation setting
+    test_deviation = 1e6  # 1 MHz
+    sg384_hardware.update({'sweep_deviation': test_deviation})
+    time.sleep(0.1)
+    
+    # Read back sweep deviation
+    actual_deviation = sg384_hardware.read_probes('sweep_deviation')
+    assert abs(actual_deviation - test_deviation) < 1e3  # Within 1 kHz tolerance
+    print(f"✓ Set sweep deviation: {test_deviation/1e6:.3f} MHz, Read: {actual_deviation/1e6:.3f} MHz")
+
+
+@pytest.mark.hardware
+def test_sg384_sweep_parameter_validation(sg384_hardware):
+    """Test sweep parameter validation."""
+    # Test valid parameters
+    center_freq = 2.87e9  # 2.87 GHz
+    deviation = 50e6      # 50 MHz
+    sweep_rate = 1.0      # 1 Hz
+    
+    # Should not raise any exception
+    result = sg384_hardware.validate_sweep_parameters(center_freq, deviation, sweep_rate)
+    assert result is True
+    print("✓ Valid sweep parameters accepted")
+    
+    # Test invalid sweep rate
+    with pytest.raises(ValueError, match="less than 120 Hz"):
+        sg384_hardware.validate_sweep_parameters(center_freq, deviation, 150.0)
+    print("✓ Invalid sweep rate rejected")
+    
+    # Test frequency too low (if device supports this validation)
+    try:
+        sg384_hardware.validate_sweep_parameters(1.0e9, 1e9, 1.0)  # 0 GHz minimum
+        print("⚠ Frequency validation not implemented on this device")
+    except ValueError as e:
+        if "below minimum" in str(e):
+            print("✓ Frequency too low rejected")
+        else:
+            raise
+    except Exception:
+        print("⚠ Frequency validation not implemented on this device")
+
+
+@pytest.mark.hardware
+def test_sg384_sweep_integration(sg384_hardware):
+    """Test complete sweep setup and operation."""
+    # Set up a complete sweep configuration
+    sweep_config = {
+        'frequency': 2.87e9,           # Center frequency
+        'amplitude': -45.0,            # Power
+        'enable_output': True,         # Enable output
+        'enable_modulation': True,     # Enable modulation
+        'modulation_type': 'Freq sweep',  # Set to frequency sweep
+        'sweep_function': 'Triangle',  # Triangle sweep
+        'sweep_rate': 1.0,            # 1 Hz sweep rate
+        'sweep_deviation': 50e6        # 50 MHz deviation
+    }
+    
+    # Apply sweep configuration
+    sg384_hardware.update(sweep_config)
+    time.sleep(0.5)  # Allow time for configuration to settle
+    
+    # Verify configuration
+    actual_freq = sg384_hardware.read_probes('frequency')
+    actual_power = sg384_hardware.read_probes('amplitude')
+    actual_mod_type = sg384_hardware.read_probes('modulation_type')
+    actual_sweep_func = sg384_hardware.read_probes('sweep_function')
+    actual_sweep_rate = sg384_hardware.read_probes('sweep_rate')
+    actual_sweep_dev = sg384_hardware.read_probes('sweep_deviation')
+    
+    # Check that configuration was applied
+    assert abs(actual_freq - sweep_config['frequency']) < 1e6
+    assert abs(actual_power - sweep_config['amplitude']) < 1.0
+    assert actual_mod_type == sweep_config['modulation_type']
+    assert actual_sweep_func == sweep_config['sweep_function']
+    assert abs(actual_sweep_rate - sweep_config['sweep_rate']) < 0.1
+    assert abs(actual_sweep_dev - sweep_config['sweep_deviation']) < 1e3
+    
+    print("✓ Complete sweep configuration applied successfully")
+    print(f"  Center frequency: {actual_freq/1e9:.3f} GHz")
+    print(f"  Power: {actual_power} dBm")
+    print(f"  Modulation type: {actual_mod_type}")
+    print(f"  Sweep function: {actual_sweep_func}")
+    print(f"  Sweep rate: {actual_sweep_rate} Hz")
+    print(f"  Sweep deviation: {actual_sweep_dev/1e6:.3f} MHz")
+
+
 if __name__ == '__main__':
     # You can run this file directly to test hardware connection
     pytest.main([__file__, '-m', 'hardware', '-v']) 

@@ -27,7 +27,7 @@ import random
 
 from src.core import Experiment, Parameter
 from src.Controller import SG384Generator, ADwinGold
-from src.core.adwin_helpers import setup_adwin_for_odmr, read_adwin_odmr_data
+from src.core.adwin_helpers import setup_adwin_for_simple_odmr, read_adwin_simple_odmr_data
 
 
 class SimpleODMRExperiment(Experiment):
@@ -59,7 +59,6 @@ class SimpleODMRExperiment(Experiment):
             Parameter('integration_time', 50.0, float, 'Integration time per point in milliseconds', units='ms'),
             Parameter('settle_time', 0.01, float, 'Settle time after frequency change', units='s'),
             Parameter('averages', 50, int, 'Number of sweeps to average'),
-            Parameter('adwin_samples_per_point', 100, int, 'Number of ADwin samples to average per frequency point'),
             Parameter('save_full_data', True, bool, 'Save all individual sweep data'),
             Parameter('save_timetrace', True, bool, 'Save fluorescence over time (useful when frequencies are randomized)')
         ]),
@@ -113,6 +112,9 @@ class SimpleODMRExperiment(Experiment):
         # Setup microwave generator
         self._setup_microwave()
         
+        # Verify microwave is working
+        self._verify_microwave_setup()
+        
         # Setup ADwin for ODMR
         self._setup_adwin()
         
@@ -154,18 +156,52 @@ class SimpleODMRExperiment(Experiment):
             'enable_modulation': False,  # No FM modulation for simple ODMR
             'enable_output': self.settings['microwave']['enable_output']
         })
+        
+        # Ensure output is enabled if requested
+        if self.settings['microwave']['enable_output']:
+            self.log("Microwave output enabled")
+        else:
+            self.log("Microwave output disabled")
+    
+    def _verify_microwave_setup(self):
+        """Verify that the microwave generator is properly configured."""
+        self.log("Verifying microwave setup...")
+        
+        # Set initial frequency and verify
+        initial_freq = self.frequencies[0]
+        self.microwave.update({
+            'frequency': float(initial_freq),
+            'enable_output': self.settings['microwave']['enable_output']
+        })
+        
+        # Read back the frequency to verify it was set
+        try:
+            actual_freq = self.microwave.read_probes('frequency')
+            freq_error = abs(actual_freq - initial_freq) / initial_freq
+            if freq_error > 1e-6:  # 1 ppm tolerance
+                self.log(f"Warning: Frequency set to {initial_freq} Hz but read back as {actual_freq} Hz", flag='warning')
+            else:
+                self.log(f"Microwave frequency verified: {actual_freq:.3e} Hz")
+        except Exception as e:
+            self.log(f"Could not verify microwave frequency: {e}", flag='warning')
+        
+        # Check if output is enabled
+        try:
+            output_enabled = self.microwave.read_probes('enable_output')
+            if output_enabled != self.settings['microwave']['enable_output']:
+                self.log(f"Warning: Output enable mismatch. Expected: {self.settings['microwave']['enable_output']}, Actual: {output_enabled}", flag='warning')
+            else:
+                self.log(f"Microwave output status verified: {'enabled' if output_enabled else 'disabled'}")
+        except Exception as e:
+            self.log(f"Could not verify microwave output status: {e}", flag='warning')
     
     def _setup_adwin(self):
-        """Setup ADwin for ODMR experiments."""
+        """Setup ADwin for simple ODMR experiments."""
         integration_time_ms = self.settings['acquisition']['integration_time']
-        num_averages = self.settings['acquisition']['adwin_samples_per_point']
         
-        setup_adwin_for_odmr(
+        setup_adwin_for_simple_odmr(
             self.adwin,
-            integration_time_ms=integration_time_ms,
-            num_averages=num_averages,
-            enable_laser_tracking=False,  # No laser tracking for simple ODMR
-            enable_fm_modulation=False    # No FM modulation for simple ODMR
+            integration_time_ms=integration_time_ms
         )
     
     def _initialize_data_arrays(self):
@@ -185,7 +221,7 @@ class SimpleODMRExperiment(Experiment):
         
         try:
             # Start ADwin process
-            self.adwin.start_process(2)
+            self.adwin.start_process(1)
             time.sleep(0.1)  # Allow process to start
             
             start_time = time.time()
@@ -270,8 +306,16 @@ class SimpleODMRExperiment(Experiment):
             
             frequency = self.frequencies[freq_idx]
             
-            # Set microwave frequency
-            self.microwave.update({'frequency': float(frequency)})
+            # Set microwave frequency and ensure output is enabled
+            self.microwave.update({
+                'frequency': float(frequency),
+                'enable_output': self.settings['microwave']['enable_output']
+            })
+            
+            # Log frequency change (but not too frequently to avoid spam)
+            if freq_idx % 10 == 0 or freq_idx == len(freq_indices) - 1:
+                self.log(f"Set microwave frequency to {frequency/1e9:.3f} GHz")
+            
             time.sleep(self.settings['acquisition']['settle_time'])
             
             # Measure signal
@@ -294,10 +338,10 @@ class SimpleODMRExperiment(Experiment):
             Total counts for the integration period
         """
         # Read data from ADwin
-        adwin_data = read_adwin_odmr_data(self.adwin)
+        counts = read_adwin_simple_odmr_data(self.adwin)
         
         # Return the counts
-        return adwin_data['counts']
+        return counts
     
     def _analyze_data(self):
         """Analyze the collected data."""
@@ -387,7 +431,7 @@ class SimpleODMRExperiment(Experiment):
         self.log("Cleaning up simple ODMR experiment...")
         
         # Stop ADwin process
-        self.adwin.stop_process(2)
+        self.adwin.stop_process(1)
         
         # Turn off microwave if requested
         if self.settings['microwave']['turn_off_after']:

@@ -1,7 +1,11 @@
 from src.core import Device, Parameter
 import ADwin
 from ADwin import ADwinError
+from src.core.adbasic_compiler import ADbasicCompiler
+from pathlib import Path
+import os
 #from ctypes import *
+from typing import Optional, Dict, Any
 
 
 class ADwinGold(Device):
@@ -190,6 +194,109 @@ class ADwinGold(Device):
             raise
         if new_adw_handle is not None:
             self.adw = new_adw_handle
+
+    def compile_and_load_process(self, source_file: str, process_number: Optional[int] = None, 
+                                auto_start: bool = False, verbose: bool = False,
+                                license_file: Optional[str] = None) -> str:
+        """
+        Compile an ADbasic source file and load it into the ADwin.
+        
+        This method compiles a .bas file to a .TB* file and then loads it into the specified process.
+        
+        Args:
+            source_file: Path to the .bas source file
+            process_number: Process number (1-10) to load into. If None, tries to detect from source.
+            auto_start: Whether to automatically start the process after loading
+            verbose: Whether to print verbose compilation output
+            license_file: Path to license configuration file
+            
+        Returns:
+            Path to the compiled .TB* file
+            
+        Raises:
+            FileNotFoundError: If source file doesn't exist
+            subprocess.CalledProcessError: If compilation fails
+            ADwinError: If loading fails
+        """
+        # Initialize the ADbasic compiler
+        compiler = ADbasicCompiler(license_file=license_file)
+        
+        # Compile the source file
+        compiled_file = compiler.compile_file(
+            source_file=source_file,
+            process_number=process_number,
+            verbose=verbose
+        )
+        
+        # Load the compiled file into the ADwin
+        self.load_process(compiled_file)
+        
+        # Auto-start if requested
+        if auto_start and process_number is not None:
+            self.start_process(process_number)
+        
+        return compiled_file
+    
+    def compile_and_load_directory(self, source_dir: str, auto_start: bool = False, 
+                                  verbose: bool = False, license_file: Optional[str] = None) -> Dict[str, str]:
+        """
+        Compile all .bas files in a directory and load them into the ADwin.
+        
+        Args:
+            source_dir: Directory containing .bas files
+            auto_start: Whether to automatically start processes after loading
+            verbose: Whether to print verbose compilation output
+            license_file: Path to license configuration file
+            
+        Returns:
+            Dictionary mapping source files to compiled files
+        """
+        # Initialize the ADbasic compiler
+        compiler = ADbasicCompiler(license_file=license_file)
+        
+        # Compile all files in the directory
+        results = compiler.compile_directory(
+            source_dir=source_dir,
+            verbose=verbose
+        )
+        
+        # Load all compiled files
+        for source_file, compiled_file in results.items():
+            if compiled_file is not None:
+                try:
+                    self.load_process(compiled_file)
+                    print(f"Loaded {compiled_file}")
+                except Exception as e:
+                    print(f"Failed to load {compiled_file}: {e}")
+        
+        return results
+    
+    def check_license_status(self, license_file: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Check the status of the ADbasic compiler license.
+        
+        Args:
+            license_file: Path to license configuration file
+            
+        Returns:
+            Dictionary with license status information
+        """
+        compiler = ADbasicCompiler(license_file=license_file)
+        
+        status = {
+            'has_license': compiler.has_valid_license(),
+            'license_info': compiler.get_license_info(),
+            'compiler_working': compiler.check_compiler()
+        }
+        
+        if status['has_license']:
+            status['status'] = 'Licensed - Full functionality available'
+        elif status['compiler_working']:
+            status['status'] = 'Unlicensed - Limited functionality (license warnings expected)'
+        else:
+            status['status'] = 'Error - Compiler not working'
+        
+        return status
 
     def __del__(self):  #should stop all processes when ADwin is closed or a crash occures
         try:

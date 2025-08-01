@@ -1,0 +1,12 @@
+{
+  "license_key": "YOUR_LICENSE_KEY_HERE",
+  "device_type": "ADwin Gold II",
+  "device_id": "YOUR_DEVICE_ID_HERE",
+  "expiration_date": "YYYY-MM-DD",
+  "features": [
+    "ADbasic_compiler",
+    "TiCO_compiler",
+    "real_time_processing"
+  ],
+  "notes": "Replace the placeholder values with your actual license information"
+}

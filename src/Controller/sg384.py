@@ -25,7 +25,10 @@ class SG384Generator(MicrowaveGeneratorBase):
         'modulation_function': 'MFNC',
         'pulse_modulation_function': 'PFNC',
         'dev_width': 'FDEV',
-        'mod_rate': 'RATE'
+        'mod_rate': 'RATE',
+        'sweep_function': 'SFNC',
+        'sweep_rate': 'SRAT',
+        'sweep_deviation': 'SDEV'
     }
     
     # Modulation type mappings
@@ -63,6 +66,18 @@ class SG384Generator(MicrowaveGeneratorBase):
     
     INTERNAL_TO_PULSE_MOD_FUNC = {v: k for k, v in PULSE_MOD_FUNC_MAPPINGS.items()}
     
+    # Sweep function mappings
+    SWEEP_FUNC_MAPPINGS = {
+        'Sine': 0,
+        'Ramp': 1,
+        'Triangle': 2,
+        'Square': 3,
+        'Noise': 4,
+        'External': 5
+    }
+    
+    INTERNAL_TO_SWEEP_FUNC = {v: k for k, v in SWEEP_FUNC_MAPPINGS.items()}
+    
     # Update dispatch mapping
     UPDATE_MAPPING = {
         'frequency': 'set_frequency',
@@ -75,7 +90,10 @@ class SG384Generator(MicrowaveGeneratorBase):
         'modulation_function': '_set_modulation_function',
         'pulse_modulation_function': '_set_pulse_modulation_function',
         'dev_width': '_set_dev_width',
-        'mod_rate': '_set_mod_rate'
+        'mod_rate': '_set_mod_rate',
+        'sweep_function': '_set_sweep_function',
+        'sweep_rate': '_set_sweep_rate',
+        'sweep_deviation': '_set_sweep_deviation'
     }
 
     _DEFAULT_SETTINGS = Parameter([
@@ -99,6 +117,13 @@ class SG384Generator(MicrowaveGeneratorBase):
         Parameter('modulation_depth', 1e6, float, 'Deviation in Hz'),
         Parameter('dev_width', 1e6, float, 'Deviation width in Hz'),
         Parameter('mod_rate', 1e7, float, 'Modulation rate in Hz'),
+        # Sweep parameters
+        Parameter('sweep_function', 'Triangle', ['Sine','Ramp','Triangle','Square','Noise','External'], 'Sweep function'),
+        Parameter('sweep_rate', 1.0, float, 'Sweep rate in Hz (must be < 120 Hz)'),
+        Parameter('sweep_deviation', 1e6, float, 'Sweep deviation in Hz'),
+        Parameter('sweep_center_frequency', 2.87e9, float, 'Sweep center frequency in Hz'),
+        Parameter('sweep_max_frequency', 4.1e9, float, 'Sweep maximum frequency in Hz'),
+        Parameter('sweep_min_frequency', 1.9e9, float, 'Sweep minimum frequency in Hz'),
         # add more SG384‐only knobs here…
     ])
 
@@ -136,6 +161,39 @@ class SG384Generator(MicrowaveGeneratorBase):
     def set_modulation_depth(self, depth_hz: float):
         self.settings['modulation_depth'] = depth_hz
         self._send(f"FDEV {depth_hz}")
+    
+    def validate_sweep_parameters(self, center_freq: float, deviation: float, sweep_rate: float = None) -> bool:
+        """
+        Validate sweep parameters to ensure they're within SG384 limits.
+        
+        Args:
+            center_freq: Center frequency in Hz
+            deviation: Frequency deviation in Hz
+            sweep_rate: Sweep rate in Hz (optional, for rate validation)
+            
+        Returns:
+            True if parameters are valid
+            
+        Raises:
+            ValueError: If parameters are outside valid range
+        """
+        min_freq = self.settings['sweep_min_frequency']
+        max_freq = self.settings['sweep_max_frequency']
+        
+        sweep_min = center_freq - deviation
+        sweep_max = center_freq + deviation
+        
+        if sweep_min < min_freq:
+            raise ValueError(f"Sweep minimum frequency {sweep_min/1e9:.3f} GHz is below minimum {min_freq/1e9:.3f} GHz")
+        
+        if sweep_max > max_freq:
+            raise ValueError(f"Sweep maximum frequency {sweep_max/1e9:.3f} GHz is above maximum {max_freq/1e9:.3f} GHz")
+        
+        # Validate sweep rate if provided
+        if sweep_rate is not None and sweep_rate >= 120.0:
+            raise ValueError(f"Sweep rate {sweep_rate} Hz must be less than 120 Hz")
+        
+        return True
 
     # Helper methods using mapping dictionaries
     def _param_to_internal(self, param: str) -> str:
@@ -180,6 +238,18 @@ class SG384Generator(MicrowaveGeneratorBase):
             raise KeyError(f"Unknown internal pulse modulation function: {value}")
         return self.INTERNAL_TO_PULSE_MOD_FUNC[value]
     
+    def _sweep_func_to_internal(self, value: str) -> int:
+        """Convert sweep function string to internal value using mapping dictionary."""
+        if value not in self.SWEEP_FUNC_MAPPINGS:
+            raise KeyError(f"Unknown sweep function: {value}")
+        return self.SWEEP_FUNC_MAPPINGS[value]
+    
+    def _internal_to_sweep_func(self, value: int) -> str:
+        """Convert internal sweep function value to string using mapping dictionary."""
+        if value not in self.INTERNAL_TO_SWEEP_FUNC:
+            raise KeyError(f"Unknown internal sweep function value: {value}")
+        return self.INTERNAL_TO_SWEEP_FUNC[value]
+    
     def _dispatch_update(self, settings: dict):
         """
         Dispatch update operations using mapping dictionary.
@@ -199,6 +269,8 @@ class SG384Generator(MicrowaveGeneratorBase):
                     value = self._mod_func_to_internal(value)
                 elif key == 'pulse_modulation_function':
                     value = self._pulse_mod_func_to_internal(value)
+                elif key == 'sweep_function':
+                    value = self._sweep_func_to_internal(value)
                 
                 # Call the appropriate method
                 method(value)
@@ -233,6 +305,20 @@ class SG384Generator(MicrowaveGeneratorBase):
     def _set_mod_rate(self, mod_rate: float):
         """Set modulation rate."""
         self._send(f"RATE {mod_rate}")
+    
+    def _set_sweep_function(self, sweep_func: int):
+        """Set sweep function."""
+        self._send(f"SFNC {sweep_func}")
+    
+    def _set_sweep_rate(self, sweep_rate: float):
+        """Set sweep rate (must be < 120 Hz)."""
+        if sweep_rate >= 120.0:
+            raise ValueError(f"Sweep rate {sweep_rate} Hz must be less than 120 Hz")
+        self._send(f"SRAT {sweep_rate}")
+    
+    def _set_sweep_deviation(self, sweep_deviation: float):
+        """Set sweep deviation."""
+        self._send(f"SDEV {sweep_deviation}")
 
     def update(self, settings: dict):
         """
@@ -257,7 +343,10 @@ class SG384Generator(MicrowaveGeneratorBase):
             'modulation_function': 'Modulation Function: 0=Sine, 1=Ramp, 2=Triangle, 3=Square, 4=Noise, 5=External',
             'pulse_modulation_function': 'Pulse Modulation Function: 3=Square, 4=Noise(PRBS), 5=External',
             'dev_width': 'Width of deviation from center frequency in FM',
-            'mod_rate': 'Rate of modulation in Hz'
+            'mod_rate': 'Rate of modulation in Hz',
+            'sweep_function': 'Sweep Function: 0=Sine, 1=Ramp, 2=Triangle, 3=Square, 4=Noise, 5=External',
+            'sweep_rate': 'Sweep rate in Hz',
+            'sweep_deviation': 'Sweep deviation in Hz'
         }
     
     def read_probes(self, key):
@@ -276,6 +365,7 @@ class SG384Generator(MicrowaveGeneratorBase):
             'modulation_type': self._read_modulation_type_probe,
             'modulation_function': self._read_modulation_function_probe,
             'pulse_modulation_function': self._read_pulse_modulation_function_probe,
+            'sweep_function': self._read_sweep_function_probe,
             
             # Float probes (return numeric values)
             'frequency': self._read_float_probe,
@@ -283,7 +373,9 @@ class SG384Generator(MicrowaveGeneratorBase):
             'amplitude_rf': self._read_float_probe,
             'phase': self._read_float_probe,
             'dev_width': self._read_float_probe,
-            'mod_rate': self._read_float_probe
+            'mod_rate': self._read_float_probe,
+            'sweep_rate': self._read_float_probe,
+            'sweep_deviation': self._read_float_probe
         }
         
         if key in probe_mapping:
@@ -314,6 +406,12 @@ class SG384Generator(MicrowaveGeneratorBase):
         key_internal = self._param_to_internal(key)
         value = int(self._query(key_internal + '?'))
         return self._internal_to_pulse_mod_func(value)
+    
+    def _read_sweep_function_probe(self, key):
+        """Read sweep function probe values."""
+        key_internal = self._param_to_internal(key)
+        value = int(self._query(key_internal + '?'))
+        return self._internal_to_sweep_func(value)
     
     def _read_float_probe(self, key):
         """Read float probe values (frequency, amplitude, phase, etc.)."""

@@ -102,6 +102,36 @@ class TestSG384Generator:
         assert mock_sg384._internal_to_mod_func(3) == 'Square'
         assert mock_sg384._internal_to_mod_func(4) == 'Noise'
         assert mock_sg384._internal_to_mod_func(5) == 'External'
+        
+        # Test invalid values
+        with pytest.raises(KeyError):
+            mock_sg384._mod_func_to_internal('Invalid')
+        with pytest.raises(KeyError):
+            mock_sg384._internal_to_mod_func(99)
+    
+    def test_sweep_function_mappings(self, mock_sg384):
+        """Test sweep function conversion mappings."""
+        # Test string to internal conversion
+        assert mock_sg384._sweep_func_to_internal('Sine') == 0
+        assert mock_sg384._sweep_func_to_internal('Ramp') == 1
+        assert mock_sg384._sweep_func_to_internal('Triangle') == 2
+        assert mock_sg384._sweep_func_to_internal('Square') == 3
+        assert mock_sg384._sweep_func_to_internal('Noise') == 4
+        assert mock_sg384._sweep_func_to_internal('External') == 5
+        
+        # Test internal to string conversion
+        assert mock_sg384._internal_to_sweep_func(0) == 'Sine'
+        assert mock_sg384._internal_to_sweep_func(1) == 'Ramp'
+        assert mock_sg384._internal_to_sweep_func(2) == 'Triangle'
+        assert mock_sg384._internal_to_sweep_func(3) == 'Square'
+        assert mock_sg384._internal_to_sweep_func(4) == 'Noise'
+        assert mock_sg384._internal_to_sweep_func(5) == 'External'
+        
+        # Test invalid values
+        with pytest.raises(KeyError):
+            mock_sg384._sweep_func_to_internal('Invalid')
+        with pytest.raises(KeyError):
+            mock_sg384._internal_to_sweep_func(99)
     
     def test_pulse_modulation_function_mappings(self, mock_sg384):
         """Test pulse modulation function conversion mappings."""
@@ -275,6 +305,22 @@ class TestSG384Generator:
         # Test modulation rate setter
         mock_sg384._set_mod_rate(2e7)
         mock_sg384._send.assert_called_with("RATE 20000000.0")
+        
+        # Test sweep function setter
+        mock_sg384._set_sweep_function(2)
+        mock_sg384._send.assert_called_with("SFNC 2")
+        
+        # Test sweep rate setter
+        mock_sg384._set_sweep_rate(10.0)
+        mock_sg384._send.assert_called_with("SRAT 10.0")
+        
+        # Test sweep rate validation (should raise error for rate >= 120 Hz)
+        with pytest.raises(ValueError, match="less than 120 Hz"):
+            mock_sg384._set_sweep_rate(150.0)
+        
+        # Test sweep deviation setter
+        mock_sg384._set_sweep_deviation(1e6)
+        mock_sg384._send.assert_called_with("SDEV 1000000.0")
     
     def test_update_method(self, mock_sg384):
         """Test the update method integration."""
@@ -296,12 +342,63 @@ class TestSG384Generator:
         expected_probes = [
             'enable_output', 'frequency', 'amplitude', 'phase',
             'enable_modulation', 'modulation_type', 'modulation_function',
-            'pulse_modulation_function', 'dev_width', 'mod_rate'
+            'pulse_modulation_function', 'dev_width', 'mod_rate',
+            'sweep_function', 'sweep_rate', 'sweep_deviation'
         ]
         
         for probe in expected_probes:
             assert probe in probes
             assert isinstance(probes[probe], str)  # All descriptions should be strings
+    
+    def test_validate_sweep_parameters_valid(self, mock_sg384):
+        """Test sweep parameter validation with valid parameters."""
+        # Test valid parameters
+        center_freq = 2.87e9  # 2.87 GHz
+        deviation = 50e6      # 50 MHz
+        sweep_rate = 1.0      # 1 Hz
+        
+        # Should not raise any exception
+        result = mock_sg384.validate_sweep_parameters(center_freq, deviation, sweep_rate)
+        assert result is True
+    
+    def test_validate_sweep_parameters_frequency_too_low(self, mock_sg384):
+        """Test sweep parameter validation with frequency too low."""
+        center_freq = 1.0e9   # 1 GHz
+        deviation = 1e9       # 1 GHz deviation
+        sweep_rate = 1.0      # 1 Hz
+        
+        # This should fail: center_freq - deviation = 0 GHz < 1.9 GHz
+        with pytest.raises(ValueError, match="below minimum"):
+            mock_sg384.validate_sweep_parameters(center_freq, deviation, sweep_rate)
+    
+    def test_validate_sweep_parameters_frequency_too_high(self, mock_sg384):
+        """Test sweep parameter validation with frequency too high."""
+        center_freq = 5.0e9   # 5 GHz
+        deviation = 1e9       # 1 GHz deviation
+        sweep_rate = 1.0      # 1 Hz
+        
+        # This should fail: center_freq + deviation = 6 GHz > 4.1 GHz
+        with pytest.raises(ValueError, match="above maximum"):
+            mock_sg384.validate_sweep_parameters(center_freq, deviation, sweep_rate)
+    
+    def test_validate_sweep_parameters_rate_too_high(self, mock_sg384):
+        """Test sweep parameter validation with sweep rate too high."""
+        center_freq = 2.87e9  # 2.87 GHz
+        deviation = 50e6      # 50 MHz
+        sweep_rate = 150.0    # 150 Hz (too high)
+        
+        # This should fail: sweep_rate >= 120 Hz
+        with pytest.raises(ValueError, match="less than 120 Hz"):
+            mock_sg384.validate_sweep_parameters(center_freq, deviation, sweep_rate)
+    
+    def test_validate_sweep_parameters_no_rate(self, mock_sg384):
+        """Test sweep parameter validation without sweep rate."""
+        center_freq = 2.87e9  # 2.87 GHz
+        deviation = 50e6      # 50 MHz
+        
+        # Should not raise any exception (sweep_rate is None)
+        result = mock_sg384.validate_sweep_parameters(center_freq, deviation)
+        assert result is True
 
 
 if __name__ == '__main__':

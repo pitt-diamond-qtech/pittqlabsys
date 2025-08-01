@@ -160,6 +160,72 @@ def setup_adwin_for_odmr(adwin_instance, integration_time_ms: float = 10.0,
     adwin_instance.set_float_var(13, fm_amplitude)
 
 
+def setup_adwin_for_simple_odmr(adwin_instance, integration_time_ms: float = 10.0) -> None:
+    """
+    Setup ADwin for simple ODMR experiments with the Trial_Counter script.
+    
+    This is a simplified version that just counts photons without any averaging,
+    FM modulation, or laser tracking. Perfect for simple ODMR where the microwave
+    frequency setting is the slow operation.
+    
+    Args:
+        adwin_instance: ADwinGold instance
+        integration_time_ms: Integration time in milliseconds
+    """
+    # Stop and clear process 1 (Trial_Counter uses process 1)
+    adwin_instance.stop_process(1)
+    
+    # Load Trial counter script
+    trial_binary_path = get_adwin_binary_path('Trial_Counter.TB1')
+    adwin_instance.update({
+        'process_1': {
+            'load': str(trial_binary_path),
+            'delay': int(integration_time_ms * 1000),  # Convert to microseconds
+            'running': False
+        }
+    })
+
+
+def setup_adwin_for_sweep_odmr(adwin_instance, integration_time_ms: float = 10.0, 
+                              num_steps: int = 100, bidirectional: bool = False) -> None:
+    """
+    Setup ADwin for enhanced ODMR sweep experiments with the ODMR_Sweep_Counter script.
+    
+    This script generates a voltage ramp on AO1 for SG384 modulation input and
+    counts photons synchronously during the sweep.
+    
+    Args:
+        adwin_instance: ADwinGold instance
+        integration_time_ms: Integration time per step in milliseconds
+        num_steps: Number of steps in the sweep
+        bidirectional: Whether to do bidirectional sweeps (forward/reverse)
+    """
+    # Stop and clear process 1 (ODMR_Sweep_Counter uses process 1)
+    adwin_instance.stop_process(1)
+    
+    # Load ODMR Sweep Counter script
+    sweep_binary_path = get_adwin_binary_path('ODMR_Sweep_Counter.TB1')
+    adwin_instance.update({
+        'process_1': {
+            'load': str(sweep_binary_path),
+            'delay': 1000000,  # 1ms base delay
+            'running': False
+        }
+    })
+    
+    # Set parameters for the sweep script
+    # Par_2: Integration time per step in microseconds
+    integration_time_us = int(integration_time_ms * 1000)
+    adwin_instance.set_int_var(2, integration_time_us)
+    
+    # Par_3: Number of steps in sweep
+    adwin_instance.set_int_var(3, num_steps)
+    
+    # Par_5: Sweep direction (0=unidirectional, 1=bidirectional)
+    sweep_direction = 1 if bidirectional else 0
+    adwin_instance.set_int_var(5, sweep_direction)
+
+
 def read_adwin_odmr_data(adwin_instance) -> Dict[str, float]:
     """
     Read ODMR data from ADwin process 2.
@@ -192,4 +258,50 @@ def read_adwin_odmr_data(adwin_instance) -> Dict[str, float]:
         'laser_power': avg_laser_power,
         'raw_counts': raw_counts,
         'sample_index': sample_index
+    }
+
+
+def read_adwin_simple_odmr_data(adwin_instance) -> float:
+    """
+    Read data from ADwin simple ODMR experiment using Trial_Counter.
+    
+    Args:
+        adwin_instance: ADwinGold instance
+        
+    Returns:
+        Counts for the integration period (float)
+    """
+    # Read the counts (Par_1) - Trial_Counter only has one parameter
+    counts = adwin_instance.get_int_var(1)
+    return float(counts)
+
+
+def read_adwin_sweep_odmr_data(adwin_instance) -> Dict[str, Any]:
+    """
+    Read data from ADwin sweep ODMR experiment using ODMR_Sweep_Counter.
+    
+    Args:
+        adwin_instance: ADwinGold instance
+        
+    Returns:
+        Dictionary containing:
+        - 'counts': Current counts (Par_1)
+        - 'step_index': Current step index (Par_4)
+        - 'voltage': Current voltage output (Par_6)
+        - 'sweep_complete': Whether sweep is complete (Par_7)
+        - 'total_counts': Total counts for current step (Par_8)
+    """
+    # Read all relevant parameters
+    counts = adwin_instance.get_int_var(1)
+    step_index = adwin_instance.get_int_var(4)
+    voltage = adwin_instance.get_float_var(6)
+    sweep_complete = adwin_instance.get_int_var(7)
+    total_counts = adwin_instance.get_int_var(8)
+    
+    return {
+        'counts': float(counts),
+        'step_index': int(step_index),
+        'voltage': float(voltage),
+        'sweep_complete': bool(sweep_complete),
+        'total_counts': float(total_counts)
     } 
