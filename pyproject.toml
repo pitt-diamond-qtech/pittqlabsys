@@ -144,10 +144,14 @@ python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 markers = [
+    "run_this: mark a test to be run",
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests as integration tests",
     "hardware: marks tests that require hardware",
     "gui: marks tests that require GUI",
+]
+filterwarnings = [
+    "ignore:.*U.*mode is deprecated:DeprecationWarning",
 ]
 
 [tool.coverage.run]
@@ -169,7 +173,7 @@ exclude_lines = [
     "raise AssertionError",
     "raise NotImplementedError",
     "if 0:",
-    "if __name__ == .__main__.:",
+    "if __name__ == \\.__main__\\.:",
     "class .*\\bProtocol\\):",
     "@(abc\\.)?abstractmethod",
 ]
@@ -187,10 +191,7 @@ extensions = [
     "sphinx_rtd_theme",
 ]
 html_theme = "sphinx_rtd_theme"
-html_theme_options = {
-    "navigation_depth": 4,
-    "collapse_navigation": False,
-}
+html_theme_options = { navigation_depth = 4, collapse_navigation = false }
 autodoc_member_order = "bysource"
 autodoc_typehints = "description"
 # Note: intersphinx_mapping is complex and should be configured in conf.py

@@ -328,42 +328,89 @@ class MicrowaveGenerator(Device):
 
     def _internal_to_mod_func(self, value):
         #COMMENT_ME
-        if value == 0:
-            return 'Sine'
-        elif value == 1:
-            return 'Ramp'
-        elif value == 2:
-            return 'Triangle'
-        elif value == 3:
-            return 'Square'
-        elif value == 4:
-            return 'Noise'
-        elif value == 5:
-            return 'External'
-        else:
+        mapping = {
+            0: 'Sine',
+            1: 'Ramp',
+            2: 'Triangle',
+            3: 'Square',
+            4: 'Noise',
+            5: 'External'
+        }
+        if value not in mapping:
             raise KeyError
+        return mapping[value]
 
     def _pulse_mod_func_to_internal(self, value):
         #COMMENT_ME
-        if value == 'Square':
-            return 3
-        elif value == 'Noise(PRBS)':
-            return 4
-        elif value == 'External':
-            return 5
-        else:
+        mapping = {
+            'Square': 3,
+            'Noise(PRBS)': 4,
+            'External': 5
+        }
+        if value not in mapping:
             raise KeyError
+        return mapping[value]
 
     def _internal_to_pulse_mod_func(self, value):
         #COMMENT_ME
-        if value == 3:
-            return 'Square'
-        elif value == 4:
-            return 'Noise(PRBS)'
-        elif value == 5:
-            return 'External'
-        else:
+        mapping = {
+            3: 'Square',
+            4: 'Noise(PRBS)',
+            5: 'External'
+        }
+        if value not in mapping:
             raise KeyError
+        return mapping[value]
+
+    def example_function_mapping(self, operation_type, *args, **kwargs):
+        """
+        Example of how to use mapping dictionary to select functions
+        """
+        # Define the mapping of operation types to functions
+        function_mapping = {
+            'add': self._add_numbers,
+            'multiply': self._multiply_numbers,
+            'power': self._power_numbers,
+            'divide': self._divide_numbers
+        }
+        
+        # Get the function from the mapping
+        if operation_type not in function_mapping:
+            raise ValueError(f"Unknown operation: {operation_type}")
+        
+        # Execute the selected function
+        return function_mapping[operation_type](*args, **kwargs)
+    
+    def _add_numbers(self, a, b):
+        return a + b
+    
+    def _multiply_numbers(self, a, b):
+        return a * b
+    
+    def _power_numbers(self, a, b):
+        return a ** b
+    
+    def _divide_numbers(self, a, b):
+        return a / b if b != 0 else float('inf')
+
+    def example_with_get_method(self, value):
+        """
+        Alternative approach using get() method for cleaner error handling
+        """
+        mapping = {
+            0: 'Sine',
+            1: 'Ramp', 
+            2: 'Triangle',
+            3: 'Square',
+            4: 'Noise',
+            5: 'External'
+        }
+        
+        # Using get() with a default value
+        result = mapping.get(value, None)
+        if result is None:
+            raise KeyError(f"Invalid value: {value}")
+        return result
 
 
 class SG384(MicrowaveGenerator):
