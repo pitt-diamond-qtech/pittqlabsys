@@ -18,7 +18,7 @@ import time
 
 from src.core import Experiment, Parameter
 from src.Controller import SG384Generator, AdwinGoldDevice, MCLNanoDrive
-from src.core.adwin_helpers import setup_adwin_for_odmr, read_adwin_odmr_data
+from src.core.adwin_helpers import setup_adwin_for_odmr, read_adwin_odmr_data, setup_adwin_for_simple_odmr, read_adwin_simple_odmr_data
 
 
 class ODMRExperiment(Experiment):
@@ -184,13 +184,11 @@ class ODMRExperiment(Experiment):
         # Convert integration time from seconds to milliseconds
         integration_time_ms = self.settings['acquisition']['integration_time'] * 1000.0
         
-        # Setup ADwin for ODMR using our helper function
-        setup_adwin_for_odmr(
+        # Setup ADwin for simple ODMR using Trial_Counter.TB1 (which exists)
+        # instead of ODMR_Counter.TB2 (which doesn't exist)
+        setup_adwin_for_simple_odmr(
             self.adwin,
-            integration_time_ms=integration_time_ms,
-            num_averages=1,  # Single sample per point for basic ODMR
-            enable_laser_tracking=False,  # No laser tracking for basic ODMR
-            enable_fm_modulation=False    # No FM modulation for basic ODMR
+            integration_time_ms=integration_time_ms
         )
         
     def _setup_2d_scan(self):
@@ -257,7 +255,7 @@ class ODMRExperiment(Experiment):
         
         # Sweep through frequencies
         for i, freq in enumerate(self.frequencies):
-            if self.is_stopped():
+            if self._abort:
                 break
                 
             # Set frequency
@@ -286,13 +284,13 @@ class ODMRExperiment(Experiment):
         self.log("Running continuous ODMR sweeps...")
         
         sweep_count = 0
-        while not self.is_stopped():
+        while not self._abort:
             self.log(f"Starting sweep {sweep_count + 1}")
             
             # Run single sweep
             self._run_single_sweep()
             
-            if self.is_stopped():
+            if self._abort:
                 break
                 
             sweep_count += 1
@@ -308,7 +306,7 @@ class ODMRExperiment(Experiment):
         accumulated_data = np.zeros(len(self.frequencies))
         
         for avg in range(averages):
-            if self.is_stopped():
+            if self._abort:
                 break
                 
             self.log(f"Running average {avg + 1}/{averages}")
@@ -346,7 +344,7 @@ class ODMRExperiment(Experiment):
             self.nanodrive.update({'y_pos': y_pos})
             
             for j, x_pos in enumerate(x_positions):
-                if self.is_stopped():
+                if self._abort:
                     break
                     
                 self.nanodrive.update({'x_pos': x_pos})
@@ -363,11 +361,17 @@ class ODMRExperiment(Experiment):
     
     def _acquire_counts(self) -> float:
         """Acquire photon counts from ADwin."""
-        # Read data from ADwin using our helper function
-        adwin_data = read_adwin_odmr_data(self.adwin)
+        # Read data from ADwin using simple helper function
+        counts = read_adwin_simple_odmr_data(self.adwin)
         
         # Return the counts
-        return adwin_data['counts']
+        return counts
+    
+    def _update_plots(self):
+        """Update plots during experiment execution."""
+        # This is a simple wrapper for the base class _update_plot method
+        # For now, we'll just pass an empty list since we're not using GUI plots
+        pass
     
     def _analyze_data(self):
         """Analyze ODMR data and fit resonances."""
@@ -629,7 +633,7 @@ class ODMRRabiExperiment(Experiment):
         
         # Run Rabi measurement
         for i, pulse_duration in enumerate(self.pulse_durations):
-            if self.is_stopped():
+            if self._abort:
                 break
                 
             # Set pulse duration

@@ -20,7 +20,172 @@ from .example_device import ExampleDevice, Plant, PIController
 from src.core.device import Device
 from src.core.parameter import Parameter
 
+# Import MicrowaveGeneratorBase for mock SG384Generator
+try:
+    from .mw_generator_base import MicrowaveGeneratorBase
+except ImportError:
+    # Fallback if the base class is not available
+    MicrowaveGeneratorBase = Device
+
 # Mock device classes for cross-platform compatibility
+class MockSG384Generator(Device):
+    """Mock SG384Generator that subclasses directly from Device to avoid validation issues."""
+    
+    _DEFAULT_SETTINGS = Parameter([
+        Parameter('connection_type', 'LAN', ['LAN','GPIB','RS232'], 'Transport type'),
+        Parameter('ip_address', '192.168.1.100', str, 'IP for LAN'),
+        Parameter('port', 5025, int, 'Port for LAN'),
+        Parameter('visa_resource', '', str, 'PyVISA resource string'),
+        Parameter('baud_rate', 115200, int, 'Baud for RS232'),
+        Parameter('frequency', 2.87e9, float, 'Frequency in Hz'),  # No validation constraints
+        Parameter('power', -10.0, float, 'Power in dBm'),  # No validation constraints
+        Parameter('phase', 0.0, float, 'Phase in degrees'),  # No validation constraints
+        Parameter('amplitude', -10.0, float, 'Amplitude in dBm'),  # No validation constraints
+        Parameter('enable_output', False, bool, 'Enable output'),
+        Parameter('enable_modulation', False, bool, 'Enable modulation'),
+        Parameter('modulation_type', 'FM', ['AM','FM','PM','Sweep'], 'Modulation type'),
+        Parameter('modulation_function', 'Sine', ['Sine','Ramp','Triangle','Square','Noise','External'], 'Modulation function'),
+        Parameter('modulation_depth', 1e6, float, 'Deviation in Hz'),
+        Parameter('dev_width', 1e6, float, 'Deviation width in Hz'),
+        Parameter('mod_rate', 1e7, float, 'Modulation rate in Hz'),
+        Parameter('sweep_function', 'Triangle', ['Sine','Ramp','Triangle','Square','Noise','External'], 'Sweep function'),
+        Parameter('sweep_rate', 1.0, float, 'Sweep rate in Hz'),
+        Parameter('sweep_deviation', 1e6, float, 'Sweep deviation in Hz'),
+        Parameter('sweep_center_frequency', 2.87e9, float, 'Sweep center frequency in Hz'),
+        Parameter('sweep_max_frequency', 4.1e9, float, 'Sweep maximum frequency in Hz'),
+        Parameter('sweep_min_frequency', 1.9e9, float, 'Sweep minimum frequency in Hz'),
+    ])
+    
+    _PROBES = {
+        'frequency': 'Current frequency setting',
+        'power': 'Current power setting',
+        'phase': 'Current phase setting',
+        'amplitude': 'Current amplitude setting'
+    }
+    
+    def __init__(self, name=None, settings=None):
+        # Initialize with default settings for mock operation
+        if settings is None:
+            settings = {
+                'connection_type': 'LAN',
+                'ip_address': '192.168.1.100',
+                'port': 5025,
+                'frequency': 2.87e9,
+                'power': -10.0,
+                'phase': 0.0,
+                'amplitude': -10.0
+            }
+        
+        # Set up mock attributes
+        self._inst = None
+        self._addr = (settings.get('ip_address', '192.168.1.100'), settings.get('port', 5025))
+        self._sock = None
+        
+        super().__init__(settings=settings)
+        print(f"Mock SG384Generator: Initialized")
+    
+    def _init_transport(self):
+        """Mock transport initialization - no real connection needed."""
+        # Mock transport setup
+        self._addr = (self.settings.get('ip_address', '192.168.1.100'), self.settings.get('port', 5025))
+        self._inst = None
+        print(f"Mock SG384Generator: Transport initialized for {self._addr}")
+    
+    def _send(self, cmd: str):
+        """Mock send command."""
+        print(f"Mock SG384Generator: Send command '{cmd}'")
+    
+    def _query(self, cmd: str) -> str:
+        """Mock query command."""
+        print(f"Mock SG384Generator: Query command '{cmd}'")
+        # Return mock responses based on the command
+        if 'FREQ?' in cmd:
+            return f"{self.settings.get('frequency', 2.87e9)}"
+        elif 'AMPR?' in cmd:
+            return f"{self.settings.get('power', -10.0)}"
+        elif 'PHAS?' in cmd:
+            return f"{self.settings.get('phase', 0.0)}"
+        else:
+            return "0"
+    
+    def set_frequency(self, freq_hz: float):
+        """Set frequency."""
+        self.settings['frequency'] = freq_hz
+        print(f"Mock SG384Generator: Set frequency to {freq_hz/1e9:.3f} GHz")
+    
+    def set_power(self, power_dbm: float):
+        """Set power."""
+        self.settings['power'] = power_dbm
+        print(f"Mock SG384Generator: Set power to {power_dbm} dBm")
+    
+    def set_power_dbm(self, power_dbm: float):
+        """Set power in dBm."""
+        self.settings['power'] = power_dbm
+        print(f"Mock SG384Generator: Set power to {power_dbm} dBm")
+    
+    def set_phase(self, phase_deg: float):
+        """Set phase."""
+        self.settings['phase'] = phase_deg
+        print(f"Mock SG384Generator: Set phase to {phase_deg} degrees")
+    
+    def enable_modulation(self):
+        """Enable modulation."""
+        print("Mock SG384Generator: Modulation enabled")
+    
+    def disable_modulation(self):
+        """Disable modulation."""
+        print("Mock SG384Generator: Modulation disabled")
+    
+    def set_modulation_type(self, mtype: str):
+        """Set modulation type."""
+        print(f"Mock SG384Generator: Set modulation type to {mtype}")
+    
+    def set_modulation_depth(self, depth_hz: float):
+        """Set modulation depth."""
+        print(f"Mock SG384Generator: Set modulation depth to {depth_hz} Hz")
+    
+    def output_on(self):
+        """Turn output on."""
+        print("Mock SG384Generator: Output enabled")
+    
+    def output_off(self):
+        """Turn output off."""
+        print("Mock SG384Generator: Output disabled")
+    
+    def update(self, settings: dict):
+        """Update device settings."""
+        # Convert numpy types to Python types to avoid validation issues
+        converted_settings = {}
+        for key, value in settings.items():
+            if hasattr(value, 'item'):  # numpy scalar
+                converted_settings[key] = value.item()
+            else:
+                converted_settings[key] = value
+        
+        super().update(converted_settings)
+        print(f"Mock SG384Generator: Updated settings")
+    
+    def read_probes(self, key):
+        """Read probe values."""
+        if key == 'frequency':
+            return self.settings.get('frequency', 2.87e9)
+        elif key == 'power':
+            return self.settings.get('power', -10.0)
+        elif key == 'phase':
+            return self.settings.get('phase', 0.0)
+        elif key == 'amplitude':
+            return self.settings.get('amplitude', -10.0)
+        else:
+            return 0.0
+    
+    @property
+    def is_connected(self):
+        return True
+    
+    def close(self):
+        """Close connection."""
+        print("Mock SG384Generator: Closed")
+
 class MockNI6229(Device):
     """Mock NI6229 device that subclasses from Device."""
     
@@ -428,6 +593,14 @@ class MockAdwinGoldDevice(Device):
         """Get parameter value."""
         return np.random.random()
     
+    def get_int_var(self, param_num):
+        """Get integer variable value."""
+        # Return mock count data for parameter 1 (counts)
+        if param_num == 1:
+            return np.random.poisson(100)
+        else:
+            return np.random.randint(0, 1000)
+    
     def read_array(self, array_num, length):
         """Read data array."""
         n = length if (length and length > 0) else 100
@@ -466,6 +639,11 @@ if sys.platform.startswith('win'):
     except ImportError:
         MCLNanoDrive = MockMCLNanoDrive
         AdwinGoldDevice = MockAdwinGoldDevice
+    
+    try:
+        from .sg384 import SG384Generator
+    except ImportError:
+        SG384Generator = MockSG384Generator
 else:
     PXI6733 = MockNI6229
     NI6281 = MockNI6229
@@ -474,6 +652,7 @@ else:
     NIDAQ = MockNI6229
     MCLNanoDrive = MockMCLNanoDrive
     AdwinGoldDevice = MockAdwinGoldDevice
+    SG384Generator = MockSG384Generator
 
 _DEVICE_REGISTRY = {
     "awg520": AWG520Device, 
@@ -507,5 +686,5 @@ __all__ = [
     'AWG520Device', 'SG384Generator', 'WindfreakSynthUSBII',
     'PulseBlaster', 'ExampleDevice', 'Plant', 'PIController',
     'create_device',
-    'MockNI6229', 'MockPCI6601', 'MockMCLNanoDrive', 'MockAdwinGoldDevice'
+    'MockNI6229', 'MockPCI6601', 'MockMCLNanoDrive', 'MockAdwinGoldDevice', 'MockSG384Generator'
 ]

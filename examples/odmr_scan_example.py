@@ -18,150 +18,12 @@ import os
 import time
 import numpy as np
 from pathlib import Path
-from src.core import get_project_root
 
 # Add the project root to the path
-#sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, str(Path(__file__).parent / '..'))
 
 from src.core import Parameter, Experiment
 from src.Model.experiments.odmr_experiment import ODMRExperiment
-
-project_root = get_project_root()
-sys.path.insert(0, str(project_root/'src'))
-
-class MockMicrowaveGenerator:
-    """Mock microwave generator for testing without real hardware."""
-    
-    def __init__(self):
-        self.frequency = 2.87e9  # Default NV center frequency
-        self.power = -10.0       # Default power in dBm
-        self.output_enabled = False
-        self.modulation_enabled = False
-        
-    def set_frequency(self, frequency):
-        """Set microwave frequency."""
-        self.frequency = frequency
-        print(f"Mock Microwave: Set frequency to {frequency/1e9:.3f} GHz")
-        
-    def set_power(self, power):
-        """Set microwave power."""
-        self.power = power
-        print(f"Mock Microwave: Set power to {power} dBm")
-        
-    def enable_output(self, enabled=True):
-        """Enable/disable microwave output."""
-        self.output_enabled = enabled
-        status = "enabled" if enabled else "disabled"
-        print(f"Mock Microwave: Output {status}")
-        
-    def enable_modulation(self, enabled=True):
-        """Enable/disable frequency modulation."""
-        self.modulation_enabled = enabled
-        status = "enabled" if enabled else "disabled"
-        print(f"Mock Microwave: Modulation {status}")
-        
-    def get_frequency(self):
-        """Get current frequency."""
-        return self.frequency
-        
-    def get_power(self):
-        """Get current power."""
-        return self.power
-
-
-class MockAdwin:
-    """Mock ADwin device for testing without real hardware."""
-    
-    def __init__(self):
-        self.data_arrays = {}
-        self.processes = {}
-        self.variables = {}
-        self.is_running = False
-        
-    def load_process(self, process_name, binary_file):
-        """Load a process."""
-        self.processes[process_name] = binary_file
-        print(f"Mock ADwin: Loaded process '{process_name}' from {binary_file}")
-        
-    def start_process(self, process_name):
-        """Start a process."""
-        if process_name in self.processes:
-            self.is_running = True
-            print(f"Mock ADwin: Started process '{process_name}'")
-        else:
-            raise ValueError(f"Process '{process_name}' not loaded")
-            
-    def stop_process(self, process_name):
-        """Stop a process."""
-        self.is_running = False
-        print(f"Mock ADwin: Stopped process '{process_name}'")
-        
-    def set_variable(self, var_name, value):
-        """Set a variable."""
-        self.variables[var_name] = value
-        print(f"Mock Adwin: Set {var_name} = {value}")
-        
-    def get_variable(self, var_name):
-        """Get a variable."""
-        return self.variables.get(var_name, 0)
-        
-    def read_data_float(self, array_name, start_index, num_points):
-        """Read float data from array."""
-        if array_name not in self.data_arrays:
-            # Generate mock ODMR data with NV center resonances
-            frequencies = np.linspace(2.7e9, 3.0e9, 1000)
-            # Create mock resonances at typical NV frequencies
-            resonance1 = 2.87e9  # Zero-field splitting
-            resonance2 = 2.92e9  # With magnetic field
-            resonance3 = 2.82e9  # With magnetic field
-            
-            # Generate Lorentzian peaks
-            def lorentzian(f, f0, width, amplitude):
-                return amplitude * (width/2)**2 / ((f - f0)**2 + (width/2)**2)
-            
-            background = 1000
-            signal = (lorentzian(frequencies, resonance1, 10e6, 500) +
-                     lorentzian(frequencies, resonance2, 10e6, 300) +
-                     lorentzian(frequencies, resonance3, 10e6, 300))
-            
-            # Add noise
-            noise = np.random.normal(0, 50, len(frequencies))
-            self.data_arrays[array_name] = (background - signal + noise).astype(np.float32)
-            
-        data = self.data_arrays[array_name][start_index:start_index + num_points]
-        print(f"Mock Adwin: Read {len(data)} points from {array_name}")
-        return data
-
-
-class MockNanoDrive:
-    """Mock NanoDrive device for testing without real hardware."""
-    
-    def __init__(self):
-        self.position = {'x': 0.0, 'y': 0.0, 'z': 0.0}
-        
-    def move_to(self, x=None, y=None, z=None):
-        """Move to specified position."""
-        if x is not None:
-            self.position['x'] = x
-        if y is not None:
-            self.position['y'] = y
-        if z is not None:
-            self.position['z'] = z
-            
-        print(f"Mock NanoDrive: Moved to ({self.position['x']:.2f}, {self.position['y']:.2f}, {self.position['z']:.2f}) μm")
-        
-    def get_position(self):
-        """Get current position."""
-        return self.position
-
-
-class MockDevices:
-    """Container for mock devices."""
-    
-    def __init__(self):
-        self.microwave = MockMicrowaveGenerator()
-        self.adwin = MockAdwin()
-        self.nanodrive = MockNanoDrive()
 
 
 def create_devices(use_real_hardware=False):
@@ -179,9 +41,9 @@ def create_devices(use_real_hardware=False):
         try:
             from src.Controller import SG384Generator, AdwinGoldDevice, MCLNanoDrive
             devices = {
-                'microwave': SG384Generator(),
-                'adwin': AdwinGoldDevice(),
-                'nanodrive': MCLNanoDrive(settings={'serial': 2849})
+                'microwave': {'instance': SG384Generator()},
+                'adwin': {'instance': AdwinGoldDevice()},
+                'nanodrive': {'instance': MCLNanoDrive(settings={'serial': 2849})}
             }
             print("✅ Real hardware initialized successfully")
             return devices
@@ -195,15 +57,19 @@ def create_devices(use_real_hardware=False):
 
 
 def create_mock_devices():
-    """Create mock device instances."""
-    mock_devices = MockDevices()
-    devices = {
-        'microwave': mock_devices.microwave,
-        'adwin': mock_devices.adwin,
-        'nanodrive': mock_devices.nanodrive
-    }
-    print("✅ Mock hardware initialized successfully")
-    return devices
+    """Create mock device instances using our refactored mock devices."""
+    try:
+        from src.Controller import SG384Generator, AdwinGoldDevice, MCLNanoDrive
+        devices = {
+            'microwave': {'instance': SG384Generator()},
+            'adwin': {'instance': AdwinGoldDevice()},
+            'nanodrive': {'instance': MCLNanoDrive(settings={'serial': 2849})}
+        }
+        print("✅ Mock hardware initialized successfully")
+        return devices
+    except Exception as e:
+        print(f"❌ Failed to initialize mock hardware: {e}")
+        raise
 
 
 def run_odmr_scan(use_real_hardware=False, save_data=True, scan_mode='single'):
@@ -222,15 +88,23 @@ def run_odmr_scan(use_real_hardware=False, save_data=True, scan_mode='single'):
     print("ODMR SCAN EXAMPLE")
     print("="*60)
     
+    # Check if we can import the experiment class
+    try:
+        from src.Model.experiments.odmr_experiment import ODMRExperiment
+    except Exception as e:
+        print(f"❌ Cannot import ODMRExperiment: {e}")
+        print("This usually means required hardware devices are not available on this platform.")
+        return None
+    
     # Create devices
     devices = create_devices(use_real_hardware)
     
-    # Define scan parameters
+    # Define scan parameters - using smaller range for faster testing
     scan_settings = {
         'frequency_range': {
-            'start': 2.7e9,    # Start frequency (Hz)
-            'stop': 3.0e9,     # Stop frequency (Hz)
-            'steps': 100       # Number of frequency points
+            'start': 2.85e9,    # Start frequency (Hz) - smaller range for testing
+            'stop': 2.89e9,     # Stop frequency (Hz) - smaller range for testing
+            'steps': 20         # Number of frequency points - fewer for testing
         },
         'microwave': {
             'power': -10.0,    # Microwave power (dBm)
@@ -239,9 +113,9 @@ def run_odmr_scan(use_real_hardware=False, save_data=True, scan_mode='single'):
             'mod_freq': 1e3    # Modulation frequency (Hz)
         },
         'acquisition': {
-            'integration_time': 0.1,  # Integration time per point (s)
+            'integration_time': 0.01,  # Integration time per point (s) - faster for testing
             'averages': 1,            # Number of sweeps to average
-            'settle_time': 0.01       # Settle time after frequency change (s)
+            'settle_time': 0.001      # Settle time after frequency change (s)
         },
         'laser': {
             'power': 1.0,      # Laser power (mW)
@@ -254,10 +128,10 @@ def run_odmr_scan(use_real_hardware=False, save_data=True, scan_mode='single'):
         },
         'scan_mode': scan_mode,
         '2d_scan_settings': {
-            'x_range': [0.0, 10.0],  # X scan range (μm)
-            'y_range': [0.0, 10.0],  # Y scan range (μm)
-            'x_steps': 5,            # Number of X positions
-            'y_steps': 5             # Number of Y positions
+            'x_range': [0.0, 5.0],   # X scan range (μm) - smaller for testing
+            'y_range': [0.0, 5.0],   # Y scan range (μm) - smaller for testing
+            'x_steps': 3,            # Number of X positions - fewer for testing
+            'y_steps': 3             # Number of Y positions - fewer for testing
         },
         'analysis': {
             'auto_fit': True,
@@ -269,27 +143,27 @@ def run_odmr_scan(use_real_hardware=False, save_data=True, scan_mode='single'):
     
     # Create experiment instance
     print(f"\nInitializing ODMR experiment...")
-    experiment = ODMRExperiment(
-        devices=devices,
-        name="ODMR_Example",
-        settings=scan_settings,
-        log_function=print
-    )
-    
-    # Setup the experiment
-    print("Setting up experiment...")
-    experiment.setup()
-    
-    # Run the scan
-    print(f"\nStarting ODMR scan in {scan_mode} mode...")
-    print(f"Frequency range: {scan_settings['frequency_range']['start']/1e9:.3f} - "
-          f"{scan_settings['frequency_range']['stop']/1e9:.3f} GHz")
-    print(f"Power: {scan_settings['microwave']['power']} dBm")
-    print(f"Integration time: {scan_settings['acquisition']['integration_time']*1000:.1f} ms")
-    
-    start_time = time.time()
-    
     try:
+        experiment = ODMRExperiment(
+            devices=devices,
+            name="ODMR_Example",
+            settings=scan_settings,
+            log_function=print
+        )
+        
+        # Setup the experiment
+        print("Setting up experiment...")
+        experiment.setup()
+        
+        # Run the scan
+        print(f"\nStarting ODMR scan in {scan_mode} mode...")
+        print(f"Frequency range: {scan_settings['frequency_range']['start']/1e9:.3f} - "
+              f"{scan_settings['frequency_range']['stop']/1e9:.3f} GHz")
+        print(f"Power: {scan_settings['microwave']['power']} dBm")
+        print(f"Integration time: {scan_settings['acquisition']['integration_time']*1000:.1f} ms")
+        
+        start_time = time.time()
+        
         # Run the experiment
         experiment._function()
         
@@ -313,14 +187,16 @@ def run_odmr_scan(use_real_hardware=False, save_data=True, scan_mode='single'):
         
     except Exception as e:
         print(f"\n❌ ODMR scan failed: {e}")
-        raise
+        import traceback
+        traceback.print_exc()
+        return None
 
 
 def save_scan_data(results, scan_type):
-    """Save scan data to file."""
+    """Save scan data to file in examples/scan_data directory."""
     try:
         # Create output directory
-        output_dir = Path("scan_data")
+        output_dir = Path(__file__).parent / "scan_data"
         output_dir.mkdir(exist_ok=True)
         
         # Generate filename with timestamp
@@ -383,7 +259,7 @@ def plot_results(results):
             plt.tight_layout()
             
             # Save plot
-            output_dir = Path("scan_data")
+            output_dir = Path(__file__).parent / "scan_data"
             output_dir.mkdir(exist_ok=True)
             timestamp = time.strftime("%Y%m%d_%H%M%S")
             plot_filename = output_dir / f"odmr_scan_plot_{timestamp}.png"
@@ -419,6 +295,10 @@ def main():
             save_data=not args.no_save,
             scan_mode=args.scan_mode
         )
+        
+        if results is None:
+            print("❌ Scan failed - hardware not available")
+            return
         
         # Show summary
         print(f"\n📊 Scan Summary:")
