@@ -27,7 +27,7 @@ _DEFAULTS = {
     "device_folder":      DEFAULT_BASE / "devices_auto_generated",
     "experiments_folder": DEFAULT_BASE / "experiments_auto_generated",
     "probes_log_folder":  DEFAULT_BASE / "aqs_tmp",
-    "gui_settings":       DEFAULT_BASE / "src_config.json",
+    "gui_settings":       DEFAULT_BASE / "workspace_config.json",
 }
 
 def load_json(path: Path) -> dict:

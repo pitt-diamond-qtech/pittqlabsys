@@ -75,7 +75,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     #     "device_folder": os.path.join(application_path, "devices_auto_generated"),
     #     "experiments_folder": os.path.join(application_path, "experiments_auto_generated"),
     #     "probes_log_folder": os.path.join(application_path, "aqs_tmp"),
-    #     "gui_settings": os.path.join(application_path, "src_config.aqs")
+    #     "gui_settings": os.path.join(application_path, "workspace_config.json")
     # }
     #
     #
@@ -131,7 +131,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             "======================================================\n\n"
             f"Data folder:        {self.paths['data_folder']}\n"
             f"Experiments folder: {self.paths['experiments_folder']}\n"
-            f"GUI settings file:  {self.gui_settings or '<none>'}\n"
+            f"Workspace config:   {self.gui_settings or '<none>'}\n"
         )
         self.log(self.startup_msg)
         print(self.startup_msg)
@@ -871,7 +871,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 self.probe_to_plot = None
         elif sender is self.btn_save_gui:
             # get filename
-            filepath, _ = QtWidgets.QFileDialog.getSaveFileName(self, 'Save gui settings to file', self.config_filepath, filter = '*.json;*.aqs')
+            filepath, _ = QtWidgets.QFileDialog.getSaveFileName(self, 'Save workspace configuration to file', self.config_filepath, filter = '*.json;*.aqs')
 
             #in case the user cancels during the prompt, check that the filepath is not an empty string
             if filepath:
@@ -884,7 +884,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 self.refresh_tree(self.tree_gui_settings, self.gui_settings)
         elif sender is self.btn_load_gui:
             # get filename
-            fname = QtWidgets.QFileDialog.getOpenFileName(self, 'Load gui settings from file',  self.gui_settings['data_folder'], filter = '*.json;*.aqs')
+            fname = QtWidgets.QFileDialog.getOpenFileName(self, 'Load workspace configuration from file',  self.gui_settings['data_folder'], filter = '*.json;*.aqs')
             self.load_config(fname[0])
         elif sender is self.btn_about:
             msg = QtWidgets.QMessageBox()
@@ -1296,9 +1296,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     def load_config(self, filepath=None):
         """
-        checks if the file is a valid config file
+        Loads a workspace configuration file (JSON dictionary containing devices, experiments, probes, and GUI settings)
         Args:
-            filepath:
+            filepath: Path to the workspace configuration file
 
         """
 
@@ -1306,7 +1306,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         def load_settings(filepath):
             """
-            loads a old_gui settings file (a json dictionary)
+            Loads a workspace configuration file (JSON dictionary)
             - path_to_file: path to file that contains the dictionary
 
             Returns:
@@ -1511,7 +1511,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     def save_config(self, filepath):
         """
-        Gather GUI state and write out a unified config.json.
+        Gather complete workspace state and write out a unified workspace configuration file.
+        This includes devices, experiments, probes, GUI settings, and hidden parameters.
         """
         fp = Path(filepath)
         try:
@@ -1558,7 +1559,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
             # 4) Save atomic JSON
             save_config(fp, merged)
-            self.log(f"Saved GUI configuration to {fp}")
+            self.log(f"Saved workspace configuration to {fp}")
 
             # 5) Also remember last save path
             last_cfg = Path(__file__).parent.parent / "gui_config.json"
