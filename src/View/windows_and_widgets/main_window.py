@@ -113,7 +113,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             # default to gui_config.json next to your project root
             gui_cfg_file = Path(__file__).parent.parent / "gui_config.json"
 
-            # 3) Load the GUI config (or start fresh if it doesn't exist)
+        # 3) Load the GUI config (or start fresh if it doesn't exist)
         gui_cfg = load_config(gui_cfg_file)
         self.config_filepath = gui_cfg_file
         self.gui_settings = gui_cfg.get("gui_settings", {})
