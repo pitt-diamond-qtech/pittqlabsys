@@ -215,7 +215,8 @@ class Device:
 
     def save_aqs(self, filename):
         """
-        saves the device to path as a .aqs file
+        saves the device to path as a .json file (default) or .aqs file
+        Now saves as JSON by default, but maintains backward compatibility for .aqs files
 
         Args:
             filename: path of file

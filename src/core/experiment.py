@@ -702,14 +702,16 @@ class Experiment(QObject):
     def save_aqs(self, filename=None):
         """
         saves the experiment settings to a file: filename is filename is not provided, it is created from internal function
+        Now saves as .json by default, but maintains backward compatibility for .aqs files
         """
         if filename is None:
-            filename = self.filename('.aqs')
+            filename = self.filename('.json')  # Default to .json extension
         filename = self.check_filename(filename)
-        # if platform.system() == 'Windows':
-        #     # windows can't deal with long filenames so we have to use the prefix '\\\\?\\'
-        #     if len(filename.split('\\\\?\\')) == 1:
-        #         filename = '\\\\?\\' + filename
+        
+        # Ensure the file has a proper extension
+        if not filename.endswith(('.json', '.aqs')):
+            filename = str(filename) + '.json'  # Default to .json if no extension
+        
         save_aqs_file(filename, experiments=self.to_dict(), overwrite=True)
 
     def save_image_to_disk(self, filename_1=None, filename_2=None):

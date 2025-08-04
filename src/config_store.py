@@ -57,13 +57,17 @@ def save_config(path: Path, data: Dict[str, Any]) -> None:
     corruption if the process is interrupted during writing.
     
     Args:
-        path: Path where the configuration file should be saved
+        path: Path where the configuration file should be saved (can be string or Path object)
         data: Dictionary containing the configuration data to save
         
     Raises:
         OSError: If the file cannot be written or directories cannot be created
         TypeError: If the data contains non-serializable objects
     """
+    # Convert string to Path if needed
+    if isinstance(path, str):
+        path = Path(path)
+    
     try:
         # Create parent directories if they don't exist
         path.parent.mkdir(parents=True, exist_ok=True)

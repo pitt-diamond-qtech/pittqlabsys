@@ -871,20 +871,20 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 self.probe_to_plot = None
         elif sender is self.btn_save_gui:
             # get filename
-            filepath, _ = QtWidgets.QFileDialog.getSaveFileName(self, 'Save gui settings to file', self.config_filepath, filter = '*.aqs')
+            filepath, _ = QtWidgets.QFileDialog.getSaveFileName(self, 'Save gui settings to file', self.config_filepath, filter = '*.json;*.aqs')
 
             #in case the user cancels during the prompt, check that the filepath is not an empty string
             if filepath:
                 filename, file_extension = os.path.splitext(filepath)
-                if file_extension != '.aqs':
-                    filepath = filename + ".aqs"
+                if file_extension not in ['.json', '.aqs']:
+                    filepath = filename + ".json"  # Default to .json
                 filepath = os.path.normpath(filepath)
                 self.save_config(filepath)
                 self.gui_settings['gui_settings'] = filepath
                 self.refresh_tree(self.tree_gui_settings, self.gui_settings)
         elif sender is self.btn_load_gui:
             # get filename
-            fname = QtWidgets.QFileDialog.getOpenFileName(self, 'Load gui settings from file',  self.gui_settings['data_folder'], filter = '*.aqs')
+            fname = QtWidgets.QFileDialog.getOpenFileName(self, 'Load gui settings from file',  self.gui_settings['data_folder'], filter = '*.json;*.aqs')
             self.load_config(fname[0])
         elif sender is self.btn_about:
             msg = QtWidgets.QMessageBox()
@@ -1239,11 +1239,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 path = model.itemFromIndex(index).text()
                 key = str(model.itemFromIndex(model.index(index.row(), 0)).text())
                 if(key == 'gui_settings'):
-                    path, _ = QtWidgets.QFileDialog.getSaveFileName(self, caption = 'Select a file:', directory = path, filter = '*.aqs')
+                    path, _ = QtWidgets.QFileDialog.getSaveFileName(self, caption = 'Select a file:', directory = path, filter = '*.json;*.aqs')
                     if path:
                         name, extension = os.path.splitext(path)
-                        if extension != '.aqs':
-                            path = name + ".aqs"
+                        if extension not in ['.json', '.aqs']:
+                            path = name + ".json"  # Default to .json
                 else:
                     path = str(open_path_dialog_folder(path))
 

@@ -79,6 +79,6 @@ def python_file_to_aqs(list_of_python_files, target_folder, class_type, raise_er
     print('loaded', loaded)
 
     for name, value in loaded.items():
-        filename = os.path.join(target_folder, '{:s}.aqs'.format(name))
+        filename = os.path.join(target_folder, '{:s}.json'.format(name))  # Use .json extension
         value.save_aqs(filename)
     return loaded,failed

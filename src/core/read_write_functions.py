@@ -20,6 +20,7 @@ from importlib import import_module
 import platform
 from typing import Optional, Dict, Any
 from src.config_store import load_config, save_config, merge_config
+from pathlib import Path
 
 def import_sub_modules(module_type):
     """
@@ -78,20 +79,31 @@ def get_config_value(name, path_to_file='config.txt'):
 
 def load_aqs_file(file_name):
     """
-    loads a .aqs file into a dictionary
+    loads a .aqs or .json file into a dictionary
+    Supports both JSON and YAML formats for backward compatibility
 
     Args:
-        file_name:
+        file_name: Path to the file to load
 
     Returns: dictionary with keys device, experiments, probes
 
     """
-
     assert os.path.exists(file_name)
 
     with open(file_name, 'r') as infile:
-        data = yaml.safe_load(infile)
-    return data
+        content = infile.read().strip()
+        
+    # Try JSON first (new format)
+    try:
+        import json
+        return json.loads(content)
+    except json.JSONDecodeError:
+        # Fall back to YAML (old format)
+        try:
+            import yaml
+            return yaml.safe_load(content)
+        except Exception as e:
+            raise ValueError(f"File {file_name} is neither valid JSON nor YAML: {e}")
 
 
 # def save_aqs_file(filename, devices=None, experiments=None, probes=None, overwrite=False, verbose=False):

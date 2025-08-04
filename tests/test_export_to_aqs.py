@@ -13,6 +13,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
+# Updated to test JSON export functionality (previously AQS)
 from src.tools.export_default import python_file_to_aqs,find_devices_in_python_files,find_experiments_in_python_files,find_exportable_in_python_files
 import pytest
 from pathlib import Path
@@ -34,7 +35,7 @@ def get_expt_dir() -> str:
 @pytest.fixture
 def get_save_dir() -> str:
     proj_dir = get_project_root()
-    dir_path = proj_dir.parent/"aqsfiles"
+    dir_path = proj_dir.parent/"exported_configs"  # Updated from "aqsfiles" to "exported_configs"
     if not dir_path.exists():
         dir_path.mkdir()
     return str(dir_path.resolve())
@@ -95,11 +96,13 @@ def test_find_expts_python_files(capsys,get_expt_dir):
                 print(f"{k:12}:{v:25}")
 @pytest.mark.xfail(sys.platform == "darwin",reason="will fail on Mac bcos NIDAQ does not load")
 @pytest.mark.parametrize("cls",["Device"])
-def test_export_pyfile_to_aqs(capsys,cls,get_save_dir,get_dev_dir,get_expt_dir):
+def test_export_pyfile_to_json(capsys,cls,get_save_dir,get_dev_dir,get_expt_dir):
     """
-    This test has passed successfully but throws crazy Windows error when the Microwave generator is being loaded in B103 PC,
+    This test exports Python files to JSON format (previously AQS).
+    It has passed successfully but throws crazy Windows error when the Microwave generator is being loaded in B103 PC,
     see the test function for microwave generator to understand this issue.
     -- GD 08/28/2023
+    Updated to test JSON export functionality
     """
     folder = get_save_dir
     folder2 = get_dev_dir
