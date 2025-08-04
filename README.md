@@ -223,6 +223,7 @@ pytest --cov=src tests/
 - **User Manual**: GUI usage and experiment setup
 - **Developer Guide**: Architecture and extension guidelines
 - **Hardware Manual**: Device connection and configuration
+- **[Configuration Files](docs/CONFIGURATION_FILES.md)**: Complete guide to configuration file structure and management
 
 ## 🤝 Contributing
 
