@@ -74,6 +74,17 @@ class Parameter(dict):
             self._visible = {name: visible}
             self._units = {name: units}
             self.update({name: value})
+            
+            # Handle pint Quantity objects
+            self._pint_quantity = {name: False}
+            self._original_units = {name: None}
+            self._original_magnitude = {name: None}
+            
+            if hasattr(value, 'magnitude') and hasattr(value, 'units'):
+                # Value is a pint Quantity
+                self._pint_quantity[name] = True
+                self._original_units[name] = value.units
+                self._original_magnitude[name] = value.magnitude
 
     def _init_multiple_parameters(self, name, visible):
         """Initialize multiple parameters."""
@@ -82,6 +93,9 @@ class Parameter(dict):
         self._info = {}
         self._visible = {}
         self._units = {}
+        self._pint_quantity = {}
+        self._original_units = {}
+        self._original_magnitude = {}
 
         if isinstance(name, dict):
             for k, v in name.items():
@@ -103,6 +117,17 @@ class Parameter(dict):
         self._visible[name] = visible
         self._units[name] = ''
         self.update({name: value})
+        
+        # Handle pint Quantity objects
+        self._pint_quantity[name] = False
+        self._original_units[name] = None
+        self._original_magnitude[name] = None
+        
+        if hasattr(value, 'magnitude') and hasattr(value, 'units'):
+            # Value is a pint Quantity
+            self._pint_quantity[name] = True
+            self._original_units[name] = value.units
+            self._original_magnitude[name] = value.magnitude
 
     def _add_parameter_from_param(self, param):
         """Add parameters from an existing Parameter object."""
@@ -113,6 +138,16 @@ class Parameter(dict):
             self._visible[k] = param.visible[k]
             self._units[k] = param.units[k]
             self.update({k: v})
+            
+            # Handle pint Quantity objects from nested parameters
+            if hasattr(param, '_pint_quantity') and k in param._pint_quantity:
+                self._pint_quantity[k] = param._pint_quantity[k]
+                self._original_units[k] = param._original_units.get(k)
+                self._original_magnitude[k] = param._original_magnitude.get(k)
+            else:
+                self._pint_quantity[k] = False
+                self._original_units[k] = None
+                self._original_magnitude[k] = None
 
     def __setitem__(self, key, value):
         """
@@ -194,6 +229,9 @@ class Parameter(dict):
         elif isinstance(valid_values, type) and valid_values == float and type(value) == int:
             # special case to allow ints as float inputs
             valid = True
+        elif isinstance(valid_values, type) and valid_values == float and hasattr(value, 'magnitude'):
+            # special case to allow pint Quantity objects as float inputs
+            valid = True
         elif isinstance(value, dict) and isinstance(valid_values, dict):
             # check that all values actually exist in valid_values
             # assert value.keys() & valid_values.keys() == value.keys() # python 3 syntax
@@ -211,6 +249,195 @@ class Parameter(dict):
             valid = True
 
         return valid
+
+    # Pint Integration Methods
+    
+    def is_pint_quantity(self, key=None):
+        """
+        Check if parameter value is a pint Quantity.
+        
+        Args:
+            key: Parameter key (if None, checks first parameter)
+            
+        Returns:
+            bool: True if parameter value is a pint Quantity
+        """
+        if key is None:
+            # For single parameters, use the parameter name
+            key = list(self.keys())[0] if self else None
+            
+        if key is None or key not in self._pint_quantity:
+            return False
+            
+        return self._pint_quantity[key]
+    
+    def get_value_in_units(self, target_units, key=None):
+        """
+        Get parameter value converted to target units.
+        
+        Args:
+            target_units: Target units (string or pint unit)
+            key: Parameter key (if None, uses first parameter)
+            
+        Returns:
+            pint.Quantity: Value in target units
+        """
+        if key is None:
+            key = list(self.keys())[0] if self else None
+            
+        if key is None or not self.is_pint_quantity(key):
+            return self[key]
+            
+        from src import ur
+        
+        # Convert string to pint unit if needed
+        if isinstance(target_units, str):
+            target_units = getattr(ur, target_units)
+            
+        return self[key].to(target_units)
+    
+    def set_value_with_units(self, value, units=None, key=None):
+        """
+        Set parameter value with units.
+        
+        Args:
+            value: Parameter value
+            units: Units (string or pint unit)
+            key: Parameter key (if None, uses first parameter)
+        """
+        if key is None:
+            key = list(self.keys())[0] if self else None
+            
+        if key is None:
+            raise ValueError("No parameter key specified")
+            
+        from src import ur
+        
+        # Convert to pint Quantity if units provided
+        if units is not None:
+            if isinstance(units, str):
+                units = getattr(ur, units)
+            value = value * units
+            
+        self[key] = value
+    
+    def convert_units(self, target_units, key=None):
+        """
+        Convert parameter value to target units in place.
+        
+        Args:
+            target_units: Target units (string or pint unit)
+            key: Parameter key (if None, uses first parameter)
+        """
+        if key is None:
+            key = list(self.keys())[0] if self else None
+            
+        if key is None or not self.is_pint_quantity(key):
+            return
+            
+        converted_value = self.get_value_in_units(target_units, key)
+        self[key] = converted_value
+        
+        # Update stored unit information
+        self._original_units[key] = converted_value.units
+        self._original_magnitude[key] = converted_value.magnitude
+    
+    def get_unit_info(self, key=None):
+        """
+        Get detailed unit information.
+        
+        Args:
+            key: Parameter key (if None, uses first parameter)
+            
+        Returns:
+            dict: Unit information including magnitude, units, etc.
+        """
+        if key is None:
+            key = list(self.keys())[0] if self else None
+            
+        if key is None:
+            return {}
+            
+        if not self.is_pint_quantity(key):
+            return {
+                'is_pint_quantity': False,
+                'value': self[key],
+                'units_string': self._units.get(key, '')
+            }
+            
+        value = self[key]
+        return {
+            'is_pint_quantity': True,
+            'magnitude': value.magnitude,
+            'units': value.units,
+            'units_string': str(value.units),
+            'dimensionality': str(value.dimensionality),
+            'value': value
+        }
+    
+    def validate_units(self, unit1, unit2):
+        """
+        Validate that two units are compatible.
+        
+        Args:
+            unit1: First unit (string or pint unit)
+            unit2: Second unit (string or pint unit)
+            
+        Returns:
+            bool: True if units are compatible
+            
+        Raises:
+            ValueError: If units are incompatible
+        """
+        from src import ur
+        
+        # Convert strings to pint units if needed
+        if isinstance(unit1, str):
+            unit1 = getattr(ur, unit1)
+        if isinstance(unit2, str):
+            unit2 = getattr(ur, unit2)
+            
+        try:
+            # Try to convert between units
+            test_value = 1.0 * unit1
+            converted = test_value.to(unit2)
+            return True
+        except Exception as e:
+            raise ValueError(f"Units {unit1} and {unit2} are incompatible: {e}")
+    
+    def get_compatible_units(self, key=None):
+        """
+        Get list of compatible units for this parameter.
+        
+        Args:
+            key: Parameter key (if None, uses first parameter)
+            
+        Returns:
+            list: List of compatible unit strings
+        """
+        if key is None:
+            key = list(self.keys())[0] if self else None
+            
+        if key is None or not self.is_pint_quantity(key):
+            return []
+            
+        from src import ur
+        
+        # Get the base dimensionality
+        value = self[key]
+        dimensionality = value.dimensionality
+        
+        # Find all units with the same dimensionality
+        compatible_units = []
+        for unit_name in dir(ur):
+            try:
+                unit = getattr(ur, unit_name)
+                if hasattr(unit, 'dimensionality') and unit.dimensionality == dimensionality:
+                    compatible_units.append(unit_name)
+            except:
+                continue
+                
+        return compatible_units
 
 if __name__ == '__main__':
     # Parameter is working with units.

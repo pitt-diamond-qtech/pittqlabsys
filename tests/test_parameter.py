@@ -299,31 +299,149 @@ class TestParameterUnitsIntegration:
         assert freq.units == ur.Hz
     
     def test_parameter_with_pint_units(self):
-        """Test Parameter with pint unit objects (future enhancement)."""
-        # This test documents how we might enhance Parameter to work with pint
+        """Test Parameter with pint unit objects (Phase 2 enhancement)."""
         from src import ur
         
-        # Current behavior - units are just strings
-        p = Parameter('frequency', 2.85e9, float, 'Frequency', units='Hz')
-        assert p.units['frequency'] == 'Hz'
-        
-        # Future enhancement could support:
-        # p = Parameter('frequency', 2.85e9 * ur.Hz, float, 'Frequency')
-        # assert p.units['frequency'] == ur.Hz
-        # assert p['frequency'].magnitude == 2.85e9
+        # Test pint Quantity support
+        p = Parameter('frequency', 2.85e9 * ur.Hz, float, 'Frequency')
+        assert p.is_pint_quantity()
+        assert p['frequency'].magnitude == 2.85e9
+        assert p['frequency'].units == ur.Hz
     
-    def test_unit_conversion_ideas(self):
-        """Test ideas for unit conversion functionality."""
+    def test_unit_conversion_methods(self):
+        """Test unit conversion functionality."""
         from src import ur
         
-        # Example of how unit conversion could work
-        freq_hz = 2.85e9 * ur.Hz
-        freq_ghz = freq_hz.to(ur.GHz)
+        # Create parameter with pint Quantity
+        p = Parameter('frequency', 2.85e9 * ur.Hz, float, 'Frequency')
         
+        # Test get_value_in_units
+        freq_ghz = p.get_value_in_units('GHz')
         assert freq_ghz.magnitude == 2.85
         assert freq_ghz.units == ur.GHz
         
-        # This could be integrated into Parameter class for automatic conversion
+        freq_mhz = p.get_value_in_units('MHz')
+        assert freq_mhz.magnitude == 2850.0
+        assert freq_mhz.units == ur.MHz
+    
+    def test_set_value_with_units(self):
+        """Test setting values with units."""
+        from src import ur
+        
+        p = Parameter('frequency', 2.85e9 * ur.Hz, float, 'Frequency')
+        
+        # Set value with units
+        p.set_value_with_units(2.9, 'GHz')
+        assert p['frequency'].magnitude == 2.9
+        assert p['frequency'].units == ur.GHz
+    
+    def test_convert_units(self):
+        """Test converting units in place."""
+        from src import ur
+        
+        p = Parameter('frequency', 2.85e9 * ur.Hz, float, 'Frequency')
+        
+        # Convert to GHz in place
+        p.convert_units('GHz')
+        assert p['frequency'].magnitude == 2.85
+        assert p['frequency'].units == ur.GHz
+    
+    def test_get_unit_info(self):
+        """Test getting detailed unit information."""
+        from src import ur
+        
+        p = Parameter('frequency', 2.85e9 * ur.Hz, float, 'Frequency')
+        
+        info = p.get_unit_info()
+        assert info['is_pint_quantity'] is True
+        assert info['magnitude'] == 2.85e9
+        assert info['units'] == ur.Hz
+        assert info['units_string'] == 'hertz'
+        assert 'time' in info['dimensionality']  # Frequency has 1/[time] dimensionality
+    
+    def test_validate_units(self):
+        """Test unit validation."""
+        from src import ur
+        
+        p = Parameter('frequency', 2.85e9 * ur.Hz, float, 'Frequency')
+        
+        # Test compatible units
+        assert p.validate_units('Hz', 'GHz') is True
+        assert p.validate_units('Hz', 'MHz') is True
+        
+        # Test incompatible units
+        with pytest.raises(ValueError):
+            p.validate_units('Hz', 'kg')
+    
+    def test_get_compatible_units(self):
+        """Test getting compatible units."""
+        from src import ur
+        
+        p = Parameter('frequency', 2.85e9 * ur.Hz, float, 'Frequency')
+        
+        compatible_units = p.get_compatible_units()
+        assert 'Hz' in compatible_units
+        # Note: The get_compatible_units method finds units with same dimensionality
+        # but may not include all expected units due to pint's unit registry
+        assert len(compatible_units) > 0
+    
+    def test_backward_compatibility_with_string_units(self):
+        """Test that string-based units still work."""
+        p = Parameter('frequency', 2.85e9, float, 'Frequency', units='Hz')
+        
+        # Should not be a pint quantity
+        assert not p.is_pint_quantity()
+        
+        # Should return original value for get_value_in_units
+        assert p.get_value_in_units('GHz') == 2.85e9
+        
+        # Should have string unit info
+        info = p.get_unit_info()
+        assert info['is_pint_quantity'] is False
+        assert info['units_string'] == 'Hz'
+    
+    def test_nested_pint_quantities(self):
+        """Test pint quantities in nested Parameter structures."""
+        from src import ur
+        
+        p = Parameter([
+            Parameter('microwave', [
+                Parameter('frequency', 2.85e9 * ur.Hz, float, 'Frequency'),
+                Parameter('power', -45.0, float, 'Power', units='dBm')  # Use string units for dBm
+            ])
+        ])
+        
+        # Test nested pint quantities
+        assert p['microwave'].is_pint_quantity('frequency')
+        assert not p['microwave'].is_pint_quantity('power')  # power uses string units, not pint
+        
+        # Test unit conversion in nested structure
+        freq_ghz = p['microwave'].get_value_in_units('GHz', 'frequency')
+        assert freq_ghz.magnitude == 2.85
+        assert freq_ghz.units == ur.GHz
+    
+    def test_mixed_pint_and_string_units(self):
+        """Test mixing pint quantities and string units."""
+        from src import ur
+        
+        p = Parameter([
+            Parameter('microwave', [
+                Parameter('frequency', 2.85e9 * ur.Hz, float, 'Frequency'),
+                Parameter('enable_output', True, bool, 'Enable output')
+            ])
+        ])
+        
+        # Test mixed types
+        assert p['microwave'].is_pint_quantity('frequency')
+        assert not p['microwave'].is_pint_quantity('enable_output')
+        
+        # Test unit conversion only works for pint quantities
+        freq_ghz = p['microwave'].get_value_in_units('GHz', 'frequency')
+        assert freq_ghz.magnitude == 2.85
+        
+        # Non-pint quantity should return original value
+        result = p['microwave'].get_value_in_units('invalid', 'enable_output')
+        assert result is True
 
 
 class TestParameterRealWorldExamples:
