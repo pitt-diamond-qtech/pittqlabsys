@@ -110,7 +110,7 @@ class TestParameterUnits:
         assert p.units['time'] == 's'
     
     def test_units_in_complex_nested_structure(self):
-        """Test units in complex nested parameter structures (current behavior)."""
+        """Test units in complex nested parameter structures (fixed behavior)."""
         p = Parameter([
             Parameter('microwave', [
                 Parameter('frequency', 2.85e9, float, 'Frequency', units='Hz'),
@@ -123,20 +123,23 @@ class TestParameterUnits:
             ])
         ])
         
-        # Current behavior: nested objects become dicts, but units are stored at top level
-        assert isinstance(p['microwave'], dict)  # Current behavior
-        assert not hasattr(p['microwave'], 'units')  # Current limitation
+        # Fixed: nested objects are now Parameter objects
+        assert isinstance(p['microwave'], Parameter)  # Now a Parameter object
+        assert hasattr(p['microwave'], 'units')  # Units are accessible
         
-        # Units are accessible at the top level in the _units dictionary
-        assert p.units['microwave'] == {'frequency': 'Hz', 'power': 'dBm', 'settle_time': 'ms'}
-        assert p.units['acquisition'] == {'integration_time': 'ms', 'num_steps': ''}
+        # Units are accessible directly in nested Parameter objects
+        assert p['microwave'].units['frequency'] == 'Hz'
+        assert p['microwave'].units['power'] == 'dBm'
+        assert p['microwave'].units['settle_time'] == 'ms'
+        assert p['acquisition'].units['integration_time'] == 'ms'
+        assert p['acquisition'].units['num_steps'] == ''
 
 
 class TestParameterNested:
     """Test nested parameter structures."""
     
     def test_nested_parameter_creation(self):
-        """Test creating nested parameters (current behavior)."""
+        """Test creating nested parameters (fixed behavior)."""
         p = Parameter([
             Parameter('device1', [
                 Parameter('param1', 10, int, 'First parameter'),
@@ -151,12 +154,13 @@ class TestParameterNested:
         assert p['device1']['param2'] == 3.14
         assert p['device2']['param3'] == 'test'
         
-        # Current limitation: nested objects become dicts
-        assert isinstance(p['device1'], dict)  # Should be Parameter object
-        assert not hasattr(p['device1'], 'units')  # Units not accessible
+        # Fixed: nested objects are now Parameter objects
+        assert isinstance(p['device1'], Parameter)  # Now a Parameter object
+        assert hasattr(p['device1'], 'units')  # Units are accessible
+        assert p['device1'].units['param2'] == 'V'  # Units work correctly
     
     def test_nested_parameter_validation(self):
-        """Test validation in nested parameters (current behavior)."""
+        """Test validation in nested parameters (fixed behavior)."""
         p = Parameter([
             Parameter('device', [
                 Parameter('count', 5, int, 'Count parameter'),
@@ -168,14 +172,12 @@ class TestParameterNested:
         p['device']['count'] = 10
         assert p['device']['count'] == 10
         
-        # Current limitation: validation doesn't work in nested structures
-        # because they become regular dicts
-        # This should raise AssertionError but doesn't due to the bug
-        p['device']['count'] = 3.14  # Should fail but doesn't
-        assert p['device']['count'] == 3.14  # Invalid value accepted
+        # Fixed: validation now works in nested structures
+        with pytest.raises(AssertionError):
+            p['device']['count'] = 3.14  # Should fail and does
         
-        p['device']['mode'] = 'invalid'  # Should fail but doesn't
-        assert p['device']['mode'] == 'invalid'  # Invalid value accepted
+        with pytest.raises(AssertionError):
+            p['device']['mode'] = 'invalid'  # Should fail and does
     
     def test_nested_parameter_update(self):
         """Test updating nested parameters."""
@@ -354,29 +356,26 @@ class TestParameterRealWorldExamples:
         assert p['microwave']['power'] == -45.0
         assert p['acquisition']['integration_time'] == 10.0
         
-        # Test units (current behavior)
-        # Units are stored at the top level in the _units dictionary
-        assert p.units['sweep_parameters'] == {
-            'start_frequency': 'Hz', 
-            'stop_frequency': 'Hz', 
-            'sweep_sensitivity': 'Hz/V',
-            'max_sweep_rate': 'Hz'
-        }
-        assert p.units['microwave'] == {'power': 'dBm', 'enable_output': ''}
-        assert p.units['acquisition'] == {
-            'integration_time': 'ms', 
-            'settle_time': 'ms', 
-            'num_steps': '', 
-            'bidirectional': ''
-        }
+        # Test units (fixed behavior)
+        # Units are now accessible directly in nested Parameter objects
+        assert p['sweep_parameters'].units['start_frequency'] == 'Hz'
+        assert p['sweep_parameters'].units['stop_frequency'] == 'Hz'
+        assert p['sweep_parameters'].units['sweep_sensitivity'] == 'Hz/V'
+        assert p['sweep_parameters'].units['max_sweep_rate'] == 'Hz'
+        assert p['microwave'].units['power'] == 'dBm'
+        assert p['microwave'].units['enable_output'] == ''
+        assert p['acquisition'].units['integration_time'] == 'ms'
+        assert p['acquisition'].units['settle_time'] == 'ms'
+        assert p['acquisition'].units['num_steps'] == ''
+        assert p['acquisition'].units['bidirectional'] == ''
         
-        # Test validation (current limitation)
+        # Test validation (fixed behavior)
         p['sweep_parameters']['start_frequency'] = 2.8e9
         assert p['sweep_parameters']['start_frequency'] == 2.8e9
         
-        # Current limitation: validation doesn't work in nested structures
-        p['sweep_parameters']['start_frequency'] = "invalid"  # Should fail but doesn't
-        assert p['sweep_parameters']['start_frequency'] == "invalid"  # Invalid value accepted
+        # Fixed: validation now works in nested structures
+        with pytest.raises(AssertionError):
+            p['sweep_parameters']['start_frequency'] = "invalid"  # Should fail and does
     
     def test_device_parameters(self):
         """Test Parameter structure similar to device configurations."""
@@ -403,9 +402,9 @@ class TestParameterRealWorldExamples:
         p['SG384']['sweep_mode'] = 'internal'
         assert p['SG384']['sweep_mode'] == 'internal'
         
-        # Current limitation: validation doesn't work in nested structures
-        p['SG384']['sweep_mode'] = 'invalid_mode'  # Should fail but doesn't
-        assert p['SG384']['sweep_mode'] == 'invalid_mode'  # Invalid value accepted
+        # Fixed: validation now works in nested structures
+        with pytest.raises(AssertionError):
+            p['SG384']['sweep_mode'] = 'invalid_mode'  # Should fail and does
 
 
 if __name__ == '__main__':

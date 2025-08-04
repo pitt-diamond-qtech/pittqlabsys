@@ -16,122 +16,108 @@
 from src import ur
 
 class Parameter(dict):
-    def __init__(self, name, value=None, valid_values=None, info=None, visible=False, units=None):
+    def __init__(self, name, value=None, valid_values=None, info=None, visible=False,units=None):
         """
-        Parameter class for managing experiment parameters with validation and units.
 
-        Supported initialization patterns:
-        - Parameter(name, value, valid_values, info, units)
-        - Parameter({name: value})
-        - Parameter([Parameter(...), Parameter(...)])
+        Parameter(name, value, valid_values, info)
+        Parameter(name, value, valid_values)
+        Parameter(name, value)
+        Parameter({name: value})
+
+        Future updates:
+        Parameter({name1: value1, name2: value2})
+        Parameter([p1, p2]), where p1 and p2 are parameter objects
 
         Args:
-            name: Parameter name (str) or dict/list for multiple parameters
-            value: Parameter value (any type)
-            valid_values: Type or list of valid values
-            info: Description string
-            visible: Boolean for GUI visibility
-            units: Units string
+            :param name: name of parameter
+            :param value: value of parameter can be any basic type or a list
+            :param valid_values: defines which values are accepted for value can be a type or a list if not provided => type(value)
+            :param info: description of parameter, if not provided => empty string
+            :param visible: boolean if true always show parameter if false hide it
+            :param units: units for the parameter
         """
+        # inherit from dict class all methods
         super().__init__()
 
         if isinstance(name, str):
-            self._init_single_parameter(name, value, valid_values, info, visible, units)
-        elif isinstance(name, (list, dict)):
-            self._init_multiple_parameters(name, visible)
-        else:
-            raise TypeError(f"Invalid name type: {type(name)}")
-
-    def _init_single_parameter(self, name, value, valid_values, info, visible, units):
-        """Initialize a single parameter."""
-        if valid_values is None:
-            valid_values = type(value)
-
-        assert isinstance(valid_values, (type, list))
-        if info is None:
-            info = ''
-        assert isinstance(info, str)
-        if units is None:
-            units = ""
-        assert isinstance(units, str)
-
-        assert self.is_valid(value, valid_values)
-
-        # Handle nested Parameter objects in value
-        if isinstance(value, list) and value and isinstance(value[0], Parameter):
-            # Create nested Parameter structure
-            nested_param = Parameter(value)
             self.name = name
-            self._valid_values = {name: nested_param.valid_values}
-            self._info = {name: nested_param.info}
-            self._visible = {name: nested_param.visible}
-            self._units = {name: nested_param.units}
-            self.update({name: nested_param})
-        else:
-            self.name = name
-            self._valid_values = {name: valid_values}
-            self._info = {name: info}
-            self._visible = {name: visible}
-            self._units = {name: units}
-            self.update({name: value})
+            if valid_values is None:
+                valid_values = type(value)
 
-    def _init_multiple_parameters(self, name, visible):
-        """Initialize multiple parameters."""
-        self.name = {}
-        self._valid_values = {}
-        self._info = {}
-        self._visible = {}
-        self._units = {}
+            assert isinstance(valid_values, (type, list))
 
-        if isinstance(name, dict):
-            for k, v in name.items():
-                if isinstance(v, dict):
-                    v = Parameter(v)
-                self._add_parameter(k, v, visible)
-        elif isinstance(name, list):
-            for param in name:
-                if isinstance(param, Parameter):
-                    self._add_parameter_from_param(param)
-                else:
-                    raise TypeError(f"List must contain Parameter objects, got {type(param)}")
+            if info is None:
+                info = ''
+            assert isinstance(info, str)
 
-    def _add_parameter(self, name, value, visible):
-        """Add a single parameter to the collection."""
-        self.name[name] = name
-        self._valid_values[name] = type(value)
-        self._info[name] = ''
-        self._visible[name] = visible
-        self._units[name] = ''
-        self.update({name: value})
+            assert self.is_valid(value, valid_values)
 
-    def _add_parameter_from_param(self, param):
-        """Add parameters from an existing Parameter object."""
-        for k, v in param.items():
-            self.name[k] = k
-            self._valid_values[k] = param.valid_values[k]
-            self._info[k] = param.info[k]
-            self._visible[k] = param.visible[k]
-            self._units[k] = param.units[k]
-            self.update({k: v})
+            if units is None:
+                units = ""
+            assert isinstance(units,str)
+
+            if isinstance(value, list) and isinstance(value[0], Parameter):
+                self._valid_values = {name: {k: v for d in value for k, v in d.valid_values.items()}}
+                self.update({name: {k: v for d in value for k, v in d.items()}})
+                self._info = {name: {k: v for d in value for k, v in d.info.items()}}
+                self._visible = {name: {k: v for d in value for k, v in d.visible.items()}}
+                self._units = {name: {k: v for d in value for k,v in d.units.items()}}
+
+            else:
+                self._valid_values = {name: valid_values}
+                self.update({name: value})
+                self._info = {name: info}
+                self._visible = {name: visible}
+                self._units = {name: units}
+
+        elif isinstance(name, (list, dict)) and value is None:
+
+            self._valid_values = {}
+            self._info = {}
+            self._visible = {}
+            self._units = {}
+            self.name = {}
+            if isinstance(name, dict):
+
+                for k, v in name.items():
+                    # convert to Parameter if value is a dict
+                    if isinstance(v, dict):
+                        v = Parameter(v)
+                    self.name.update({k:k})
+                    self._valid_values.update({k: type(v)})
+                    self.update({k: v})
+                    self._info.update({k: ''})
+                    self._visible.update({k: visible})
+                    self._units.update({k: ''})
+            elif isinstance(name, list) and isinstance(name[0], Parameter):
+                for p in name:
+                    for k, v in p.items():
+                        self.name.update({k:k})
+                        self._valid_values.update({k: p.valid_values[k]})
+                        self.update({k: v})
+                        self._info.update({k: p.info[k]})
+                        self._visible.update({k: p.visible[k]})
+                        self._units.update({k: p.units[k]})
+            else:
+                raise TypeError('unknown input: ', name)
 
     def __setitem__(self, key, value):
         """
-        Set item with validation for nested Parameter objects.
-        
+        overwrites the standard dictionary and checks if value is valid
         Args:
-            key: Dictionary key
-            value: Dictionary value
-        """
-        if key in self.valid_values:
-            message = f"{value} (of type {type(value)}) is not valid for {key}"
-            assert self.is_valid(value, self.valid_values[key]), message
+            key: dictionary key
+            value: dictionary value
 
-        # Handle nested Parameter objects
-        if isinstance(value, dict) and key in self and isinstance(self[key], Parameter):
-            # Update nested Parameter object
-            self[key].update(value)
+        """
+
+        message = "{0} (of type {1}) is not in {2}".format(str(value), type(value), str(self.valid_values[key]))
+        assert self.is_valid(value, self.valid_values[key]), message
+
+        if isinstance(value, dict) and len(self) > 0 and len(self) == len(self.valid_values):
+            for k, v in value.items():
+                self[key].update({k: v})
         else:
-            super().__setitem__(key, value)
+            super(Parameter, self).__setitem__(key, value)
 
     def update(self, *args):
         """
