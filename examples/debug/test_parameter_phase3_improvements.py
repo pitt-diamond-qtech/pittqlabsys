@@ -142,11 +142,12 @@ def test_phase3_improvements():
     
     # Test 6: GUI Integration (separate widget module)
     print("6. GUI Integration:")
-    print("   GUI widgets are available in src/View/widgets/parameter_widget.py")
+    print("   GUI widgets are available in src/View/windows_and_widgets/parameter_widget.py")
     print("   - ParameterWidget: Unit-aware parameter input widget")
     print("   - ParameterDisplay: Multi-unit display widget")
     print("   - ParameterDialog: Parameter editing dialog")
     print("   - Factory functions: create_parameter_widget(), create_parameter_display()")
+    print("   - GUI examples: test_parameter_widgets_gui.py, test_parameter_dialog_simple.py")
     print()
     
     # Test 7: Performance Benchmark

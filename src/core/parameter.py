@@ -332,7 +332,10 @@ class Parameter(dict):
         
         # Convert string to pint unit if needed
         if isinstance(target_units, str):
-            target_units = getattr(ur, target_units)
+            try:
+                target_units = getattr(ur, target_units)
+            except AttributeError:
+                raise ValueError(f"Unknown unit: {target_units}")
         
         # Perform conversion
         result = self[key].to(target_units)
@@ -486,6 +489,13 @@ class Parameter(dict):
                     compatible_units.append(unit_name)
             except:
                 continue
+        
+        # Add common units for this dimensionality
+        from src.core.unit_utils import get_common_units_for_dimensionality
+        common_units = get_common_units_for_dimensionality(dimensionality)
+        for unit in common_units:
+            if unit not in compatible_units:
+                compatible_units.append(unit)
                 
         return compatible_units
 

@@ -16,4 +16,24 @@ from .widgets import AQuISSQTreeItem,MatplotlibWidget,PyQtgraphWidget,PyQtCoordi
 from .load_dialog import LoadDialog
 from .load_dialog_probes import LoadDialogProbes
 from .export_dialog import ExportDialog
-from .main_window import MainWindow
+
+# Import parameter widget components (optional)
+try:
+    from .parameter_widget import (
+        ParameterWidget, 
+        ParameterDisplay, 
+        ParameterDialog,
+        create_parameter_widget,
+        create_parameter_display,
+        edit_parameters_dialog
+    )
+except ImportError:
+    # Parameter widget not available
+    pass
+
+# Import main window (optional due to potential import issues)
+try:
+    from .main_window import MainWindow
+except ImportError:
+    # Main window not available
+    pass

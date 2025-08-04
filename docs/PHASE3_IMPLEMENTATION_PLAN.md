@@ -60,12 +60,14 @@ p = Parameter('frequency', 2.85e9, float, 'Frequency', validator=validate_freque
 
 ```python
 # Unit-aware parameter widgets
+from src.View.windows_and_widgets.parameter_widget import create_parameter_widget
 p = Parameter('frequency', 2.85e9 * ur.Hz, float, 'Frequency')
-widget = p.create_widget()  # Returns unit-aware QWidget
+widget = create_parameter_widget(p)  # Returns unit-aware QWidget
 
 # Auto-updating displays
+from src.View.windows_and_widgets.parameter_widget import create_parameter_display
 p = Parameter('temperature', 298.15 * ur.K, float, 'Temperature')
-display = p.create_display()  # Shows value in multiple units
+display = create_parameter_display(p)  # Shows value in multiple units
 # Displays: "298.15 K (25.0 °C, 77.0 °F)"
 ```
 
@@ -90,7 +92,7 @@ display = p.create_display()  # Shows value in multiple units
 - Improve error messages and validation feedback
 
 ### Step 4: Add GUI Integration
-- Create unit-aware parameter widgets
+- Create unit-aware parameter widgets in `src/View/windows_and_widgets/`
 - Add auto-updating displays
 - Integrate with existing GUI system
 - Add unit conversion displays
@@ -352,7 +354,7 @@ def create_display(self, key=None, target_units=None):
    - Clear error messages are provided
 
 4. **GUI Integration**
-   - Unit-aware widgets can be created
+   - Unit-aware widgets can be created in `src/View/windows_and_widgets/`
    - Multi-unit displays work correctly
    - Integration with existing GUI is seamless
 

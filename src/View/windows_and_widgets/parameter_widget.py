@@ -62,7 +62,14 @@ class ParameterWidget(QWidget):
         
         # Value input
         self.value_edit = QLineEdit()
-        self.value_edit.setText(str(self.parameter[self.key]))
+        
+        # Display magnitude for pint quantities, full value for others
+        current_value = self.parameter[self.key]
+        if hasattr(current_value, 'magnitude') and hasattr(current_value, 'units'):
+            self.value_edit.setText(f"{current_value.magnitude:.6g}")
+        else:
+            self.value_edit.setText(str(current_value))
+        
         layout.addWidget(self.value_edit)
         
         # Unit selector (if pint quantity)
@@ -71,8 +78,19 @@ class ParameterWidget(QWidget):
             self.unit_combo = QComboBox()
             compatible_units = self.parameter.get_compatible_units(self.key)
             self.unit_combo.addItems(compatible_units)
-            current_unit = str(self.parameter[self.key].units)
-            self.unit_combo.setCurrentText(current_unit)
+            
+            # Set current unit to best display unit
+            from src.core.unit_utils import get_best_display_unit
+            current_unit = get_best_display_unit(self.parameter[self.key])
+            if current_unit in compatible_units:
+                self.unit_combo.setCurrentText(current_unit)
+            else:
+                # For frequency, default to GHz for display
+                if self.parameter[self.key].dimensionality == ur.Hz.dimensionality:
+                    self.unit_combo.setCurrentText('GHz')
+                else:
+                    self.unit_combo.setCurrentText(str(self.parameter[self.key].units))
+            
             layout.addWidget(self.unit_combo)
         
         # Unit display (for non-pint quantities)
@@ -93,7 +111,17 @@ class ParameterWidget(QWidget):
         try:
             # Try to convert to appropriate type
             current_value = self.parameter[self.key]
-            if isinstance(current_value, (int, float)):
+            
+            # Handle pint quantities
+            if hasattr(current_value, 'magnitude') and hasattr(current_value, 'units'):
+                # For pint quantities, create a new quantity with the same units
+                try:
+                    new_magnitude = float(text)
+                    new_value = new_magnitude * current_value.units
+                except ValueError:
+                    # Invalid number, ignore
+                    return
+            elif isinstance(current_value, (int, float)):
                 new_value = type(current_value)(text)
             else:
                 new_value = text
@@ -108,15 +136,20 @@ class ParameterWidget(QWidget):
     def _on_unit_changed(self, unit_text):
         """Handle unit changes."""
         try:
-            # Convert to new units
-            new_value = self.parameter.get_value_in_units(unit_text, self.key)
+            # Use unit utilities for conversion
+            from src.core.unit_utils import convert_to_common_unit
+            current_value = self.parameter[self.key]
+            new_value = convert_to_common_unit(current_value, unit_text)
+            
+            # Update the parameter with the converted value
             self.parameter[self.key] = new_value
             self.valueChanged.emit(self.key, new_value)
             
-            # Update display
-            self.value_edit.setText(str(new_value.magnitude))
-        except Exception:
-            # Conversion failed, ignore
+            # Update display to show the new magnitude
+            self.value_edit.setText(f"{new_value.magnitude:.6g}")
+        except Exception as e:
+            # Conversion failed, ignore but print for debugging
+            print(f"Unit conversion failed: {e}")
             pass
     
     def get_value(self):
@@ -126,7 +159,12 @@ class ParameterWidget(QWidget):
     def set_value(self, value):
         """Set the parameter value."""
         self.parameter[self.key] = value
-        self.value_edit.setText(str(value))
+        
+        # Display the magnitude for pint quantities
+        if hasattr(value, 'magnitude') and hasattr(value, 'units'):
+            self.value_edit.setText(f"{value.magnitude:.6g}")
+        else:
+            self.value_edit.setText(str(value))
 
 
 class ParameterDisplay(QWidget):
@@ -253,7 +291,11 @@ class ParameterDialog(QDialog):
         form_layout = QFormLayout()
         
         for key, value in self.parameter.items():
-            if isinstance(value, (int, float)):
+            # Check if this is a pint quantity
+            if hasattr(value, 'magnitude') and hasattr(value, 'units'):
+                # Use ParameterWidget for pint quantities
+                widget = create_parameter_widget(self.parameter, key, self)
+            elif isinstance(value, (int, float)):
                 # Numeric parameter
                 if isinstance(value, int):
                     widget = QSpinBox()
@@ -297,7 +339,10 @@ class ParameterDialog(QDialog):
         try:
             # Update parameter values
             for key, widget in self.widgets.items():
-                if isinstance(widget, QSpinBox):
+                if hasattr(widget, '__class__') and widget.__class__.__name__ == 'ParameterWidget':
+                    # ParameterWidget handles its own updates, no need to do anything
+                    pass
+                elif isinstance(widget, QSpinBox):
                     self.parameter[key] = widget.value()
                 elif isinstance(widget, QDoubleSpinBox):
                     self.parameter[key] = widget.value()
@@ -329,6 +374,12 @@ def create_parameter_widget(parameter, key=None, parent=None):
         return None
     
     try:
+        # Check if QApplication exists
+        app = QApplication.instance()
+        if app is None:
+            # No QApplication exists, return None to avoid crashes
+            return None
+        
         return ParameterWidget(parameter, key, parent)
     except Exception:
         return None
@@ -351,6 +402,12 @@ def create_parameter_display(parameter, key=None, target_units=None, parent=None
         return None
     
     try:
+        # Check if QApplication exists
+        app = QApplication.instance()
+        if app is None:
+            # No QApplication exists, return None to avoid crashes
+            return None
+        
         return ParameterDisplay(parameter, key, target_units, parent)
     except Exception:
         return None
@@ -371,6 +428,12 @@ def edit_parameters_dialog(parameter, parent=None):
         return False
     
     try:
+        # Check if QApplication exists
+        app = QApplication.instance()
+        if app is None:
+            # No QApplication exists, return False to avoid crashes
+            return False
+        
         dialog = ParameterDialog(parameter, parent)
         return dialog.exec_() == QDialog.Accepted
     except Exception:

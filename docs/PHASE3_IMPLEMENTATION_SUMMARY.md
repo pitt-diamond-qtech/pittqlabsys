@@ -104,16 +104,26 @@ p = Parameter('value', 5.0, float, 'Value',
 **Goal**: Better integration with the GUI system and unit-aware widgets.
 
 **Implementation**:
-- Moved GUI functionality to separate module: `src/View/widgets/parameter_widget.py`
+- Moved GUI functionality to separate module: `src/View/windows_and_widgets/parameter_widget.py`
 - `ParameterWidget`: Unit-aware parameter input widget
 - `ParameterDisplay`: Multi-unit display widget
 - `ParameterDialog`: Parameter editing dialog
 - Factory functions for easy widget creation
 - PyQt5 optional dependency handling
 
+### 5. Unit Utilities (Separate Module)
+**Goal**: Clean separation of unit conversion logic from core Parameter class.
+
+**Implementation**:
+- Created `src/core/unit_utils.py` for unit conversion utilities
+- Common unit prefixes (kHz, MHz, GHz, mV, kV, etc.)
+- Unit conversion helpers and display formatting
+- Best unit selection for display
+- Keeps Parameter class focused on core functionality
+
 **Example Usage**:
 ```python
-from src.View.widgets.parameter_widget import (
+from src.View.windows_and_widgets.parameter_widget import (
     create_parameter_widget, 
     create_parameter_display,
     edit_parameters_dialog
@@ -134,7 +144,8 @@ if edit_parameters_dialog(parameter):
 
 ### Files Modified/Created
 - **Modified**: `src/core/parameter.py` - Added caching, serialization, enhanced validation
-- **Created**: `src/View/widgets/parameter_widget.py` - GUI widgets
+- **Created**: `src/View/windows_and_widgets/parameter_widget.py` - GUI widgets
+- **Created**: `src/core/unit_utils.py` - Unit conversion utilities
 - **Modified**: `tests/test_parameter.py` - Added 13 new Phase 3 tests
 - **Created**: `examples/debug/test_parameter_phase3_improvements.py` - Demonstration script
 - **Created**: `docs/PHASE3_IMPLEMENTATION_PLAN.md` - Implementation plan
@@ -233,7 +244,7 @@ if edit_parameters_dialog(parameter):
 - **Enhanced Validation**: Use new validation parameters for better data integrity
 - **Caching**: Automatic performance improvements
 - **Serialization**: Use `to_json()` and `from_json()` for persistence
-- **GUI**: Use widgets from `src/View/widgets/parameter_widget.py`
+- **GUI**: Use widgets from `src/View/windows_and_widgets/parameter_widget.py`
 
 ## ✅ Conclusion
 
