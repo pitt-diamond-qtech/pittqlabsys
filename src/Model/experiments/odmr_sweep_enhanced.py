@@ -1,13 +1,13 @@
 """
-Enhanced Optically Detected Magnetic Resonance (ODMR) Experiment with External FM Modulation
+Enhanced Optically Detected Magnetic Resonance (ODMR) Experiment with Phase Continuous Sweep
 
-This module implements an enhanced ODMR experiment that uses external FM modulation
-of the SG384 microwave generator. The ADwin generates a voltage ramp on AO1 that
-is connected to the SG384's FM input, providing synchronized frequency sweeping
-and data acquisition.
+This module implements an enhanced ODMR experiment that uses phase continuous sweep mode
+with external modulation of the SG384 microwave generator. The ADwin generates a voltage ramp 
+on AO1 that is connected to the SG384's external modulation input, providing synchronized 
+frequency sweeping and data acquisition.
 
 Key Features:
-- Uses external FM modulation for frequency sweeping
+- Uses phase continuous sweep mode with external modulation for frequency sweeping
 - Synchronized data acquisition with voltage ramp
 - Automatic validation of sweep parameters
 - Real-time data acquisition synchronized with sweep
@@ -32,12 +32,12 @@ from src.core.adwin_helpers import setup_adwin_for_sweep_odmr, read_adwin_sweep_
 
 class EnhancedODMRSweepExperiment(Experiment):
     """
-    Enhanced ODMR Experiment using external FM modulation.
+    Enhanced ODMR Experiment using phase continuous sweep mode with external modulation.
     
-    This experiment performs ODMR measurements using external FM modulation of the
-    SG384 microwave generator. The ADwin generates a voltage ramp on AO1 that is
-    connected to the SG384's FM input, providing synchronized frequency sweeping
-    and data acquisition.
+    This experiment performs ODMR measurements using phase continuous sweep mode with 
+    external modulation of the SG384 microwave generator. The ADwin generates a voltage 
+    ramp on AO1 that is connected to the SG384's external modulation input, providing 
+    synchronized frequency sweeping and data acquisition.
     
     The sweep parameters are automatically validated to ensure they're within
     the SG384's frequency range (1.9 GHz - 4.1 GHz).
@@ -45,11 +45,12 @@ class EnhancedODMRSweepExperiment(Experiment):
     
     _DEFAULT_SETTINGS = [
         Parameter('sweep_parameters', [
-            Parameter('center_frequency', 2.87e9, float, 'Center frequency in Hz', units='Hz'),
-            Parameter('deviation', 50e6, float, 'Frequency deviation (half sweep width) in Hz', units='Hz'),
-            Parameter('fm_sensitivity', 1e6, float, 'FM sensitivity in Hz/V', units='Hz/V'),
+            Parameter('start_frequency', 2.82e9, float, 'Start frequency in Hz', units='Hz'),
+            Parameter('stop_frequency', 2.92e9, float, 'Stop frequency in Hz', units='Hz'),
+            Parameter('sweep_sensitivity', None, float, 'Sweep sensitivity in Hz/V (auto-calculated)', units='Hz/V'),
             Parameter('sweep_function', 'Triangle', ['Triangle', 'Ramp', 'Sine', 'Square', 'Noise', 'External'], 
-                     'Sweep function type')
+                     'Sweep function type'),
+            Parameter('max_sweep_rate', 110.0, float, 'Maximum sweep rate in Hz (SG384 limit with safety margin)', units='Hz')
         ]),
         Parameter('microwave', [
             Parameter('power', -45.0, float, 'Microwave power in dBm', units='dBm'),
@@ -58,6 +59,7 @@ class EnhancedODMRSweepExperiment(Experiment):
         ]),
         Parameter('acquisition', [
             Parameter('integration_time', 10.0, float, 'Integration time per data point in milliseconds', units='ms'),
+            Parameter('settle_time', 0.1, float, 'Settle time after voltage step in milliseconds', units='ms'),
             Parameter('num_steps', 100, int, 'Number of steps in the sweep'),
             Parameter('sweeps_per_average', 10, int, 'Number of sweeps to average'),
             Parameter('bidirectional', False, bool, 'Do bidirectional sweeps (forward/reverse)'),
@@ -84,7 +86,7 @@ class EnhancedODMRSweepExperiment(Experiment):
                  name: Optional[str] = None, settings: Optional[Dict[str, Any]] = None,
                  log_function=None, data_path: Optional[str] = None):
         """Initialize the enhanced ODMR sweep experiment."""
-        super().__init__(devices, experiments, name, settings, log_function, data_path)
+        super().__init__(name, settings, devices, experiments, log_function, data_path)
         
         # Initialize data structures
         self.frequencies = None
@@ -118,48 +120,112 @@ class EnhancedODMRSweepExperiment(Experiment):
     
     def _validate_sweep_parameters(self):
         """Validate sweep parameters are within SG384 limits."""
-        center_freq = self.settings['sweep_parameters']['center_frequency']
-        deviation = self.settings['sweep_parameters']['deviation']
+        start_freq = self.settings['sweep_parameters']['start_frequency']
+        stop_freq = self.settings['sweep_parameters']['stop_frequency']
         
-        # Check frequency range
-        min_freq = center_freq - deviation
-        max_freq = center_freq + deviation
+        # Ensure start_freq < stop_freq
+        if start_freq >= stop_freq:
+            raise ValueError(f"Start frequency ({start_freq/1e9:.3f} GHz) must be less than stop frequency ({stop_freq/1e9:.3f} GHz)")
         
-        if min_freq < 1.9e9:
-            raise ValueError(f"Minimum frequency {min_freq/1e9:.2f} GHz is below SG384 limit of 1.9 GHz")
+        # Check frequency range against SG384 limits
+        if start_freq < 1.9e9:
+            raise ValueError(f"Start frequency {start_freq/1e9:.2f} GHz is below SG384 limit of 1.9 GHz")
         
-        if max_freq > 4.1e9:
-            raise ValueError(f"Maximum frequency {max_freq/1e9:.2f} GHz is above SG384 limit of 4.1 GHz")
+        if stop_freq > 4.1e9:
+            raise ValueError(f"Stop frequency {stop_freq/1e9:.2f} GHz is above SG384 limit of 4.1 GHz")
         
-        self.log(f"Frequency range: {min_freq/1e9:.3f} - {max_freq/1e9:.3f} GHz")
+        # Check sweep rate limit (SG384 limit is 120 Hz, use 110 Hz for safety)
+        integration_time_ms = self.settings['acquisition']['integration_time']
+        settle_time_ms = self.settings['acquisition']['settle_time']
+        num_steps = self.settings['acquisition']['num_steps']
+        bidirectional = self.settings['acquisition']['bidirectional']
+        
+        # Calculate sweep times (include both integration and settle time)
+        total_time_per_step_ms = integration_time_ms + settle_time_ms
+        single_sweep_time_s = (total_time_per_step_ms / 1000.0) * num_steps
+        
+        if bidirectional:
+            # For bidirectional sweeps, check each direction separately
+            # (conservative approach since SG384 manual is unclear about ramp speed limits)
+            forward_sweep_time_s = single_sweep_time_s
+            reverse_sweep_time_s = single_sweep_time_s
+            total_cycle_time_s = forward_sweep_time_s + reverse_sweep_time_s
+            
+            # Calculate sweep rates
+            forward_sweep_rate_hz = 1.0 / forward_sweep_time_s
+            reverse_sweep_rate_hz = 1.0 / reverse_sweep_time_s
+            cycle_rate_hz = 1.0 / total_cycle_time_s
+            
+            # Check against user-defined sweep rate limit
+            max_sweep_rate_hz = self.settings['sweep_parameters']['max_sweep_rate']
+            min_sweep_time_s = 1.0 / max_sweep_rate_hz
+            
+            if forward_sweep_time_s < min_sweep_time_s or reverse_sweep_time_s < min_sweep_time_s:
+                raise ValueError(
+                    f"Bidirectional sweep time ({single_sweep_time_s:.3f} s per direction) is too fast for SG384. "
+                    f"Minimum sweep time per direction is {min_sweep_time_s:.3f} s (max rate: {max_sweep_rate_hz} Hz). "
+                    f"Current rates - Forward: {forward_sweep_rate_hz:.1f} Hz, Reverse: {reverse_sweep_rate_hz:.1f} Hz. "
+                    f"Try increasing integration time or reducing number of steps."
+                )
+            
+            self.log(f"Frequency range: {start_freq/1e9:.3f} - {stop_freq/1e9:.3f} GHz")
+            self.log(f"Bidirectional sweep - Forward: {forward_sweep_time_s:.3f} s ({forward_sweep_rate_hz:.1f} Hz), "
+                    f"Reverse: {reverse_sweep_time_s:.3f} s ({reverse_sweep_rate_hz:.1f} Hz), "
+                    f"Total cycle: {total_cycle_time_s:.3f} s ({cycle_rate_hz:.1f} Hz)")
+        else:
+            # For unidirectional sweeps
+            total_sweep_time_s = single_sweep_time_s
+            sweep_rate_hz = 1.0 / total_sweep_time_s
+            
+            # Check against user-defined sweep rate limit
+            max_sweep_rate_hz = self.settings['sweep_parameters']['max_sweep_rate']
+            min_sweep_time_s = 1.0 / max_sweep_rate_hz
+            
+            if total_sweep_time_s < min_sweep_time_s:
+                raise ValueError(
+                    f"Sweep time ({total_sweep_time_s:.3f} s) is too fast for SG384. "
+                    f"Minimum sweep time is {min_sweep_time_s:.3f} s (max rate: {max_sweep_rate_hz} Hz). "
+                    f"Current sweep rate: {sweep_rate_hz:.1f} Hz. "
+                    f"Try increasing integration time or reducing number of steps."
+                )
+            
+            self.log(f"Frequency range: {start_freq/1e9:.3f} - {stop_freq/1e9:.3f} GHz")
+            self.log(f"Unidirectional sweep - Time: {total_sweep_time_s:.3f} s, Rate: {sweep_rate_hz:.1f} Hz")
     
     def _calculate_frequency_array(self):
         """Calculate the frequency array for the sweep."""
-        center_freq = self.settings['sweep_parameters']['center_frequency']
-        deviation = self.settings['sweep_parameters']['deviation']
+        start_freq = self.settings['sweep_parameters']['start_frequency']
+        stop_freq = self.settings['sweep_parameters']['stop_frequency']
         num_steps = self.settings['acquisition']['num_steps']
         
-        # Create frequency array from -deviation to +deviation
-        self.frequencies = np.linspace(
-            center_freq - deviation,
-            center_freq + deviation,
-            num_steps
-        )
+        # Create frequency array from start_freq to stop_freq
+        self.frequencies = np.linspace(start_freq, stop_freq, num_steps)
         
         self.log(f"Frequency array: {num_steps} points from {self.frequencies[0]/1e9:.3f} to {self.frequencies[-1]/1e9:.3f} GHz")
     
     def _setup_microwave(self):
-        """Setup microwave generator for external FM modulation."""
-        self.log("Setting up microwave generator for external FM modulation...")
+        """Setup microwave generator for phase continuous sweep mode with external modulation."""
+        self.log("Setting up microwave generator for phase continuous sweep mode with external modulation...")
+        
+        # Calculate center frequency and deviation for SG384
+        start_freq = self.settings['sweep_parameters']['start_frequency']
+        stop_freq = self.settings['sweep_parameters']['stop_frequency']
+        center_freq = (start_freq + stop_freq) / 2.0
+        deviation = (stop_freq - start_freq) / 2.0
+        
+        # Calculate sweep sensitivity: (stop - start) / 2 Hz/V
+        # This is because the ADwin generates -1V to +1V, covering the full sweep range
+        sweep_sensitivity = (stop_freq - start_freq) / 2.0
+        self.settings['sweep_parameters']['sweep_sensitivity'] = sweep_sensitivity
         
         # Set center frequency and power
         self.microwave.update({
-            'frequency': self.settings['sweep_parameters']['center_frequency'],
+            'frequency': center_freq,
             'power': self.settings['microwave']['power'],
             'enable_output': self.settings['microwave']['enable_output']
         })
         
-        # Enable external FM modulation
+        # Enable phase continuous sweep mode with external modulation
         # The ADwin will generate the modulation signal on AO1
         self.microwave.update({
             'enable_modulation': True,
@@ -168,17 +234,21 @@ class EnhancedODMRSweepExperiment(Experiment):
             'modulation_amplitude': 1.0  # Full modulation depth
         })
         
-        self.log("Microwave generator setup complete")
+        self.log(f"Microwave generator setup complete - Center: {center_freq/1e9:.3f} GHz, Deviation: {deviation/1e6:.1f} MHz")
+        self.log(f"Sweep sensitivity: {sweep_sensitivity/1e6:.1f} MHz/V")
+        self.log("Phase continuous sweep mode with external modulation enabled")
     
     def _setup_adwin(self):
         """Setup ADwin for synchronized sweep data acquisition."""
         integration_time_ms = self.settings['acquisition']['integration_time']
+        settle_time_ms = self.settings['acquisition']['settle_time']
         num_steps = self.settings['acquisition']['num_steps']
         bidirectional = self.settings['acquisition']['bidirectional']
         
         setup_adwin_for_sweep_odmr(
             self.adwin,
             integration_time_ms=integration_time_ms,
+            settle_time_ms=settle_time_ms,
             num_steps=num_steps,
             bidirectional=bidirectional
         )
@@ -346,16 +416,18 @@ class EnhancedODMRSweepExperiment(Experiment):
             forward_counts_per_sec = np.array(adwin_data['forward_counts']) * (0.001 / integration_time_s)
             reverse_counts_per_sec = np.array(adwin_data['reverse_counts']) * (0.001 / integration_time_s)
             
-            # Convert voltages to frequencies using FM sensitivity
-            fm_sensitivity = self.settings['sweep_parameters']['fm_sensitivity']
-            center_freq = self.settings['sweep_parameters']['center_frequency']
+            # Convert voltages to frequencies using sweep sensitivity
+            sweep_sensitivity = self.settings['sweep_parameters']['sweep_sensitivity']
+            start_freq = self.settings['sweep_parameters']['start_frequency']
+            stop_freq = self.settings['sweep_parameters']['stop_frequency']
+            center_freq = (start_freq + stop_freq) / 2.0
             
             forward_voltages = np.array(adwin_data['forward_voltages'])
             reverse_voltages = np.array(adwin_data['reverse_voltages'])
             
-            # Calculate frequencies: f = f_center + V * fm_sensitivity
-            forward_frequencies = center_freq + forward_voltages * fm_sensitivity
-            reverse_frequencies = center_freq + reverse_voltages * fm_sensitivity
+            # Calculate frequencies: f = f_center + V * sweep_sensitivity
+            forward_frequencies = center_freq + forward_voltages * sweep_sensitivity
+            reverse_frequencies = center_freq + reverse_voltages * sweep_sensitivity
             
             return {
                 'forward_data': forward_counts_per_sec,
@@ -373,9 +445,11 @@ class EnhancedODMRSweepExperiment(Experiment):
                 forward_voltages = np.array(adwin_data['forward_voltages'])
                 
                 # Convert voltages to frequencies
-                fm_sensitivity = self.settings['sweep_parameters']['fm_sensitivity']
-                center_freq = self.settings['sweep_parameters']['center_frequency']
-                forward_frequencies = center_freq + forward_voltages * fm_sensitivity
+                sweep_sensitivity = self.settings['sweep_parameters']['sweep_sensitivity']
+                start_freq = self.settings['sweep_parameters']['start_frequency']
+                stop_freq = self.settings['sweep_parameters']['stop_frequency']
+                center_freq = (start_freq + stop_freq) / 2.0
+                forward_frequencies = center_freq + forward_voltages * sweep_sensitivity
                 
                 return {
                     'forward_data': forward_counts_per_sec,
@@ -409,50 +483,63 @@ class EnhancedODMRSweepExperiment(Experiment):
     
     def _fit_esr_peaks(self, frequencies: np.ndarray, data: np.ndarray) -> List[Dict[str, float]]:
         """
-        Fit ESR peaks using Lorentzian functions.
+        Fit ESR dips using Lorentzian functions (ODMR typically shows dips in fluorescence).
         
         Args:
             frequencies: Frequency array
             data: Intensity data
             
         Returns:
-            List of fit parameters for each peak
+            List of fit parameters for each dip
         """
-        peaks = []
+        dips = []
         min_counts = self.settings['analysis']['minimum_counts']
         contrast_factor = self.settings['analysis']['contrast_factor']
         
-        # Find peaks above threshold
+        # Find dips below threshold (ODMR shows fluorescence dips at resonance)
         mean_data = np.mean(data)
         threshold = mean_data * contrast_factor
         
-        # Simple peak detection
-        for i in range(1, len(data) - 1):
-            if (data[i] > threshold and 
-                data[i] > data[i-1] and 
-                data[i] > data[i+1] and
-                data[i] > min_counts):
+        # More robust dip detection that handles discrete sampling
+        for i in range(2, len(data) - 2):
+            # Check if this is a local minimum (dip)
+            # Use a wider window to handle discrete sampling issues
+            window_size = 3
+            is_local_min = True
+            
+            # Check if data[i] is the minimum in a window around it
+            for j in range(max(0, i - window_size), min(len(data), i + window_size + 1)):
+                if data[j] < data[i]:
+                    is_local_min = False
+                    break
+            
+            # Additional criteria for dip detection
+            if (is_local_min and 
+                data[i] < threshold and  # Below threshold (dip)
+                data[i] > min_counts and  # Above minimum counts
+                data[i] < mean_data):     # Below mean (actual dip)
                 
-                # Fit Lorentzian to this peak
+                # Fit Lorentzian to this dip
                 try:
-                    # Define Lorentzian function
-                    def lorentzian(x, amplitude, center, width, offset):
-                        return amplitude * (width**2 / ((x - center)**2 + width**2)) + offset
+                    # Define Lorentzian function for dip (negative amplitude)
+                    def lorentzian_dip(x, amplitude, center, width, offset):
+                        return offset - amplitude * (width**2 / ((x - center)**2 + width**2))
                     
-                    # Initial guess
-                    p0 = [data[i] - mean_data, frequencies[i], 1e6, mean_data]
+                    # Initial guess for dip fitting
+                    dip_depth = mean_data - data[i]
+                    p0 = [dip_depth, frequencies[i], 1e6, mean_data]
                     
                     # Fit range
-                    fit_range = 10  # points on each side
+                    fit_range = 15  # points on each side
                     start_idx = max(0, i - fit_range)
                     end_idx = min(len(frequencies), i + fit_range + 1)
                     
-                    popt, _ = curve_fit(lorentzian, 
+                    popt, _ = curve_fit(lorentzian_dip, 
                                       frequencies[start_idx:end_idx], 
                                       data[start_idx:end_idx], 
                                       p0=p0)
                     
-                    peaks.append({
+                    dips.append({
                         'amplitude': popt[0],
                         'center': popt[1],
                         'width': popt[2],
@@ -462,11 +549,11 @@ class EnhancedODMRSweepExperiment(Experiment):
                     })
                     
                 except Exception as e:
-                    self.log(f"Failed to fit peak at index {i}: {e}")
+                    self.log(f"Failed to fit dip at index {i}: {e}")
                     continue
         
-        self.log(f"Found {len(peaks)} ESR peaks")
-        return peaks
+        self.log(f"Found {len(dips)} ESR dips")
+        return dips
     
     def cleanup(self):
         """Cleanup after experiment."""
@@ -518,7 +605,7 @@ class EnhancedODMRSweepExperiment(Experiment):
                     x_fit = np.linspace(forward_frequencies[0], forward_frequencies[-1], 1000)
                     y_fit = lorentzian(x_fit * 1e9, peak['amplitude'], peak['center'], peak['width'], peak['offset'])
                     
-                    axes.plot(x_fit, y_fit, pen='g', name=f'Peak at {peak["center_ghz"]:.3f} GHz')
+                    axes.plot(x_fit, y_fit, pen='g', name=f'Peak at {peak["center"]/1e9:.3f} GHz')
             
             axes.setLabel('left', 'Intensity', units='kcounts/s')
             axes.setLabel('bottom', 'Frequency', units='GHz')
@@ -545,7 +632,7 @@ class EnhancedODMRSweepExperiment(Experiment):
                     x_fit = np.linspace(frequencies[0], frequencies[-1], 1000)
                     y_fit = lorentzian(x_fit * 1e9, peak['amplitude'], peak['center'], peak['width'], peak['offset'])
                     
-                    axes.plot(x_fit, y_fit, pen='r', name=f'Peak at {peak["center_ghz"]:.3f} GHz')
+                    axes.plot(x_fit, y_fit, pen='r', name=f'Peak at {peak["center"]/1e9:.3f} GHz')
             
             axes.setLabel('left', 'Intensity', units='kcounts/s')
             axes.setLabel('bottom', 'Frequency', units='GHz')
@@ -559,11 +646,21 @@ class EnhancedODMRSweepExperiment(Experiment):
     
     def get_experiment_info(self) -> Dict[str, Any]:
         """Get information about the experiment."""
+        start_freq = self.settings['sweep_parameters']['start_frequency']
+        stop_freq = self.settings['sweep_parameters']['stop_frequency']
+        center_freq = (start_freq + stop_freq) / 2.0
+        deviation = (stop_freq - start_freq) / 2.0
+        
         return {
             'name': 'Enhanced ODMR Sweep',
-            'description': 'ODMR experiment using external FM modulation',
-            'center_frequency': self.settings['sweep_parameters']['center_frequency'] / 1e9,
-            'deviation': self.settings['sweep_parameters']['deviation'] / 1e6,
+            'description': 'ODMR experiment using phase continuous sweep mode with external modulation',
+            'start_frequency': start_freq / 1e9,
+            'stop_frequency': stop_freq / 1e9,
+            'center_frequency': center_freq / 1e9,
+            'deviation': deviation / 1e6,
+            'max_sweep_rate': self.settings['sweep_parameters']['max_sweep_rate'],
+            'integration_time': self.settings['acquisition']['integration_time'],
+            'settle_time': self.settings['acquisition']['settle_time'],
             'num_steps': self.settings['acquisition']['num_steps'],
             'sweeps_per_average': self.settings['acquisition']['sweeps_per_average']
         } 

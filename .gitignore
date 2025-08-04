@@ -2,6 +2,9 @@
 frames/
 .idea/
 
+# Local wheel cache for offline installation
+wheels_cache/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

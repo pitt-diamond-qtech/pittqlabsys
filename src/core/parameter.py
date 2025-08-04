@@ -174,6 +174,9 @@ class Parameter(dict):
 
         if isinstance(valid_values, type) and type(value) is valid_values:
             valid = True
+        elif isinstance(valid_values, type) and value is None:
+            # Allow None values for any type (useful for optional parameters)
+            valid = True
         elif isinstance(valid_values, type) and valid_values == float and type(value) == int:
             # special case to allow ints as float inputs
             valid = True

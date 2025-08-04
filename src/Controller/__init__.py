@@ -13,9 +13,22 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
+import sys
+
 from .example_device import ExampleDevice,Plant,PIController
 #from .ni_daq import PXI6733,NIDAQ,NI6281
-from .ni_daq import PXI6733,NIDAQ,NI6281,PCI6229,PCI6601
+
+# Only import NI-DAQ modules on Windows
+if sys.platform.startswith('win'):
+    from .ni_daq import PXI6733,NIDAQ,NI6281,PCI6229,PCI6601
+else:
+    # On non-Windows platforms, create placeholder classes to avoid import errors
+    PXI6733 = None
+    NIDAQ = None
+    NI6281 = None
+    PCI6229 = None
+    PCI6601 = None
+
 # from .microwave_generator import MicrowaveGenerator  # Deprecated - use SG384Generator instead
 from .nanodrive import MCLNanoDrive
 from .adwin_gold import AdwinGoldDevice
@@ -23,6 +36,7 @@ from .pulse_blaster import PulseBlaster
 from .awg520 import AWG520Device
 from .sg384 import SG384Generator
 from .windfreak_synth_usbii import WindfreakSynthUSBII
+
 # registry maps your config "type" strings → classes
 _DEVICE_REGISTRY = {
     "awg520": AWG520Device, 
@@ -34,12 +48,17 @@ _DEVICE_REGISTRY = {
     "example_device": ExampleDevice,
     "plant": Plant,
     "pi_controller": PIController,
-    "ni_daq": NIDAQ,
-    "pxi6733": PXI6733,
-    "ni6281": NI6281,
-    "pci6229": PCI6229,
-    "pci6601": PCI6601,
 }
+
+# Only add NI-DAQ devices to registry on Windows
+if sys.platform.startswith('win'):
+    _DEVICE_REGISTRY.update({
+        "ni_daq": NIDAQ,
+        "pxi6733": PXI6733,
+        "ni6281": NI6281,
+        "pci6229": PCI6229,
+        "pci6601": PCI6601,
+    })
 
 def create_device(kind: str, **kwargs):
     cls = _DEVICE_REGISTRY.get(kind.lower())

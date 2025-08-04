@@ -187,7 +187,8 @@ def setup_adwin_for_simple_odmr(adwin_instance, integration_time_ms: float = 10.
 
 
 def setup_adwin_for_sweep_odmr(adwin_instance, integration_time_ms: float = 10.0, 
-                              num_steps: int = 100, bidirectional: bool = False) -> None:
+                              settle_time_ms: float = 0.1, num_steps: int = 100, 
+                              bidirectional: bool = False) -> None:
     """
     Setup ADwin for enhanced ODMR sweep experiments with the ODMR_Sweep_Counter script.
     
@@ -197,6 +198,7 @@ def setup_adwin_for_sweep_odmr(adwin_instance, integration_time_ms: float = 10.0
     Args:
         adwin_instance: ADwinGold instance
         integration_time_ms: Integration time per step in milliseconds
+        settle_time_ms: Settle time after voltage step in milliseconds
         num_steps: Number of steps in the sweep
         bidirectional: Whether to do bidirectional sweeps (forward/reverse)
     """
@@ -224,6 +226,10 @@ def setup_adwin_for_sweep_odmr(adwin_instance, integration_time_ms: float = 10.0
     # Par_5: Sweep direction (0=unidirectional, 1=bidirectional)
     sweep_direction = 1 if bidirectional else 0
     adwin_instance.set_int_var(5, sweep_direction)
+    
+    # Par_11: Settle time after voltage step in microseconds
+    settle_time_us = int(settle_time_ms * 1000)
+    adwin_instance.set_int_var(11, settle_time_us)
 
 
 def read_adwin_odmr_data(adwin_instance) -> Dict[str, float]:

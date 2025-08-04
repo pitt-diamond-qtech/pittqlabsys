@@ -27,6 +27,7 @@
 ' Par_8  - Total counts for current step
 ' Par_9  - Sweep cycle counter (0=forward, 1=reverse, 2=complete)
 ' Par_10 - Data ready flag (0=collecting, 1=ready to read)
+' Par_11 - Settle time after voltage step in microseconds (set by experiment)
 '
 ' Data Arrays:
 ' Data_1 - Forward sweep counts (index 0 to num_steps-1)
@@ -41,6 +42,7 @@
 
 DIM step_index AS LONG
 DIM integration_cycles AS LONG
+DIM settle_cycles AS LONG
 DIM voltage_step AS FLOAT
 DIM current_voltage AS FLOAT
 DIM total_counts AS LONG
@@ -61,6 +63,7 @@ init:
   ' Initialize variables
   step_index = 0
   integration_cycles = 0
+  settle_cycles = 0
   total_counts = 0
   sweep_direction = 0  ' Start with forward sweep
   sweep_cycle = 0
@@ -76,6 +79,9 @@ init:
   ' Start at -1V for forward sweep
   current_voltage = -1.0
   AO_Write(1, current_voltage)
+  
+  ' Start settle time after initial voltage
+  settle_cycles = Par_11  ' Settle time in microseconds
   
   ' Reset parameters
   Par_4 = 0
@@ -96,16 +102,21 @@ Event:
   ' Read counter value
   Par_1 = Cnt_Read(1)
   
-  ' Accumulate counts for current step
-  total_counts = total_counts + Par_1
-  Par_8 = total_counts
-  
-  ' Clear counter for next cycle
-  Cnt_Clear(1)
-  
-  ' Check if we've completed the integration time for this step
-  integration_cycles = integration_cycles + 1
-  IF (integration_cycles >= Par_2) THEN
+  ' Check if we're in settle time or integration time
+  IF (settle_cycles > 0) THEN
+    ' In settle time - just wait
+    settle_cycles = settle_cycles - 1
+  ELSE
+    ' In integration time - accumulate counts
+    total_counts = total_counts + Par_1
+    Par_8 = total_counts
+    
+    ' Clear counter for next cycle
+    Cnt_Clear(1)
+    
+    ' Check if we've completed the integration time for this step
+    integration_cycles = integration_cycles + 1
+    IF (integration_cycles >= Par_2) THEN
     ' Integration time complete for this step
     ' Store data in appropriate array based on sweep direction
     IF (sweep_direction = 0) THEN
@@ -170,6 +181,9 @@ Event:
     ' Output current voltage
     AO_Write(1, current_voltage)
     Par_6 = current_voltage
+    
+    ' Start settle time after voltage change
+    settle_cycles = Par_11  ' Settle time in microseconds
     
     ' Reset integration cycle counter and counts
     integration_cycles = 0

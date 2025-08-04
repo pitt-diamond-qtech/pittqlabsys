@@ -24,7 +24,6 @@ import pkgutil
 import numpy as np
 import h5py
 from pyparsing import empty
-from sympy.codegen import Print
 
 
 def get_project_root() -> Path:  # new feature in Python 3.x i.e. annotations
