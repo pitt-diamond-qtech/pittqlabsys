@@ -11,7 +11,7 @@ This module tests the foundational Parameter class, including:
 
 import pytest
 import numpy as np
-from src.core.parameter import Parameter
+from src.core.parameter import Parameter, ValidationError
 from src import ur
 
 
@@ -523,6 +523,245 @@ class TestParameterRealWorldExamples:
         # Fixed: validation now works in nested structures
         with pytest.raises(AssertionError):
             p['SG384']['sweep_mode'] = 'invalid_mode'  # Should fail and does
+
+
+class TestParameterPhase3Features:
+    """Test Phase 3 features: caching, serialization, enhanced validation, and GUI integration."""
+    
+    def test_caching_system(self):
+        """Test the caching system for unit conversions."""
+        from src import ur
+        
+        p = Parameter('frequency', 2.85e9 * ur.Hz, float, 'Frequency')
+        
+        # First call should cache the result
+        freq_ghz_1 = p.get_value_in_units('GHz')
+        
+        # Second call should use cached result
+        freq_ghz_2 = p.get_value_in_units('GHz')
+        
+        assert freq_ghz_1 == freq_ghz_2
+        assert freq_ghz_1.magnitude == 2.85
+        
+        # Check cache stats
+        stats = p.get_cache_stats()
+        assert stats['conversion_cache_size'] > 0
+        assert stats['max_cache_size'] == 100
+    
+    def test_cache_clear(self):
+        """Test cache clearing functionality."""
+        from src import ur
+        
+        p = Parameter('frequency', 2.85e9 * ur.Hz, float, 'Frequency')
+        
+        # Populate cache
+        p.get_value_in_units('GHz')
+        p.get_value_in_units('MHz')
+        
+        # Clear cache
+        p.clear_cache()
+        
+        stats = p.get_cache_stats()
+        assert stats['conversion_cache_size'] == 0
+        assert stats['validation_cache_size'] == 0
+    
+    def test_json_serialization_pint_quantity(self):
+        """Test JSON serialization with pint quantities."""
+        from src import ur
+        
+        p = Parameter('frequency', 2.85e9 * ur.Hz, float, 'Frequency')
+        
+        # Serialize
+        json_data = p.to_json()
+        
+        # Check structure
+        assert 'frequency' in json_data
+        assert json_data['frequency']['pint_quantity'] is True
+        assert json_data['frequency']['value'] == 2.85e9
+        assert json_data['frequency']['units'] == 'hertz'
+        
+        # Deserialize
+        p2 = Parameter.from_json(json_data)
+        
+        # Check restoration
+        assert p2['frequency'] == p['frequency']
+        assert p2.is_pint_quantity('frequency')
+        assert p2['frequency'].magnitude == 2.85e9
+        assert p2['frequency'].units == ur.Hz
+    
+    def test_json_serialization_string_units(self):
+        """Test JSON serialization with string units."""
+        p = Parameter('voltage', 5.0, float, 'Voltage', units='V')
+        
+        # Serialize
+        json_data = p.to_json()
+        
+        # Check structure
+        assert 'voltage' in json_data
+        assert json_data['voltage']['pint_quantity'] is False
+        assert json_data['voltage']['value'] == 5.0
+        assert json_data['voltage']['units'] == 'V'
+        
+        # Deserialize
+        p2 = Parameter.from_json(json_data)
+        
+        # Check restoration
+        assert p2['voltage'] == p['voltage']
+        assert not p2.is_pint_quantity('voltage')
+        assert p2.units['voltage'] == 'V'
+    
+    def test_json_serialization_nested_parameters(self):
+        """Test JSON serialization with nested parameters."""
+        from src import ur
+        
+        p = Parameter([
+            Parameter('microwave', [
+                Parameter('frequency', 2.85e9 * ur.Hz, float, 'Frequency'),
+                Parameter('power', -45.0, float, 'Power', units='dBm')
+            ])
+        ])
+        
+        # Serialize
+        json_data = p.to_json()
+        
+        # Check nested structure
+        assert 'microwave' in json_data
+        assert 'frequency' in json_data['microwave']
+        assert 'power' in json_data['microwave']
+        
+        # Deserialize
+        p2 = Parameter.from_json(json_data)
+        
+        # Check restoration
+        assert p2['microwave']['frequency'] == p['microwave']['frequency']
+        assert p2['microwave']['power'] == p['microwave']['power']
+    
+    def test_range_validation(self):
+        """Test range validation functionality."""
+        p = Parameter('voltage', 5.0, float, 'Voltage', min_value=0.0, max_value=10.0)
+        
+        # Valid assignments
+        p['voltage'] = 3.0  # Should work
+        p['voltage'] = 7.0  # Should work
+        
+        # Invalid assignments
+        with pytest.raises(ValidationError):
+            p['voltage'] = -1.0  # Below minimum
+        
+        with pytest.raises(ValidationError):
+            p['voltage'] = 15.0  # Above maximum
+    
+    def test_pattern_validation(self):
+        """Test pattern validation functionality."""
+        p = Parameter('filename', 'data.txt', str, 'Filename', 
+                     pattern=r'^[a-zA-Z0-9_]+\.txt$')
+        
+        # Valid assignments
+        p['filename'] = 'experiment.txt'  # Should work
+        p['filename'] = 'data_123.txt'    # Should work
+        
+        # Invalid assignments
+        with pytest.raises(ValidationError):
+            p['filename'] = 'data.csv'  # Wrong extension
+        
+        with pytest.raises(ValidationError):
+            p['filename'] = 'data file.txt'  # Contains space
+    
+    def test_custom_validation(self):
+        """Test custom validation functionality."""
+        def validate_frequency(value):
+            return 1e6 <= value <= 10e9
+        
+        p = Parameter('frequency', 2.85e9, float, 'Frequency', validator=validate_frequency)
+        
+        # Valid assignments
+        p['frequency'] = 5e9  # Should work
+        
+        # Invalid assignments
+        with pytest.raises(ValidationError):
+            p['frequency'] = 0.5e6  # Below minimum
+        
+        with pytest.raises(ValidationError):
+            p['frequency'] = 15e9  # Above maximum
+    
+    def test_validation_caching(self):
+        """Test that validation results are cached."""
+        p = Parameter('voltage', 5.0, float, 'Voltage', min_value=0.0, max_value=10.0)
+        
+        # First validation should populate cache
+        p['voltage'] = 3.0
+        
+        # Second validation should use cache
+        p['voltage'] = 3.0
+        
+        stats = p.get_cache_stats()
+        assert stats['validation_cache_size'] > 0
+    
+
+    
+    def test_backward_compatibility_phase3(self):
+        """Test that Phase 3 features don't break existing functionality."""
+        # Test that existing parameter creation still works
+        p = Parameter('test', 42, int, 'Test parameter')
+        assert p['test'] == 42
+        
+        # Test that existing validation still works
+        with pytest.raises(AssertionError):
+            p['test'] = "invalid_string"
+        
+        # Test that existing units still work
+        p2 = Parameter('voltage', 5.0, float, 'Voltage', units='V')
+        assert p2.units['voltage'] == 'V'
+    
+    def test_mixed_validation_rules(self):
+        """Test combining multiple validation rules."""
+        def validate_positive(value):
+            return value > 0
+        
+        p = Parameter('value', 5.0, float, 'Value', 
+                     min_value=0.0, max_value=10.0, validator=validate_positive)
+        
+        # Valid assignments
+        p['value'] = 3.0  # Within range and positive
+        
+        # Invalid assignments
+        with pytest.raises(ValidationError):
+            p['value'] = -1.0  # Negative (fails custom validator)
+        
+        with pytest.raises(ValidationError):
+            p['value'] = 15.0  # Above maximum (fails range validation)
+    
+    def test_validation_error_messages(self):
+        """Test that validation errors provide clear messages."""
+        p = Parameter('voltage', 5.0, float, 'Voltage', min_value=0.0, max_value=10.0)
+        
+        try:
+            p['voltage'] = 15.0
+            assert False, "Should have raised ValidationError"
+        except ValidationError as e:
+            assert "above maximum" in str(e)
+            assert "15.0" in str(e)
+            assert "10.0" in str(e)
+    
+    def test_cache_lru_behavior(self):
+        """Test that cache implements LRU behavior."""
+        from src import ur
+        
+        p = Parameter('frequency', 2.85e9 * ur.Hz, float, 'Frequency')
+        
+        # Set small cache size for testing
+        p._cache_max_size = 2
+        
+        # Populate cache
+        p.get_value_in_units('GHz')
+        p.get_value_in_units('MHz')
+        
+        # Add one more to trigger LRU
+        p.get_value_in_units('kHz')
+        
+        # Check cache size
+        stats = p.get_cache_stats()
+        assert stats['conversion_cache_size'] <= 2
 
 
 if __name__ == '__main__':

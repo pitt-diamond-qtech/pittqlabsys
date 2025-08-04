@@ -15,8 +15,15 @@
 
 from src import ur
 
+
+class ValidationError(Exception):
+    """Exception raised when parameter validation fails."""
+    pass
+
+
 class Parameter(dict):
-    def __init__(self, name, value=None, valid_values=None, info=None, visible=False, units=None):
+    def __init__(self, name, value=None, valid_values=None, info=None, visible=False, units=None,
+                 min_value=None, max_value=None, pattern=None, validator=None):
         """
         Parameter class for managing experiment parameters with validation and units.
 
@@ -32,17 +39,28 @@ class Parameter(dict):
             info: Description string
             visible: Boolean for GUI visibility
             units: Units string
+            min_value: Minimum allowed value (for numeric parameters)
+            max_value: Maximum allowed value (for numeric parameters)
+            pattern: Regex pattern for string validation
+            validator: Custom validation function
         """
         super().__init__()
 
+        # Initialize caches for Phase 3 performance improvements
+        self._conversion_cache = {}
+        self._validation_cache = {}
+        self._cache_max_size = 100
+
         if isinstance(name, str):
-            self._init_single_parameter(name, value, valid_values, info, visible, units)
+            self._init_single_parameter(name, value, valid_values, info, visible, units,
+                                      min_value, max_value, pattern, validator)
         elif isinstance(name, (list, dict)):
             self._init_multiple_parameters(name, visible)
         else:
             raise TypeError(f"Invalid name type: {type(name)}")
 
-    def _init_single_parameter(self, name, value, valid_values, info, visible, units):
+    def _init_single_parameter(self, name, value, valid_values, info, visible, units,
+                              min_value=None, max_value=None, pattern=None, validator=None):
         """Initialize a single parameter."""
         if valid_values is None:
             valid_values = type(value)
@@ -55,7 +73,21 @@ class Parameter(dict):
             units = ""
         assert isinstance(units, str)
 
-        assert self.is_valid(value, valid_values)
+        # Initialize validation rules for Phase 3
+        self._validation_rules = {}
+        if min_value is not None or max_value is not None:
+            self._validation_rules[name] = {'range': {'min': min_value, 'max': max_value}}
+        if pattern is not None:
+            if name not in self._validation_rules:
+                self._validation_rules[name] = {}
+            self._validation_rules[name]['pattern'] = pattern
+        if validator is not None:
+            if name not in self._validation_rules:
+                self._validation_rules[name] = {}
+            self._validation_rules[name]['custom'] = validator
+
+        # Validate value using enhanced validation
+        self._validate_value(name, value, valid_values)
 
         # Handle nested Parameter objects in value
         if isinstance(value, list) and value and isinstance(value[0], Parameter):
@@ -157,7 +189,10 @@ class Parameter(dict):
             key: Dictionary key
             value: Dictionary value
         """
-        if key in self.valid_values:
+        # Use enhanced validation if available
+        if hasattr(self, '_validation_rules') and key in self._validation_rules:
+            self._validate_value(key, value, self.valid_values.get(key, type(value)))
+        elif key in self.valid_values:
             message = f"{value} (of type {type(value)}) is not valid for {key}"
             assert self.is_valid(value, self.valid_values[key]), message
 
@@ -273,7 +308,7 @@ class Parameter(dict):
     
     def get_value_in_units(self, target_units, key=None):
         """
-        Get parameter value converted to target units.
+        Get parameter value converted to target units (with caching).
         
         Args:
             target_units: Target units (string or pint unit)
@@ -287,14 +322,29 @@ class Parameter(dict):
             
         if key is None or not self.is_pint_quantity(key):
             return self[key]
+        
+        # Check cache first
+        cache_key = f"{key}_{target_units}"
+        if cache_key in self._conversion_cache:
+            return self._conversion_cache[cache_key]
             
         from src import ur
         
         # Convert string to pint unit if needed
         if isinstance(target_units, str):
             target_units = getattr(ur, target_units)
-            
-        return self[key].to(target_units)
+        
+        # Perform conversion
+        result = self[key].to(target_units)
+        
+        # Cache result
+        if len(self._conversion_cache) >= self._cache_max_size:
+            # Remove oldest entry (simple LRU)
+            oldest_key = next(iter(self._conversion_cache))
+            del self._conversion_cache[oldest_key]
+        
+        self._conversion_cache[cache_key] = result
+        return result
     
     def set_value_with_units(self, value, units=None, key=None):
         """
@@ -438,6 +488,189 @@ class Parameter(dict):
                 continue
                 
         return compatible_units
+
+    # Phase 3: Enhanced Validation and Caching Methods
+    
+    def _validate_value(self, key, value, valid_values):
+        """
+        Enhanced validation with multiple rule types.
+        
+        Args:
+            key: Parameter key
+            value: Value to validate
+            valid_values: Type or list of valid values
+            
+        Raises:
+            ValidationError: If validation fails
+        """
+        # Check cache first
+        cache_key = f"{key}_{value}_{type(value)}"
+        if cache_key in self._validation_cache:
+            if not self._validation_cache[cache_key]:
+                raise ValidationError(f"Value {value} failed cached validation for {key}")
+            return
+        
+        # Perform validation
+        is_valid = True
+        error_messages = []
+        
+        # Get validation rules for this key
+        rules = getattr(self, '_validation_rules', {}).get(key, {})
+        
+        # Range validation
+        if 'range' in rules:
+            range_rule = rules['range']
+            if range_rule.get('min') is not None and value < range_rule['min']:
+                is_valid = False
+                error_messages.append(f"Value {value} is below minimum {range_rule['min']}")
+            if range_rule.get('max') is not None and value > range_rule['max']:
+                is_valid = False
+                error_messages.append(f"Value {value} is above maximum {range_rule['max']}")
+        
+        # Pattern validation
+        if 'pattern' in rules and isinstance(value, str):
+            import re
+            if not re.match(rules['pattern'], value):
+                is_valid = False
+                error_messages.append(f"Value '{value}' does not match pattern '{rules['pattern']}'")
+        
+        # Custom validation
+        if 'custom' in rules:
+            validator = rules['custom']
+            if not validator(value):
+                is_valid = False
+                error_messages.append(f"Value {value} failed custom validation")
+        
+        # Existing type validation
+        if not self.is_valid(value, valid_values):
+            is_valid = False
+            error_messages.append(f"Value {value} (of type {type(value)}) is not valid for {key}")
+        
+        # Cache result
+        if len(self._validation_cache) >= self._cache_max_size:
+            # Remove oldest entry (simple LRU)
+            oldest_key = next(iter(self._validation_cache))
+            del self._validation_cache[oldest_key]
+        
+        self._validation_cache[cache_key] = is_valid
+        
+        # Raise error if validation failed
+        if not is_valid:
+            raise ValidationError(f"Validation failed for {key}: {'; '.join(error_messages)}")
+    
+    def clear_cache(self):
+        """Clear all caches."""
+        self._conversion_cache.clear()
+        self._validation_cache.clear()
+    
+    def get_cache_stats(self):
+        """Get cache statistics for monitoring."""
+        return {
+            'conversion_cache_size': len(self._conversion_cache),
+            'validation_cache_size': len(self._validation_cache),
+            'max_cache_size': self._cache_max_size
+        }
+    
+    def to_json(self):
+        """
+        Serialize Parameter to JSON with unit preservation.
+        
+        Returns:
+            dict: JSON-serializable dictionary with unit information
+        """
+        import json
+        
+        data = {}
+        
+        for key, value in self.items():
+            if isinstance(value, Parameter):
+                # Handle nested Parameter objects
+                data[key] = value.to_json()
+            elif self.is_pint_quantity(key):
+                data[key] = {
+                    'value': value.magnitude,
+                    'units': str(value.units),
+                    'pint_quantity': True
+                }
+            else:
+                data[key] = {
+                    'value': value,
+                    'units': self._units.get(key, ''),
+                    'pint_quantity': False
+                }
+        
+        # Add metadata
+        data['_metadata'] = {
+            'valid_values': self._valid_values,
+            'info': self._info,
+            'visible': self._visible,
+            'validation_rules': getattr(self, '_validation_rules', {})
+        }
+        
+        return data
+    
+    @classmethod
+    def from_json(cls, json_data):
+        """
+        Create Parameter from JSON with unit restoration.
+        
+        Args:
+            json_data: JSON data from to_json() method
+            
+        Returns:
+            Parameter: Restored Parameter object
+        """
+        from src import ur
+        
+        # Extract metadata
+        metadata = json_data.pop('_metadata', {})
+        valid_values = metadata.get('valid_values', {})
+        info = metadata.get('info', {})
+        visible = metadata.get('visible', {})
+        validation_rules = metadata.get('validation_rules', {})
+        
+        # Create parameter
+        param = cls({})
+        
+        for key, value_data in json_data.items():
+            if key == '_metadata':
+                continue  # Skip metadata, handled separately
+            elif isinstance(value_data, dict) and '_metadata' in value_data:
+                # This is a nested Parameter object
+                param[key] = Parameter.from_json(value_data)
+                continue
+            elif value_data.get('pint_quantity', False):
+                # Restore pint Quantity
+                magnitude = value_data['value']
+                units_str = value_data['units']
+                try:
+                    units = getattr(ur, units_str)
+                    value = magnitude * units
+                    param._pint_quantity[key] = True
+                except AttributeError:
+                    # Fallback to string units if pint unit not found
+                    value = magnitude
+                    param._units[key] = units_str
+                    param._pint_quantity[key] = False
+            else:
+                # Regular value
+                value = value_data['value']
+                param._pint_quantity[key] = False
+                # Restore string units if present
+                if 'units' in value_data and value_data['units']:
+                    param._units[key] = value_data['units']
+            
+            param[key] = value
+        
+        # Restore metadata
+        param._valid_values = valid_values
+        param._info = info
+        param._visible = visible
+        param._validation_rules = validation_rules
+        
+        return param
+    
+
 
 if __name__ == '__main__':
     # Parameter is working with units.
