@@ -66,6 +66,59 @@ cd pittqlabsys
    python src/app.py
    ```
 
+## 🔧 Cross-Platform Setup Notes
+
+### macOS Setup
+
+When setting up AQuISS on macOS, you may encounter the following issues and solutions:
+
+#### PostgreSQL Database Dependencies
+**Issue**: `pg_config executable not found` error when installing `psycopg2`
+**Solution**: The project uses `psycopg2-binary` instead of `psycopg2` to avoid compilation issues on macOS.
+
+#### Configuration File Paths
+**Issue**: Hardcoded Windows paths in configuration files
+**Solution**: Update `src/View/gui_config.json` to use macOS-compatible paths:
+```json
+{
+    "last_save_path": "/Users/your-username/Experiments/AQuISS_default_save_location/workspace_config.json"
+}
+```
+
+#### Missing Dependencies
+**Issue**: Missing packages like `h5py` and `sympy` not in requirements.txt
+**Solution**: Install additional dependencies:
+```bash
+pip install h5py sympy
+```
+
+#### Python Path Issues
+**Issue**: Module import errors when running `src/app.py`
+**Solution**: Set the PYTHONPATH environment variable:
+```bash
+PYTHONPATH=/path/to/pittqlabsys python src/app.py
+```
+
+### Windows Setup
+
+On Windows systems, the setup is typically more straightforward as most dependencies are pre-compiled. However, ensure you have:
+
+- Visual Studio Build Tools (if compiling from source)
+- Proper Python environment variables set
+- Git Bash or similar for command-line operations
+
+### Linux Setup
+
+For Linux systems, you may need to install system-level dependencies:
+
+```bash
+# Ubuntu/Debian
+sudo apt-get install python3-dev libpq-dev
+
+# CentOS/RHEL
+sudo yum install python3-devel postgresql-devel
+```
+
 ## 📋 Supported Hardware
 
 AQuISS includes drivers for the following instruments:

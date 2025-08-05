@@ -100,15 +100,19 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         super().__init__(*args, **kwargs)
 
         # 1) Resolve your application folders from config_file:
-        cfg_path = Path(config_file)
+        if config_file is None:
+            # default to config.json next to your project root
+            cfg_path = Path(__file__).parent.parent / "config.json"
+        else:
+            cfg_path = Path(config_file)
         self.paths = resolve_paths(cfg_path)
         # now self.paths["data_folder"], self.paths["experiments_folder"], etc.
 
         # 2) Load any other globals you need:
         self.global_cfg = load_config(cfg_path)
 
-        if gui_config_path:
-            gui_cfg_file = Path(gui_config_path)
+        if gui_config_file:
+            gui_cfg_file = Path(gui_config_file)
         else:
             # default to gui_config.json next to your project root
             gui_cfg_file = Path(__file__).parent.parent / "gui_config.json"
@@ -118,6 +122,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.config_filepath = gui_cfg_file
         self.gui_settings = gui_cfg.get("gui_settings", {})
         self.gui_settings_hidden = gui_cfg.get("experiments_hidden_parameters", {})
+        
+        # Initialize history before any log calls
+        self.history = deque(maxlen=500)  # history of executed commands
+        self.history_model = None  # Will be initialized in setup_trees()
+        
         # 4) Log what we loaded
         if gui_cfg:
             self.log(f"Loaded GUI configuration from {gui_cfg_file}")
@@ -133,6 +142,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             f"Experiments folder: {self.paths['experiments_folder']}\n"
             f"Workspace config:   {self.gui_settings or '<none>'}\n"
         )
+        
         self.log(self.startup_msg)
         print(self.startup_msg)
         #self.config_filepath = None
@@ -143,7 +153,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             # COMMENT_ME
 
             # define data container
-            self.history = deque(maxlen=500)  # history of executed commands
+            # self.history already initialized above
             self.history_model = QtGui.QStandardItemModel(self.list_history)
             self.list_history.setModel(self.history_model)
             self.list_history.show()
@@ -505,7 +515,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         msg = "{:s}\t {:s}".format(time, msg)
 
         self.history.append(msg)
-        self.history_model.insertRow(0, QtGui.QStandardItem(msg))
+        if self.history_model is not None:
+            self.history_model.insertRow(0, QtGui.QStandardItem(msg))
 
     def create_figures(self):
 
