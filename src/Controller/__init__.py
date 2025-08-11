@@ -3,6 +3,9 @@ Controller module for hardware device management.
 
 This module provides access to hardware devices and mock implementations
 for cross-platform compatibility.
+
+Arduino firmware files (.ino) are located in the arduino/ subdirectory.
+See src/Controller/arduino/ for firmware used by hardware devices.
 """
 
 import sys
@@ -622,6 +625,188 @@ class MockAdwinGoldDevice(Device):
     def is_connected(self):
         return True
 
+
+class MockMUXControlDevice(Device):
+    """Mock MUX Control Device for testing."""
+    
+    _DEFAULT_SETTINGS = Parameter([
+        Parameter('port', 'COM3', str, 'Serial port for Arduino connection'),
+        Parameter('baudrate', 9600, int, 'Serial baudrate'),
+        Parameter('timeout', 5000, int, 'Serial timeout in milliseconds'),
+        Parameter('auto_connect', True, bool, 'Automatically connect on initialization'),
+    ])
+    
+    _PROBES = {
+        'status': 'Current MUX selection status',
+        'port': 'Current serial port',
+        'connected': 'Connection status to Arduino',
+    }
+    
+    def __init__(self, name=None, settings=None):
+        super().__init__(name=name, settings=settings)
+        self._current_selection = None
+        self._is_connected = True
+        print(f"Mock MUX Control Device: Initialized on {self.settings.get('port', 'COM3')}")
+    
+    def connect(self):
+        """Mock connection."""
+        self._is_connected = True
+        print(f"Mock MUX Control Device: Connected to {self.settings.get('port', 'COM3')}")
+        return True
+    
+    def disconnect(self):
+        """Mock disconnection."""
+        self._is_connected = False
+        self._current_selection = None
+        print("Mock MUX Control Device: Disconnected")
+    
+    def select_trigger(self, selector):
+        """Mock trigger selection."""
+        if selector in ['confocal', 'cwesr', 'pulsed']:
+            self._current_selection = selector
+            print(f"Mock MUX Control Device: Selected {selector} trigger")
+            return True
+        else:
+            print(f"Mock MUX Control Device: Invalid selector '{selector}'")
+            return False
+    
+    def get_current_selection(self):
+        """Get current selection."""
+        return self._current_selection
+    
+    def get_hardware_mapping(self):
+        """Get hardware mapping information."""
+        return {
+            'multiplexer': '74HC4051 8-Channel',
+            'arduino_pins': {
+                'S0': 2,  # Select line 0
+                'S1': 3,  # Select line 1  
+                'S2': 4,  # Select line 2
+                'Z': 5    # Common I/O line
+            },
+            'channel_mapping': {
+                'confocal': {
+                    'command': '1',
+                    'channel': 'Y0',
+                    'pins': {'S0': 0, 'S1': 0, 'S2': 0}
+                },
+                'cwesr': {
+                    'command': '2', 
+                    'channel': 'Y1',
+                    'pins': {'S0': 1, 'S1': 0, 'S2': 0}
+                },
+                'pulsed': {
+                    'command': '3',
+                    'channel': 'Y2', 
+                    'pins': {'S0': 0, 'S1': 1, 'S2': 0}
+                }
+            },
+            'baudrate': self.settings.get('baudrate', 9600),
+            'port': self.settings.get('port', 'COM3')
+        }
+    
+    def get_arduino_info(self):
+        """Get Arduino firmware information."""
+        return {
+            'firmware': {
+                'name': 'MUX_control',
+                'author': 'Vincent Musso, Duttlab',
+                'date': 'March 25, 2019',
+                'modified': 'December 12, 2019 by Gurudev',
+                'description': '74HC4051 8-Channel Multiplexer Controller'
+            },
+            'hardware': {
+                'multiplexer': '74HC4051 8-Channel',
+                'arduino_pins': {
+                    'S0': 2,  # Select line 0
+                    'S1': 3,  # Select line 1
+                    'S2': 4,  # Select line 2
+                    'Z': 5    # Common I/O line
+                },
+                'jumpers': {
+                    'JP1': 'VEE to GND (closed)'
+                }
+            },
+            'commands': {
+                '1': 'Select confocal trigger (Y0)',
+                '2': 'Select CW-ESR trigger (Y1)',
+                '3': 'Select pulsed ESR trigger (Y2)'
+            },
+            'responses': {
+                'success': 'Input is in range',
+                'failure': 'Input out of range',
+                'initialization': 'Initialized...Enter 1 for Confocal, 2 for CW, or 3 for Pulsed.'
+            }
+        }
+    
+    def test_connection(self):
+        """Test connection to Arduino."""
+        if not self._is_connected:
+            return {
+                'connected': False,
+                'error': 'Device not connected',
+                'arduino_message': None
+            }
+        
+        return {
+            'connected': True,
+            'arduino_message': "Initialized...Enter 1 for Confocal, 2 for CW, or 3 for Pulsed.",
+            'port': self.settings.get('port', 'COM3'),
+            'baudrate': self.settings.get('baudrate', 9600),
+            'current_selection': self._current_selection
+        }
+    
+    def read_probes(self, key=None):
+        """Read device probes."""
+        if key is None:
+            return {
+                'status': self._current_selection,
+                'port': self.settings.get('port', 'COM3'),
+                'connected': self._is_connected
+            }
+        elif key == 'status':
+            return self._current_selection
+        elif key == 'port':
+            return self.settings.get('port', 'COM3')
+        elif key == 'connected':
+            return self._is_connected
+        else:
+            raise KeyError(f"Unknown probe: {key}")
+    
+    def update(self, settings):
+        """Update device settings."""
+        super().update(settings)
+        print(f"Mock MUX Control Device: Updated settings")
+    
+    def cleanup(self):
+        """Clean up device resources."""
+        self.disconnect()
+    
+    def __del__(self):
+        """Destructor."""
+        self.cleanup()
+
+
+# Legacy compatibility
+class MockMUXControl(MockMUXControlDevice):
+    """Legacy mock MUXControl class for backward compatibility."""
+    
+    def __init__(self, port='COM3'):
+        settings = {'port': port, 'auto_connect': True}
+        super().__init__(settings=settings)
+    
+    def run(self, selector):
+        """Legacy run method."""
+        if self.select_trigger(selector):
+            return 0
+        else:
+            return -1
+    
+    def close(self):
+        """Legacy close method."""
+        self.disconnect()
+
+
 # Platform-specific device assignments
 if sys.platform.startswith('win'):
     try:
@@ -644,6 +829,12 @@ if sys.platform.startswith('win'):
         from .sg384 import SG384Generator
     except ImportError:
         SG384Generator = MockSG384Generator
+    
+    try:
+        from .mux_control import MUXControlDevice, MUXControl
+    except ImportError:
+        MUXControlDevice = MockMUXControlDevice
+        MUXControl = MockMUXControl
 else:
     PXI6733 = MockNI6229
     NI6281 = MockNI6229
@@ -653,6 +844,8 @@ else:
     MCLNanoDrive = MockMCLNanoDrive
     AdwinGoldDevice = MockAdwinGoldDevice
     SG384Generator = MockSG384Generator
+    MUXControlDevice = MockMUXControlDevice
+    MUXControl = MockMUXControl
 
 _DEVICE_REGISTRY = {
     "awg520": AWG520Device, 
@@ -664,6 +857,8 @@ _DEVICE_REGISTRY = {
     "example_device": ExampleDevice,
     "plant": Plant,
     "pi_controller": PIController,
+    "mux_control": MUXControlDevice,
+    "mux": MUXControl,  # Legacy alias
 }
 
 _DEVICE_REGISTRY.update({
@@ -685,6 +880,7 @@ __all__ = [
     'MCLNanoDrive', 'AdwinGoldDevice',
     'AWG520Device', 'SG384Generator', 'WindfreakSynthUSBII',
     'PulseBlaster', 'ExampleDevice', 'Plant', 'PIController',
+    'MUXControlDevice', 'MUXControl',
     'create_device',
-    'MockNI6229', 'MockPCI6601', 'MockMCLNanoDrive', 'MockAdwinGoldDevice', 'MockSG384Generator'
+    'MockNI6229', 'MockPCI6601', 'MockMCLNanoDrive', 'MockAdwinGoldDevice', 'MockSG384Generator', 'MockMUXControlDevice'
 ]
