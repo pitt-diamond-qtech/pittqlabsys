@@ -385,6 +385,28 @@ class ODMRExperiment(Experiment):
         
         if self.settings['analysis']['auto_fit']:
             self._fit_resonances()
+        
+        # Store results in standard data dictionary for compatibility
+        self._store_results_in_data()
+    
+    def _store_results_in_data(self):
+        """Store experiment results in the standard data dictionary."""
+        if hasattr(self, 'fluorescence_data') and self.fluorescence_data is not None:
+            # Store the main ODMR spectrum
+            self.data['odmr_spectrum'] = self.fluorescence_data
+            
+            # Store frequency array
+            if hasattr(self, 'frequencies'):
+                self.data['frequencies'] = self.frequencies
+            
+            # Store fit parameters if available
+            if hasattr(self, 'fit_parameters') and self.fit_parameters is not None:
+                self.data['fit_parameters'] = self.fit_parameters
+            
+            # Store 2D scan data if available
+            if self.settings['scan_mode'] == '2d_scan' and hasattr(self, 'fluorescence_data'):
+                if len(self.fluorescence_data.shape) == 3:  # 2D scan with frequency dimension
+                    self.data['2d_scan_data'] = self.fluorescence_data
     
     def _smooth_data(self):
         """Apply smoothing to the data."""

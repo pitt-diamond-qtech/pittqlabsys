@@ -166,29 +166,83 @@ def run_galvo_scan(use_real_hardware=False, save_data=True):
 
 
 def save_scan_data(results, scan_type):
-    """Save scan data to file."""
+    """Save scan data to file in both NPZ and CSV formats."""
     try:
         # Create output directory
-        output_dir = Path("scan_data")
+        output_dir = Path(__file__).parent / "scan_data"
         output_dir.mkdir(exist_ok=True)
         
-        # Generate filename with timestamp
+        # Generate timestamp
         timestamp = time.strftime("%Y%m%d_%H%M%S")
-        filename = output_dir / f"{scan_type}_{timestamp}.npz"
         
-        # Save data
+        # Save NPZ format (original)
+        npz_filename = output_dir / f"{scan_type}_{timestamp}.npz"
         np.savez_compressed(
-            filename,
+            npz_filename,
             data=results['data'],
             settings=results['settings'],
             scan_time=results['scan_time'],
             hardware_type=results['hardware_type']
         )
+        print(f"📁 NPZ data saved to: {npz_filename}")
         
-        print(f"📁 Scan data saved to: {filename}")
+        # Save CSV format for easy analysis
+        csv_filename = output_dir / f"{scan_type}_{timestamp}.csv"
+        
+        # Extract image data
+        if 'image_data' in results['data']:
+            image_data = results['data']['image_data']
+            
+            # Create coordinate arrays
+            x_coords = np.linspace(
+                results['settings']['point_a']['x'], 
+                results['settings']['point_b']['x'], 
+                image_data.shape[1]
+            )
+            y_coords = np.linspace(
+                results['settings']['point_a']['y'], 
+                results['settings']['point_b']['y'], 
+                image_data.shape[0]
+            )
+            
+            # Create CSV with coordinates and counts
+            csv_data = []
+            for i, y in enumerate(y_coords):
+                for j, x in enumerate(x_coords):
+                    csv_data.append([x, y, image_data[i, j]])
+            
+            # Save as CSV
+            import pandas as pd
+            df = pd.DataFrame(csv_data, columns=['X_Position', 'Y_Position', 'Counts'])
+            df.to_csv(csv_filename, index=False)
+            print(f"📊 CSV data saved to: {csv_filename}")
+            
+            # Also save summary statistics
+            summary_filename = output_dir / f"{scan_type}_{timestamp}_summary.csv"
+            summary_data = {
+                'Scan_Type': [scan_type],
+                'Hardware_Type': [results['hardware_type']],
+                'Scan_Time_Seconds': [results['scan_time']],
+                'X_Start': [results['settings']['point_a']['x']],
+                'X_End': [results['settings']['point_b']['x']],
+                'Y_Start': [results['settings']['point_a']['y']],
+                'Y_End': [results['settings']['point_b']['y']],
+                'X_Points': [results['settings']['num_points']['x']],
+                'Y_Points': [results['settings']['num_points']['y']],
+                'Time_Per_Point_ms': [results['settings']['time_per_pt'] * 1000],
+                'Total_Counts': [np.sum(image_data)],
+                'Mean_Counts': [np.mean(image_data)],
+                'Max_Counts': [np.max(image_data)],
+                'Min_Counts': [np.min(image_data)]
+            }
+            summary_df = pd.DataFrame(summary_data)
+            summary_df.to_csv(summary_filename, index=False)
+            print(f"📋 Summary saved to: {summary_filename}")
         
     except Exception as e:
         print(f"⚠️  Failed to save data: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 def plot_results(results):
@@ -208,7 +262,7 @@ def plot_results(results):
             plt.ylabel('Y Position')
             
             # Save plot
-            output_dir = Path("scan_data")
+            output_dir = Path(__file__).parent / "scan_data"
             output_dir.mkdir(exist_ok=True)
             timestamp = time.strftime("%Y%m%d_%H%M%S")
             plot_filename = output_dir / f"galvo_scan_plot_{timestamp}.png"

@@ -193,30 +193,89 @@ def run_odmr_scan(use_real_hardware=False, save_data=True, scan_mode='single'):
 
 
 def save_scan_data(results, scan_type):
-    """Save scan data to file in examples/scan_data directory."""
+    """Save scan data to file in both NPZ and CSV formats."""
     try:
         # Create output directory
         output_dir = Path(__file__).parent / "scan_data"
         output_dir.mkdir(exist_ok=True)
         
-        # Generate filename with timestamp
+        # Generate timestamp
         timestamp = time.strftime("%Y%m%d_%H%M%S")
-        filename = output_dir / f"{scan_type}_{timestamp}.npz"
         
-        # Save data
+        # Save NPZ format (original)
+        npz_filename = output_dir / f"{scan_type}_{timestamp}.npz"
         np.savez_compressed(
-            filename,
+            npz_filename,
             data=results['data'],
             settings=results['settings'],
             scan_time=results['scan_time'],
             hardware_type=results['hardware_type'],
             scan_mode=results['scan_mode']
         )
+        print(f"📁 NPZ data saved to: {npz_filename}")
         
-        print(f"📁 Scan data saved to: {filename}")
+        # Save CSV format for easy analysis
+        csv_filename = output_dir / f"{scan_type}_{timestamp}.csv"
+        
+        # Debug: print available data keys
+        print(f"🔍 Available data keys: {list(results['data'].keys()) if results['data'] else 'No data'}")
+        if results['data']:
+            print(f"🔍 Data types: {[(k, type(v)) for k, v in results['data'].items()]}")
+        
+        # Extract ODMR spectrum data
+        if 'odmr_spectrum' in results['data']:
+            spectrum = results['data']['odmr_spectrum']
+            frequencies = results['data'].get('frequencies', np.arange(len(spectrum)))
+            
+            # Create CSV with frequency and counts
+            csv_data = []
+            for i, freq in enumerate(frequencies):
+                csv_data.append([freq, spectrum[i]])
+            
+            # Save as CSV
+            import pandas as pd
+            df = pd.DataFrame(csv_data, columns=['Frequency_Hz', 'Counts'])
+            df.to_csv(csv_filename, index=False)
+            print(f"📊 CSV data saved to: {csv_filename}")
+            
+            # Save summary statistics
+            summary_filename = output_dir / f"{scan_type}_{timestamp}_summary.csv"
+            summary_data = {
+                'Scan_Type': [scan_type],
+                'Scan_Mode': [results['scan_mode']],
+                'Hardware_Type': [results['hardware_type']],
+                'Scan_Time_Seconds': [results['scan_time']],
+                'Frequency_Start_Hz': [frequencies[0] if len(frequencies) > 0 else 0],
+                'Frequency_End_Hz': [frequencies[-1] if len(frequencies) > 0 else 0],
+                'Frequency_Points': [len(frequencies)],
+                'Total_Counts': [np.sum(spectrum)],
+                'Mean_Counts': [np.mean(spectrum)],
+                'Max_Counts': [np.max(spectrum)],
+                'Min_Counts': [np.min(spectrum)]
+            }
+            summary_df = pd.DataFrame(summary_data)
+            summary_df.to_csv(summary_filename, index=False)
+            print(f"📋 Summary saved to: {summary_filename}")
+            
+            # Save 2D scan data if available
+            if '2d_scan_data' in results['data'] and results['scan_mode'] == '2d_scan':
+                scan_data = results['data']['2d_scan_data']
+                
+                # Create 2D CSV with coordinates and counts
+                csv_2d_filename = output_dir / f"{scan_type}_2d_{timestamp}.csv"
+                csv_2d_data = []
+                for i in range(scan_data.shape[0]):
+                    for j in range(scan_data.shape[1]):
+                        csv_2d_data.append([i, j, scan_data[i, j]])
+                
+                df_2d = pd.DataFrame(csv_2d_data, columns=['X_Position', 'Y_Position', 'Counts'])
+                df_2d.to_csv(csv_2d_filename, index=False)
+                print(f"📊 2D CSV data saved to: {csv_2d_filename}")
         
     except Exception as e:
         print(f"⚠️  Failed to save data: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 def plot_results(results):

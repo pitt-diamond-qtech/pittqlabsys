@@ -143,9 +143,17 @@ def run_confocal_scan(use_real_hardware=False, save_data=True, show_plot=True):
                 data_path = experiment.data_path
                 print(f"📁 Data saved to: {data_path}")
                 
-            if show_plot and not args.no_plot:
-                # Show the results
-                experiment.show_results()
+                # Debug: print experiment data structure
+                print(f"🔍 Experiment data keys: {list(experiment.data.keys()) if hasattr(experiment, 'data') and experiment.data else 'No data'}")
+                if hasattr(experiment, 'data') and experiment.data:
+                    print(f"🔍 Data types: {[(k, type(v)) for k, v in experiment.data.items()]}")
+                
+                # Also save our own CSV format for easy analysis
+                save_confocal_csv_data(experiment, scan_settings, use_real_hardware)
+                
+            if show_plot:
+                # Generate our own plot for inspection
+                generate_confocal_plot(experiment, scan_settings, use_real_hardware)
             
             # Return the experiment results
             return {
@@ -165,6 +173,151 @@ def run_confocal_scan(use_real_hardware=False, save_data=True, show_plot=True):
         print(f"❌ Failed to create ConfocalScan_Fast experiment: {e}")
         print("This usually means required hardware devices are not available on this platform.")
         return None
+
+
+def save_confocal_csv_data(experiment, scan_settings, use_real_hardware):
+    """Save confocal scan data in CSV format for easy analysis."""
+    try:
+        # Create output directory
+        output_dir = Path(__file__).parent / "scan_data"
+        output_dir.mkdir(exist_ok=True)
+        
+        # Generate timestamp
+        timestamp = time.strftime("%Y%m%d_%H%M%S")
+        
+        # Get experiment data
+        if hasattr(experiment, 'data') and experiment.data:
+            # Extract image data if available - try count_img first, then raw_img
+            image_data = None
+            if 'count_img' in experiment.data:
+                image_data = experiment.data['count_img']
+                print(f"📊 Using count_img data with shape: {image_data.shape}")
+            elif 'raw_img' in experiment.data:
+                image_data = experiment.data['raw_img']
+                print(f"📊 Using raw_img data with shape: {image_data.shape}")
+            
+            if image_data is not None:
+                
+                # Create coordinate arrays
+                x_coords = np.linspace(
+                    scan_settings['point_a']['x'], 
+                    scan_settings['point_b']['x'], 
+                    image_data.shape[1]
+                )
+                y_coords = np.linspace(
+                    scan_settings['point_a']['y'], 
+                    scan_settings['point_b']['y'], 
+                    image_data.shape[0]
+                )
+                
+                # Create CSV with coordinates and counts
+                csv_data = []
+                for i, y in enumerate(y_coords):
+                    for j, x in enumerate(x_coords):
+                        csv_data.append([x, y, image_data[i, j]])
+                
+                # Save as CSV
+                import pandas as pd
+                csv_filename = output_dir / f"confocal_scan_{timestamp}.csv"
+                df = pd.DataFrame(csv_data, columns=['X_Position_um', 'Y_Position_um', 'Counts'])
+                df.to_csv(csv_filename, index=False)
+                print(f"📊 CSV data saved to: {csv_filename}")
+                
+                # Save summary statistics
+                summary_filename = output_dir / f"confocal_scan_{timestamp}_summary.csv"
+                summary_data = {
+                    'Scan_Type': ['confocal_scan'],
+                    'Hardware_Type': ['real' if use_real_hardware else 'mock'],
+                    'X_Start_um': [scan_settings['point_a']['x']],
+                    'X_End_um': [scan_settings['point_b']['x']],
+                    'Y_Start_um': [scan_settings['point_a']['y']],
+                    'Y_End_um': [scan_settings['point_b']['y']],
+                    'Z_Position_um': [scan_settings['z_pos']],
+                    'Resolution_um': [scan_settings['resolution']],
+                    'Time_Per_Point_ms': [scan_settings['time_per_pt']],
+                    'Total_Counts': [np.sum(image_data)],
+                    'Mean_Counts': [np.mean(image_data)],
+                    'Max_Counts': [np.max(image_data)],
+                    'Min_Counts': [np.min(image_data)]
+                }
+                summary_df = pd.DataFrame(summary_data)
+                summary_df.to_csv(summary_filename, index=False)
+                print(f"📋 Summary saved to: {summary_filename}")
+            else:
+                print("⚠️  No image data found in experiment results")
+                
+    except Exception as e:
+        print(f"⚠️  Failed to save CSV data: {e}")
+
+
+def generate_confocal_plot(experiment, scan_settings, use_real_hardware):
+    """Generate a PNG plot of the confocal scan results."""
+    try:
+        import matplotlib.pyplot as plt
+        
+        if hasattr(experiment, 'data') and experiment.data:
+            # Try to get image data from available keys
+            image_data = None
+            if 'count_img' in experiment.data:
+                image_data = experiment.data['count_img']
+            elif 'raw_img' in experiment.data:
+                image_data = experiment.data['raw_img']
+            
+            if image_data is not None:
+            
+                plt.figure(figsize=(12, 8))
+                
+                # Main image plot
+                plt.subplot(2, 2, 1)
+                plt.imshow(image_data, cmap='hot', origin='lower')
+                plt.colorbar(label='Counts')
+                plt.title(f'Confocal Scan Results ({("real" if use_real_hardware else "mock")} hardware)')
+                plt.xlabel('X Position (μm)')
+                plt.ylabel('Y Position (μm)')
+                
+                # Line profiles
+                plt.subplot(2, 2, 2)
+                center_y = image_data.shape[0] // 2
+                plt.plot(image_data[center_y, :], 'b-', linewidth=2, label=f'Y = {center_y}')
+                plt.xlabel('X Position')
+                plt.ylabel('Counts')
+                plt.title('X Line Profile')
+                plt.grid(True, alpha=0.3)
+                
+                plt.subplot(2, 2, 3)
+                center_x = image_data.shape[1] // 2
+                plt.plot(image_data[:, center_x], 'r-', linewidth=2, label=f'X = {center_x}')
+                plt.xlabel('Y Position')
+                plt.ylabel('Counts')
+                plt.title('Y Line Profile')
+                plt.grid(True, alpha=0.3)
+                
+                # Histogram
+                plt.subplot(2, 2, 4)
+                plt.hist(image_data.flatten(), bins=50, alpha=0.7, color='green')
+                plt.xlabel('Counts')
+                plt.ylabel('Frequency')
+                plt.title('Count Distribution')
+                plt.grid(True, alpha=0.3)
+                
+                plt.tight_layout()
+            
+                # Save plot
+                output_dir = Path(__file__).parent / "scan_data"
+                output_dir.mkdir(exist_ok=True)
+                timestamp = time.strftime("%Y%m%d_%H%M%S")
+                plot_filename = output_dir / f"confocal_scan_plot_{timestamp}.png"
+                plt.savefig(plot_filename, dpi=150, bbox_inches='tight')
+                print(f"📊 Plot saved to: {plot_filename}")
+                
+                plt.show()
+            else:
+                print("⚠️  No image data found for plotting")
+            
+    except ImportError:
+        print("⚠️  matplotlib not available, skipping plot generation")
+    except Exception as e:
+        print(f"⚠️  Failed to generate plot: {e}")
 
 
 def main():
