@@ -41,16 +41,80 @@ pytest tests/test_sg384.py -v
 
 ### 2. Run Hardware Tests (SG384 Device Required)
 
+**On macOS/Linux:**
 ```bash
-# Run enhanced hardware tests
-pytest tests/test_sg384_enhanced.py -m hardware -v
+# Set environment variable and run enhanced hardware tests
+export RUN_HARDWARE_TESTS=1
+python -m pytest tests/test_sg384_enhanced.py -v
 
 # Run existing hardware tests
-pytest tests/test_sg384_hardware.py -m hardware -v
+export RUN_HARDWARE_TESTS=1
+python -m pytest tests/test_sg384_hardware.py -v
 
 # Run all hardware tests
-pytest -m hardware -v
+export RUN_HARDWARE_TESTS=1
+python -m pytest -m hardware -v
 ```
+
+**On Windows Command Prompt:**
+```cmd
+# Set environment variable and run enhanced hardware tests
+set RUN_HARDWARE_TESTS=1
+python -m pytest tests/test_sg384_enhanced.py -v
+
+# Run existing hardware tests
+set RUN_HARDWARE_TESTS=1
+python -m pytest tests/test_sg384_hardware.py -v
+
+# Run all hardware tests
+set RUN_HARDWARE_TESTS=1
+python -m pytest -m hardware -v
+```
+
+**On Windows PowerShell:**
+```powershell
+# Set environment variable and run enhanced hardware tests
+$env:RUN_HARDWARE_TESTS=1
+python -m pytest tests/test_sg384_enhanced.py -v
+
+# Run existing hardware tests
+$env:RUN_HARDWARE_TESTS=1
+python -m pytest tests/test_sg384_hardware.py -v
+
+# Run all hardware tests
+$env:RUN_HARDWARE_TESTS=1
+python -m pytest -m hardware -v
+```
+
+**Note:** The environment variable only affects the current terminal session. Hardware tests are skipped by default to prevent timeouts when no hardware is connected.
+
+## Hardware Test Configuration
+
+### Environment Variable System
+
+The test suite uses an environment variable `RUN_HARDWARE_TESTS` to control whether hardware tests are executed:
+
+- **Default behavior**: Hardware tests are automatically skipped to prevent timeouts
+- **With hardware**: Set `RUN_HARDWARE_TESTS=1` to enable hardware tests
+- **Cross-platform**: Works on macOS, Linux, and Windows
+
+### Why This System?
+
+- **Prevents timeouts**: No more waiting for hardware that isn't connected
+- **Faster development**: Unit tests run quickly without hardware dependencies
+- **Flexible testing**: Easy to switch between unit tests and hardware tests
+- **CI/CD friendly**: Automated builds can run unit tests without hardware
+
+### Quick Reference Card
+
+| Platform | Command | Description |
+|----------|---------|-------------|
+| **macOS/Linux** | `export RUN_HARDWARE_TESTS=1` | Enable hardware tests |
+| **Windows CMD** | `set RUN_HARDWARE_TESTS=1` | Enable hardware tests |
+| **Windows PowerShell** | `$env:RUN_HARDWARE_TESTS=1` | Enable hardware tests |
+| **All platforms** | `unset RUN_HARDWARE_TESTS` | Disable hardware tests (macOS/Linux) |
+| **Windows CMD** | `set RUN_HARDWARE_TESTS=` | Disable hardware tests |
+| **Windows PowerShell** | `Remove-Item Env:RUN_HARDWARE_TESTS` | Disable hardware tests |
 
 ### 3. Run Example Script (SG384 Device Required)
 

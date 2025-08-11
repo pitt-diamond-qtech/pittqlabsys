@@ -133,15 +133,17 @@ class Device:
         Returns: value of input channel
         """
 
-        if not str(name) in ['_initialized', '_settings']:
+        # Only intercept probe-related attributes, not normal attributes
+        if hasattr(self, '_PROBES') and name in self._PROBES:
             try:
-                xx = self.read_probes(name)
-                return xx
-                # return self.read_probes(name)
+                return self.read_probes(name)
             except:
-                # restores standard behavior for missing keys
-                print(('class ' + type(self).__name__ + ' has no attribute ' + str(name)))
-                raise AttributeError('class ' + type(self).__name__ + ' has no attribute ' + str(name))
+                # If probe reading fails, still raise AttributeError
+                raise AttributeError(f'class {type(self).__name__} has no attribute {str(name)}')
+        
+        # For non-probe attributes, raise AttributeError normally
+        # This allows normal attribute access to work without interference
+        raise AttributeError(f'class {type(self).__name__} has no attribute {str(name)}')
 
     def __setattr__(self, key, value):
         """
@@ -152,8 +154,13 @@ class Device:
                 # fall back to regular behaviour of the parent class
                 object.__setattr__(self, key, value)
             else:
-                # call internal update function that updates the device and keeps track of the settings
-                self.update({key: value})
+                # Check if this is a settings parameter or an internal attribute
+                if hasattr(self, '_settings') and key in self._settings:
+                    # This is a settings parameter, update it
+                    self.update({key: value})
+                else:
+                    # This is an internal attribute, set it directly
+                    object.__setattr__(self, key, value)
         except (AttributeError, KeyError):
             object.__setattr__(self, key, value)
 

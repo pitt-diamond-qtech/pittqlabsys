@@ -14,3 +14,21 @@
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 import matplotlib
 matplotlib.use("Agg")  # non-interactive, no window pops up
+import pytest
+
+# Pytest configuration for hardware tests
+def pytest_configure(config):
+    """Configure pytest to handle hardware tests."""
+    config.addinivalue_line(
+        "markers", "hardware: marks tests as requiring hardware (deselect with '-m \"not hardware\"')"
+    )
+
+def pytest_collection_modifyitems(config, items):
+    """Automatically skip hardware tests if no hardware is available."""
+    # You can set this environment variable to force hardware tests
+    import os
+    if not os.getenv('RUN_HARDWARE_TESTS'):
+        skip_hardware = pytest.mark.skip(reason="Hardware tests disabled by default. Set RUN_HARDWARE_TESTS=1 to enable.")
+        for item in items:
+            if "hardware" in item.keywords:
+                item.add_marker(skip_hardware)

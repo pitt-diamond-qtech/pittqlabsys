@@ -14,6 +14,7 @@
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 import socket
+import time
 import numpy as np
 import logging
 from ftplib import FTP
@@ -157,6 +158,460 @@ class AWG520Driver:
 
     def jump(self, line: int):
         return self.send_command(f'AWGC:EVEN:SOFT {line}')
+
+    # --- Marker control for laser applications ---
+    def set_ch1_marker2_laser_on(self):
+        """
+        Turn on CH1 Marker 2 for laser control by setting low level to 5V.
+        This effectively enables the laser by setting the marker to a high voltage level.
+        """
+        self.logger.info("Turning on CH1 Marker 2 (laser control)")
+        # Set low level to 2V to turn on the laser
+        result1 = self.send_command('SOUR1:MARK2:VOLT:LOW 2.0')
+        time.sleep(0.05)
+        # Set high level to 2V as well to ensure consistent output
+        result2 = self.send_command('SOUR1:MARK2:VOLT:HIGH 2.0')
+        time.sleep(0.05)
+        return result1 and result2
+
+    def set_ch1_marker2_laser_off(self):
+        """
+        Turn off CH1 Marker 2 for laser control by setting low level to 0V.
+        This effectively disables the laser by setting the marker to a low voltage level.
+        """
+        self.logger.info("Turning off CH1 Marker 2 (laser control)")
+        # Set low level to 0V to turn off the laser
+        result1 = self.send_command('SOUR1:MARK2:VOLT:LOW 0.0')
+        time.sleep(0.05)
+        # Set high level to 0V as well to ensure consistent output
+        result2 = self.send_command('SOUR1:MARK2:VOLT:HIGH 0.0')
+        time.sleep(0.05)
+        return result1 and result2
+
+    def set_ch1_marker2_voltage(self, low_voltage: float, high_voltage: float = None):
+        """
+        Set CH1 Marker 2 voltage levels for custom laser control.
+        
+        Args:
+            low_voltage: Low voltage level in volts
+            high_voltage: High voltage level in volts (defaults to low_voltage if None)
+        """
+        if high_voltage is None:
+            high_voltage = low_voltage
+        
+        self.logger.info(f"Setting CH1 Marker 2 voltage: LOW={low_voltage}V, HIGH={high_voltage}V")
+        
+        # Set low level
+        result1 = self.send_command(f'SOUR1:MARK2:VOLT:LOW {low_voltage}')
+        time.sleep(0.05)
+        # Set high level
+        result2 = self.send_command(f'SOUR1:MARK2:VOLT:HIGH {high_voltage}')
+        time.sleep(0.05)
+        
+        return result1 and result2
+
+    def get_ch1_marker2_voltage(self):
+        """
+        Get current CH1 Marker 2 voltage levels.
+        
+        Returns:
+            tuple: (low_voltage, high_voltage) in volts
+        """
+        try:
+            low_v = self.send_command('SOUR1:MARK2:VOLT:LOW?', query=True)
+            time.sleep(0.05)
+            high_v = self.send_command('SOUR1:MARK2:VOLT:HIGH?', query=True)
+            time.sleep(0.05)
+            
+            if low_v is not None and high_v is not None:
+                return (float(low_v), float(high_v))
+            else:
+                return (None, None)
+        except Exception as e:
+            self.logger.error(f"Failed to get CH1 Marker 2 voltage: {e}")
+            return (None, None)
+
+    def is_ch1_marker2_laser_on(self):
+        """
+        Check if CH1 Marker 2 laser control is currently on.
+        
+        Returns:
+            bool: True if laser is on (voltage > 2.0V), False otherwise
+        """
+        try:
+            low_v, high_v = self.get_ch1_marker2_voltage()
+            if low_v is not None and high_v is not None:
+                # Consider laser "on" if voltage is above 2.0V (typical threshold)
+                return low_v > 2.0 or high_v > 2.0
+            return False
+        except Exception as e:
+            self.logger.error(f"Failed to check CH1 Marker 2 laser status: {e}")
+            return False
+
+    # --- Additional marker control functions for flexibility ---
+    def set_ch1_marker1_voltage(self, low_voltage: float, high_voltage: float = None):
+        """
+        Set CH1 Marker 1 voltage levels.
+        
+        Args:
+            low_voltage: Low voltage level in volts
+            high_voltage: High voltage level in volts (defaults to low_voltage if None)
+        """
+        if high_voltage is None:
+            high_voltage = low_voltage
+        
+        self.logger.info(f"Setting CH1 Marker 1 voltage: LOW={low_voltage}V, HIGH={high_voltage}V")
+        
+        result1 = self.send_command(f'SOUR1:MARK1:VOLT:LOW {low_voltage}')
+        time.sleep(0.05)
+        result2 = self.send_command(f'SOUR1:MARK1:VOLT:HIGH {high_voltage}')
+        time.sleep(0.05)
+        
+        return result1 and result2
+
+    def get_ch1_marker1_voltage(self):
+        """
+        Get current CH1 Marker 1 voltage levels.
+        
+        Returns:
+            tuple: (low_voltage, high_voltage) in volts
+        """
+        try:
+            low_v = self.send_command('SOUR1:MARK1:VOLT:LOW?', query=True)
+            time.sleep(0.05)
+            high_v = self.send_command('SOUR1:MARK1:VOLT:HIGH?', query=True)
+            time.sleep(0.05)
+            
+            if low_v is not None and high_v is not None:
+                return (float(low_v), float(high_v))
+            else:
+                return (None, None)
+        except Exception as e:
+            self.logger.error(f"Failed to get CH1 Marker 1 voltage: {e}")
+            return (None, None)
+
+    def set_ch2_marker1_voltage(self, low_voltage: float, high_voltage: float = None):
+        """
+        Set CH2 Marker 1 voltage levels.
+        
+        Args:
+            low_voltage: Low voltage level in volts
+            high_voltage: High voltage level in volts (defaults to low_voltage if None)
+        """
+        if high_voltage is None:
+            high_voltage = low_voltage
+        
+        self.logger.info(f"Setting CH2 Marker 1 voltage: LOW={low_voltage}V, HIGH={high_voltage}V")
+        
+        result1 = self.send_command(f'SOUR2:MARK1:VOLT:LOW {low_voltage}')
+        time.sleep(0.05)
+        result2 = self.send_command(f'SOUR2:MARK1:VOLT:HIGH {high_voltage}')
+        time.sleep(0.05)
+        
+        return result1 and result2
+
+    def get_ch2_marker1_voltage(self):
+        """
+        Get current CH2 Marker 1 voltage levels.
+        
+        Returns:
+            tuple: (low_voltage, high_voltage) in volts
+        """
+        try:
+            low_v = self.send_command('SOUR2:MARK1:VOLT:LOW?', query=True)
+            time.sleep(0.05)
+            high_v = self.send_command('SOUR2:MARK1:VOLT:HIGH?', query=True)
+            time.sleep(0.05)
+            
+            if low_v is not None and high_v is not None:
+                return (float(low_v), float(high_v))
+            else:
+                return (None, None)
+        except Exception as e:
+            self.logger.error(f"Failed to get CH2 Marker 1 voltage: {e}")
+            return (None, None)
+
+    def set_ch2_marker2_voltage(self, low_voltage: float, high_voltage: float = None):
+        """
+        Set CH2 Marker 2 voltage levels.
+        
+        Args:
+            low_voltage: Low voltage level in volts
+            high_voltage: High voltage level in volts (defaults to low_voltage if None)
+        """
+        if high_voltage is None:
+            high_voltage = low_voltage
+        
+        self.logger.info(f"Setting CH2 Marker 2 voltage: LOW={low_voltage}V, HIGH={high_voltage}V")
+        
+        result1 = self.send_command(f'SOUR2:MARK2:VOLT:LOW {low_voltage}')
+        time.sleep(0.05)
+        result2 = self.send_command(f'SOUR2:MARK2:VOLT:HIGH {high_voltage}')
+        time.sleep(0.05)
+        
+        return result1 and result2
+
+    def get_ch2_marker2_voltage(self):
+        """
+        Get current CH2 Marker 2 voltage levels.
+        
+        Returns:
+            tuple: (low_voltage, high_voltage) in volts
+        """
+        try:
+            low_v = self.send_command('SOUR2:MARK2:VOLT:LOW?', query=True)
+            time.sleep(0.05)
+            high_v = self.send_command('SOUR2:MARK2:VOLT:HIGH?', query=True)
+            time.sleep(0.05)
+            
+            if low_v is not None and high_v is not None:
+                return (float(low_v), float(high_v))
+            else:
+                return (None, None)
+        except Exception as e:
+            self.logger.error(f"Failed to get CH2 Marker 2 voltage: {e}")
+            return (None, None)
+
+    # --- Legacy functions for backward compatibility ---
+    def set_ch2_marker2_laser_on(self):
+        """
+        Legacy function: Turn on CH2 Marker 2 for laser control.
+        Note: This function is deprecated. Use set_ch1_marker2_laser_on() for laser control.
+        """
+        self.logger.warning("set_ch2_marker2_laser_on is deprecated. Use set_ch1_marker2_laser_on() for laser control.")
+        return self.set_ch2_marker2_voltage(2.0)
+
+    def set_ch2_marker2_laser_off(self):
+        """
+        Legacy function: Turn off CH2 Marker 2 for laser control.
+        Note: This function is deprecated. Use set_ch1_marker2_laser_off() for laser control.
+        """
+        self.logger.warning("set_ch2_marker2_laser_off is deprecated. Use set_ch1_marker2_laser_off() for laser control.")
+        return self.set_ch2_marker2_voltage(0.0)
+
+    def is_ch2_marker2_laser_on(self):
+        """
+        Legacy function: Check if CH2 Marker 2 laser control is currently on.
+        Note: This function is deprecated. Use is_ch1_marker2_laser_on() for laser control.
+        """
+        self.logger.warning("is_ch2_marker2_laser_on is deprecated. Use is_ch1_marker2_laser_on() for laser control.")
+        try:
+            low_v, high_v = self.get_ch2_marker2_voltage()
+            if low_v is not None and high_v is not None:
+                return low_v > 2.0 or high_v > 2.0
+            return False
+        except Exception as e:
+            self.logger.error(f"Failed to check CH2 Marker 2 laser status: {e}")
+            return False
+
+    # --- Function Generator (FG) for IQ Modulation ---
+    def mw_on_sb10MHz(self, enable_iq=False):
+        """
+        Turn on microwave output with 10MHz sine wave(s) for IQ modulation.
+        
+        Args:
+            enable_iq (bool): If True, enables both channels for I/Q modulation.
+                            If False, only CH1 outputs a sine wave.
+        
+        This function:
+        - Sets external reference clock (Rubidium lab clock)
+        - Configures CH1 Marker 1 for MW control
+        - Generates 10MHz sine waves on CH1 and optionally CH2
+        - For IQ mode: CH1 = sine, CH2 = cosine (90° phase shift)
+        """
+        self.logger.info(f"Turning on MW with 10MHz {'IQ modulation' if enable_iq else 'single channel'}")
+        
+        # Setup external reference clock (Rubidium lab clock)
+        self.set_ref_clock_external()
+        time.sleep(0.1)
+        
+        # Configure CH1 Marker 1 for MW control
+        result1 = self.send_command('SOUR1:MARK1:VOLT:LOW 2.0')
+        time.sleep(0.05)
+        
+        if enable_iq:
+            # Configure both channels for IQ modulation
+            # CH1: Sine wave at 10MHz
+            result2 = self.send_command('AWGC:FG1:FUNC SIN')
+            time.sleep(0.05)
+            result3 = self.send_command('AWGC:FG1:FREQ 10MHz')
+            time.sleep(0.05)
+            result4 = self.send_command('AWGC:FG1:VOLT 2.0')
+            time.sleep(0.05)
+            
+            # CH2: Cosine wave at 10MHz (90° phase shift)
+            result5 = self.send_command('AWGC:FG2:FUNC SIN')
+            time.sleep(0.05)
+            result6 = self.send_command('AWGC:FG2:FREQ 10MHz')
+            time.sleep(0.05)
+            result7 = self.send_command('AWGC:FG2:PHAS 90DEG')
+            time.sleep(0.05)
+            result8 = self.send_command('AWGC:FG2:VOLT 2.0')
+            time.sleep(0.05)
+            
+            return all([result1, result2, result3, result4, result5, result6, result7, result8])
+        else:
+            # Configure only CH1 for single channel output
+            result2 = self.send_command('AWGC:FG1:FUNC SIN')
+            time.sleep(0.05)
+            result3 = self.send_command('AWGC:FG1:FREQ 10MHz')
+            time.sleep(0.05)
+            result4 = self.send_command('AWGC:FG1:VOLT 2.0')
+            time.sleep(0.05)
+            
+            return all([result1, result2, result3, result4])
+
+    def mw_off_sb10MHz(self, enable_iq=False):
+        """
+        Turn off microwave output by setting function generator voltages to 0.
+        
+        Args:
+            enable_iq (bool): If True, turns off both channels.
+                            If False, turns off only CH1.
+        
+        Note: This function assumes mw_on_sb10MHz was called previously.
+        """
+        self.logger.info(f"Turning off MW {'IQ modulation' if enable_iq else 'single channel'}")
+        
+        # Turn off CH1 Marker 1 MW control
+        result1 = self.send_command('SOUR1:MARK1:VOLT:HIGH 0.0')
+        time.sleep(0.05)
+        
+        if enable_iq:
+            # Turn off both channels
+            result2 = self.send_command('AWGC:FG1:VOLT 0.0')
+            time.sleep(0.05)
+            result3 = self.send_command('AWGC:FG2:VOLT 0.0')
+            time.sleep(0.05)
+            
+            return all([result1, result2, result3])
+        else:
+            # Turn off only CH1
+            result2 = self.send_command('AWGC:FG1:VOLT 0.0')
+            time.sleep(0.05)
+            
+            return all([result1, result2])
+
+    def set_function_generator(self, channel, function='SIN', frequency='10MHz', 
+                             voltage=2.0, phase=0.0, enable=True):
+        """
+        Configure function generator parameters for a specific channel.
+        
+        Args:
+            channel (int): Channel number (1 or 2)
+            function (str): Waveform function ('SIN', 'SQU', 'TRI', 'RAMP', 'NOIS', 'DC')
+            frequency (str): Frequency in Hz, kHz, MHz, or GHz (e.g., '10MHz', '1kHz')
+            voltage (float): Output voltage in volts
+            phase (float): Phase offset in degrees
+            enable (bool): If True, sets voltage to specified value, if False sets to 0V
+        
+        Returns:
+            bool: True if all commands succeeded, False otherwise
+        """
+        if channel not in [1, 2]:
+            self.logger.error(f"Invalid channel: {channel}. Must be 1 or 2.")
+            return False
+        
+        self.logger.info(f"Setting FG{channel}: {function} at {frequency}, {voltage}V, {phase}°")
+        
+        # Set function type
+        result1 = self.send_command(f'AWGC:FG{channel}:FUNC {function}')
+        time.sleep(0.05)
+        
+        # Set frequency
+        result2 = self.send_command(f'AWGC:FG{channel}:FREQ {frequency}')
+        time.sleep(0.05)
+        
+        # Set phase
+        if phase != 0.0:
+            result3 = self.send_command(f'AWGC:FG{channel}:PHAS {phase}DEG')
+            time.sleep(0.05)
+        else:
+            result3 = True
+        
+        # Set voltage
+        voltage_set = voltage if enable else 0.0
+        result4 = self.send_command(f'AWGC:FG{channel}:VOLT {voltage_set}')
+        time.sleep(0.05)
+        
+        return all([result1, result2, result3, result4])
+
+    def get_function_generator_status(self, channel):
+        """
+        Get current function generator status for a specific channel.
+        
+        Args:
+            channel (int): Channel number (1 or 2)
+        
+        Returns:
+            dict: Dictionary containing function, frequency, voltage, and phase
+        """
+        if channel not in [1, 2]:
+            self.logger.error(f"Invalid channel: {channel}. Must be 1 or 2.")
+            return None
+        
+        try:
+            # Query all parameters
+            function = self.send_command(f'AWGC:FG{channel}:FUNC?', query=True)
+            time.sleep(0.05)
+            frequency = self.send_command(f'AWGC:FG{channel}:FREQ?', query=True)
+            time.sleep(0.05)
+            voltage = self.send_command(f'AWGC:FG{channel}:VOLT?', query=True)
+            time.sleep(0.05)
+            phase = self.send_command(f'AWGC:FG{channel}:PHAS?', query=True)
+            time.sleep(0.05)
+            
+            if all([function, frequency, voltage, phase]):
+                return {
+                    'function': function,
+                    'frequency': frequency,
+                    'voltage': float(voltage),
+                    'phase': float(phase)
+                }
+            else:
+                return None
+                
+        except Exception as e:
+            self.logger.error(f"Failed to get FG{channel} status: {e}")
+            return None
+
+    def enable_iq_modulation(self, frequency='10MHz', voltage=2.0):
+        """
+        Enable I/Q modulation with sine and cosine waves.
+        
+        Args:
+            frequency (str): Frequency for both channels (e.g., '10MHz')
+            voltage (float): Voltage amplitude for both channels
+        
+        Returns:
+            bool: True if I/Q modulation was enabled successfully
+        """
+        self.logger.info(f"Enabling I/Q modulation at {frequency}, {voltage}V")
+        
+        # Configure CH1 for I (sine wave, 0° phase)
+        result1 = self.set_function_generator(1, 'SIN', frequency, voltage, 0.0, True)
+        
+        # Configure CH2 for Q (sine wave, 90° phase)
+        result2 = self.set_function_generator(2, 'SIN', frequency, voltage, 90.0, True)
+        
+        return result1 and result2
+
+    def disable_iq_modulation(self):
+        """
+        Disable I/Q modulation by setting both channels to 0V.
+        
+        Returns:
+            bool: True if I/Q modulation was disabled successfully
+        """
+        self.logger.info("Disabling I/Q modulation")
+        
+        # Turn off both channels
+        result1 = self.send_command('AWGC:FG1:VOLT 0.0')
+        time.sleep(0.05)
+        result2 = self.send_command('AWGC:FG2:VOLT 0.0')
+        time.sleep(0.05)
+        
+        return result1 and result2
 
     # --- File operations via FTP ---
     def list_files(self):
@@ -324,6 +779,78 @@ class AWG520Device(Device):
 
     def trigger(self):
         self.driver.trigger()
+
+    # --- Laser control via CH1 Marker 2 ---
+    def laser_on(self):
+        """Turn on the laser using CH1 Marker 2."""
+        return self.driver.set_ch1_marker2_laser_on()
+
+    def laser_off(self):
+        """Turn off the laser using CH1 Marker 2."""
+        return self.driver.set_ch1_marker2_laser_off()
+
+    def set_laser_voltage(self, voltage: float):
+        """Set laser control voltage using CH1 Marker 2."""
+        return self.driver.set_ch1_marker2_voltage(voltage)
+
+    def get_laser_voltage(self):
+        """Get current laser control voltage from CH1 Marker 2."""
+        return self.driver.get_ch1_marker2_voltage()
+
+    def is_laser_on(self):
+        """Check if the laser is currently on."""
+        return self.driver.is_ch1_marker2_laser_on()
+
+    # --- Additional marker control methods ---
+    def set_ch1_marker1_voltage(self, voltage: float):
+        """Set CH1 Marker 1 voltage."""
+        return self.driver.set_ch1_marker1_voltage(voltage)
+
+    def get_ch1_marker1_voltage(self):
+        """Get CH1 Marker 1 voltage."""
+        return self.driver.get_ch1_marker1_voltage()
+
+    def set_ch2_marker1_voltage(self, voltage: float):
+        """Set CH2 Marker 1 voltage."""
+        return self.driver.set_ch2_marker1_voltage(voltage)
+
+    def get_ch2_marker1_voltage(self):
+        """Get CH2 Marker 1 voltage."""
+        return self.driver.get_ch2_marker1_voltage()
+
+    def set_ch2_marker2_voltage(self, voltage: float):
+        """Set CH2 Marker 2 voltage."""
+        return self.driver.set_ch2_marker2_voltage(voltage)
+
+    def get_ch2_marker2_voltage(self):
+        """Get CH2 Marker 2 voltage."""
+        return self.driver.get_ch2_marker2_voltage()
+
+    # --- Function Generator and IQ Modulation ---
+    def mw_on_sb10MHz(self, enable_iq=False):
+        """Turn on microwave output with 10MHz sine wave(s) for IQ modulation."""
+        return self.driver.mw_on_sb10MHz(enable_iq)
+
+    def mw_off_sb10MHz(self, enable_iq=False):
+        """Turn off microwave output."""
+        return self.driver.mw_off_sb10MHz(enable_iq)
+
+    def set_function_generator(self, channel, function='SIN', frequency='10MHz', 
+                             voltage=2.0, phase=0.0, enable=True):
+        """Configure function generator parameters for a specific channel."""
+        return self.driver.set_function_generator(channel, function, frequency, voltage, phase, enable)
+
+    def get_function_generator_status(self, channel):
+        """Get current function generator status for a specific channel."""
+        return self.driver.get_function_generator_status(channel)
+
+    def enable_iq_modulation(self, frequency='10MHz', voltage=2.0):
+        """Enable I/Q modulation with sine and cosine waves."""
+        return self.driver.enable_iq_modulation(frequency, voltage)
+
+    def disable_iq_modulation(self):
+        """Disable I/Q modulation by setting both channels to 0V."""
+        return self.driver.disable_iq_modulation()
 
     def read_probes(self, key):
         if key == 'status':
