@@ -11,7 +11,7 @@ pyqtgraph>=0.12.4
 matplotlib>=3.3.3
 
 # Database
-psycopg2-binary>=2.8.6
+psycopg2-binary>=2.9.9
 
 # Configuration and data formats
 PyYAML>=6.0.1
