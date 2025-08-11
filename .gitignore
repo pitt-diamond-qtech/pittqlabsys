@@ -75,6 +75,12 @@ examples/scan_data/*.png
 examples/scan_data/*.npz
 examples/scan_data/*.txt
 
+# SG384 data output files
+examples/sg384_data/*.csv
+examples/sg384_data/*.png
+examples/sg384_data/*.npz
+examples/sg384_data/*.txt
+
 # Debug outputs
 examples/debug/outputs/*.png
 examples/debug/outputs/*.csv
