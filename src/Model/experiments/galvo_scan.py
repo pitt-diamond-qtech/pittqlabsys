@@ -16,7 +16,6 @@
 import numpy as np
 import time
 from src.core import Parameter, Experiment
-from src.Controller import PXI6733, NI6281, PCI6229, PCI6601, SG384Generator, NIDAQ
 from src.Model.experiments.galvo_scan_generic import GalvoScanGeneric
 
 
@@ -90,6 +89,7 @@ class GalvoScan(GalvoScanGeneric):
         #     self.devices = {'daq': NI6281()}
         # I should probably add the instances to a dictionary and keep track of them, but would have to re-implement
         # that in the Experiment class first. doing it by hand for now
+        from src.Controller import PXI6733, NI6281, PCI6229, PCI6601, SG384Generator, NIDAQ
         self.dev_instance = self.devices['daq']['instance']
         self.dev_instance2 = self.devices['daq2']['instance']
             
