@@ -64,7 +64,7 @@ class GalvoScan(GalvoScanGeneric):
     ]
 
     #_DEVICES = {'daq': PXI6733(),'daq2': NI6281()}
-    _DEVICES = {'daq': PCI6229(), 'daq2': PCI6601()}
+    #_DEVICES = {'daq': PCI6229(), 'daq2': PCI6601()}  # Removed - devices now passed via constructor
 
 
     def __init__(self, devices=None, name=None, settings=None, log_function=None, data_path=None):
