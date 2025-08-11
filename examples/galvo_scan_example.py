@@ -17,9 +17,8 @@ import os
 import time
 import numpy as np
 from pathlib import Path
-
 # Add the project root to the path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, str(Path(__file__).parent / '..'))
 
 from src.core import Parameter, Experiment
 # Don't import GalvoScan here - import it inside the function to handle errors gracefully

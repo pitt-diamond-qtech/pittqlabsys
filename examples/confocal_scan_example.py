@@ -24,12 +24,9 @@ import argparse
 import numpy as np
 from pathlib import Path
 import time
-from src.core import get_project_root
 
 # Add the project root to the path
-project_root = get_project_root()
-#sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-sys.path.insert(0, str(project_root/'src'))
+sys.path.insert(0, str(Path(__file__).parent / '..'))
 
 
 def create_devices(use_real_hardware=False):
@@ -149,6 +146,14 @@ def run_confocal_scan(use_real_hardware=False, save_data=True, show_plot=True):
             if show_plot and not args.no_plot:
                 # Show the results
                 experiment.show_results()
+            
+            # Return the experiment results
+            return {
+                'experiment': experiment,
+                'data_path': getattr(experiment, 'data_path', None),
+                'scan_settings': scan_settings,
+                'hardware_type': 'real' if use_real_hardware else 'mock'
+            }
                 
         except Exception as e:
             print(f"❌ Scan failed: {e}")
