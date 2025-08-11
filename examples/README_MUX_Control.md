@@ -5,7 +5,7 @@
 The MUX Control Device is an Arduino-based trigger multiplexer controller that allows switching between three different trigger sources:
 
 1. **Confocal trigger** - from MCL nanodrive
-2. **CW-ESR trigger** - from PTS Arduino controller  
+2. **ODMR trigger** - from PTS Arduino controller  
 3. **Pulsed ESR trigger** - from AWG (Arbitrary Waveform Generator)
 
 This device is essential for experiments that require switching between different measurement modes without manually reconfiguring hardware connections.
@@ -135,7 +135,7 @@ mux = MUXControlDevice(settings=settings)
 
 # Select trigger sources
 mux.select_trigger('confocal')    # Select confocal trigger
-mux.select_trigger('cwesr')       # Select CW-ESR trigger  
+mux.select_trigger('odmr')       # Select ODMR trigger  
 mux.select_trigger('pulsed')      # Select pulsed ESR trigger
 
 # Check status
@@ -163,7 +163,7 @@ mux = MUXControl('COM3')
 
 # Select triggers (returns 0 on success, -1 on failure)
 result = mux.run('confocal')  # Select confocal
-result = mux.run('cwesr')     # Select CW-ESR
+result = mux.run('odmr')     # Select ODMR
 result = mux.run('pulsed')    # Select pulsed ESR
 
 # Close connection
@@ -186,9 +186,9 @@ class MyExperiment:
         self.mux.select_trigger('confocal')
         # ... run confocal experiment
     
-    def run_cw_esr(self):
-        self.mux.select_trigger('cwesr')
-        # ... run CW-ESR experiment
+    def run_odmr(self):
+        self.mux.select_trigger('odmr')
+        # ... run ODMR experiment
     
     def run_pulsed_esr(self):
         self.mux.select_trigger('pulsed')
@@ -257,6 +257,8 @@ The complete Arduino firmware is provided in `src/Controller/arduino/mux_control
 - Pin 5 (Z) is the common I/O line
 - Binary encoding for efficient pin control
 - Robust input validation with newline termination
+- Commands: 1=confocal, 2=ODMR, 3=pulsed
+- Commands: 1=confocal, 2=ODMR, 3=pulsed
 
 ## Error Handling
 
@@ -307,9 +309,9 @@ mux.select_trigger('confocal')
 
 ### PTS Arduino (CW-ESR)
 ```python
-# When 'cwesr' is selected, the PTS Arduino trigger is active
-mux.select_trigger('cwesr')
-# Now run CW-ESR experiment
+# When 'odmr' is selected, the PTS Arduino trigger is active
+mux.select_trigger('odmr')
+# Now run ODMR experiment
 ```
 
 ### AWG (Pulsed ESR)

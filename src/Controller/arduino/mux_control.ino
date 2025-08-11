@@ -40,7 +40,7 @@ void setup() {
   //pinMode(zInput, INPUT);                      // Change to OUTPUT if outputting signal from Arduino board
   //delay(250);
   //analogWrite(zInput, 255);
-  Serial.println("Initialized...Enter 1 for Confocal, 2 for CW, or 3 for Pulsed.");
+  Serial.println("Initialized...Enter 1 for Confocal, 2 for ODMR, or 3 for Pulsed.");
 }
 
 // modified by Gurudev on Dec. 12, 2019 -- will use newline to terminate input

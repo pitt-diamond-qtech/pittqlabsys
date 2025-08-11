@@ -662,7 +662,7 @@ class MockMUXControlDevice(Device):
     
     def select_trigger(self, selector):
         """Mock trigger selection."""
-        if selector in ['confocal', 'cwesr', 'pulsed']:
+        if selector in ['confocal', 'odmr', 'pulsed']:
             self._current_selection = selector
             print(f"Mock MUX Control Device: Selected {selector} trigger")
             return True
@@ -690,11 +690,11 @@ class MockMUXControlDevice(Device):
                     'channel': 'Y0',
                     'pins': {'S0': 0, 'S1': 0, 'S2': 0}
                 },
-                'cwesr': {
-                    'command': '2', 
-                    'channel': 'Y1',
-                    'pins': {'S0': 1, 'S1': 0, 'S2': 0}
-                },
+                        'odmr': {
+            'command': '2', 
+            'channel': 'Y1',
+            'pins': {'S0': 1, 'S1': 0, 'S2': 0}
+        },
                 'pulsed': {
                     'command': '3',
                     'channel': 'Y2', 
@@ -729,13 +729,14 @@ class MockMUXControlDevice(Device):
             },
             'commands': {
                 '1': 'Select confocal trigger (Y0)',
-                '2': 'Select CW-ESR trigger (Y1)',
+                '2': 'Select ODMR trigger (Y1)',
                 '3': 'Select pulsed ESR trigger (Y2)'
             },
             'responses': {
                 'success': 'Input is in range',
                 'failure': 'Input out of range',
-                'initialization': 'Initialized...Enter 1 for Confocal, 2 for CW, or 3 for Pulsed.'
+                'initialization': 'Initialized...Enter 1 for Confocal, 2 for ODMR, or 3 for Pulsed.',
+                'initialization_legacy': 'Initialized...Enter 1 for Confocal, 2 for CW, or 3 for Pulsed.'
             }
         }
     
@@ -748,9 +749,14 @@ class MockMUXControlDevice(Device):
                 'arduino_message': None
             }
         
+        # Return either old or new message format for testing compatibility
+        import random
+        old_message = "Initialized...Enter 1 for Confocal, 2 for CW, or 3 for Pulsed."
+        new_message = "Initialized...Enter 1 for Confocal, 2 for ODMR, or 3 for Pulsed."
+        
         return {
             'connected': True,
-            'arduino_message': "Initialized...Enter 1 for Confocal, 2 for CW, or 3 for Pulsed.",
+            'arduino_message': random.choice([old_message, new_message]),
             'port': self.settings.get('port', 'COM3'),
             'baudrate': self.settings.get('baudrate', 9600),
             'current_selection': self._current_selection
