@@ -23,10 +23,13 @@
 ' - Modulation Bandwidth: >100 kHz
 ' - Connector: Rear-panel BNC
 '
+' IMPORTANT: Voltage is constrained to ±1V for SG384 compatibility
+' DAC operates at ±10V range for precision, but output is clamped to ±1V
+'
 ' Parameters:
 ' Par_1  - Counter value (read)
 ' Par_2  - Integration time in microseconds (set by experiment)
-' Par_3  - Laser power analog input (read from AI1)
+' Par_3  - Laser power analog input (read from ADC1, channel 1)
 ' Par_4  - Number of samples to average (set by experiment)
 ' Par_5  - Current sample index
 ' Par_6  - Summed counts for averaging
@@ -39,9 +42,12 @@
 ' Par_13 - FM modulation amplitude in volts (0-1V for SG384, set by experiment)
 ' Par_14 - Current FM phase (internal)
 '
-' Analog Outputs:
-' AO1 - FM modulation signal for SG384
-' AO2 - Reserved for future use
+' DAC Outputs:
+' DAC1 - FM modulation signal for SG384 (-1V to +1V, clamped for safety)
+' DAC2 - Reserved for future use
+'
+' ADC Inputs:
+' ADC1, Channel 1 - Laser power monitoring (0-10V range)
 
 #Include ADwinGoldII.inc
 
@@ -52,6 +58,9 @@ DIM fm_phase AS FLOAT
 DIM fm_step AS FLOAT
 DIM fm_amplitude AS FLOAT
 DIM fm_frequency AS FLOAT
+DIM dac_value AS LONG
+DIM adc_value AS LONG
+DIM laser_voltage AS FLOAT
 
 init:
   ' Initialize counter
@@ -60,12 +69,16 @@ init:
   Cnt_Mode(1,8)   ' Set counter 1 to increment on falling edge
   Cnt_Enable(1)   ' Enable counter 1
   
-  ' Initialize analog input for laser power tracking
-  AI_Config(1, 0, 0, 0)  ' Configure AI1 for single-ended, ±10V range
+  ' Initialize ADC for laser power tracking (ADC1, channel 1)
+  ' Set multiplexer for ADC1 to channel 1 (001b = 1)
+  Set_Mux1(001b)
   
-  ' Initialize analog outputs
-  AO_Config(1, 0, 0, 1)  ' Configure AO1 for ±1V range (SG384 FM input)
-  AO_Config(2, 0, 0, 0)  ' Configure AO2 for ±10V range
+  ' Initialize DAC for ±10V range (but we'll clamp output to ±1V for SG384)
+  ' DAC values: 0 = -10V, 32768 = 0V, 65535 = +9.999695V
+  DAC(1, 1)       ' Enable DAC1
+  Start_DAC(1)    ' Start DAC1 output
+  DAC(2, 1)       ' Enable DAC2
+  Start_DAC(2)    ' Start DAC2 output
   
   ' Initialize variables
   sample_index = 1
@@ -92,7 +105,31 @@ Event:
   ' Generate FM modulation signal if enabled
   IF (Par_11 = 1) THEN
     ' Calculate FM signal: amplitude * sin(2*pi*f*t)
-    AO_Write(1, fm_amplitude * SIN(fm_phase))
+    ' Constrain amplitude to ±1V for SG384 safety
+    IF (fm_amplitude > 1.0) THEN
+      fm_amplitude = 1.0
+    ENDIF
+    IF (fm_amplitude < -1.0) THEN
+      fm_amplitude = -1.0
+    ENDIF
+    
+    ' Calculate FM signal value
+    DIM fm_signal AS FLOAT
+    fm_signal = fm_amplitude * SIN(fm_phase)
+    
+    ' Convert voltage to DAC value: (voltage + 10) * 65535 / 20
+    dac_value = (fm_signal + 10.0) * 65535 / 20
+    ' Ensure DAC value is within valid range
+    IF (dac_value < 0) THEN
+      dac_value = 0
+    ENDIF
+    IF (dac_value > 65535) THEN
+      dac_value = 65535
+    ENDIF
+    
+    ' Output FM signal using DAC
+    Write_DAC(1, dac_value)
+    
     fm_phase = fm_phase + fm_step
     ' Keep phase in reasonable range
     IF (fm_phase > 2.0 * 3.14159) THEN
@@ -101,8 +138,8 @@ Event:
     ' Store current phase for external monitoring
     Par_14 = fm_phase
   ELSE
-    ' Set AO1 to 0V when FM is disabled
-    AO_Write(1, 0.0)
+    ' Set DAC1 to 0V when FM is disabled (center of range)
+    Write_DAC(1, 32768)
   ENDIF
   
   ' Read counter value
@@ -110,7 +147,19 @@ Event:
   
   ' Read laser power if enabled
   IF (Par_10 = 1) THEN
-    Par_3 = AI_Read(1)  ' Read AI1 for laser power
+    ' Start ADC conversion for ADC1
+    Start_Conv(01b)  ' Start conversion for ADC1 only
+    Wait_EOC(01b)    ' Wait for end of conversion
+    
+    ' Read ADC1 value (24-bit, 0-16777215 digits)
+    adc_value = Read_ADC24(1)
+    
+    ' Convert ADC digits to voltage (0-10V range)
+    ' ADC range: 0 digits = 0V, 16777215 digits = 10V
+    laser_voltage = (adc_value * 10.0) / 16777215.0
+    
+    ' Store voltage value in parameter
+    Par_3 = laser_voltage
   ELSE
     Par_3 = 0
   ENDIF
@@ -156,4 +205,5 @@ Event:
 Finish:
   ' Cleanup
   Cnt_Enable(0)  ' Disable counter
-  AO_Write(1, 0.0)  ' Set FM output to 0V 
+  ' Set DAC1 output to 0V (center of range, SG384 safe)
+  Write_DAC(1, 32768) 

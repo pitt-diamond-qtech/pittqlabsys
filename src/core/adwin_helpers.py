@@ -20,7 +20,7 @@ def get_adwin_binary_path(filename: str) -> Path:
     Get the path to an ADwin binary file in the Controller/binary_files/ADbasic directory.
     
     Args:
-        filename: Name of the binary file (e.g., 'ODMR_Counter.TB2')
+        filename: Name of the binary file (e.g., 'ODMR_FM_Laser_Tracker.TB2')
         
     Returns:
         Path object pointing to the binary file
@@ -113,7 +113,7 @@ def setup_adwin_for_odmr(adwin_instance, integration_time_ms: float = 10.0,
                         enable_fm_modulation: bool = False, fm_frequency: float = 1000.0,
                         fm_amplitude: float = 1.0) -> None:
     """
-    Setup ADwin for ODMR experiments with the ODMR_Counter script.
+    Setup ADwin for ODMR experiments with the ODMR_FM_Laser_Tracker script.
     
     Args:
         adwin_instance: ADwinGold instance
@@ -127,8 +127,8 @@ def setup_adwin_for_odmr(adwin_instance, integration_time_ms: float = 10.0,
     # Stop and clear process 2
     adwin_instance.stop_process(2)
     
-    # Load ODMR counter script
-    odmr_binary_path = get_adwin_binary_path('ODMR_Counter.TB2')
+    # Load ODMR FM Laser Tracker script
+    odmr_binary_path = get_adwin_binary_path('ODMR_FM_Laser_Tracker.TB2')
     adwin_instance.update({
         'process_2': {
             'load': str(odmr_binary_path),

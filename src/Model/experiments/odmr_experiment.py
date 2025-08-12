@@ -202,7 +202,7 @@ class ODMRExperiment(Experiment):
         integration_time_ms = self.settings['acquisition']['integration_time'] * 1000.0
         
         # Setup ADwin for simple ODMR using Trial_Counter.TB1 (which exists)
-        # instead of ODMR_Counter.TB2 (which doesn't exist)
+        # instead of ODMR_FM_Laser_Tracker.TB2 (which doesn't exist)
         setup_adwin_for_simple_odmr(
             self.adwin,
             integration_time_ms=integration_time_ms
