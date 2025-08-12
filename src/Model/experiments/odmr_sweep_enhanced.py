@@ -1,17 +1,11 @@
 """
 Enhanced Optically Detected Magnetic Resonance (ODMR) Experiment with Phase Continuous Sweep
 
-This module implements an enhanced ODMR experiment that uses phase continuous sweep mode
-with external modulation of the SG384 microwave generator. The ADwin generates a voltage ramp 
-on AO1 that is connected to the SG384's external modulation input, providing synchronized 
-frequency sweeping and data acquisition.
+DEPRECATED: This legacy sweep experiment is superseded by
+`ODMRSweepContinuousExperiment`, which directly configures the SG384 sweep mode and
+uses ADwin helpers for synchronized acquisition. See docs/ODMR_EXPERIMENTS_OVERVIEW.md.
 
-Key Features:
-- Uses phase continuous sweep mode with external modulation for frequency sweeping
-- Synchronized data acquisition with voltage ramp
-- Automatic validation of sweep parameters
-- Real-time data acquisition synchronized with sweep
-- Support for different sweep functions and bidirectional sweeps
+This module implemented an enhanced sweep using external modulation and synchronized ADwin ramps.
 
 Author: Gurudev Dutt <gdutt@pitt.edu>
 Created: 2024
@@ -24,10 +18,19 @@ from scipy.optimize import curve_fit
 from scipy.signal import savgol_filter
 from typing import List, Dict, Any, Optional, Tuple
 import time
+import warnings
 
 from src.core import Experiment, Parameter
 from src.Controller import SG384Generator, AdwinGoldDevice
 from src.core.adwin_helpers import setup_adwin_for_sweep_odmr, read_adwin_sweep_odmr_data
+
+# Emit a deprecation warning when this module is imported
+warnings.warn(
+    "src.Model.experiments.odmr_sweep_enhanced is deprecated. Use ODMRSweepContinuousExperiment "
+    "(see docs/ODMR_EXPERIMENTS_OVERVIEW.md).",
+    FutureWarning,
+    stacklevel=2,
+)
 
 
 class EnhancedODMRSweepExperiment(Experiment):

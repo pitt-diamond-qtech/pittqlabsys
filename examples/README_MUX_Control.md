@@ -46,7 +46,7 @@ The MUX Control Device follows the project's device architecture patterns:
 
 ### Core Functionality
 - **Serial Communication**: VISA-based communication with Arduino
-- **Trigger Selection**: Switch between confocal, CW-ESR, and pulsed ESR triggers
+- **Trigger Selection**: Switch between confocal, ODMR, and pulsed ESR triggers
 - **Status Monitoring**: Real-time status and connection monitoring
 - **Error Handling**: Robust error handling for communication issues
 - **Hardware Information**: Detailed hardware mapping and Arduino firmware details
@@ -244,7 +244,7 @@ The complete Arduino firmware is provided in `src/Controller/arduino/mux_control
 - Responds to commands `1`, `2`, `3` for trigger selection
 - Sends "Input is in range" for valid commands and "Input out of range" for invalid ones
 - Automatically initializes all select pins to LOW (Y0 selected by default)
-- Sends initialization message: "Initialized...Enter 1 for Confocal, 2 for CW, or 3 for Pulsed."
+- Sends initialization message: "Initialized...Enter 1 for Confocal, 2 for ODMR, or 3 for Pulsed."
 
 **To upload the firmware:**
 1. Open `mux_control.ino` in Arduino IDE
@@ -307,7 +307,7 @@ mux.select_trigger('confocal')
 # Now run confocal scan experiment
 ```
 
-### PTS Arduino (CW-ESR)
+### PTS Arduino (ODMR)
 ```python
 # When 'odmr' is selected, the PTS Arduino trigger is active
 mux.select_trigger('odmr')

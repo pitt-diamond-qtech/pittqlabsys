@@ -4,6 +4,14 @@ Optically Detected Magnetic Resonance (ODMR) Experiment
 This module implements ODMR experiments for nitrogen-vacancy (NV) center characterization.
 ODMR is a key technique for NV center quantum sensing and quantum information applications.
 
+DEPRECATED: This legacy experiment does not directly control the SG384 for sweeping and is
+superseded by the following experiments which integrate SG384 + ADwin properly:
+- `ODMRSteppedExperiment` (precise stepped control)
+- `ODMRSweepContinuousExperiment` (phase-continuous sweep)
+- `ODMRFMModulationExperiment` (fine, fast FM sweeps)
+
+Please migrate to one of the experiments above. See docs/ODMR_EXPERIMENTS_OVERVIEW.md.
+
 Author: Gurudev Dutt <gdutt@pitt.edu>
 Created: 2024
 License: GPL v2
@@ -15,10 +23,19 @@ from scipy.optimize import curve_fit
 from scipy.signal import savgol_filter
 from typing import List, Dict, Any, Optional, Tuple
 import time
+import warnings
 
 from src.core import Experiment, Parameter
 from src.Controller import SG384Generator, AdwinGoldDevice, MCLNanoDrive
 from src.core.adwin_helpers import setup_adwin_for_odmr, read_adwin_odmr_data, setup_adwin_for_simple_odmr, read_adwin_simple_odmr_data
+
+# Emit a deprecation warning when this module is imported
+warnings.warn(
+    "src.Model.experiments.odmr_experiment is deprecated. Use ODMRSteppedExperiment, "
+    "ODMRSweepContinuousExperiment, or ODMRFMModulationExperiment (see docs/ODMR_EXPERIMENTS_OVERVIEW.md).",
+    FutureWarning,
+    stacklevel=2,
+)
 
 
 class ODMRExperiment(Experiment):

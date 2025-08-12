@@ -23,7 +23,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent / '..'))
 
 from src.core import Parameter, Experiment
-from src.Model.experiments.odmr_experiment import ODMRExperiment
+from src.Model.experiments.odmr_stepped import ODMRSteppedExperiment
+from src.Model.experiments.odmr_sweep_continuous import ODMRSweepContinuousExperiment
+from src.Model.experiments.odmr_fm_modulation import ODMRFMModulationExperiment
 
 
 def create_devices(use_real_hardware=False):
@@ -59,11 +61,11 @@ def create_devices(use_real_hardware=False):
 def create_mock_devices():
     """Create mock device instances using our refactored mock devices."""
     try:
-        from src.Controller import SG384Generator, AdwinGoldDevice, MCLNanoDrive
+        from src.Controller import MockSG384Generator, MockAdwinGoldDevice, MockMCLNanoDrive
         devices = {
-            'microwave': {'instance': SG384Generator()},
-            'adwin': {'instance': AdwinGoldDevice()},
-            'nanodrive': {'instance': MCLNanoDrive(settings={'serial': 2849})}
+            'microwave': {'instance': MockSG384Generator()},
+            'adwin': {'instance': MockAdwinGoldDevice()},
+            'nanodrive': {'instance': MockMCLNanoDrive(settings={'serial': 2849})}
         }
         print("✅ Mock hardware initialized successfully")
         return devices
@@ -88,11 +90,13 @@ def run_odmr_scan(use_real_hardware=False, save_data=True, scan_mode='single'):
     print("ODMR SCAN EXAMPLE")
     print("="*60)
     
-    # Check if we can import the experiment class
+    # Check if we can import the experiment classes
     try:
-        from src.Model.experiments.odmr_experiment import ODMRExperiment
+        from src.Model.experiments.odmr_stepped import ODMRSteppedExperiment
+        from src.Model.experiments.odmr_sweep_continuous import ODMRSweepContinuousExperiment
+        from src.Model.experiments.odmr_fm_modulation import ODMRFMModulationExperiment
     except Exception as e:
-        print(f"❌ Cannot import ODMRExperiment: {e}")
+        print(f"❌ Cannot import ODMR experiment classes: {e}")
         print("This usually means required hardware devices are not available on this platform.")
         return None
     
@@ -141,15 +145,97 @@ def run_odmr_scan(use_real_hardware=False, save_data=True, scan_mode='single'):
         }
     }
     
-    # Create experiment instance
-    print(f"\nInitializing ODMR experiment...")
+    # Create experiment instance based on scan mode
+    print(f"\nInitializing ODMR experiment in {scan_mode} mode...")
     try:
-        experiment = ODMRExperiment(
-            devices=devices,
-            name="ODMR_Example",
-            settings=scan_settings,
-            log_function=print
-        )
+        if scan_mode == 'stepped':
+            # Use stepped frequency experiment for precise control
+            experiment = ODMRSteppedExperiment(
+                devices=devices,
+                name="ODMR_Stepped_Example",
+                settings={
+                    'frequency_range': scan_settings['frequency_range'],
+                    'microwave': {
+                        'power': scan_settings['microwave']['power'],
+                        'settle_time': scan_settings['acquisition']['settle_time']
+                    },
+                    'acquisition': {
+                        'integration_time': scan_settings['acquisition']['integration_time'],
+                        'averages': scan_settings['acquisition']['averages'],
+                        'cycles_per_average': 10
+                    },
+                    'laser': scan_settings['laser'],
+                    'analysis': scan_settings['analysis']
+                }
+            )
+        elif scan_mode == 'sweep':
+            # Use continuous sweep experiment for fast scanning
+            experiment = ODMRSweepContinuousExperiment(
+                devices=devices,
+                name="ODMR_Sweep_Example",
+                settings={
+                    'frequency_range': scan_settings['frequency_range'],
+                    'microwave': {
+                        'power': scan_settings['microwave']['power'],
+                        'sweep_rate': 1e6,  # 1 MHz/s
+                        'sweep_function': 'Triangle'
+                    },
+                    'acquisition': {
+                        'integration_time': scan_settings['acquisition']['integration_time'],
+                        'averages': scan_settings['acquisition']['averages'],
+                        'settle_time': scan_settings['acquisition']['settle_time']
+                    },
+                    'laser': scan_settings['laser'],
+                    'analysis': scan_settings['analysis']
+                }
+            )
+        elif scan_mode == 'fm':
+            # Use FM modulation experiment for fine sweeps
+            center_freq = (scan_settings['frequency_range']['start'] + scan_settings['frequency_range']['stop']) / 2
+            mod_depth = (scan_settings['frequency_range']['stop'] - scan_settings['frequency_range']['start']) / 2
+            experiment = ODMRFMModulationExperiment(
+                devices=devices,
+                name="ODMR_FM_Example",
+                settings={
+                    'frequency': {
+                        'center': center_freq,
+                        'modulation_depth': mod_depth,
+                        'modulation_rate': 1e3  # 1 kHz
+                    },
+                    'microwave': {
+                        'power': scan_settings['microwave']['power'],
+                        'modulation_function': 'Sine'
+                    },
+                    'acquisition': {
+                        'integration_time': scan_settings['acquisition']['integration_time'],
+                        'averages': scan_settings['acquisition']['averages'],
+                        'cycles_per_average': 10,
+                        'settle_time': scan_settings['acquisition']['settle_time']
+                    },
+                    'laser': scan_settings['laser'],
+                    'analysis': scan_settings['analysis']
+                }
+            )
+        else:
+            # Default to stepped mode
+            experiment = ODMRSteppedExperiment(
+                devices=devices,
+                name="ODMR_Default_Example",
+                settings={
+                    'frequency_range': scan_settings['frequency_range'],
+                    'microwave': {
+                        'power': scan_settings['microwave']['power'],
+                        'settle_time': scan_settings['acquisition']['settle_time']
+                    },
+                    'acquisition': {
+                        'integration_time': scan_settings['acquisition']['integration_time'],
+                        'averages': scan_settings['acquisition']['averages'],
+                        'cycles_per_average': 10
+                    },
+                    'laser': scan_settings['laser'],
+                    'analysis': scan_settings['analysis']
+                }
+            )
         
         # Setup the experiment
         print("Setting up experiment...")
@@ -338,8 +424,8 @@ def main():
     parser = argparse.ArgumentParser(description='ODMR Scan Example')
     parser.add_argument('--real-hardware', action='store_true',
                        help='Use real hardware (default: use mock hardware)')
-    parser.add_argument('--scan-mode', choices=['single', 'continuous', 'averaged', '2d_scan'], 
-                       default='single', help='ODMR scan mode (default: single)')
+    parser.add_argument('--scan-mode', choices=['stepped', 'sweep', 'fm'], 
+                       default='stepped', help='ODMR scan mode: stepped (precise), sweep (fast), fm (modulation)')
     parser.add_argument('--no-save', action='store_true',
                        help='Do not save scan data')
     parser.add_argument('--no-plot', action='store_true',

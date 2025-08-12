@@ -37,4 +37,9 @@ from .odmr_experiment import ODMRExperiment, ODMRRabiExperiment
 from .odmr_enhanced import EnhancedODMRExperiment
 from .odmr_simple_adwin import SimpleODMRExperiment
 
+# New focused ODMR experiments with SG384 integration
+from .odmr_stepped import ODMRSteppedExperiment
+from .odmr_sweep_continuous import ODMRSweepContinuousExperiment
+from .odmr_fm_modulation import ODMRFMModulationExperiment
+
 from src.core.experiment_iterator import ExperimentIterator

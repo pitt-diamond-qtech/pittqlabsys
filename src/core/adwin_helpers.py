@@ -368,4 +368,77 @@ def read_adwin_sweep_odmr_data(adwin_instance) -> Dict[str, Any]:
         'forward_voltages': forward_voltages,
         'reverse_voltages': reverse_voltages,
         'sweep_direction': sweep_direction
-    } 
+    }
+
+
+def setup_adwin_for_fm_odmr(adwin_instance, integration_time_ms: float = 1.0, 
+                           num_cycles: int = 10, modulation_rate_hz: float = 1000.0) -> None:
+    """
+    Setup ADwin for frequency modulation ODMR experiments.
+    
+    This function adapts the ODMR_Sweep_Counter for FM experiments by configuring
+    it for unidirectional sweeps with cycle-based averaging.
+    
+    Args:
+        adwin_instance: ADwinGold instance
+        integration_time_ms: Integration time per point in milliseconds
+        num_cycles: Number of modulation cycles to average
+        modulation_rate_hz: Frequency of the modulation in Hz
+    """
+    # Use the sweep setup as a base, but configure for FM
+    setup_adwin_for_sweep_odmr(
+        adwin_instance,
+        integration_time_ms,
+        0.001,  # 1 ms settle time
+        int(1.0 / (modulation_rate_hz * integration_time_ms * 1e-3)),  # points per cycle
+        False  # unidirectional for FM
+    )
+    
+    # Set FM-specific parameters
+    # Par_10: Number of cycles per average
+    adwin_instance.set_int_var(10, num_cycles)
+    
+    # Par_12: Modulation rate (stored for reference)
+    adwin_instance.set_float_var(12, modulation_rate_hz)
+
+
+def read_adwin_fm_odmr_data(adwin_instance) -> Dict[str, Any]:
+    """
+    Read data from ADwin FM ODMR experiment.
+    
+    This function reads FM-specific data from the adapted sweep counter.
+    
+    Args:
+        adwin_instance: ADwinGold instance
+        
+    Returns:
+        Dictionary containing:
+        - 'counts': Current counts (Par_1)
+        - 'step_index': Current step index (Par_4)
+        - 'voltage': Current voltage output (Par_6)
+        - 'cycle_complete': Cycle complete flag (Par_7)
+        - 'total_counts': Total counts for current step (Par_8)
+        - 'cycle_count': Current cycle count (Par_9)
+        - 'data_ready': Data ready flag (Par_10)
+        - 'modulation_cycles': Array of cycle counts (Data_1)
+        - 'cycle_voltages': Array of cycle voltages (Data_3)
+        - 'modulation_rate': Stored modulation rate (Par_12)
+    """
+    # Use the sweep data reader as a base
+    sweep_data = read_adwin_sweep_odmr_data(adwin_instance)
+    
+    # Extract FM-specific data
+    fm_data = {
+        'counts': sweep_data['counts'],
+        'step_index': sweep_data['step_index'],
+        'voltage': sweep_data['voltage'],
+        'cycle_complete': sweep_data['sweep_complete'],
+        'total_counts': sweep_data['total_counts'],
+        'cycle_count': sweep_data['sweep_cycle'],
+        'data_ready': sweep_data['data_ready'],
+        'modulation_cycles': sweep_data['forward_counts'],  # Use forward as cycle data
+        'cycle_voltages': sweep_data['forward_voltages'],   # Use forward as voltage data
+        'modulation_rate': adwin_instance.get_float_var(12) if sweep_data['data_ready'] else None
+    }
+    
+    return fm_data 

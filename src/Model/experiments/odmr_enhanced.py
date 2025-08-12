@@ -1,17 +1,16 @@
 """
 Enhanced Optically Detected Magnetic Resonance (ODMR) Experiment
 
-This module implements an enhanced ODMR experiment that incorporates advanced features
-from the old EsrDaqFm class, including frequency modulation (FM), laser power tracking,
-and sophisticated ADwin integration.
+DEPRECATED: This legacy experiment is superseded by:
+- `ODMRSteppedExperiment` (precise stepped control)
+- `ODMRSweepContinuousExperiment` (phase-continuous sweep)
+- `ODMRFMModulationExperiment` (fine, fast FM sweeps)
 
-Key Features:
-- Frequency modulation using microwave generator
-- Laser power tracking and normalization using ADwin
-- Advanced frequency range handling (start_stop, center_range)
-- ADwin-based data acquisition with custom binary scripts
-- Real-time data processing and normalization
-- Frequency section handling for large ranges
+These newer experiments directly control the SG384 and integrate with ADwin helpers.
+See docs/ODMR_EXPERIMENTS_OVERVIEW.md.
+
+This module implemented an enhanced ODMR experiment with advanced features such as FM, laser
+power tracking, and ADwin integration.
 
 Author: Gurudev Dutt <gdutt@pitt.edu>
 Created: 2024
@@ -24,10 +23,19 @@ from scipy.optimize import curve_fit
 from scipy.signal import savgol_filter
 from typing import List, Dict, Any, Optional, Tuple
 import time
+import warnings
 
 from src.core import Experiment, Parameter
 from src.Controller import SG384Generator, AdwinGoldDevice
 from src.core.adwin_helpers import setup_adwin_for_odmr, read_adwin_odmr_data
+
+# Emit a deprecation warning when this module is imported
+warnings.warn(
+    "src.Model.experiments.odmr_enhanced is deprecated. Use ODMRSteppedExperiment, "
+    "ODMRSweepContinuousExperiment, or ODMRFMModulationExperiment (see docs/ODMR_EXPERIMENTS_OVERVIEW.md).",
+    FutureWarning,
+    stacklevel=2,
+)
 
 
 class EnhancedODMRExperiment(Experiment):

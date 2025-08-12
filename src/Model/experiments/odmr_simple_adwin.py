@@ -1,16 +1,11 @@
 """
 Simple Optically Detected Magnetic Resonance (ODMR) Experiment with ADwin
 
-This module implements a simple ODMR experiment that uses ADwin for data acquisition
-instead of NI-DAQ. It's based on the EsrSimple class but modernized with the new
-architecture and proper ADwin integration.
+DEPRECATED: This legacy simple ODMR experiment is superseded by the new
+`ODMRSteppedExperiment`, which performs real stepped frequency control of the SG384
+and integrates with ADwin helpers. See docs/ODMR_EXPERIMENTS_OVERVIEW.md.
 
-Key Features:
-- Simple frequency sweep without FM modulation
-- ADwin-based data acquisition
-- Optional frequency randomization
-- Real-time fitting and analysis
-- Support for both start_stop and center_range frequency modes
+This module implemented a simple ODMR experiment using ADwin for data acquisition.
 
 Author: Gurudev Dutt <gdutt@pitt.edu>
 Created: 2024
@@ -24,10 +19,19 @@ from scipy.signal import savgol_filter
 from typing import List, Dict, Any, Optional, Tuple
 import time
 import random
+import warnings
 
 from src.core import Experiment, Parameter
 from src.Controller import SG384Generator, AdwinGoldDevice
 from src.core.adwin_helpers import setup_adwin_for_simple_odmr, read_adwin_simple_odmr_data
+
+# Emit a deprecation warning when this module is imported
+warnings.warn(
+    "src.Model.experiments.odmr_simple_adwin is deprecated. Use ODMRSteppedExperiment "
+    "(see docs/ODMR_EXPERIMENTS_OVERVIEW.md).",
+    FutureWarning,
+    stacklevel=2,
+)
 
 
 class SimpleODMRExperiment(Experiment):
