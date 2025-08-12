@@ -62,6 +62,11 @@ DIM dac_value AS LONG
 DIM adc_value AS LONG
 DIM laser_voltage AS FLOAT
 
+DIM Data_1(10000) AS LONG  ' Forward sweep counts
+DIM Data_2(10000) AS LONG  ' Reverse sweep counts  
+DIM Data_3(10000) AS FLOAT ' Forward sweep voltages
+DIM Data_4(10000) AS FLOAT ' Reverse sweep voltages
+
 init:
   ' Initialize counter
   Cnt_Enable(0)   ' Disable counter
