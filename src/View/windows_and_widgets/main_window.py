@@ -1179,9 +1179,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         for key, value in parameters.items():
             if isinstance(value, Parameter):
-                AQuISSQTreeItem(tree, key, value, parameters.valid_values[key], parameters.info[key])
+                item = AQuISSQTreeItem(tree, key, value, parameters.valid_values[key], parameters.info[key])
+                tree.addTopLevelItem(item)
             else:
-                AQuISSQTreeItem(tree, key, value, type(value), '')
+                item = AQuISSQTreeItem(tree, key, value, type(value), '')
+                tree.addTopLevelItem(item)
 
     def fill_treeview(self, tree, input_dict):
         """

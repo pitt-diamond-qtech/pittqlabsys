@@ -54,6 +54,12 @@ DIM sweep_cycle AS LONG
 DIM data_ready AS LONG
 DIM dac_value AS LONG
 
+' Declare data arrays for storing sweep data
+DIM Data_1(10000) AS LONG  ' Forward sweep counts
+DIM Data_2(10000) AS LONG  ' Reverse sweep counts  
+DIM Data_3(10000) AS FLOAT ' Forward sweep voltages
+DIM Data_4(10000) AS FLOAT ' Reverse sweep voltages
+
 init:
   ' Initialize counter
   Cnt_Enable(0)   ' Disable counter
@@ -100,11 +106,13 @@ init:
   Par_9 = 0  ' Forward sweep cycle
   Par_10 = 0 ' Data not ready
   
-  ' Clear data arrays
-  Data_Clear(1, 0, Par_3 - 1)  ' Clear forward counts
-  Data_Clear(2, 0, Par_3 - 1)  ' Clear reverse counts
-  Data_Clear(3, 0, Par_3 - 1)  ' Clear forward voltages
-  Data_Clear(4, 0, Par_3 - 1)  ' Clear reverse voltages
+  ' Clear data arrays by setting all elements to 0
+  FOR step_index = 0 TO Par_3 - 1
+    Data_1(step_index) = 0  ' Clear forward counts
+    Data_2(step_index) = 0  ' Clear reverse counts
+    Data_3(step_index) = 0  ' Clear forward voltages
+    Data_4(step_index) = 0  ' Clear reverse voltages
+  NEXT step_index
 
 Event:
   ' Read counter value
