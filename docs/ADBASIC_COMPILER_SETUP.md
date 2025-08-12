@@ -155,6 +155,15 @@ The `src/Controller/adwin.py` file has been enhanced with:
 - Automatic compilation and loading workflow
 - License-aware compilation
 
+### 3. ADwin Helper Functions
+
+The project includes `src/core/adwin_helpers.py` which provides:
+
+- Helper functions for setting up ADwin processes
+- Functions for reading ADwin data
+- Support for different experiment types (ODMR, sweep, FM)
+- Centralized binary file path management
+
 ## Usage Examples
 
 ### Basic Compilation
@@ -343,12 +352,35 @@ The following environment variables are used:
 
 src/
 ├── core/
-│   └── adbasic_compiler.py  # Python wrapper with license support
+│   ├── adbasic_compiler.py  # Python wrapper with license support
+│   └── adwin_helpers.py     # ADwin helper functions for experiments
 └── Controller/
     └── adwin.py            # Enhanced ADwin controller
 
 ~/.adwin_license.json       # License file (recommended location)
 ```
+
+## Architecture Notes
+
+### Why ADwin Modules Are in `src/core/`
+
+The ADwin-related modules (`adbasic_compiler.py` and `adwin_helpers.py`) are intentionally placed in `src/core/` rather than `src/Controller/` for several architectural reasons:
+
+1. **Cross-cutting Concerns**: These modules are used by multiple experiments across different modules, not just controllers
+2. **Avoiding Circular Imports**: Experiments import from `core/`, controllers import from `Controller/` - this prevents circular dependency issues
+3. **Foundational Utilities**: They provide foundational ADwin abstractions that bridge hardware and experiment logic
+4. **Stable API**: Experiments depend on these functions, so they need a stable location
+
+### Import Hierarchy
+```
+src/core/ (foundational utilities)
+    ↓
+src/Controller/ (hardware drivers)
+    ↓  
+src/Model/experiments/ (experiment logic)
+```
+
+This structure follows the principle of "keep cross-cutting concerns in core" and provides a clean separation of concerns while avoiding import complexity.
 
 ## Benefits
 
@@ -359,6 +391,7 @@ src/
 5. **Flexibility**: Support for single files and batch compilation
 6. **License Management**: Full control over ADwin licensing
 7. **Security**: License files can be stored securely
+8. **Clean Architecture**: Proper separation of concerns without circular dependencies
 
 ## Future Enhancements
 

@@ -13,8 +13,11 @@
 '<Header End>
 '
 ' ODMR Sweep Counter Script for Enhanced ODMR Experiments
-' This script generates a voltage ramp on AO1 for SG384 modulation input
+' This script generates a voltage ramp on DAC1 for SG384 modulation input
 ' and counts photons synchronously during the sweep.
+'
+' IMPORTANT: Voltage is constrained to ±1V for SG384 compatibility
+' DAC operates at ±10V range for precision, but output is clamped to ±1V
 '
 ' Parameters:
 ' Par_1  - Counter value (read)
@@ -22,7 +25,7 @@
 ' Par_3  - Number of steps in sweep (set by experiment)
 ' Par_4  - Current step index (0 to num_steps-1)
 ' Par_5  - Sweep direction (0=forward, 1=reverse)
-' Par_6  - Current voltage output (-1.0 to +1.0)
+' Par_6  - Current voltage output (-1.0 to +1.0, clamped for SG384)
 ' Par_7  - Sweep complete flag (0=in progress, 1=complete)
 ' Par_8  - Total counts for current step
 ' Par_9  - Sweep cycle counter (0=forward, 1=reverse, 2=complete)
@@ -35,8 +38,8 @@
 ' Data_3 - Forward sweep voltages (index 0 to num_steps-1)
 ' Data_4 - Reverse sweep voltages (index 0 to num_steps-1)
 '
-' Analog Outputs:
-' AO1 - Voltage ramp for SG384 FM input (-1V to +1V)
+' DAC Outputs:
+' DAC1 - Voltage ramp for SG384 FM input (-1V to +1V, clamped for safety)
 
 #Include ADwinGoldII.inc
 
@@ -49,6 +52,7 @@ DIM total_counts AS LONG
 DIM sweep_direction AS LONG
 DIM sweep_cycle AS LONG
 DIM data_ready AS LONG
+DIM dac_value AS LONG
 
 init:
   ' Initialize counter
@@ -57,8 +61,10 @@ init:
   Cnt_Mode(1,8)   ' Set counter 1 to increment on falling edge
   Cnt_Enable(1)   ' Enable counter 1
   
-  ' Initialize analog outputs
-  AO_Config(1, 0, 0, 1)  ' Configure AO1 for ±1V range (SG384 FM input)
+  ' Initialize DAC for ±10V range (but we'll clamp output to ±1V for SG384)
+  ' DAC values: 0 = -10V, 32768 = 0V, 65535 = +9.999695V
+  DAC(1, 1)       ' Enable DAC1
+  Start_DAC(1)    ' Start DAC1 output
   
   ' Initialize variables
   step_index = 0
@@ -69,16 +75,18 @@ init:
   sweep_cycle = 0
   data_ready = 0
   
-  ' Calculate voltage step size
+  ' Calculate voltage step size for ±1V range (SG384 safe)
   IF (Par_3 > 0) THEN
     voltage_step = 2.0 / Par_3  ' 2V range divided by number of steps
   ELSE
     voltage_step = 0.02  ' Default step size
   ENDIF
   
-  ' Start at -1V for forward sweep
+  ' Start at -1V for forward sweep (SG384 safe)
   current_voltage = -1.0
-  AO_Write(1, current_voltage)
+  ' Convert voltage to DAC value: (voltage + 10) * 65535 / 20
+  dac_value = (current_voltage + 10.0) * 65535 / 20
+  Write_DAC(1, dac_value)
   
   ' Start settle time after initial voltage
   settle_cycles = Par_11  ' Settle time in microseconds
@@ -117,81 +125,92 @@ Event:
     ' Check if we've completed the integration time for this step
     integration_cycles = integration_cycles + 1
     IF (integration_cycles >= Par_2) THEN
-    ' Integration time complete for this step
-    ' Store data in appropriate array based on sweep direction
-    IF (sweep_direction = 0) THEN
-      ' Forward sweep: store in Data_1 (counts) and Data_3 (voltages)
-      Data_1(step_index) = total_counts
-      Data_3(step_index) = current_voltage
-    ELSE
-      ' Reverse sweep: store in Data_2 (counts) and Data_4 (voltages)
-      Data_2(step_index) = total_counts
-      Data_4(step_index) = current_voltage
-    ENDIF
-    
-    ' Move to next step
-    step_index = step_index + 1
-    Par_4 = step_index
-    
-    ' Check if we've completed all steps for current direction
-    IF (step_index >= Par_3) THEN
-      ' Current direction complete
+      ' Integration time complete for this step
+      ' Store data in appropriate array based on sweep direction
       IF (sweep_direction = 0) THEN
-        ' Forward sweep complete, start reverse sweep
-        sweep_direction = 1
-        sweep_cycle = 1
-        step_index = 0
-        Par_4 = 0
-        Par_5 = 1  ' Reverse sweep
-        
-        ' Start reverse sweep from +1V
-        current_voltage = 1.0
-        voltage_step = -2.0 / Par_3  ' Negative step for reverse sweep
+        ' Forward sweep: store in Data_1 (counts) and Data_3 (voltages)
+        Data_1(step_index) = total_counts
+        Data_3(step_index) = current_voltage
+      ELSE
+        ' Reverse sweep: store in Data_2 (counts) and Data_4 (voltages)
+        Data_2(step_index) = total_counts
+        Data_4(step_index) = current_voltage
+      ENDIF
+      
+      ' Move to next step
+      step_index = step_index + 1
+      Par_4 = step_index
+      
+      ' Check if we've completed all steps for current direction
+      IF (step_index >= Par_3) THEN
+        ' Current direction complete
+        IF (sweep_direction = 0) THEN
+          ' Forward sweep complete, start reverse sweep
+          sweep_direction = 1
+          sweep_cycle = 1
+          step_index = 0
+          Par_4 = 0
+          Par_5 = 1  ' Reverse sweep
+          
+          ' Start reverse sweep from +1V (SG384 safe)
+          current_voltage = 1.0
+          voltage_step = -2.0 / Par_3  ' Negative step for reverse sweep
+          
+        ELSE
+          ' Reverse sweep complete, both sweeps done
+          sweep_cycle = 2
+          Par_7 = 1  ' Sweep complete
+          Par_9 = 2  ' Complete cycle
+          Par_10 = 1 ' Data ready to read
+          
+          ' Reset for next cycle
+          step_index = 0
+          Par_4 = 0
+          sweep_direction = 0
+          sweep_cycle = 0
+          data_ready = 0
+          current_voltage = -1.0
+          voltage_step = 2.0 / Par_3
+        ENDIF
         
       ELSE
-        ' Reverse sweep complete, both sweeps done
-        sweep_cycle = 2
-        Par_7 = 1  ' Sweep complete
-        Par_9 = 2  ' Complete cycle
-        Par_10 = 1 ' Data ready to read
+        ' Move to next voltage step in current direction
+        current_voltage = current_voltage + voltage_step
         
-        ' Reset for next cycle
-        step_index = 0
-        Par_4 = 0
-        sweep_direction = 0
-        sweep_cycle = 0
-        data_ready = 0
-        current_voltage = -1.0
-        voltage_step = 2.0 / Par_3
+        ' CRITICAL: Clamp voltage to ±1V for SG384 safety
+        IF (current_voltage > 1.0) THEN
+          current_voltage = 1.0
+        ENDIF
+        IF (current_voltage < -1.0) THEN
+          current_voltage = -1.0
+        ENDIF
       ENDIF
       
-    ELSE
-      ' Move to next voltage step in current direction
-      current_voltage = current_voltage + voltage_step
+      ' Output current voltage using DAC (clamped to ±1V for SG384)
+      ' Convert voltage to DAC value: (voltage + 10) * 65535 / 20
+      dac_value = (current_voltage + 10.0) * 65535 / 20
+      ' Ensure DAC value is within valid range
+      IF (dac_value < 0) THEN
+        dac_value = 0
+      ENDIF
+      IF (dac_value > 65535) THEN
+        dac_value = 65535
+      ENDIF
+      Write_DAC(1, dac_value)
+      Par_6 = current_voltage
       
-      ' Ensure voltage stays within bounds
-      IF (current_voltage > 1.0) THEN
-        current_voltage = 1.0
-      ENDIF
-      IF (current_voltage < -1.0) THEN
-        current_voltage = -1.0
-      ENDIF
+      ' Start settle time after voltage change
+      settle_cycles = Par_11  ' Settle time in microseconds
+      
+      ' Reset integration cycle counter and counts
+      integration_cycles = 0
+      total_counts = 0
+      Par_8 = 0
     ENDIF
-    
-    ' Output current voltage
-    AO_Write(1, current_voltage)
-    Par_6 = current_voltage
-    
-    ' Start settle time after voltage change
-    settle_cycles = Par_11  ' Settle time in microseconds
-    
-    ' Reset integration cycle counter and counts
-    integration_cycles = 0
-    total_counts = 0
-    Par_8 = 0
   ENDIF
 
 Finish:
   ' Cleanup
   Cnt_Enable(0)  ' Disable counter
-  AO_Write(1, 0.0)  ' Set FM output to 0V 
+  ' Set DAC output to 0V (center of range, SG384 safe)
+  Write_DAC(1, 32768) 
