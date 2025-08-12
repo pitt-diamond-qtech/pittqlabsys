@@ -72,10 +72,6 @@ cd pittqlabsys
 
 When setting up AQuISS on macOS, you may encounter the following issues and solutions:
 
-#### PostgreSQL Database Dependencies
-**Issue**: `pg_config executable not found` error when installing `psycopg2`
-**Solution**: The project uses `psycopg2-binary` instead of `psycopg2` to avoid compilation issues on macOS.
-
 #### Configuration File Paths
 **Issue**: Hardcoded Windows paths in configuration files
 **Solution**: Update `src/View/gui_config.json` to use macOS-compatible paths:

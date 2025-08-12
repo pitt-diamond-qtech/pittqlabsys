@@ -10,9 +10,6 @@ pyqtgraph>=0.12.4
 # Plotting
 matplotlib>=3.3.3
 
-# Database
-psycopg2-binary>=2.9.9
-
 # Configuration and data formats
 PyYAML>=6.0.1
 
@@ -22,7 +19,10 @@ nidaqmx>=0.9.0
 PyVISA>=1.14.0
 
 # Units and measurements
-Pint>=0.23.0
+Pint>=0.21
 
 # Testing
 pytest>=6.0.0
+
+# h5py for multistructure data
+h5py>=3.0.0

@@ -35,7 +35,6 @@ dependencies = [
     "pyqtgraph>=0.12.4",
     "PyQt5>=5.15.0",
     "matplotlib>=3.3.3",
-    "psycopg2>=2.8.6",
     "PyYAML>=6.0.1",
     "scipy>=1.7.0",
     "pandas>=1.3.0",

@@ -16,7 +16,6 @@
 from pathlib import Path
 import functools, logging
 import os, inspect,sys
-import psycopg2 as pg2
 import datetime
 from importlib import import_module
 import glob
