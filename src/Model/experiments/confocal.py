@@ -9,6 +9,7 @@ This file has the experiment classes relevant to performing a scan with the conf
 import numpy as np
 from pyqtgraph.exporters import ImageExporter
 from pathlib import Path
+import warnings
 
 from src.core import Parameter, Experiment
 from src.core.helper_functions import get_project_root
@@ -52,12 +53,29 @@ def get_binary_file_path(filename: str) -> Path:
 
 class ConfocalScan_Fast(Experiment):
     '''
+    DEPRECATED: This class has been replaced by NanodriveAdwinConfocalScanFast.
+    
     This class runs a confocal microscope scan using the MCL NanoDrive to move the sample stage and the ADwin Gold II to get count data.
     The code loads a waveform on the nanodrive, starts the Adwin process, triggers a waveform aquisition, then reads the count data array from the Adwin.
 
     To get accurate counts, the loaded waveforms are extended to compensate for 'warm up' and 'cool down' movements. The data arrays are then
     manipulated to get the counts for the inputed region.
+    
+    WARNING: This class is deprecated and will be removed in a future version.
+    Use NanodriveAdwinConfocalScanFast instead for better hardware-specific naming and organization.
     '''
+
+    def __init__(self, devices, experiments=None, name=None, settings=None, log_function=None, data_path=None):
+        warnings.warn(
+            "ConfocalScan_Fast is deprecated and will be removed in a future version. "
+            "Use NanodriveAdwinConfocalScanFast instead.",
+            FutureWarning,
+            stacklevel=2
+        )
+        super().__init__(name, settings=settings, sub_experiments=experiments, devices=devices, log_function=log_function, data_path=data_path)
+        #get instances of devices
+        self.nd = self.devices['nanodrive']['instance']
+        self.adw = self.devices['adwin']['instance']
 
     _DEFAULT_SETTINGS = [
         Parameter('point_a',
@@ -422,9 +440,26 @@ class ConfocalScan_Fast(Experiment):
 
 class ConfocalScan_Slow(Experiment):
     '''
+    DEPRECATED: This class has been replaced by NanodriveAdwinConfocalScanSlow.
+    
     This class runs a confocal microscope scan using the MCL NanoDrive to move the sample stage and the ADwin Gold II to get count data.
     The slow method goes point by point to ensure the scan is precise and accurate at the cost of execution time
+    
+    WARNING: This class is deprecated and will be removed in a future version.
+    Use NanodriveAdwinConfocalScanSlow instead for better hardware-specific naming and organization.
     '''
+
+    def __init__(self, devices, experiments=None, name=None, settings=None, log_function=None, data_path=None):
+        warnings.warn(
+            "ConfocalScan_Slow is deprecated and will be removed in a future version. "
+            "Use NanodriveAdwinConfocalScanSlow instead.",
+            FutureWarning,
+            stacklevel=2
+        )
+        super().__init__(name, settings=settings, sub_experiments=experiments, devices=devices, log_function=log_function, data_path=data_path)
+        #get instances of devices
+        self.nd = self.devices['nanodrive']['instance']
+        self.adw = self.devices['adwin']['instance']
 
     _DEFAULT_SETTINGS = [
         Parameter('point_a',
@@ -718,9 +753,26 @@ class ConfocalScan_Slow(Experiment):
 
 class Confocal_Point(Experiment):
     '''
+    DEPRECATED: This class has been replaced by NanodriveAdwinConfocalPoint.
+    
     This class implements a confocal microscope to get the counts at a single point. It uses the MCL NanoDrive to move the sample stage and the ADwin Gold to get count data.
     The 'continuous' parameter if false will return 1 data point. If true it offers live counting that continues until the stop button is clicked.
+    
+    WARNING: This class is deprecated and will be removed in a future version.
+    Use NanodriveAdwinConfocalPoint instead for better hardware-specific naming and organization.
     '''
+
+    def __init__(self, devices, experiments=None, name=None, settings=None, log_function=None, data_path=None):
+        warnings.warn(
+            "Confocal_Point is deprecated and will be removed in a future version. "
+            "Use NanodriveAdwinConfocalPoint instead.",
+            FutureWarning,
+            stacklevel=2
+        )
+        super().__init__(name, settings=settings, sub_experiments=experiments, devices=devices, log_function=log_function, data_path=data_path)
+        #get instances of devices
+        self.nd = self.devices['nanodrive']['instance']
+        self.adw = self.devices['adwin']['instance']
 
     _DEFAULT_SETTINGS = [
         Parameter('point',

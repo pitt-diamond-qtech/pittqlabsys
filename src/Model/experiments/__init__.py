@@ -22,7 +22,13 @@ if sys.platform.startswith('win'):
     from src.Model.experiments.galvo_scan import GalvoScan
     from .galvo_scan_generic import GalvoScanGeneric
     from .select_points import SelectPoints
+        # Legacy confocal experiments (deprecated - use new focused modules instead)
     from .confocal import ConfocalScan_Fast, ConfocalScan_Slow, Confocal_Point
+
+    # New focused confocal experiments with hardware-specific naming
+    from .nanodrive_adwin_confocal_scan_fast import NanodriveAdwinConfocalScanFast
+    from .nanodrive_adwin_confocal_scan_slow import NanodriveAdwinConfocalScanSlow
+    from .nanodrive_adwin_confocal_point import NanodriveAdwinConfocalPoint
 else:
     # On non-Windows platforms, create placeholder imports to avoid import errors
     Pxi6733ReadCounter = None
@@ -32,6 +38,11 @@ else:
     ConfocalScan_Fast = None
     ConfocalScan_Slow = None
     Confocal_Point = None
+    
+    # New focused confocal experiments (not available on non-Windows)
+    NanodriveAdwinConfocalScanFast = None
+    NanodriveAdwinConfocalScanSlow = None
+    NanodriveAdwinConfocalPoint = None
 
 from .odmr_experiment import ODMRExperiment, ODMRRabiExperiment
 from .odmr_enhanced import EnhancedODMRExperiment
