@@ -25,20 +25,48 @@ from src.View.windows_and_widgets import AQuISSQTreeItem, LoadDialog, LoadDialog
 from src.Model.experiments.select_points import SelectPoints
 from src.core.read_write_functions import load_aqs_file
 from src.core.helper_functions import get_project_root
-from config_store import load_config, merge_config, save_config
+from src.config_store import load_config, merge_config, save_config
 from pathlib import Path
-from config_paths import resolve_paths
+from src.config_paths import resolve_paths
 import os, io, json, webbrowser, datetime, operator
 import numpy as np
 from collections import deque
 from functools import reduce
+import logging
+import traceback
+import sys
 
+# Set up logging for GUI operations
+def setup_gui_logging():
+    """Set up comprehensive logging for GUI operations"""
+    logger = logging.getLogger('AQuISS_GUI')
+    logger.setLevel(logging.DEBUG)
+    
+    # Create handlers
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(logging.INFO)
+    
+    file_handler = logging.FileHandler('gui_debug.log')
+    file_handler.setLevel(logging.DEBUG)
+    
+    # Create formatters and add it to handlers
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s')
+    console_handler.setFormatter(formatter)
+    file_handler.setFormatter(formatter)
+    
+    # Add handlers to the logger
+    logger.addHandler(console_handler)
+    logger.addHandler(file_handler)
+    
+    return logger
 
+# Initialize GUI logger
+gui_logger = setup_gui_logging()
 
 
 # load the basic old_gui either from .ui file or from precompiled .py file
 # load your global config.json (adjust the filename/path as needed)
-_CONFIG_PATH = Path(__file__).parent.parent / "config.json"
+_CONFIG_PATH = Path(__file__).parent.parent.parent / "src" / "config.json"
 
 # this gives you a dict of real Path objects for data_folder, experiments_folder, etc.
 paths = resolve_paths(_CONFIG_PATH)
@@ -215,7 +243,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             # Helper function to make only column 1 editable
             def onExperimentParamClick(item, column):
                 tree = item.treeWidget()
-                if column == 1 and not isinstance(item.value, (Experiment, Device)) and not item.is_point():
+                if column == 1 and not isinstance(item.value, (Experiment, Device)) and (hasattr(item, 'is_point') and not item.is_point()):
                     # self.tree_experiments.editItem(item, column)
                     tree.editItem(item, column)
 
@@ -304,7 +332,14 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         things to be done when gui closes, like save the settings
         """
 
-        self.save_config(self.gui_settings['gui_settings'])
+        # Save config if gui_settings key exists, otherwise save to default location
+        if 'gui_settings' in self.gui_settings:
+            self.save_config(self.gui_settings['gui_settings'])
+        else:
+            # Save to default location
+            default_config_path = Path(__file__).parent.parent / "gui_config.json"
+            self.save_config(str(default_config_path))
+        
         self.experiment_thread.quit()
         self.read_probes.quit()
         event.accept()
@@ -471,7 +506,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         item = self.tree_experiments.currentItem()
 
         if item is not None:
-            if item.is_point():
+            if hasattr(item, 'is_point') and item.is_point():
                # item_x = item.child(1)
                 item_x = item.child(0)
                 if mouse_point.x() is not None:
@@ -489,7 +524,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 self.tree_experiments.setCurrentItem(item)
             else:
                 if item.parent() is not None:
-                    if item.parent().is_point():
+                    if hasattr(item.parent(), 'is_point') and item.parent().is_point():
                         if item == item.parent().child(1):
                             if mouse_point.x() is not None:
                                 item.setData(1, 2, float(mouse_point.x()))
@@ -568,24 +603,35 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
 
     def load_experiments(self):
-            """
-            opens file dialog to load experiments into gui
-            """
-
-
+        """
+        opens file dialog to load experiments into gui
+        """
+        gui_logger.info("Starting load_experiments operation")
+        try:
             # update experiments so that current settings do not get lost
+            gui_logger.debug(f"Updating {self.tree_experiments.topLevelItemCount()} existing experiment items")
             for index in range(self.tree_experiments.topLevelItemCount()):
                 experiment_item = self.tree_experiments.topLevelItem(index)
-                self.update_experiment_from_item(experiment_item)
+                gui_logger.debug(f"Processing experiment item {index}: {type(experiment_item)}")
+                # Only update if the item has the get_experiment method (AQuISSQTreeItem)
+                if hasattr(experiment_item, 'get_experiment'):
+                    gui_logger.debug(f"Updating experiment item {index}")
+                    self.update_experiment_from_item(experiment_item)
+                else:
+                    gui_logger.warning(f"Experiment item {index} missing get_experiment method: {type(experiment_item)}")
 
-
+            gui_logger.info("Opening LoadDialog for experiments")
             dialog = LoadDialog(elements_type="experiments", elements_old=self.experiments,
                                 filename=self.gui_settings['experiments_folder'])
             if dialog.exec_():
+                gui_logger.info("LoadDialog completed, processing selected experiments")
                 self.gui_settings['experiments_folder'] = str(dialog.txt_probe_log_path.text())
                 experiments = dialog.get_values()
+                gui_logger.debug(f"Dialog returned {len(experiments)} experiments: {list(experiments.keys())}")
+                
                 added_experiments = set(experiments.keys()) - set(self.experiments.keys())
                 removed_experiments = set(self.experiments.keys()) - set(experiments.keys())
+                gui_logger.info(f"Added: {len(added_experiments)}, Removed: {len(removed_experiments)}")
 
                 if 'data_folder' in list(self.gui_settings.keys()) and os.path.exists(self.gui_settings['data_folder']):
                     data_folder_name = self.gui_settings['data_folder']
@@ -593,6 +639,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                     data_folder_name = None
 
                 # create instances of new devices/experiments
+                gui_logger.info("Loading and appending new experiments")
                 self.experiments, loaded_failed, self.devices = Experiment.load_and_append(
                     experiment_dict={name: experiments[name] for name in added_experiments},
                     experiments=self.experiments,
@@ -603,7 +650,18 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
                 # delete instances of new devices/experiments that have been deselected
                 for name in removed_experiments:
+                    gui_logger.debug(f"Removing experiment: {name}")
                     del self.experiments[name]
+                    
+                gui_logger.info("load_experiments operation completed successfully")
+            else:
+                gui_logger.info("LoadDialog was cancelled")
+                
+        except Exception as e:
+            gui_logger.error(f"Error in load_experiments: {str(e)}")
+            gui_logger.error(f"Traceback: {traceback.format_exc()}")
+            # Show error to user
+            QtWidgets.QMessageBox.critical(self, "Error", f"Failed to load experiments: {str(e)}")
 
     def btn_clicked(self):
         """
@@ -848,7 +906,13 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                     self.plot_experiment(experiment)
 
         def save():
-            self.save_config(self.gui_settings['gui_settings'])
+            # Save config if gui_settings key exists, otherwise save to default location
+            if 'gui_settings' in self.gui_settings:
+                self.save_config(self.gui_settings['gui_settings'])
+            else:
+                # Save to default location
+                default_config_path = Path(__file__).parent.parent / "gui_config.json"
+                self.save_config(str(default_config_path))
         if sender is self.btn_start_experiment:
             start_button()
         elif sender is self.btn_stop_experiment:
@@ -922,7 +986,13 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.refresh_tree(self.tree_experiments, self.experiments)
             self.refresh_tree(self.tree_settings, self.devices)
         elif sender is self.actionSave:
-            self.save_config(self.gui_settings['gui_settings'])
+            # Save config if gui_settings key exists, otherwise save to default location
+            if 'gui_settings' in self.gui_settings:
+                self.save_config(self.gui_settings['gui_settings'])
+            else:
+                # Save to default location
+                default_config_path = Path(__file__).parent.parent / "gui_config.json"
+                self.save_config(str(default_config_path))
         elif sender is self.actionGo_to_AQuISS_GitHub_page:
             webbrowser.open('https://github.com/gurudevdutt/AQuISS')
         elif sender is self.actionExport:
@@ -1173,17 +1243,33 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         Returns:
 
         """
+        gui_logger.debug(f"fill_treewidget called with tree: {type(tree)}, parameters: {type(parameters)}")
+        
+        try:
+            tree.clear()
+            assert isinstance(parameters, (dict, Parameter))
 
-        tree.clear()
-        assert isinstance(parameters, (dict, Parameter))
-
-        for key, value in parameters.items():
-            if isinstance(value, Parameter):
-                item = AQuISSQTreeItem(tree, key, value, parameters.valid_values[key], parameters.info[key])
-                tree.addTopLevelItem(item)
-            else:
-                item = AQuISSQTreeItem(tree, key, value, type(value), '')
-                tree.addTopLevelItem(item)
+            gui_logger.debug(f"Adding {len(parameters)} items to tree")
+            for key, value in parameters.items():
+                try:
+                    if isinstance(value, Parameter):
+                        gui_logger.debug(f"Creating Parameter item: {key}")
+                        item = AQuISSQTreeItem(tree, key, value, parameters.valid_values[key], parameters.info[key])
+                        tree.addTopLevelItem(item)
+                    else:
+                        gui_logger.debug(f"Creating non-Parameter item: {key} ({type(value)})")
+                        item = AQuISSQTreeItem(tree, key, value, type(value), '')
+                        tree.addTopLevelItem(item)
+                except Exception as e:
+                    gui_logger.error(f"Error creating tree item for {key}: {str(e)}")
+                    gui_logger.error(f"Traceback: {traceback.format_exc()}")
+                    
+            gui_logger.debug(f"fill_treewidget completed successfully, tree now has {tree.topLevelItemCount()} items")
+            
+        except Exception as e:
+            gui_logger.error(f"Error in fill_treewidget: {str(e)}")
+            gui_logger.error(f"Traceback: {traceback.format_exc()}")
+            raise
 
     def fill_treeview(self, tree, input_dict):
         """
