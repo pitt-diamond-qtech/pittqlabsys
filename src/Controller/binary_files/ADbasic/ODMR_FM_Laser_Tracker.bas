@@ -41,6 +41,18 @@
 ' Par_12 - FM modulation frequency in Hz (set by experiment)
 ' Par_13 - FM modulation amplitude in volts (0-1V for SG384, set by experiment)
 ' Par_14 - Current FM phase (internal)
+' Par_15 - Current sweep step index (0 to num_steps-1)
+' Par_16 - Number of sweep steps (set by experiment)
+' Par_17 - Sweep direction (0=forward, 1=reverse)
+' Par_18 - Current voltage output (-1.0 to +1.0, clamped for SG384)
+' Par_19 - Sweep complete flag (0=in progress, 1=complete)
+' Par_20 - Total counts for current step
+'
+' Data Arrays:
+' Data_1 - Forward sweep counts (index 0 to num_steps-1)
+' Data_2 - Reverse sweep counts (index 0 to num_steps-1)
+' Data_3 - Forward sweep voltages (index 0 to num_steps-1)
+' Data_4 - Reverse sweep voltages (index 0 to num_steps-1)
 '
 ' DAC Outputs:
 ' DAC1 - FM modulation signal for SG384 (-1V to +1V, clamped for safety)
@@ -61,11 +73,19 @@ DIM fm_frequency AS FLOAT
 DIM dac_value AS LONG
 DIM adc_value AS LONG
 DIM laser_voltage AS FLOAT
+DIM step_index AS LONG
+DIM voltage_step AS FLOAT
+DIM current_voltage AS FLOAT
+DIM total_counts AS LONG
+DIM sweep_direction AS LONG
+DIM sweep_cycle AS LONG
+DIM data_ready AS LONG
+DIM fm_signal AS FLOAT
 
-DIM Data_1(10000) AS LONG  ' Forward sweep counts
-DIM Data_2(10000) AS LONG  ' Reverse sweep counts  
-DIM Data_3(10000) AS FLOAT ' Forward sweep voltages
-DIM Data_4(10000) AS FLOAT ' Reverse sweep voltages
+DIM Data_1[10000] AS LONG  ' Forward sweep counts
+DIM Data_2[10000] AS LONG  ' Reverse sweep counts  
+DIM Data_3[10000] AS FLOAT ' Forward sweep voltages
+DIM Data_4[10000] AS FLOAT ' Reverse sweep voltages
 
 init:
   ' Initialize counter
@@ -93,6 +113,20 @@ init:
   fm_step = 0.0
   fm_amplitude = 0.0
   fm_frequency = 0.0
+  step_index = 0
+  voltage_step = 0.0
+  current_voltage = -1.0
+  total_counts = 0
+  sweep_direction = 0
+  sweep_cycle = 0
+  data_ready = 0
+  
+  ' Calculate voltage step size for ±1V range (SG384 safe)
+  IF (Par_16 > 0) THEN
+    voltage_step = 2.0 / Par_16  ' 2V range divided by number of steps
+  ELSE
+    voltage_step = 0.02  ' Default step size
+  ENDIF
   
   ' Reset averaging variables
   Par_6 = 0  ' Summed counts
@@ -106,6 +140,21 @@ init:
     fm_step = 2.0 * 3.14159 * fm_frequency * 0.001  ' radians per ms
   ENDIF
   
+  ' Reset parameters
+  Par_15 = 0
+  Par_17 = 0  ' Forward sweep
+  Par_18 = current_voltage
+  Par_19 = 0  ' Sweep not complete
+  Par_20 = 0
+  
+  ' Clear data arrays by setting all elements to 0
+  FOR step_index = 0 TO Par_16 - 1
+    Data_1[step_index] = 0  ' Clear forward counts
+    Data_2[step_index] = 0  ' Clear reverse counts
+    Data_3[step_index] = 0  ' Clear forward voltages
+    Data_4[step_index] = 0  ' Clear reverse voltages
+  NEXT step_index
+
 Event:
   ' Generate FM modulation signal if enabled
   IF (Par_11 = 1) THEN
@@ -119,7 +168,6 @@ Event:
     ENDIF
     
     ' Calculate FM signal value
-    DIM fm_signal AS FLOAT
     fm_signal = fm_amplitude * SIN(fm_phase)
     
     ' Convert voltage to DAC value: (voltage + 10) * 65535 / 20
@@ -189,6 +237,69 @@ Event:
         Par_9 = Par_7 / Par_4  ' Average laser power
       ELSE
         Par_9 = 0
+      ENDIF
+      
+      ' Store data in appropriate array based on sweep direction
+      IF (step_index < Par_16) THEN
+        IF (sweep_direction = 0) THEN
+          ' Forward sweep: store in Data_1 (counts) and Data_3 (voltages)
+          Data_1[step_index] = Par_8
+          Data_3[step_index] = current_voltage
+        ELSE
+          ' Reverse sweep: store in Data_2 (counts) and Data_4 (voltages)
+          Data_2[step_index] = Par_8
+          Data_4[step_index] = current_voltage
+        ENDIF
+        
+        ' Move to next step
+        step_index = step_index + 1
+        Par_15 = step_index
+        
+        ' Check if we've completed all steps for current direction
+        IF (step_index >= Par_16) THEN
+          ' Current direction complete
+          IF (sweep_direction = 0) THEN
+            ' Forward sweep complete, start reverse sweep
+            sweep_direction = 1
+            sweep_cycle = 1
+            step_index = 0
+            Par_15 = 0
+            Par_17 = 1  ' Reverse sweep
+            
+            ' Start reverse sweep from +1V (SG384 safe)
+            current_voltage = 1.0
+            voltage_step = -2.0 / Par_16  ' Negative step for reverse sweep
+            
+          ELSE
+            ' Reverse sweep complete, both sweeps done
+            sweep_cycle = 2
+            Par_19 = 1  ' Sweep complete
+            
+            ' Reset for next cycle
+            step_index = 0
+            Par_15 = 0
+            sweep_direction = 0
+            sweep_cycle = 0
+            data_ready = 0
+            current_voltage = -1.0
+            voltage_step = 2.0 / Par_16
+          ENDIF
+          
+        ELSE
+          ' Move to next voltage step in current direction
+          current_voltage = current_voltage + voltage_step
+          
+          ' CRITICAL: Clamp voltage to ±1V for SG384 safety
+          IF (current_voltage > 1.0) THEN
+            current_voltage = 1.0
+          ENDIF
+          IF (current_voltage < -1.0) THEN
+            current_voltage = -1.0
+          ENDIF
+        ENDIF
+        
+        ' Update voltage parameter
+        Par_18 = current_voltage
       ENDIF
       
       ' Reset for next averaging cycle

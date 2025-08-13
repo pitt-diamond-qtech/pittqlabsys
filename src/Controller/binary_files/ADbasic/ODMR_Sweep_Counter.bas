@@ -9,7 +9,7 @@
 ' Optimize                       = Yes
 ' Optimize_Level                 = 1
 ' Stacksize                      = 1000
-' Info_Last_Save                 = PittQLabSys
+' Info_Last_Save                 = DUTTLAB8  Duttlab8\Duttlab
 '<Header End>
 '
 ' ODMR Sweep Counter Script for Enhanced ODMR Experiments
@@ -55,10 +55,10 @@ DIM data_ready AS LONG
 DIM dac_value AS LONG
 
 ' Declare data arrays for storing sweep data
-DIM Data_1(10000) AS LONG  ' Forward sweep counts
-DIM Data_2(10000) AS LONG  ' Reverse sweep counts  
-DIM Data_3(10000) AS FLOAT ' Forward sweep voltages
-DIM Data_4(10000) AS FLOAT ' Reverse sweep voltages
+DIM Data_1[10000] AS LONG  ' Forward sweep counts
+DIM Data_2[10000] AS LONG  ' Reverse sweep counts  
+DIM Data_3[10000] AS FLOAT ' Forward sweep voltages
+DIM Data_4[10000] AS FLOAT ' Reverse sweep voltages
 
 init:
   ' Initialize counter
@@ -108,10 +108,10 @@ init:
   
   ' Clear data arrays by setting all elements to 0
   FOR step_index = 0 TO Par_3 - 1
-    Data_1(step_index) = 0  ' Clear forward counts
-    Data_2(step_index) = 0  ' Clear reverse counts
-    Data_3(step_index) = 0  ' Clear forward voltages
-    Data_4(step_index) = 0  ' Clear reverse voltages
+    Data_1[step_index] = 0  ' Clear forward counts
+    Data_2[step_index] = 0  ' Clear reverse counts
+    Data_3[step_index] = 0  ' Clear forward voltages
+    Data_4[step_index] = 0  ' Clear reverse voltages
   NEXT step_index
 
 Event:
@@ -137,12 +137,12 @@ Event:
       ' Store data in appropriate array based on sweep direction
       IF (sweep_direction = 0) THEN
         ' Forward sweep: store in Data_1 (counts) and Data_3 (voltages)
-        Data_1(step_index) = total_counts
-        Data_3(step_index) = current_voltage
+        Data_1[step_index] = total_counts
+        Data_3[step_index] = current_voltage
       ELSE
         ' Reverse sweep: store in Data_2 (counts) and Data_4 (voltages)
-        Data_2(step_index) = total_counts
-        Data_4(step_index) = current_voltage
+        Data_2[step_index] = total_counts
+        Data_4[step_index] = current_voltage
       ENDIF
       
       ' Move to next step
