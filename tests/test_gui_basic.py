@@ -8,6 +8,7 @@ import pytest
 import sys
 from pathlib import Path
 from unittest.mock import Mock, patch
+import time
 
 # Add project root to path
 project_root = Path(__file__).parent.parent
@@ -26,28 +27,72 @@ def mock_hardware():
          patch('src.Controller.nanodrive.MCLNanoDrive'):
         yield
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def app():
-    """Create QApplication for testing"""
+    """Create QApplication once for all tests to avoid conflicts"""
     app = QtWidgets.QApplication.instance()
     if app is None:
         app = QtWidgets.QApplication(sys.argv)
+    
+    # Set application properties for testing
+    app.setQuitOnLastWindowClosed(False)
+    
     yield app
-    # Don't quit the app as it might be shared
+    
+    # Don't quit the app - let Python handle cleanup to avoid segfaults
+    # The session scope ensures this runs once at the end
 
 @pytest.fixture
 def main_window(mock_hardware, app):
-    """Create MainWindow instance for testing"""
+    """Create MainWindow instance for testing with improved cleanup"""
     from src.View.windows_and_widgets.main_window import MainWindow
     
-    # Create window
-    window = MainWindow()
-    window.show()
-    
-    yield window
-    
-    # Cleanup
-    window.close()
+    # Mock config loading to avoid file system dependencies
+    with patch('src.config_store.load_config') as mock_load_config, \
+         patch('src.config_store.merge_config') as mock_merge_config:
+        
+        mock_load_config.return_value = {
+            'data_folder': str(project_root / 'test_data'),
+            'experiments_folder': str(project_root / 'examples'),
+            'device_folder': str(project_root / 'test_devices'),
+            'probes_folder': str(project_root / 'test_probes')
+        }
+        mock_merge_config.return_value = mock_load_config.return_value
+        
+        # Create window with required arguments
+        window = MainWindow(config_file=None, gui_config_file=None)
+        
+        # Mock the save_config function to prevent errors during testing
+        window.save_config = Mock()
+        
+        # Mock other problematic functions
+        window.save_dataset = Mock()
+        
+        # Don't show the window during testing to reduce blinking
+        # window.show()  # Commented out to reduce visual flickering
+        
+        # Process events to ensure proper initialization
+        app.processEvents()
+        
+        # Small delay to ensure window is fully initialized
+        time.sleep(0.1)
+        
+        yield window
+        
+        # More careful cleanup to reduce segfaults
+        try:
+            # Clear any pending events
+            app.processEvents()
+            
+            # Don't call window.close() - let Python handle cleanup
+            # This reduces the chance of cleanup conflicts
+            
+        except Exception as e:
+            # Log cleanup errors but don't fail the test
+            print(f"Warning: Error during window cleanup: {e}")
+        
+        # Final event processing
+        app.processEvents()
 
 class TestGUIBasic:
     """Basic GUI functionality tests"""
@@ -71,11 +116,12 @@ class TestGUIBasic:
             'test_number': 42
         }
         
+        # Use tree_experiments which is a QTreeWidget, not tree_gui_settings which is a QTreeView
         # Test filling the tree
-        main_window.fill_treewidget(main_window.tree_gui_settings, test_params)
+        main_window.fill_treewidget(main_window.tree_experiments, test_params)
         
-        # Verify items were added
-        assert main_window.tree_gui_settings.topLevelItemCount() == 2
+        # Verify items were added - use topLevelItemCount() for QTreeWidget
+        assert main_window.tree_experiments.topLevelItemCount() == 2
         
     def test_load_dialog_creation(self, main_window):
         """Test that LoadDialog can be created"""

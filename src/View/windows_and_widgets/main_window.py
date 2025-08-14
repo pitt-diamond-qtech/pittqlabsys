@@ -42,11 +42,23 @@ def setup_gui_logging():
     logger = logging.getLogger('AQuISS_GUI')
     logger.setLevel(logging.DEBUG)
     
+    # Remove existing handlers to avoid duplicates
+    for handler in logger.handlers[:]:
+        logger.removeHandler(handler)
+    
     # Create handlers
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(logging.INFO)
     
-    file_handler = logging.FileHandler('gui_debug.log')
+    # Create logs directory if it doesn't exist
+    log_dir = Path('logs')
+    log_dir.mkdir(exist_ok=True)
+    
+    # Create timestamped log file
+    timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+    log_file = log_dir / f'gui_debug_{timestamp}.log'
+    
+    file_handler = logging.FileHandler(log_file)
     file_handler.setLevel(logging.DEBUG)
     
     # Create formatters and add it to handlers
@@ -57,6 +69,9 @@ def setup_gui_logging():
     # Add handlers to the logger
     logger.addHandler(console_handler)
     logger.addHandler(file_handler)
+    
+    # Log initial setup
+    logger.info(f"GUI logging initialized. Debug log: {log_file}")
     
     return logger
 
@@ -669,11 +684,19 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         """
         sender = self.sender()
         self.probe_to_plot = None
+        
+        # Log the button click for debugging
+        if sender:
+            sender_name = sender.objectName() if hasattr(sender, 'objectName') else str(sender)
+            gui_logger.info(f"Button clicked: {sender_name} (type: {type(sender).__name__})")
+        else:
+            gui_logger.warning("Button clicked but sender is None")
 
         def start_button():
             """
             starts the selected experiment
             """
+            gui_logger.info("Start button clicked - attempting to start experiment")
             item = self.tree_experiments.currentItem()
 
             # BROKEN 20170109: repeatedly erases updates to gui
@@ -684,11 +707,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             #         self.expanded_items.append(someitem.name)
             self.experiment_start_time = datetime.datetime.now()
 
-
             if item is not None:
                 # get experiment and update settings from tree
                 self.running_item = item
                 experiment, path_to_experiment, experiment_item = item.get_experiment()
+                
+                gui_logger.info(f"Starting experiment: {experiment.name}")
 
                 self.update_experiment_from_item(experiment_item)
 
@@ -701,7 +725,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 experiment_thread = self.experiment_thread
 
                 def move_to_worker_thread(experiment):
-
                     experiment.moveToThread(experiment_thread)
 
                     # move also the subexperiment to the worker thread
@@ -720,12 +743,14 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 if self.previous_data is not None:
                     if 'inherit_data' in experiment.settings and experiment.settings['inherit_data']:
                         common_keys = experiment.data.keys() & self.previous_data.keys()
+                        gui_logger.debug(f"Inheriting data keys: {common_keys}")
                         #print('common keys',common_keys)
                         for key in common_keys:
                             experiment.data[key] = self.previous_data[key]
 
                 # start thread, i.e. experiment
                 experiment_thread.start()
+                gui_logger.info(f"Experiment thread started for {experiment.name}")
 
                 self.current_experiment = experiment
                 self.btn_start_experiment.setEnabled(False)
@@ -733,218 +758,304 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
                 if isinstance(self.current_experiment, ExperimentIterator):
                     self.btn_skip_subexperiment.setEnabled(True)
-
+                    gui_logger.debug("Skip subexperiment button enabled (ExperimentIterator detected)")
 
             else:
+                gui_logger.warning("User tried to run an experiment without one selected")
                 self.log('User tried to run a experiment without one selected.')
 
         def stop_button():
             """
             stops the current experiment
             """
+            gui_logger.info("Stop button clicked - attempting to stop experiment")
             if self.current_experiment is not None and self.current_experiment.is_running:
+                gui_logger.info(f"Stopping experiment: {self.current_experiment.name}")
                 self.current_experiment.stop()
             else:
+                gui_logger.warning("User clicked stop, but there isn't anything running")
                 self.log('User clicked stop, but there isn\'t anything running...this is awkward. Re-enabling start button anyway.')
             self.btn_start_experiment.setEnabled(True)
+            gui_logger.debug("Start button re-enabled")
 
         def skip_button():
             """
             Skips to the next experiment if the current experiment is a Iterator experiment
             """
+            gui_logger.info("Skip button clicked - attempting to skip to next subexperiment")
             if self.current_experiment is not None and self.current_experiment.is_running and isinstance(self.current_experiment,
                                                                                                  ExperimentIterator):
+                gui_logger.info(f"Skipping to next subexperiment in {self.current_experiment.name}")
                 self.current_experiment.skip_next()
             else:
+                gui_logger.warning("User clicked skip, but there isn't a iterator experiment running")
                 self.log('User clicked skip, but there isn\'t a iterator experiment running...this is awkward.')
 
         def validate_button():
             """
             validates the selected experiment
             """
+            gui_logger.info("Validate button clicked - attempting to validate experiment")
             item = self.tree_experiments.currentItem()
 
             if item is not None:
                 experiment, path_to_experiment, experiment_item = item.get_experiment()
+                gui_logger.info(f"Validating experiment: {experiment.name}")
                 self.update_experiment_from_item(experiment_item)
                 experiment.is_valid()
                 experiment.plot_validate([self.pyqtgraphwidget_1.graph, self.pyqtgraphwidget_2.graph])
                 #i dont think these two lines are necessary since pyqtgraph auto updates when plot_validate is called
                 self.pyqtgraphwidget_1.update()
                 self.pyqtgraphwidget_2.update()
+                gui_logger.info(f"Experiment {experiment.name} validation completed")
+            else:
+                gui_logger.warning("Validate button clicked but no experiment selected")
 
         def store_experiment_data():
             """
             updates the internal self.data_sets with selected experiment and updates tree self.fill_dataset_tree
             """
+            gui_logger.info("Store experiment data button clicked")
             item = self.tree_experiments.currentItem()
             if item is not None:
                 experiment, path_to_experiment, _ = item.get_experiment()
                 experiment_copy = experiment.duplicate()
                 time_tag = experiment.start_time.strftime('%y%m%d-%H_%M_%S')
-
+                
+                gui_logger.info(f"Storing experiment {experiment.name} with time tag {time_tag}")
                 self.data_sets.update({time_tag : experiment_copy})
-
                 self.fill_dataset_tree(self.tree_dataset, self.data_sets)
+                gui_logger.info(f"Experiment data stored successfully. Total datasets: {len(self.data_sets)}")
+            else:
+                gui_logger.warning("Store button clicked but no experiment selected")
 
         def save_data():
             """"
             saves the selected experiment (where is contained in the experiment itself)
             """
+            gui_logger.info("Save data button clicked")
             indecies = self.tree_dataset.selectedIndexes()
             try:
                 model = indecies[0].model()
             except IndexError:
+                gui_logger.warning("No experiment selected for saving")
                 self.log('No experiment selected.')
+                return
+                
             rows = list(set([index.row()for index in indecies]))
+            gui_logger.info(f"Saving {len(rows)} selected experiments")
 
             for row in rows:
                 time_tag = str(model.itemFromIndex(model.index(row, 0)).text())
                 name_tag = str(model.itemFromIndex(model.index(row, 1)).text())
                 path = self.gui_settings['data_folder']
                 experiment = self.data_sets[time_tag]
+                
+                gui_logger.info(f"Saving experiment {name_tag} (time: {time_tag}) to {path}")
                 experiment.update({'tag' : name_tag, 'path': path})
                 experiment.save_data()
                 experiment.save_image_to_disk()
                 experiment.save_aqs()
                 experiment.save_log()
                 experiment.save_data_to_matlab()
+                gui_logger.info(f"Experiment {name_tag} saved successfully")
 
         def delete_data():
             """
             deletes the data from the dataset
             Returns:
             """
+            gui_logger.info("Delete data button clicked")
             indecies = self.tree_dataset.selectedIndexes()
-            model = indecies[0].model()
+            try:
+                model = indecies[0].model()
+            except IndexError:
+                gui_logger.warning("No experiment selected for deletion")
+                return
+                
             rows = list(set([index.row()for index in indecies]))
+            gui_logger.info(f"Deleting {len(rows)} selected experiments")
 
             for row in rows:
                 time_tag = str(model.itemFromIndex(model.index(row, 0)).text())
+                gui_logger.info(f"Deleting experiment with time tag: {time_tag}")
                 del self.data_sets[time_tag]
-
                 model.removeRows(row,1)
+                
+            gui_logger.info(f"Data deletion completed. Remaining datasets: {len(self.data_sets)}")
 
         def load_probes():
             """
             opens file dialog to load probes into gui
             """
-
+            gui_logger.info("Load probes button clicked - opening probe selection dialog")
+            
             # if the probe has never been started it can not be disconnected so we catch that error
             try:
+                gui_logger.debug("Disconnecting existing probe update progress signal")
                 self.read_probes.updateProgress.disconnect()
                 self.read_probes.quit()
                 # self.read_probes.stop()
             except RuntimeError:
+                gui_logger.debug("No existing probe update progress signal to disconnect")
                 pass
+                
             dialog = LoadDialogProbes(probes_old=self.probes, filename=self.gui_settings['probes_folder'])
             if dialog.exec_():
+                gui_logger.info("Probe selection dialog accepted")
                 self.gui_settings['probes_folder'] = str(dialog.txt_probe_log_path.text())
                 probes = dialog.get_values()
                 added_devices = list(set(probes.keys()) - set(self.probes.keys()))
                 removed_devices = list(set(self.probes.keys()) - set(probes.keys()))
+                
+                gui_logger.info(f"Probe changes - Added: {added_devices}, Removed: {removed_devices}")
+                
                 # create instances of new probes
                 self.probes, loaded_failed, self.devices = Probe.load_and_append(
                     probe_dict=probes,
                     probes={},
                     devices=self.devices)
+                    
                 if not loaded_failed:
+                    gui_logger.warning(f"Following probes could not be loaded: {loaded_failed}")
                     print(('WARNING following probes could not be loaded', loaded_failed, len(loaded_failed)))
 
-
                 # restart the readprobes thread
+                gui_logger.debug("Restarting read probes thread")
                 del self.read_probes
                 self.read_probes = ReadProbes(self.probes)
                 self.read_probes.start()
                 self.tree_probes.clear() # clear tree because the probe might have changed
                 self.read_probes.updateProgress.connect(self.update_probes)
                 self.tree_probes.expandAll()
+                gui_logger.info(f"Probes loaded successfully. Total probes: {len(self.probes)}")
+            else:
+                gui_logger.info("Probe selection dialog cancelled")
 
         def load_devices():
             """
             opens file dialog to load devices into gui
             """
+            gui_logger.info("Load devices button clicked - opening device selection dialog")
+            
             if 'device_folder' in self.gui_settings:
                 dialog = LoadDialog(elements_type="devices", elements_old=self.devices,
                                     filename=self.gui_settings['device_folder'])
-
             else:
                 dialog = LoadDialog(elements_type="devices", elements_old=self.devices)
 
             if dialog.exec_():
+                gui_logger.info("Device selection dialog accepted")
                 self.gui_settings['device_folder'] = str(dialog.txt_probe_log_path.text())
                 devices = dialog.get_values()
                 added_devices = set(devices.keys()) - set(self.devices.keys())
                 removed_devices = set(self.devices.keys()) - set(devices.keys())
-                # print('added_devices', {name: devices[name] for name in added_devices})
-
+                
+                gui_logger.info(f"Device changes - Added: {added_devices}, Removed: {removed_devices}")
+                
                 # create instances of new devices
                 self.devices, loaded_failed = Device.load_and_append(
                     {name: devices[name] for name in added_devices}, self.devices)
-                if len(loaded_failed)>0:
+                    
+                if len(loaded_failed) > 0:
+                    gui_logger.warning(f"Following devices could not be loaded: {loaded_failed}")
                     print(('WARNING following device could not be loaded', loaded_failed))
+                    
                 # delete instances of new devices/experiments that have been deselected
                 for name in removed_devices:
+                    gui_logger.debug(f"Removing device: {name}")
                     del self.devices[name]
+                    
+                gui_logger.info(f"Devices loaded successfully. Total devices: {len(self.devices)}")
+            else:
+                gui_logger.info("Device selection dialog cancelled")
 
         def plot_data(sender):
             """
             plots the data of the selected experiment
             """
+            gui_logger.info(f"Plot data requested from sender: {sender}")
             if sender == self.tree_dataset:
                 index = self.tree_dataset.selectedIndexes()[0]
                 model = index.model()
                 time_tag = str(model.itemFromIndex(model.index(index.row(), 0)).text())
                 experiment = self.data_sets[time_tag]
+                gui_logger.info(f"Plotting dataset experiment: {experiment.name} (time: {time_tag})")
                 self.plot_experiment(experiment)
             elif sender == self.tree_experiments:
                 item = self.tree_experiments.currentItem()
                 if item is not None:
                     experiment, path_to_experiment, _ = item.get_experiment()
-                # only plot if experiment has been selected but not if a parameter has been selected
-                if path_to_experiment == []:
-                    self.plot_experiment(experiment)
+                    # only plot if experiment has been selected but not if a parameter has been selected
+                    if path_to_experiment == []:
+                        gui_logger.info(f"Plotting experiment: {experiment.name}")
+                        self.plot_experiment(experiment)
+                    else:
+                        gui_logger.debug(f"Plot request ignored - parameter selected: {path_to_experiment}")
+                else:
+                    gui_logger.warning("Plot requested but no experiment item selected")
 
         def save():
+            gui_logger.info("Save GUI configuration requested")
             # Save config if gui_settings key exists, otherwise save to default location
             if 'gui_settings' in self.gui_settings:
+                gui_logger.info(f"Saving to configured path: {self.gui_settings['gui_settings']}")
                 self.save_config(self.gui_settings['gui_settings'])
             else:
                 # Save to default location
                 default_config_path = Path(__file__).parent.parent / "gui_config.json"
+                gui_logger.info(f"Saving to default path: {default_config_path}")
                 self.save_config(str(default_config_path))
+                
+        # Main button routing with logging
+        gui_logger.debug(f"Routing button click from {sender}")
+        
         if sender is self.btn_start_experiment:
+            gui_logger.debug("Routing to start_button")
             start_button()
         elif sender is self.btn_stop_experiment:
+            gui_logger.debug("Routing to stop_button")
             stop_button()
         elif sender is self.btn_skip_subexperiment:
+            gui_logger.debug("Routing to skip_button")
             skip_button()
         elif sender is self.btn_validate_experiment:
+            gui_logger.debug("Routing to validate_button")
             validate_button()
         elif sender in (self.tree_dataset, self.tree_experiments):
+            gui_logger.debug("Routing to plot_data")
             plot_data(sender)
         elif sender is self.btn_store_experiment_data:
+            gui_logger.debug("Routing to store_experiment_data")
             store_experiment_data()
         elif sender is self.btn_save_data:
+            gui_logger.debug("Routing to save_data")
             save_data()
         elif sender is self.btn_delete_data:
+            gui_logger.debug("Routing to delete_data")
             delete_data()
         # elif sender is self.btn_plot_probe:
         elif sender is self.chk_probe_plot:
+            gui_logger.debug("Probe plot checkbox toggled")
             if self.chk_probe_plot.isChecked():
                 item = self.tree_probes.currentItem()
                 if item is not None:
                     if item.name in self.probes:
                         #selected item is an device not a probe, maybe plot all the probes...
+                        gui_logger.warning("Can't plot, No probe selected. Select probe and try again!")
                         self.log('Can\'t plot, No probe selected. Select probe and try again!')
                     else:
                         device = item.parent().name
                         self.probe_to_plot = self.probes[device][item.name]
+                        gui_logger.info(f"Probe plot enabled for {item.name} on device {device}")
                 else:
+                    gui_logger.warning("Can't plot, No probe selected. Select probe and try again!")
                     self.log('Can\'t plot, No probe selected. Select probe and try again!')
             else:
+                gui_logger.info("Probe plot disabled")
                 self.probe_to_plot = None
         elif sender is self.btn_save_gui:
+            gui_logger.debug("Routing to save GUI configuration")
             # get filename
             filepath, _ = QtWidgets.QFileDialog.getSaveFileName(self, 'Save workspace configuration to file', self.config_filepath, filter = '*.json;*.aqs')
 
@@ -954,14 +1065,23 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 if file_extension not in ['.json', '.aqs']:
                     filepath = filename + ".json"  # Default to .json
                 filepath = os.path.normpath(filepath)
+                gui_logger.info(f"Saving GUI configuration to: {filepath}")
                 self.save_config(filepath)
                 self.gui_settings['gui_settings'] = filepath
                 self.refresh_tree(self.tree_gui_settings, self.gui_settings)
+            else:
+                gui_logger.info("GUI save operation cancelled by user")
         elif sender is self.btn_load_gui:
+            gui_logger.debug("Routing to load GUI configuration")
             # get filename
             fname = QtWidgets.QFileDialog.getOpenFileName(self, 'Load workspace configuration from file',  self.gui_settings['data_folder'], filter = '*.json;*.aqs')
-            self.load_config(fname[0])
+            if fname[0]:
+                gui_logger.info(f"Loading GUI configuration from: {fname[0]}")
+                self.load_config(fname[0])
+            else:
+                gui_logger.info("GUI load operation cancelled by user")
         elif sender is self.btn_about:
+            gui_logger.debug("About button clicked")
             msg = QtWidgets.QMessageBox()
             msg.setIcon(QtWidgets.QMessageBox.Information)
             msg.setText("src: AQuISS Laboratory Equipment Control for Scientific Experiments")
@@ -1047,14 +1167,17 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         treeWidget: the tree from which to update
 
         """
+        gui_logger.debug(f"update_parameters called for tree: {type(treeWidget)}")
 
         if treeWidget == self.tree_settings:
-
+            gui_logger.debug("Updating parameters from tree_settings")
             item = treeWidget.currentItem()
-
-
+            if item is None:
+                gui_logger.debug("No current item in tree_settings")
+                return
 
             device, path_to_device = item.get_device()
+            gui_logger.debug(f"Updating device: {device.name}, path: {path_to_device}")
 
             # build nested dictionary to update device
             dictator = item.value
@@ -1074,31 +1197,38 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             if new_value is not old_value:
                 msg = "changed parameter {:s} from {:s} to {:s} on {:s}".format(item.name, str(old_value),
                                                                                 str(new_value), device.name)
+                gui_logger.info(f"Parameter updated: {item.name} from {old_value} to {new_value} on {device.name}")
             else:
                 msg = "did not change parameter {:s} on {:s}".format(item.name, device.name)
+                gui_logger.debug(f"Parameter unchanged: {item.name} on {device.name}")
 
             self.log(msg)
         elif treeWidget == self.tree_experiments:
-
+            gui_logger.debug("Updating parameters from tree_experiments")
             item = treeWidget.currentItem()
+            if item is None:
+                gui_logger.debug("No current item in tree_experiments")
+                return
             experiment, path_to_experiment, _ = item.get_experiment()
+            gui_logger.debug(f"Updating experiment: {experiment.name}, path: {path_to_experiment}")
 
             # check if changes value is from an device
             device, path_to_device = item.get_device()
             if device is not None:
-
                 new_value = item.value
-
-
                 msg = "changed parameter {:s} to {:s} in {:s}".format(item.name,
                                                                                 str(new_value),
                                                                                 experiment.name)
+                gui_logger.info(f"Device parameter updated: {item.name} to {new_value} in {experiment.name}")
             else:
                 new_value = item.value
                 msg = "changed parameter {:s} to {:s} in {:s}".format(item.name,
                                                                             str(new_value),
                                                                             experiment.name)
+                gui_logger.info(f"Experiment parameter updated: {item.name} to {new_value} in {experiment.name}")
             self.log(msg)
+        else:
+            gui_logger.warning(f"Unknown tree widget type: {type(treeWidget)}")
 
     def plot_experiment(self, experiment):
         """
@@ -1106,10 +1236,15 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         Args:
             experiment: experiment to be plotted
         """
-
-        experiment.plot([self.pyqtgraphwidget_1.graph, self.pyqtgraphwidget_2.graph])
-        #self.matplotlibwidget_1.draw()
-        #self.matplotlibwidget_2.draw()
+        gui_logger.info(f"Plotting experiment: {experiment.name}")
+        try:
+            experiment.plot([self.pyqtgraphwidget_1.graph, self.pyqtgraphwidget_2.graph])
+            gui_logger.debug("Experiment plot completed successfully")
+            #self.matplotlibwidget_1.draw()
+            #self.matplotlibwidget_2.draw()
+        except Exception as e:
+            gui_logger.error(f"Error plotting experiment {experiment.name}: {str(e)}")
+            gui_logger.error(f"Traceback: {traceback.format_exc()}")
 
 
     @pyqtSlot(int)
@@ -1121,6 +1256,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         Returns:
 
         """
+        gui_logger.debug(f"Status update received: progress = {progress}")
 
         # interval at which the gui will be updated, if requests come in faster than they will be ignored
         update_interval = 0.2
@@ -1128,9 +1264,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         now = datetime.datetime.now()
 
         if not self._last_progress_update is None and now-self._last_progress_update < datetime.timedelta(seconds=update_interval):
+            gui_logger.debug("Status update ignored - too frequent")
             return
 
         self._last_progress_update = now
+        gui_logger.debug(f"Updating progress bar to {progress}")
 
         self.progressBar.setValue(progress)
 
@@ -1254,7 +1392,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 try:
                     if isinstance(value, Parameter):
                         gui_logger.debug(f"Creating Parameter item: {key}")
-                        item = AQuISSQTreeItem(tree, key, value, parameters.valid_values[key], parameters.info[key])
+                        item = AQuISSQTreeItem(tree, key, value, value.valid_values, value.info)
                         tree.addTopLevelItem(item)
                     else:
                         gui_logger.debug(f"Creating non-Parameter item: {key} ({type(value)})")
@@ -1285,21 +1423,21 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         tree.model().removeRows(0, tree.model().rowCount())
 
         def add_element(item, key, value):
-            child_name = QtWidgets.QStandardItem(key)
+            child_name = QtGui.QStandardItem(key)
 
             if isinstance(value, dict):
                 for key_child, value_child in value.items():
                     add_element(child_name, key_child, value_child)
                 item.appendRow(child_name)
             else:
-                child_value = QtWidgets.QStandardItem(str(value))
+                child_value = QtGui.QStandardItem(str(value))
 
                 item.appendRow([child_name, child_value])
 
         for index, (key, value) in enumerate(input_dict.items()):
 
             if isinstance(value, dict):
-                item = QtWidgets.QStandardItem(key)
+                item = QtGui.QStandardItem(key)
                 for sub_key, sub_value in value.items():
                     add_element(item, sub_key, sub_value)
                 tree.model().appendRow(item)
