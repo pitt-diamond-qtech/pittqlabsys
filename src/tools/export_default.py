@@ -51,7 +51,7 @@ def find_exportable_in_python_files(folder_name, class_type, verbose = True):
         try:
             module = import_module(module)
 
-            classes_dict.update({name: {'class': name, 'filepath': inspect.getfile(obj), 'info': inspect.getdoc(obj)} for name, obj in
+            classes_dict.update({name: {'class': name, 'filepath': inspect.getfile(obj), 'info': inspect.getdoc(obj), 'devices': {}, 'experiments': {}} for name, obj in
                                inspect.getmembers(module) if inspect.isclass(obj) and issubclass(obj, class_type)
                              and not obj in (Device, Experiment, ExperimentIterator)})
 
@@ -71,14 +71,30 @@ def find_devices_in_python_files(folder_name, verbose = False):
 def python_file_to_aqs(list_of_python_files, target_folder, class_type, raise_errors = False):
     loaded = {}
     failed = {}
-    if class_type == 'Experiment':
-        loaded, failed, loaded_devices = Experiment.load_and_append(list_of_python_files, raise_errors=raise_errors)
-    elif class_type == 'Device':
-        loaded, failed = Device.load_and_append(list_of_python_files, raise_errors=raise_errors)
+    
+    try:
+        if class_type == 'Experiment':
+            loaded, failed, loaded_devices = Experiment.load_and_append(list_of_python_files, raise_errors=False)  # Don't raise errors
+        elif class_type == 'Device':
+            loaded, failed = Device.load_and_append(list_of_python_files, raise_errors=False)  # Don't raise errors
+    except Exception as e:
+        print(f"Error during {class_type} loading: {e}")
+        # If loading fails entirely, return empty results
+        return {}, list_of_python_files
 
     print('loaded', loaded)
+    print('failed', failed)
 
+    # Only save successfully loaded items
     for name, value in loaded.items():
-        filename = os.path.join(target_folder, '{:s}.json'.format(name))  # Use .json extension
-        value.save_aqs(filename)
-    return loaded,failed
+        try:
+            filename = os.path.join(target_folder, '{:s}.json'.format(name))  # Use .json extension
+            value.save_aqs(filename)
+            print(f"Successfully saved {name} to {filename}")
+        except Exception as e:
+            print(f"Error saving {name}: {e}")
+            failed[name] = f"Save error: {e}"
+            # Remove from loaded since we couldn't save it
+            del loaded[name]
+    
+    return loaded, failed

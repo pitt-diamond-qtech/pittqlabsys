@@ -100,6 +100,21 @@
                  </widget>
                 </item>
                 <item>
+                 <widget class="QPushButton" name="btn_convert_python_files">
+                  <property name="font">
+                   <font>
+                    <pointsize>10</pointsize>
+                   </font>
+                  </property>
+                  <property name="text">
+                   <string>Convert Python Files</string>
+                  </property>
+                  <property name="toolTip">
+                   <string>Convert Python experiment/device files to AQS format</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
                  <widget class="QCheckBox" name="chk_show_all">
                   <property name="toolTip">
                    <string extracomment="show all parameters or only relevant ones "/>

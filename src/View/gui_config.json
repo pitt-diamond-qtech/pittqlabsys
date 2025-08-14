@@ -1,11 +1,63 @@
 {
     "last_save_path": "/Users/gurudevdutt/CursorProjects/pittqlabsys/src/View/gui_config.json",
     "gui_settings": {
-        "experiments_folder": "",
+        "experiments_folder": "/Users/gurudevdutt/Experiments/AQuISS_default_save_location/experiments_auto_generated",
         "data_folder": ""
     },
-    "experiments_hidden_parameters": {},
+    "experiments_hidden_parameters": {
+        "GalvoScanGeneric": {
+            "point_a": {
+                "x": false,
+                "y": false
+            },
+            "point_b": {
+                "x": false,
+                "y": false
+            },
+            "RoI_mode": false,
+            "num_points": {
+                "x": false,
+                "y": false
+            },
+            "time_per_pt": false,
+            "settle_time": false,
+            "max_counts_plot": false,
+            "ending_behavior": false,
+            "path": false,
+            "tag": false,
+            "save": false
+        }
+    },
     "devices": {},
-    "experiments": {},
+    "experiments": {
+        "GalvoScanGeneric": {
+            "class": "GalvoScanGeneric",
+            "filepath": "/Users/gurudevdutt/CursorProjects/pittqlabsys/src/Model/experiments/galvo_scan_generic.py",
+            "info": "GalvoScan uses the apd, daq, and galvo to sweep across voltages while counting photons at each voltage,\nresulting in an image in the current field of view of the objective.",
+            "package": "src",
+            "settings": {
+                "point_a": {
+                    "x": 0,
+                    "y": 0
+                },
+                "point_b": {
+                    "x": 1.0,
+                    "y": 1.0
+                },
+                "RoI_mode": "center",
+                "num_points": {
+                    "x": 25,
+                    "y": 25
+                },
+                "time_per_pt": 0.002,
+                "settle_time": 0.0002,
+                "max_counts_plot": -1,
+                "ending_behavior": "return_to_start",
+                "path": "",
+                "tag": "galvoscangeneric",
+                "save": false
+            }
+        }
+    },
     "probes": {}
 }

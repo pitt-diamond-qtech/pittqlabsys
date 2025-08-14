@@ -148,7 +148,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             cfg_path = Path(__file__).parent.parent / "config.json"
         else:
             cfg_path = Path(config_file)
+        
+        gui_logger.debug(f"Resolving paths from config file: {cfg_path}")
         self.paths = resolve_paths(cfg_path)
+        gui_logger.debug(f"Resolved paths: {self.paths}")
         # now self.paths["data_folder"], self.paths["experiments_folder"], etc.
 
         # 2) Load any other globals you need:
@@ -161,9 +164,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             gui_cfg_file = Path(__file__).parent.parent / "gui_config.json"
 
         # 3) Load the GUI config (or start fresh if it doesn't exist)
+        gui_logger.debug(f"Loading GUI config from: {gui_cfg_file}")
         gui_cfg = load_config(gui_cfg_file)
+        gui_logger.debug(f"Loaded GUI config: {gui_cfg}")
         self.config_filepath = gui_cfg_file
         self.gui_settings = gui_cfg.get("gui_settings", {})
+        gui_logger.debug(f"GUI settings: {self.gui_settings}")
         self.gui_settings_hidden = gui_cfg.get("experiments_hidden_parameters", {})
         
         # Initialize history before any log calls
@@ -189,10 +195,14 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.log(self.startup_msg)
         print(self.startup_msg)
         #self.config_filepath = None
+        gui_logger.debug("Calling super().__init__()")
         super(MainWindow, self).__init__()
+        gui_logger.debug("Calling setupUi()")
         self.setupUi(self)
+        gui_logger.debug("setupUi() completed successfully")
 
         def setup_trees():
+            gui_logger.debug("Setting up trees")
             # COMMENT_ME
 
             # define data container
@@ -224,6 +234,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
             self.tree_experiments.header().setStretchLastSection(True)
         def connect_controls():
+            gui_logger.debug("Connecting controls")
             # COMMENT_ME
             # =============================================================
             # ===== LINK WIDGETS TO FUNCTIONS =============================
@@ -240,6 +251,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             # self.btn_plot_data.clicked.connect(self.btn_clicked)
             self.btn_save_data.clicked.connect(self.btn_clicked)
             self.btn_delete_data.clicked.connect(self.btn_clicked)
+            
+            # Connect the new convert button
+            if hasattr(self, 'btn_convert_python_files'):
+                self.btn_convert_python_files.clicked.connect(self.btn_clicked)
 
 
             self.btn_save_gui.triggered.connect(self.btn_clicked)
@@ -296,9 +311,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         new_factory = CustomEditorFactory()
         delegate.setItemEditorFactory(new_factory)
         self.tree_experiments.setItemDelegate(delegate)
+        gui_logger.debug("About to call setup_trees()")
         setup_trees()
-
+        gui_logger.debug("setup_trees() completed, about to call connect_controls()")
         connect_controls()
+        gui_logger.debug("connect_controls() completed")
 
         # if filepath is None:
         #     path_to_config = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir, 'save_config.json'))
@@ -339,6 +356,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.actionExport.setShortcut(self.tr('Ctrl+E'))
         self.list_history.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
 
+        gui_logger.debug("__init__ method completed successfully")
         # if self.config_filepath is None:
         #     self.config_filepath = os.path.join(self._DEFAULT_CONFIG["gui_settings"], 'gui.aqs')
 
@@ -640,7 +658,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                                 filename=self.gui_settings['experiments_folder'])
             if dialog.exec_():
                 gui_logger.info("LoadDialog completed, processing selected experiments")
-                self.gui_settings['experiments_folder'] = str(dialog.txt_probe_log_path.text())
+                # Don't modify the experiments_folder from the dialog - it should be set by user configuration
                 experiments = dialog.get_values()
                 gui_logger.debug(f"Dialog returned {len(experiments)} experiments: {list(experiments.keys())}")
                 
@@ -677,6 +695,51 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             gui_logger.error(f"Traceback: {traceback.format_exc()}")
             # Show error to user
             QtWidgets.QMessageBox.critical(self, "Error", f"Failed to load experiments: {str(e)}")
+
+    def convert_python_files(self):
+        """
+        opens export dialog to convert Python files to AQS format
+        """
+        gui_logger.info("Convert Python Files button clicked - opening export dialog")
+        
+        try:
+            gui_logger.debug(f"gui_settings: {self.gui_settings}")
+            gui_logger.debug(f"gui_settings_hidden: {self.gui_settings_hidden}")
+            
+            export_dialog = ExportDialog()
+            gui_logger.debug("ExportDialog created successfully")
+            
+            if 'experiments_folder' in self.gui_settings:
+                export_dialog.target_path.setText(self.gui_settings['experiments_folder'])
+                gui_logger.debug(f"Set target path to: {self.gui_settings['experiments_folder']}")
+            else:
+                gui_logger.warning("No experiments_folder in gui_settings")
+                
+            if 'experiments_source_folder' in self.gui_settings_hidden:
+                export_dialog.source_path.setText(self.gui_settings_hidden['experiments_source_folder'])
+                gui_logger.debug(f"Set source path to: {self.gui_settings_hidden['experiments_source_folder']}")
+            else:
+                gui_logger.warning("No experiments_source_folder in gui_settings_hidden")
+                
+            if export_dialog.source_path.text():
+                gui_logger.debug("Calling reset_available")
+                export_dialog.reset_available(export_dialog.source_path.text())
+            
+            gui_logger.debug("About to exec_() the export dialog")
+            # exec_() blocks while export dialog is used, subsequent code will run on dialog closing
+            export_dialog.exec_()
+            gui_logger.debug("Export dialog closed")
+            
+            self.gui_settings.update({'experiments_folder': export_dialog.target_path.text()})
+            self.fill_treeview(self.tree_gui_settings, self.gui_settings)
+            self.gui_settings_hidden.update({'experiments_source_folder': export_dialog.source_path.text()})
+            
+            gui_logger.info("Convert Python Files dialog completed successfully")
+            
+        except Exception as e:
+            gui_logger.error(f"Error in convert_python_files: {str(e)}")
+            gui_logger.error(f"Traceback: {traceback.format_exc()}")
+            QtWidgets.QMessageBox.critical(self, "Error", f"Failed to open export dialog: {str(e)}")
 
     def btn_clicked(self):
         """
@@ -884,6 +947,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 
             gui_logger.info(f"Data deletion completed. Remaining datasets: {len(self.data_sets)}")
 
+
+
         def load_probes():
             """
             opens file dialog to load probes into gui
@@ -903,7 +968,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             dialog = LoadDialogProbes(probes_old=self.probes, filename=self.gui_settings['probes_folder'])
             if dialog.exec_():
                 gui_logger.info("Probe selection dialog accepted")
-                self.gui_settings['probes_folder'] = str(dialog.txt_probe_log_path.text())
+                # Don't modify the probes_folder from the dialog - it should be set by user configuration
                 probes = dialog.get_values()
                 added_devices = list(set(probes.keys()) - set(self.probes.keys()))
                 removed_devices = list(set(self.probes.keys()) - set(probes.keys()))
@@ -946,7 +1011,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
             if dialog.exec_():
                 gui_logger.info("Device selection dialog accepted")
-                self.gui_settings['device_folder'] = str(dialog.txt_probe_log_path.text())
+                # Don't modify the device_folder from the dialog - it should be set by user configuration
                 devices = dialog.get_values()
                 added_devices = set(devices.keys()) - set(self.devices.keys())
                 removed_devices = set(self.devices.keys()) - set(devices.keys())
@@ -1095,13 +1160,15 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             # msg.buttonClicked.connect(msgbtn)
             retval = msg.exec_()
         # elif (sender is self.btn_load_devices) or (sender is self.btn_load_experiments):
-        elif sender in (self.btn_load_devices, self.btn_load_experiments, self.btn_load_probes):
+        elif sender in (self.btn_load_devices, self.btn_load_experiments, self.btn_load_probes, self.btn_convert_python_files):
             if sender is self.btn_load_devices:
                 load_devices()
             elif sender is self.btn_load_experiments:
                 self.load_experiments()
             elif sender is self.btn_load_probes:
                 load_probes()
+            elif sender is self.btn_convert_python_files:
+                self.convert_python_files()
             # refresh trees
             self.refresh_tree(self.tree_experiments, self.experiments)
             self.refresh_tree(self.tree_settings, self.devices)
@@ -1759,6 +1826,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             # 2) Build your dicts
             # 2a) Hidden parameters tree
             def get_hidden(item):
+                # Check if item has the required attributes (AQuISSQTreeItem)
+                if not hasattr(item, 'name') or not hasattr(item, 'visible'):
+                    return {}
+                
                 if item.childCount() == 0:
                     return {item.name: item.visible}
                 d = {}
@@ -1806,6 +1877,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.log(f"Updated last_save_path in {last_cfg}")
 
         except Exception as e:
+            gui_logger.error(f"Failed to save config: {e}")
+            gui_logger.error(f"Traceback: {traceback.format_exc()}")
             QtWidgets.QMessageBox.critical(
                 self,
                 "Save Error",
