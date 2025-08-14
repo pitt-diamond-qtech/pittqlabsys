@@ -27,7 +27,7 @@ _DEFAULTS = {
     "device_folder":      DEFAULT_BASE / "devices_auto_generated",
     "experiments_folder": DEFAULT_BASE / "experiments_auto_generated",
     "probes_log_folder":  DEFAULT_BASE / "aqs_tmp",
-    "gui_settings":       DEFAULT_BASE / "workspace_config.json",
+    "workspace_config_dir": DEFAULT_BASE / "workspace_configs",
 }
 
 def load_json(path: Path) -> dict:
@@ -88,7 +88,48 @@ def resolve_paths(config_path: Path = None) -> dict:
     for key, default in _DEFAULTS.items():
         val = overrides.get(key)
         p = Path(val) if val else default
-        if key != "gui_settings":
-            p.mkdir(parents=True, exist_ok=True)
+        # Create all directories including workspace_config_dir
+        p.mkdir(parents=True, exist_ok=True)
         final[key] = p
+    
+    # Automatically create default workspace configuration if none exists
+    workspace_dir = final.get('workspace_config_dir', _DEFAULTS['workspace_config_dir'])
+    default_workspace_file = workspace_dir / "default_workspace.json"
+    
+    if not default_workspace_file.exists():
+        default_config = {
+            "workspace_name": "Default Pitt AQuISS Workspace",
+            "description": "Default workspace configuration for Pitt AQuISS laboratory setup",
+            "created_date": "2025-08-14",
+            "version": "1.0",
+            "gui_settings": {
+                "experiments_folder": str(final.get('experiments_folder', '')),
+                "data_folder": str(final.get('data_folder', '')),
+                "device_folder": str(final.get('device_folder', '')),
+                "probes_folder": str(final.get('probes_folder', '')),
+                "probes_log_folder": str(final.get('probes_log_folder', ''))
+            },
+            "gui_settings_hidden": {
+                "experiments_source_folder": "",
+                "experiments_hidden_parameters": {}
+            },
+            "devices": {},
+            "experiments": {},
+            "probes": {},
+            "paths": {
+                "data_folder": str(final.get('data_folder', '')),
+                "probes_folder": str(final.get('probes_folder', '')),
+                "device_folder": str(final.get('device_folder', '')),
+                "experiments_folder": str(final.get('experiments_folder', '')),
+                "probes_log_folder": str(final.get('probes_log_folder', '')),
+                "workspace_config_dir": str(final.get('workspace_config_dir', ''))
+            }
+        }
+        
+        try:
+            with open(default_workspace_file, 'w') as f:
+                json.dump(default_config, f, indent=4)
+        except Exception as e:
+            print(f"Warning: Could not create default workspace file: {e}")
+    
     return final

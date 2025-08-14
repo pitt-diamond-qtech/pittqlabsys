@@ -172,6 +172,16 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         gui_logger.debug(f"GUI settings: {self.gui_settings}")
         self.gui_settings_hidden = gui_cfg.get("experiments_hidden_parameters", {})
         
+        # 4) Automatically load default workspace if no specific workspace is loaded
+        if not hasattr(self, 'experiments') or not self.experiments:
+            gui_logger.info("No experiments loaded, attempting to load default workspace")
+            try:
+                self.load_config("default_workspace")
+                gui_logger.info("Default workspace loaded successfully")
+            except Exception as e:
+                gui_logger.warning(f"Could not load default workspace: {e}")
+                gui_logger.info("Starting with empty workspace")
+        
         # Initialize history before any log calls
         self.history = deque(maxlen=500)  # history of executed commands
         self.history_model = None  # Will be initialized in setup_trees()
@@ -189,7 +199,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             "======================================================\n\n"
             f"Data folder:        {self.paths['data_folder']}\n"
             f"Experiments folder: {self.paths['experiments_folder']}\n"
-            f"Workspace config:   {self.gui_settings or '<none>'}\n"
+            f"Workspace configs:  {self.paths['workspace_config_dir']}\n"
         )
         
         self.log(self.startup_msg)
@@ -293,6 +303,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.actionSave.triggered.connect(self.btn_clicked)
             self.actionExport.triggered.connect(self.btn_clicked)
             self.actionGo_to_AQuISS_GitHub_page.triggered.connect(self.btn_clicked)
+            self.actionSaveWorkspace.triggered.connect(self.btn_clicked)
+            self.actionLoadWorkspace.triggered.connect(self.btn_clicked)
 
             self.btn_load_devices.clicked.connect(self.btn_clicked)
             self.btn_load_experiments.clicked.connect(self.btn_clicked)
@@ -1221,6 +1233,30 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.gui_settings.update({'experiments_folder': export_dialog.target_path.text()})
             # Removed problematic fill_treeview call that was breaking the menu
             self.gui_settings_hidden.update({'experiments_source_folder': export_dialog.source_path.text()})
+        elif sender is self.actionSaveWorkspace:
+            # Save current workspace state
+            workspace_name, ok = QtWidgets.QInputDialog.getText(self, 'Save Workspace', 'Enter workspace name:')
+            if ok and workspace_name:
+                self.save_config(workspace_name)
+                self.log(f"Workspace '{workspace_name}' saved successfully")
+        elif sender is self.actionLoadWorkspace:
+            # Load workspace from workspace_configs directory
+            workspace_dir = self.paths['workspace_config_dir']
+            workspace_files = list(workspace_dir.glob("*.json"))
+            
+            if not workspace_files:
+                QtWidgets.QMessageBox.information(self, "No Workspaces", "No saved workspaces found.")
+                return
+                
+            # Create a simple dialog to select workspace
+            workspace_name, ok = QtWidgets.QInputDialog.getItem(
+                self, 'Load Workspace', 
+                'Select workspace to load:',
+                [f.stem for f in workspace_files], 0, False)
+            
+            if ok and workspace_name:
+                self.load_config(workspace_name)
+                self.log(f"Workspace '{workspace_name}' loaded successfully")
 
     def _show_hide_parameter(self):
         """
@@ -1627,11 +1663,18 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     def load_config(self, filepath=None):
         """
-        Loads a workspace configuration file (JSON dictionary containing devices, experiments, probes, and GUI settings)
+        Loads a workspace configuration file from the workspace_configs directory
         Args:
-            filepath: Path to the workspace configuration file
+            filepath: Name of the workspace configuration file (without .json extension) or full path
 
         """
+
+        # If filepath is just a name, look for it in the workspace_configs directory
+        if filepath and not Path(filepath).parent.name:
+            workspace_dir = self.paths['workspace_config_dir']
+            full_filepath = workspace_dir / f"{filepath}.json"
+        else:
+            full_filepath = filepath
 
         # load config or default if invalid
 
@@ -1722,7 +1765,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         else:
             self.gui_settings_hidden['experiment_source_folder'] = ''
 
-        self.devices, self.experiments, self.probes = load_settings(filepath)
+        self.devices, self.experiments, self.probes = load_settings(full_filepath)
 
 
         self.refresh_tree(self.tree_gui_settings, self.gui_settings)
@@ -1842,10 +1885,16 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     def save_config(self, filepath):
         """
-        Gather complete workspace state and write out a unified workspace configuration file.
+        Save complete workspace state to a workspace configuration file in the workspace_configs directory.
         This includes devices, experiments, probes, GUI settings, and hidden parameters.
         """
-        fp = Path(filepath)
+        # If filepath is just a name, save it to the workspace_configs directory
+        if not Path(filepath).parent.name:
+            workspace_dir = self.paths['workspace_config_dir']
+            fp = workspace_dir / f"{filepath}.json"
+        else:
+            fp = Path(filepath)
+            
         try:
             # 1) Load any existing base config (preserves other keys: paths, devices, etc.)
             base = load_config(fp)
