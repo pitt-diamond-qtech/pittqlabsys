@@ -31,7 +31,7 @@ try:
     Ui_Dialog, QDialog = loadUiType(ui_file_path) # with this we don't have to convert the .ui file into a python file!
 except (ImportError, IOError):
     # load precompiled old_View, to complite run pyqt_uic basic_application_window.ui -o basic_application_window.py
-    from src.View.compiled_ui_files.load_dialog import Ui_Dialog
+    from src.View.compiled_ui_files.gui_compiled_load_dialog import Ui_Dialog
     from PyQt5.QtWidgets import QMainWindow
     from PyQt5.QtWidgets import QDialog
     # print('Warning!: on the fly conversion of load_dialog.ui file failed, loaded .py file instead!!')

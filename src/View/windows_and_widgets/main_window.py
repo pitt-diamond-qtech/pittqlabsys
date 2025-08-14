@@ -91,11 +91,11 @@ print(f"Experiments folder: {paths['experiments_folder']}")
 try:
     thisdir = get_project_root()
     #qtdesignerfile = thisdir / 'View/ui_files/main_window.ui'  # this is the .ui file created in QtCreator
-    ui_file_path = thisdir / 'View/ui_files/main_window.ui'
+    ui_file_path = thisdir / 'src/View/ui_files/main_window.ui'
     Ui_MainWindow, QMainWindow = loadUiType(ui_file_path) # with this we don't have to convert the .ui file into a python file!
 except (ImportError, IOError):
-    # load precompiled old_gui, to complite run pyqt_uic main_window.ui -o main_window.py
-    from src.View.compiled_ui_files.main_window import Ui_MainWindow
+    # load precompiled old_gui, to compile run pyuic5 main_window.ui -o gui_compiled_main_window.py
+    from ..compiled_ui_files.gui_compiled_main_window import Ui_MainWindow
     from PyQt5.QtWidgets import QMainWindow
     print('Warning: on-the-fly conversion of main_window.ui file failed, loaded .py file instead.\n')
 
@@ -200,6 +200,19 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         gui_logger.debug("Calling setupUi()")
         self.setupUi(self)
         gui_logger.debug("setupUi() completed successfully")
+        
+        # Fix for macOS menu bar issue - ensure menu bar is properly attached to main window
+        if hasattr(self, 'menubar'):
+            gui_logger.debug("Fixing menu bar attachment for macOS compatibility")
+            # Remove the menu bar from centralwidget and attach it to the main window
+            if self.menubar.parent() == self.centralwidget:
+                self.menubar.setParent(None)
+                self.setMenuBar(self.menubar)
+                gui_logger.debug("Menu bar reattached to main window")
+            else:
+                gui_logger.debug(f"Menu bar parent is: {self.menubar.parent()}")
+        else:
+            gui_logger.warning("No menu bar found to fix!")
 
         def setup_trees():
             gui_logger.debug("Setting up trees")
@@ -235,6 +248,21 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.tree_experiments.header().setStretchLastSection(True)
         def connect_controls():
             gui_logger.debug("Connecting controls")
+            
+            # Debug: Check if menu actions exist
+            gui_logger.debug(f"actionExport exists: {hasattr(self, 'actionExport')}")
+            if hasattr(self, 'actionExport'):
+                gui_logger.debug(f"actionExport type: {type(self.actionExport)}")
+                gui_logger.debug(f"actionExport text: {self.actionExport.text() if hasattr(self.actionExport, 'text') else 'No text'}")
+            else:
+                gui_logger.warning("actionExport does not exist!")
+            
+            gui_logger.debug(f"menuFile exists: {hasattr(self, 'menuFile')}")
+            if hasattr(self, 'menuFile'):
+                gui_logger.debug(f"menuFile type: {type(self.menuFile)}")
+                gui_logger.debug(f"menuFile actions: {[action.text() for action in self.menuFile.actions()] if hasattr(self.menuFile, 'actions') else 'No actions'}")
+            else:
+                gui_logger.warning("menuFile does not exist!")
             # COMMENT_ME
             # =============================================================
             # ===== LINK WIDGETS TO FUNCTIONS =============================
@@ -731,7 +759,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             gui_logger.debug("Export dialog closed")
             
             self.gui_settings.update({'experiments_folder': export_dialog.target_path.text()})
-            self.fill_treeview(self.tree_gui_settings, self.gui_settings)
             self.gui_settings_hidden.update({'experiments_source_folder': export_dialog.source_path.text()})
             
             gui_logger.info("Convert Python Files dialog completed successfully")
@@ -1192,7 +1219,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             #exec_() blocks while export dialog is used, subsequent code will run on dialog closing
             export_dialog.exec_()
             self.gui_settings.update({'experiments_folder': export_dialog.target_path.text()})
-            self.fill_treeview(self.tree_gui_settings, self.gui_settings)
+            # Removed problematic fill_treeview call that was breaking the menu
             self.gui_settings_hidden.update({'experiments_source_folder': export_dialog.source_path.text()})
 
     def _show_hide_parameter(self):
