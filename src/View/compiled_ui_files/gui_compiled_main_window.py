@@ -407,7 +407,7 @@ class Ui_MainWindow(object):
 
     def retranslateUi(self, MainWindow):
         _translate = QtCore.QCoreApplication.translate
-        MainWindow.setWindowTitle(_translate("MainWindow", "CNM AQuISS GUI"))
+        MainWindow.setWindowTitle(_translate("MainWindow", "Pitt AQuISS GUI"))
         self.btn_store_experiment_data.setText(_translate("MainWindow", "send to Datasets"))
         self.btn_load_experiments.setText(_translate("MainWindow", "import experiment"))
         self.btn_convert_python_files.setText(_translate("MainWindow", "Convert Python Files"))
@@ -453,4 +453,4 @@ class Ui_MainWindow(object):
         self.btn_test_2.setText(_translate("MainWindow", "test"))
         self.actionSave.setText(_translate("MainWindow", "Save"))
         self.actionExport.setText(_translate("MainWindow", "Convert experiment or device .py files to .aqs files"))
-        self.actionGo_to_AQuISS_GitHub_page.setText(_translate("MainWindow", "Go to AQuISS GitHub page"))
+        self.actionGo_to_AQuISS_GitHub_page.setText(_translate("MainWindow", "Go to Pitt AQuISS GitHub page"))

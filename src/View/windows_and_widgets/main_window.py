@@ -1176,10 +1176,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             gui_logger.debug("About button clicked")
             msg = QtWidgets.QMessageBox()
             msg.setIcon(QtWidgets.QMessageBox.Information)
-            msg.setText("src: AQuISS Laboratory Equipment Control for Scientific Experiments")
-            msg.setInformativeText("This software was developed by Gurudev Dutt and Jeffrey Guest at"
-                                   "University of Pittsburgh and Argonne National Laboratory. It is licensed under the LPGL licence. For more information,"
-                                   "visit the GitHub page at github.com/gurudevdutt/AQuISS . We thank the Pylabcontrol and B26_Toolkit project which significantly inspired "
+            msg.setText("Pitt AQuISS: Advanced Laboratory Equipment Control for Scientific Experiments")
+            msg.setInformativeText("This enhanced software was developed by Gurudev Dutt at University of Pittsburgh "
+                                   "and Jeffrey Guest at Argonne National Laboratory CNM. It is licensed under the LPGL licence. For more information, "
+                                   "visit the GitHub page at github.com/pitt-diamond-qtech/pittqlabsys . We thank the Pylabcontrol and B26_Toolkit project which significantly inspired "
                                    "this project.")
             msg.setWindowTitle("About")
             # msg.setDetailedText("some stuff")
@@ -1208,7 +1208,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 default_config_path = Path(__file__).parent.parent / "gui_config.json"
                 self.save_config(str(default_config_path))
         elif sender is self.actionGo_to_AQuISS_GitHub_page:
-            webbrowser.open('https://github.com/gurudevdutt/AQuISS')
+            webbrowser.open('https://github.com/pitt-diamond-qtech/pittqlabsys')
         elif sender is self.actionExport:
             export_dialog = ExportDialog()
             export_dialog.target_path.setText(self.gui_settings['experiments_folder'])
