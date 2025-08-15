@@ -4,6 +4,12 @@ Modern pytest tests for MCL NanoDrive device.
 This test suite provides comprehensive testing of the MCL NanoDrive functionality
 with proper mocking for hardware-independent testing and hardware markers for
 real device testing.
+
+IMPORTANT SAFETY NOTES:
+- Tests marked with @pytest.mark.safemove involve actual stage movement
+- Only run safemove tests when the stage is in a safe testing environment
+- These tests use small movements (100nm) and return to original positions
+- Use '-m "not safemove"' to exclude movement tests for safety
 """
 
 import pytest
@@ -478,6 +484,89 @@ class TestMCLNanoDriveHardware:
         assert real_nanodrive.set_read_waveform is True
         
         print("Waveform validation test passed")
+
+    # ===== Safe Movement Tests (Use with Caution) =====
+    # These tests involve actual stage movement and should only be run
+    # when the stage is in a safe testing environment
+    
+    @pytest.mark.hardware
+    @pytest.mark.safemove
+    def test_safe_position_movement(self, real_nanodrive):
+        """Test safe position movement on real hardware.
+        
+        WARNING: This test moves the stage! Only run when stage is in safe testing position.
+        """
+        # Store initial positions
+        initial_x = real_nanodrive.get_position('x')
+        initial_y = real_nanodrive.get_position('y')
+        
+        # Move to new positions (small movements for safety)
+        real_nanodrive.set_position('x', initial_x + 0.1)  # Only 100nm movement
+        real_nanodrive.set_position('y', initial_y + 0.1)  # Only 100nm movement
+        
+        # Wait for movement to complete
+        import time
+        time.sleep(0.5)
+        
+        # Verify positions changed
+        new_x = real_nanodrive.get_position('x')
+        new_y = real_nanodrive.get_position('y')
+        
+        assert abs(new_x - (initial_x + 0.1)) < 0.01  # Within 10nm
+        assert abs(new_y - (initial_y + 0.1)) < 0.01  # Within 10nm
+        
+        # Return to initial positions
+        real_nanodrive.set_position('x', initial_x)
+        real_nanodrive.set_position('y', initial_y)
+        time.sleep(0.5)
+        
+        # Verify return to initial positions
+        final_x = real_nanodrive.get_position('x')
+        final_y = real_nanodrive.get_position('y')
+        
+        assert abs(final_x - initial_x) < 0.01  # Within 10nm
+        assert abs(final_y - initial_y) < 0.01  # Within 10nm
+        
+        print(f"Safe movement test passed - returned to X:{final_x:.3f}, Y:{final_y:.3f}")
+
+    @pytest.mark.hardware
+    @pytest.mark.safemove
+    def test_safe_move_to_method(self, real_nanodrive):
+        """Test the move_to method with safe movements.
+        
+        WARNING: This test moves the stage! Only run when stage is in safe testing position.
+        """
+        # Store initial positions
+        initial_positions = real_nanodrive.get_all_positions()
+        
+        # Move to new positions (small movements for safety)
+        real_nanodrive.move_to(
+            x=initial_positions['x'] + 0.1,  # Only 100nm movement
+            y=initial_positions['y'] + 0.1   # Only 100nm movement
+        )
+        
+        # Wait for movement to complete
+        import time
+        time.sleep(0.5)
+        
+        # Verify positions changed
+        new_positions = real_nanodrive.get_all_positions()
+        assert abs(new_positions['x'] - (initial_positions['x'] + 0.1)) < 0.01
+        assert abs(new_positions['y'] - (initial_positions['y'] + 0.1)) < 0.01
+        
+        # Return to initial positions
+        real_nanodrive.move_to(
+            x=initial_positions['x'],
+            y=initial_positions['y']
+        )
+        time.sleep(0.5)
+        
+        # Verify return to initial positions
+        final_positions = real_nanodrive.get_all_positions()
+        assert abs(final_positions['x'] - initial_positions['x']) < 0.01
+        assert abs(final_positions['y'] - initial_positions['y']) < 0.01
+        
+        print("Safe move_to method test passed")
 
 
 if __name__ == "__main__":

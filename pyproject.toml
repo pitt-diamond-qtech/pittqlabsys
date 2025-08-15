@@ -148,6 +148,7 @@ markers = [
     "integration: marks tests as integration tests",
     "hardware: marks tests that require hardware",
     "gui: marks tests that require GUI",
+    "safemove: marks tests that involve safe movement operations (use with caution)",
 ]
 filterwarnings = [
     "ignore:.*U.*mode is deprecated:DeprecationWarning",
