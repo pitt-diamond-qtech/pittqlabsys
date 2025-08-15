@@ -159,21 +159,13 @@ class TestMCLNanoDrive:
     def test_waveform_acquisition(self, mock_nanodrive):
         """Test waveform acquisition functionality."""
         # First setup load waveform (required before acquisition)
-        mock_nanodrive.setup({
-            'axis': 'y',
-            'num_datapoints': 10,
-            'load_waveform': [0.0] * 10
-        })
+        mock_nanodrive.setup_load_waveform('y', [0.0] * 10)
         
         # Then setup read waveform
-        mock_nanodrive.setup({
-            'axis': 'y',
-            'num_datapoints': 10,
-            'read_waveform': mock_nanodrive.empty_waveform
-        })
+        mock_nanodrive.setup_read_waveform('y', 10)
         
         # Trigger acquisition
-        result = mock_nanodrive.waveform_acquisition(axis='y')
+        result = mock_nanodrive.execute_waveform('y')
         assert isinstance(result, list)
         assert len(result) > 0
 
@@ -186,8 +178,8 @@ class TestMCLNanoDrive:
             [0.0]  # Z axis (static)
         ]
         
-        # Setup multi-axis waveform
-        mock_nanodrive.setup({
+        # Setup multi-axis waveform using the proper method
+        mock_nanodrive.update({
             'num_datapoints': len(mult_waveform[0]),
             'mult_ax': {
                 'waveform': mult_waveform,
@@ -265,6 +257,36 @@ class TestMCLNanoDrive:
         # Test that DLL handle is properly managed
         assert hasattr(mock_nanodrive, 'handle')
 
+    def test_new_device_methods(self, mock_nanodrive):
+        """Test the new device-specific methods with mock hardware."""
+        # Test set_position and get_position
+        mock_nanodrive.set_position('x', 5.0)
+        mock_nanodrive.set_position('y', 10.0)
+        
+        assert mock_nanodrive.settings['x_pos'] == 5.0
+        assert mock_nanodrive.settings['y_pos'] == 10.0
+        
+        # Test move_to method
+        mock_nanodrive.move_to(x=1.0, y=2.0, z=3.0)
+        assert mock_nanodrive.settings['x_pos'] == 1.0
+        assert mock_nanodrive.settings['y_pos'] == 2.0
+        assert mock_nanodrive.settings['z_pos'] == 3.0
+        
+        # Test configuration methods
+        mock_nanodrive.set_read_rate(1.0)
+        mock_nanodrive.set_load_rate(2.0)
+        assert mock_nanodrive.settings['read_rate'] == 1.0
+        assert mock_nanodrive.settings['load_rate'] == 2.0
+        
+        # Test error handling
+        with pytest.raises(ValueError, match="Invalid axis"):
+            mock_nanodrive.set_position('invalid', 5.0)
+        
+        with pytest.raises(ValueError, match="Invalid read rate"):
+            mock_nanodrive.set_read_rate(999.0)
+        
+        print("New device methods test passed with mock hardware")
+
 
 class TestMCLNanoDriveHardware:
     """Hardware-specific tests that require real NanoDrive connection."""
@@ -317,27 +339,145 @@ class TestMCLNanoDriveHardware:
         # Create a simple test waveform
         test_waveform = list(np.arange(0, 5.1, 0.1))
         
-        # Setup load waveform on Y axis
-        real_nanodrive.update({
-            'axis': 'y',
-            'num_datapoints': len(test_waveform),
-            'load_waveform': test_waveform
-        })
+        # Setup load waveform on Y axis using new method
+        real_nanodrive.setup_load_waveform('y', test_waveform)
         
-        # Setup read waveform on Y axis
-        real_nanodrive.update({
-            'axis': 'y',
-            'num_datapoints': len(test_waveform),
-            'read_waveform': test_waveform  # This sets up the read waveform
-        })
+        # Setup read waveform on Y axis using new method
+        real_nanodrive.setup_read_waveform('y', len(test_waveform))
         
-        # Execute waveform
-        result = real_nanodrive.waveform_acquisition(axis='y')
+        # Execute waveform using new method
+        result = real_nanodrive.execute_waveform('y')
         
         assert isinstance(result, list)
         assert len(result) > 0
         
         print(f"Waveform executed successfully, {len(result)} points acquired")
+
+    @pytest.mark.hardware
+    def test_hardware_device_methods(self, real_nanodrive):
+        """Test the new device-specific methods on real hardware."""
+        # Test position setting and reading
+        initial_x = real_nanodrive.get_position('x')
+        initial_y = real_nanodrive.get_position('y')
+        
+        # Test set_position method
+        real_nanodrive.set_position('x', initial_x + 0.5)
+        real_nanodrive.set_position('y', initial_y + 0.5)
+        
+        # Wait for movement
+        import time
+        time.sleep(0.5)
+        
+        # Verify positions changed
+        new_x = real_nanodrive.get_position('x')
+        new_y = real_nanodrive.get_position('y')
+        
+        assert abs(new_x - (initial_x + 0.5)) < 0.1
+        assert abs(new_y - (initial_y + 0.5)) < 0.1
+        
+        # Test move_to method
+        real_nanodrive.move_to(x=initial_x, y=initial_y)
+        time.sleep(0.5)
+        
+        # Verify return to initial positions
+        final_x = real_nanodrive.get_position('x')
+        final_y = real_nanodrive.get_position('y')
+        
+        assert abs(final_x - initial_x) < 0.1
+        assert abs(final_y - initial_y) < 0.1
+        
+        print(f"Device methods test passed - positions: X:{final_x:.3f}, Y:{final_y:.3f}")
+
+    @pytest.mark.hardware
+    def test_hardware_configuration_methods(self, real_nanodrive):
+        """Test configuration methods on real hardware."""
+        # Test read rate setting
+        original_rate = real_nanodrive.settings['read_rate']
+        
+        # Test valid read rate
+        real_nanodrive.set_read_rate(1.0)
+        assert real_nanodrive.settings['read_rate'] == 1.0
+        
+        # Test load rate setting
+        original_load_rate = real_nanodrive.settings['load_rate']
+        real_nanodrive.set_load_rate(2.0)
+        assert real_nanodrive.settings['load_rate'] == 2.0
+        
+        # Restore original rates
+        real_nanodrive.set_read_rate(original_rate)
+        real_nanodrive.set_load_rate(original_load_rate)
+        
+        print(f"Configuration methods test passed")
+
+    @pytest.mark.hardware
+    def test_hardware_axis_range(self, real_nanodrive):
+        """Test axis range queries on real hardware."""
+        # Get ranges for all axes
+        x_range = real_nanodrive.get_axis_range('x')
+        y_range = real_nanodrive.get_axis_range('y')
+        z_range = real_nanodrive.get_axis_range('z')
+        
+        # Verify ranges are reasonable (positive values)
+        assert x_range > 0, f"X axis range should be positive, got {x_range}"
+        assert y_range > 0, f"Y axis range should be positive, got {y_range}"
+        assert z_range > 0, f"Z axis range should be positive, got {z_range}"
+        
+        print(f"Axis ranges - X: {x_range:.1f}μm, Y: {y_range:.1f}μm, Z: {z_range:.1f}μm")
+
+    @pytest.mark.hardware
+    def test_hardware_all_positions(self, real_nanodrive):
+        """Test getting all positions at once."""
+        positions = real_nanodrive.get_all_positions()
+        
+        # Verify structure
+        assert 'x' in positions
+        assert 'y' in positions
+        assert 'z' in positions
+        
+        # Verify all are numeric
+        assert isinstance(positions['x'], (int, float))
+        assert isinstance(positions['y'], (int, float))
+        assert isinstance(positions['z'], (int, float))
+        
+        print(f"All positions: {positions}")
+
+    @pytest.mark.hardware
+    def test_hardware_error_handling(self, real_nanodrive):
+        """Test error handling on real hardware."""
+        # Test invalid axis
+        with pytest.raises(ValueError, match="Invalid axis"):
+            real_nanodrive.set_position('invalid', 5.0)
+        
+        with pytest.raises(ValueError, match="Invalid axis"):
+            real_nanodrive.get_position('invalid')
+        
+        # Test invalid read rate
+        with pytest.raises(ValueError, match="Invalid read rate"):
+            real_nanodrive.set_read_rate(999.0)
+        
+        # Test invalid load rate
+        with pytest.raises(ValueError, match="Invalid load rate"):
+            real_nanodrive.set_load_rate(0.1)  # Too fast
+        
+        print("Error handling test passed")
+
+    @pytest.mark.hardware
+    def test_hardware_waveform_validation(self, real_nanodrive):
+        """Test waveform validation on real hardware."""
+        # Test with empty waveform
+        with pytest.raises(ValueError, match="Invalid axis"):
+            real_nanodrive.setup_load_waveform('invalid', [1.0, 2.0, 3.0])
+        
+        # Test with valid waveform
+        test_waveform = [0.0, 1.0, 2.0, 3.0, 4.0]
+        real_nanodrive.setup_load_waveform('x', test_waveform)
+        real_nanodrive.setup_read_waveform('x', len(test_waveform))
+        
+        # Verify setup
+        assert real_nanodrive.set_load_waveform is True
+        assert real_nanodrive.set_read_waveform is True
+        
+        print("Waveform validation test passed")
 
 
 if __name__ == "__main__":
