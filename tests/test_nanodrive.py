@@ -507,6 +507,9 @@ class TestMCLNanoDriveHardware:
         WARNING: This test moves the stage! Only run when stage is in safe testing position.
         REQUIRES: Both @pytest.mark.hardware AND @pytest.mark.safemove to run.
         """
+        # Safety check - require explicit safemove marker
+        if not _check_safemove_enabled():
+            pytest.skip("SAFETY: Use '-m safemove' to enable stage movement tests")
         """Test safe position movement on real hardware.
         
         WARNING: This test moves the stage! Only run when stage is in safe testing position.
@@ -552,6 +555,9 @@ class TestMCLNanoDriveHardware:
         WARNING: This test moves the stage! Only run when stage is in safe testing position.
         REQUIRES: Both @pytest.mark.hardware AND @pytest.mark.safemove to run.
         """
+        # Safety check - require explicit safemove marker
+        if not _check_safemove_enabled():
+            pytest.skip("SAFETY: Use '-m safemove' to enable stage movement tests")
         """Test the move_to method with safe movements.
         
         WARNING: This test moves the stage! Only run when stage is in safe testing position.
@@ -591,5 +597,13 @@ class TestMCLNanoDriveHardware:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+# ===== Safety Helper Function =====
+def _check_safemove_enabled():
+    """Check if safemove tests are enabled via command line marker."""
+    import sys
+    # Check if '-m safemove' is in the command line arguments
+    return any('safemove' in arg for arg in sys.argv)
 
 
