@@ -151,30 +151,36 @@ AQuISS uses environment-specific configuration files to avoid git conflicts betw
 
 #### **Environment-Specific Config Files:**
 
-- **`src/config.lab.json`** - Lab PC configuration (real hardware) ❌ NOT tracked in git
-- **`src/config.dev.json`** - Development machine configuration (mock devices) ❌ NOT tracked in git  
-- **`src/config.json`** - Base configuration (shared defaults) ✅ Tracked in git
-- **`src/config.template.json`** - Template for new installations ✅ Tracked in git
+- **`src/config.template.json`** - Base template (shared defaults) ✅ Tracked in git
+- **`src/config.lab.json`** - Lab PC configuration template (real hardware) ❌ NOT tracked in git
+- **`src/config.dev.json`** - Development machine configuration template (mock devices) ❌ NOT tracked in git  
+- **`src/config.json`** - Active configuration (copied from template) ❌ NOT tracked in git
 
 #### **Setup Instructions:**
 
 **For Lab PC (real hardware):**
 ```bash
-# Copy the lab-specific config
+# Copy the lab-specific config template
 cp src/config.lab.json src/config.json
+# The lab config already has is_development: false, is_mock: false
 ```
 
 **For Development Machine (mock devices):**
 ```bash
-# Copy the development-specific config
+# Copy the development-specific config template
 cp src/config.dev.json src/config.json
+# The dev config already has is_development: true, is_mock: false
 ```
 
-**For New Installation:**
+**For New Installation (custom setup):**
 ```bash
-# Copy the template and customize
+# Copy the base template and customize
 cp src/config.template.json src/config.json
-# Edit config.json to set your environment
+# Edit config.json to set your environment flags:
+# - is_development: true/false
+# - is_mock: true/false
+# - force_mock_devices: true/false
+# - hardware_detection_enabled: true/false
 ```
 
 #### **Environment Flags:**
@@ -184,19 +190,29 @@ cp src/config.template.json src/config.json
 - **`force_mock_devices`**: Set to `true` to override hardware detection
 - **`hardware_detection_enabled`**: Set to `false` to disable automatic hardware detection
 
+#### **What Each File Contains:**
+
+- **`src/config.template.json`**: Minimal structure, no environment flags set
+- **`src/config.lab.json`**: Pre-configured for lab PC (`is_development: false`, `is_mock: false`)
+- **`src/config.dev.json`**: Pre-configured for development (`is_development: true`, `is_mock: false`)
+- **`src/config.json`**: Your active configuration (copied from one of the above)
+
 #### **Benefits:**
 
 ✅ **No git conflicts** - Each machine has its own config  
 ✅ **Easy setup** - Just copy the appropriate config file  
 ✅ **Flexible** - Easy to switch between environments  
-✅ **Maintainable** - Clear separation of concerns
+✅ **Maintainable** - Clear separation of concerns  
+✅ **Pre-configured** - Lab and dev configs already have correct environment flags
 
 ### Important Notes
 
 - **Never commit** `gui_config.json` - it contains personal settings
-- **Always commit** `config.json` - it contains application defaults
-- **Each lab PC** should have its own `gui_config.json`
-- **Template file** provides starting point for new installations
+- **Never commit** `config.json` - it contains machine-specific environment settings
+- **Never commit** `config.lab.json` or `config.dev.json` - they contain machine-specific settings
+- **Always commit** `config.template.json` - it contains the base template
+- **Each machine** should have its own `config.json` and `gui_config.json`
+- **Template files** provide starting points for new installations
 
 - Visual Studio Build Tools (if compiling from source)
 - Proper Python environment variables set
