@@ -445,7 +445,8 @@ class MCLNanoDrive(Device):
         if axis not in ['x', 'y', 'z']:
             raise ValueError(f"Invalid axis: {axis}. Must be 'x', 'y', or 'z'")
         
-        self.update({
+        # Use setup() method which properly sets the flags
+        self.setup({
             'axis': axis,
             'num_datapoints': len(waveform),
             'load_waveform': waveform
@@ -461,11 +462,19 @@ class MCLNanoDrive(Device):
         if axis not in ['x', 'y', 'z']:
             raise ValueError(f"Invalid axis: {axis}. Must be 'x', 'y', or 'z'")
         
-        self.update({
+        # Preserve existing load waveform data if it exists
+        read_settings = {
             'axis': axis,
             'num_datapoints': num_datapoints,
             'read_waveform': self.empty_waveform
-        })
+        }
+        
+        # If we have a load waveform already set up, preserve it
+        if hasattr(self, 'settings') and 'load_waveform' in self.settings:
+            read_settings['load_waveform'] = self.settings['load_waveform']
+        
+        # Use setup() method which properly sets the flags
+        self.setup(read_settings)
 
     def execute_waveform(self, axis):
         """Execute waveform on specified axis.
