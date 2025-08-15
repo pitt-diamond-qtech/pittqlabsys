@@ -22,7 +22,7 @@ from pathlib import Path
 # Add the src directory to the path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from Controller.awg520 import AWG520Driver, AWG520Device, FileTransferWorker
+from src.Controller.awg520 import AWG520Driver, AWG520Device, FileTransferWorker
 
 
 class TestAWG520Driver:
@@ -31,7 +31,7 @@ class TestAWG520Driver:
     @pytest.fixture
     def mock_awg_driver(self):
         """Create a mocked AWG520Driver instance."""
-        with patch('Controller.awg520.FTP') as mock_ftp:
+        with patch('src.Controller.awg520.FTP') as mock_ftp:
             # Mock FTP connection
             mock_ftp_instance = Mock()
             mock_ftp.return_value = mock_ftp_instance
@@ -60,7 +60,7 @@ class TestAWG520Driver:
     
     def test_ftp_connection_success(self):
         """Test successful FTP connection."""
-        with patch('Controller.awg520.FTP') as mock_ftp:
+        with patch('src.Controller.awg520.FTP') as mock_ftp:
             mock_ftp_instance = Mock()
             mock_ftp.return_value = mock_ftp_instance
             mock_ftp_instance.connect.return_value = None
@@ -71,7 +71,7 @@ class TestAWG520Driver:
     
     def test_ftp_connection_failure(self):
         """Test FTP connection failure."""
-        with patch('Controller.awg520.FTP') as mock_ftp:
+        with patch('src.Controller.awg520.FTP') as mock_ftp:
             mock_ftp_instance = Mock()
             mock_ftp.return_value = mock_ftp_instance
             mock_ftp_instance.connect.side_effect = Exception("Connection failed")

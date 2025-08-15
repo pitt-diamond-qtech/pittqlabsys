@@ -14,7 +14,7 @@ def mock_adwin():
     Mock ADwin fixture for testing without hardware.
     Provides realistic mock responses for ADwin methods.
     """
-    with patch('src.Controller.adwin.ADwin') as mock_adwin_class:
+    with patch('src.Controller.adwin_gold.ADwin') as mock_adwin_class:
         # Create a mock ADwin instance
         mock_adw = Mock()
         
@@ -248,7 +248,7 @@ def test_mock_cleanup():
     '''
     # This test ensures that the mock fixture cleanup works correctly
     # and doesn't generate unraisable exception warnings
-    with patch('src.Controller.adwin.ADwin') as mock_adwin_class:
+    with patch('src.Controller.adwin_gold.ADwin') as mock_adwin_class:
         mock_adw = Mock()
         mock_adwin_class.return_value = mock_adw
         mock_adw.Test_Version = Mock(return_value="Mock ADwin v1.0")

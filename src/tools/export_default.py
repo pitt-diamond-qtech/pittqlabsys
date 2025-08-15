@@ -5,6 +5,8 @@ from importlib import import_module
 from src.core.helper_functions import module_name_from_path
 import glob
 
+
+
 def find_exportable_in_python_files(folder_name, class_type, verbose = True):
     """
     load all the devices or experiment objects that are located in folder_name and
@@ -74,9 +76,9 @@ def python_file_to_aqs(list_of_python_files, target_folder, class_type, raise_er
     
     try:
         if class_type == 'Experiment':
-            loaded, failed, loaded_devices = Experiment.load_and_append(list_of_python_files, raise_errors=False)  # Don't raise errors
+            loaded, failed, loaded_devices = Experiment.load_and_append(list_of_python_files, raise_errors=False)
         elif class_type == 'Device':
-            loaded, failed = Device.load_and_append(list_of_python_files, raise_errors=False)  # Don't raise errors
+            loaded, failed = Device.load_and_append(list_of_python_files, raise_errors=False)
     except Exception as e:
         print(f"Error during {class_type} loading: {e}")
         # If loading fails entirely, return empty results

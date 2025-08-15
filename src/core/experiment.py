@@ -1219,7 +1219,7 @@ class Experiment(QObject):
                 if experiment_devices is not None:
                     class_creation_string += ', devices = experiment_devices'
                 if sub_experiments is not None:
-                    class_creation_string += ', experiments = sub_experiments'
+                    class_creation_string += ', sub_experiments = sub_experiments'
                 if experiment_settings is not None:
                     class_creation_string += ', settings = experiment_settings'
                 if log_function is not None:
@@ -1416,7 +1416,7 @@ class Experiment(QObject):
         if experiment_devices is not None:
             class_creation_string += ', devices = experiment_devices'
         if sub_experiments is not None:
-            class_creation_string += ', experiments = sub_experiments'
+                            class_creation_string += ', sub_experiments = sub_experiments'
         if experiment_settings is not None:
             class_creation_string += ', settings = experiment_settings'
         if log_function is not None:

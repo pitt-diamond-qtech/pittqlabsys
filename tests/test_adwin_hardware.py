@@ -44,7 +44,7 @@ def adwin_instance():
             pytest.skip(f"ADwin hardware not available: {e}")
     else:
         # Use mock hardware
-        with patch('src.Controller.adwin.ADwin') as mock_adwin_class:
+        with patch('src.Controller.adwin_gold.ADwin') as mock_adwin_class:
             mock_adw = Mock()
             mock_adwin_class.return_value = mock_adw
             
