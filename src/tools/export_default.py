@@ -209,15 +209,22 @@ def python_file_to_aqs(list_of_python_files, target_folder, class_type, raise_er
                             sys.path.insert(0, 'src')
                             
                             # Try to import the module
-                            # Handle both absolute and relative paths
-                            if 'src/' in filepath:
+                            # Handle both absolute and relative paths, normalize for cross-platform
+                            import os
+                            # Normalize path separators
+                            normalized_path = os.path.normpath(filepath)
+                            
+                            # Convert to forward slashes for consistent processing
+                            forward_path = normalized_path.replace('\\', '/')
+                            
+                            if 'src/' in forward_path:
                                 # Extract the part after 'src/' and before '.py'
-                                src_index = filepath.find('src/')
-                                module_path = filepath[src_index + 4:-3].replace('/', '.')
-                            elif filepath.startswith('src/'):
-                                module_path = filepath[4:-3].replace('/', '.')
+                                src_index = forward_path.find('src/')
+                                module_path = forward_path[src_index + 4:-3].replace('/', '.')
+                            elif forward_path.startswith('src/'):
+                                module_path = forward_path[4:-3].replace('/', '.')
                             else:
-                                module_path = filepath.replace('.py', '').replace('/', '.')
+                                module_path = forward_path.replace('.py', '').replace('/', '.')
                             
                             print(f"Importing module: {module_path}")
                             module = __import__(module_path, fromlist=['*'])
@@ -319,15 +326,21 @@ def python_file_to_aqs(list_of_python_files, target_folder, class_type, raise_er
                         sys.path.insert(0, 'src')
                         
                         # Try to import the module
-                        # Handle both absolute and relative paths
-                        if 'src/' in python_file:
+                        # Handle both absolute and relative paths, normalize for cross-platform
+                        # Normalize path separators
+                        normalized_path = os.path.normpath(python_file)
+                        
+                        # Convert to forward slashes for consistent processing
+                        forward_path = normalized_path.replace('\\', '/')
+                        
+                        if 'src/' in forward_path:
                             # Extract the part after 'src/' and before '.py'
-                            src_index = python_file.find('src/')
-                            module_path = python_file[src_index + 4:-3].replace('/', '.')
-                        elif python_file.startswith('src/'):
-                            module_path = python_file[4:-3].replace('/', '.')
+                            src_index = forward_path.find('src/')
+                            module_path = forward_path[src_index + 4:-3].replace('/', '.')
+                        elif forward_path.startswith('src/'):
+                            module_path = forward_path[4:-3].replace('/', '.')
                         else:
-                            module_path = python_file.replace('.py', '').replace('/', '.')
+                            module_path = forward_path.replace('.py', '').replace('/', '.')
                         
                         print(f"Importing module: {module_path}")
                         module = __import__(module_path, fromlist=['*'])
