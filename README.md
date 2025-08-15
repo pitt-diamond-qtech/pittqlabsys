@@ -152,8 +152,8 @@ AQuISS uses environment-specific configuration files to avoid git conflicts betw
 #### **Environment-Specific Config Files:**
 
 - **`src/config.template.json`** - Base template (shared defaults) ✅ Tracked in git
-- **`src/config.lab.json`** - Lab PC configuration template (real hardware) ❌ NOT tracked in git
-- **`src/config.dev.json`** - Development machine configuration template (mock devices) ❌ NOT tracked in git  
+- **`src/config.lab.template.json`** - Lab PC configuration template (real hardware) ✅ Tracked in git
+- **`src/config.dev.template.json`** - Development machine configuration template (mock devices) ✅ Tracked in git  
 - **`src/config.json`** - Active configuration (copied from template) ❌ NOT tracked in git
 
 #### **Setup Instructions:**
@@ -161,14 +161,14 @@ AQuISS uses environment-specific configuration files to avoid git conflicts betw
 **For Lab PC (real hardware):**
 ```bash
 # Copy the lab-specific config template
-cp src/config.lab.json src/config.json
+cp src/config.lab.template.json src/config.json
 # The lab config already has is_development: false, is_mock: false
 ```
 
 **For Development Machine (mock devices):**
 ```bash
 # Copy the development-specific config template
-cp src/config.dev.json src/config.json
+cp src/config.dev.template.json src/config.json
 # The dev config already has is_development: true, is_mock: false
 ```
 
@@ -209,8 +209,8 @@ cp src/config.template.json src/config.json
 
 - **Never commit** `gui_config.json` - it contains personal settings
 - **Never commit** `config.json` - it contains machine-specific environment settings
-- **Never commit** `config.lab.json` or `config.dev.json` - they contain machine-specific settings
-- **Always commit** `config.template.json` - it contains the base template
+- **Never commit** `config.json` - it contains machine-specific environment settings
+- **Always commit** `config.*.template.json` files - they contain the templates for easy setup
 - **Each machine** should have its own `config.json` and `gui_config.json`
 - **Template files** provide starting points for new installations
 
