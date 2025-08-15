@@ -188,18 +188,38 @@ def detect_mock_devices():
     return mock_devices, warning_message
 
 
-def python_file_to_aqs(list_of_python_files, target_folder, class_type, raise_errors = False):
+def python_file_to_aqs(list_of_python_files, target_folder, class_type, raise_errors = False, existing_devices=None):
+    """
+    Convert Python files to AQS format, integrating with existing device loading system.
+    
+    Args:
+        list_of_python_files: List of Python files or dict of experiment metadata
+        target_folder: Target folder for AQS files
+        class_type: 'Experiment' or 'Device'
+        raise_errors: Whether to raise errors
+        existing_devices: Dictionary of already loaded devices from GUI (optional)
+    """
     # Check for mock devices and display warning
     mock_devices, warning_message = detect_mock_devices()
     print("\n" + "="*80)
     print(warning_message)
     print("="*80 + "\n")
     
+    # If we have existing devices, use them instead of creating new mocks
+    if existing_devices:
+        print(f"🔧 Using {len(existing_devices)} existing devices from GUI:")
+        for device_name, device in existing_devices.items():
+            device_type = type(device).__name__
+            print(f"  ✅ {device_name}: {device_type}")
+    else:
+        print("⚠️  No existing devices provided - will create mock devices as needed")
+        existing_devices = {}
+    
     loaded = {}
     failed = {}
     
     try:
-    if class_type == 'Experiment':
+        if class_type == 'Experiment':
             # Handle both file paths and experiment metadata
             loaded = {}
             failed = {}
@@ -251,52 +271,81 @@ def python_file_to_aqs(list_of_python_files, target_folder, class_type, raise_er
                                         # Check if experiment requires devices
                                         if hasattr(attr, '_DEVICES') and attr._DEVICES:
                                             print(f"⚠️  {name} requires devices: {attr._DEVICES}")
-                                            # Create mock device substitutes
-                                            mock_devices = {}
-                                            for device_name, device_class in attr._DEVICES.items():
-                                                try:
-                                                    # Create a simple mock device
-                                                    mock_device = type(f'Mock{device_name}', (), {
-                                                        '__init__': lambda self: None,
-                                                        'name': device_name,
-                                                        'settings': {},
-                                                        'info': f'Mock {device_name} for conversion'
-                                                    })()
-                                                    mock_devices[device_name] = mock_device
-                                                    print(f"  ✅ Created mock device: {device_name}")
-                                                except Exception as e:
-                                                    print(f"  ❌ Failed to create mock {device_name}: {e}")
                                             
-                                            # Try to create experiment with mock devices
-                                            instance = attr(devices=mock_devices)
+                                            # Build device dictionary using existing devices when possible
+                                            experiment_devices = {}
+                                            missing_devices = []
+                                            
+                                            for device_name, device_class in attr._DEVICES.items():
+                                                if device_name in existing_devices:
+                                                    # Use existing real device
+                                                    experiment_devices[device_name] = existing_devices[device_name]
+                                                    print(f"  ✅ Using existing device: {device_name}")
+                                                else:
+                                                    # Create mock device for missing one
+                                                    missing_devices.append(device_name)
+                                                    try:
+                                                        # Create a simple mock device
+                                                        mock_device = type(f'Mock{device_name}', (), {
+                                                            '__init__': lambda self: None,
+                                                            'name': device_name,
+                                                            'settings': {},
+                                                            'info': f'Mock {device_name} for conversion'
+                                                        })()
+                                                        experiment_devices[device_name] = mock_device
+                                                        print(f"  ⚠️  Created mock device: {device_name} (not available)")
+                                                    except Exception as e:
+                                                        print(f"  ❌ Failed to create mock {device_name}: {e}")
+                                                        failed[name] = f"Mock device creation failed: {e}"
+                                                        continue
+                                            
+                                            if missing_devices:
+                                                print(f"  ⚠️  Missing devices (using mocks): {missing_devices}")
+                                            
+                                            # Try to create experiment with devices
+                                            instance = attr(devices=experiment_devices)
                                         else:
                                             # Check if constructor requires 'devices' parameter
                                             sig = inspect.signature(attr.__init__)
                                             if 'devices' in sig.parameters:
                                                 print(f"⚠️  {name} constructor requires 'devices' parameter")
-                                                # Create basic mock devices based on common requirements
-                                                mock_devices = {}
+                                                
+                                                # Build device dictionary using existing devices when possible
+                                                experiment_devices = {}
+                                                missing_devices = []
+                                                
                                                 # Common device names that experiments might need
                                                 common_devices = ['nanodrive', 'adwin', 'daq', 'microwave', 'awg', 'sg384']
                                                 for device_name in common_devices:
-                                                    try:
-                                                        # Create simple mock device instance (not nested structure)
-                                                        mock_device = type(f'Mock{device_name}', (), {
-                                                            '__init__': lambda self: None,
-                                                            'name': device_name,
-                                                            'settings': {},
-                                                            'info': f'Mock {device_name} for conversion',
-                                                            'is_connected': True,  # Add common device attributes
-                                                            'connect': lambda self: None,
-                                                            'disconnect': lambda self: None
-                                                        })()
-                                                        mock_devices[device_name] = mock_device
-                                                        print(f"  ✅ Created mock device: {device_name}")
-                                                    except Exception as e:
-                                                        print(f"  ❌ Failed to create mock {device_name}: {e}")
+                                                    if device_name in existing_devices:
+                                                        # Use existing real device
+                                                        experiment_devices[device_name] = existing_devices[device_name]
+                                                        print(f"  ✅ Using existing device: {device_name}")
+                                                    else:
+                                                        # Create mock device for missing one
+                                                        missing_devices.append(device_name)
+                                                        try:
+                                                            # Create simple mock device instance (not nested structure)
+                                                            mock_device = type(f'Mock{device_name}', (), {
+                                                                '__init__': lambda self: None,
+                                                                'name': device_name,
+                                                                'settings': {},
+                                                                'info': f'Mock {device_name} for conversion',
+                                                                'is_connected': True,  # Add common device attributes
+                                                                'connect': lambda self: None,
+                                                                'disconnect': lambda self: None
+                                                            })()
+                                                            experiment_devices[device_name] = mock_device
+                                                            print(f"  ⚠️  Created mock device: {device_name} (not available)")
+                                                        except Exception as e:
+                                                            print(f"  ❌ Failed to create mock {device_name}: {e}")
+                                                            continue
                                                 
-                                                # Try to create experiment with mock devices
-                                                instance = attr(devices=mock_devices)
+                                                if missing_devices:
+                                                    print(f"  ⚠️  Missing devices (using mocks): {missing_devices}")
+                                                
+                                                # Try to create experiment with devices
+                                                instance = attr(devices=experiment_devices)
                                             else:
                                                 # No devices required, create normally
                                                 instance = attr()
@@ -366,7 +415,7 @@ def python_file_to_aqs(list_of_python_files, target_folder, class_type, raise_er
                                     print(f"✅ Successfully loaded {attr_name}")
                                 except Exception as e:
                                     failed[attr_name] = f"Instance creation failed: {e}"
-                                    print(f"❌ Failed to create {attr_name}: {e}")
+                                    print(f"❌ Failed to create {attr_name}")
                         
                     except Exception as e:
                         failed[os.path.basename(python_file)] = f"File processing failed: {e}"
@@ -374,7 +423,7 @@ def python_file_to_aqs(list_of_python_files, target_folder, class_type, raise_er
                     
             loaded_devices = {}  # No devices loaded in this approach
             
-    elif class_type == 'Device':
+        elif class_type == 'Device':
             # Similar approach for devices
             loaded = {}
             failed = {}
@@ -383,7 +432,7 @@ def python_file_to_aqs(list_of_python_files, target_folder, class_type, raise_er
                 try:
                     # Extract filename without extension
                     filename = os.path.basename(python_file)
-                    name = os.path.splitext(filename)[0]
+                    name = os.path.basename(python_file)[0]
                     
                     # Add src to path for import
                     sys.path.insert(0, 'src')
@@ -406,7 +455,7 @@ def python_file_to_aqs(list_of_python_files, target_folder, class_type, raise_er
                                 print(f"✅ Successfully loaded {attr_name}")
                             except Exception as e:
                                 failed[attr_name] = f"Instance creation failed: {e}"
-                                print(f"❌ Failed to create {attr_name}: {e}")
+                                print(f"❌ Failed to create {attr_name}")
                     
                 except Exception as e:
                     failed[os.path.basename(python_file)] = f"File processing failed: {e}"
@@ -427,8 +476,8 @@ def python_file_to_aqs(list_of_python_files, target_folder, class_type, raise_er
     loaded_copy = dict(loaded)
     for name, value in loaded_copy.items():
         try:
-        filename = os.path.join(target_folder, '{:s}.json'.format(name))  # Use .json extension
-        value.save_aqs(filename)
+            filename = os.path.join(target_folder, '{:s}.json'.format(name))  # Use .json extension
+            value.save_aqs(filename)
             print(f"Successfully saved {name} to {filename}")
         except Exception as e:
             print(f"Error saving {name}: {e}")

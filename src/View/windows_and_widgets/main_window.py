@@ -746,8 +746,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             gui_logger.debug(f"gui_settings: {self.gui_settings}")
             gui_logger.debug(f"gui_settings_hidden: {self.gui_settings_hidden}")
             
-            export_dialog = ExportDialog()
-            gui_logger.debug("ExportDialog created successfully")
+            # Pass existing devices to enable real hardware usage during conversion
+            export_dialog = ExportDialog(existing_devices=self.devices)
+            gui_logger.debug("ExportDialog created successfully with existing devices")
             
             # Check for mock devices and warn user
             try:
@@ -1251,7 +1252,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         elif sender is self.actionGo_to_AQuISS_GitHub_page:
             webbrowser.open('https://github.com/pitt-diamond-qtech/pittqlabsys')
         elif sender is self.actionExport:
-            export_dialog = ExportDialog()
+            # Pass existing devices to enable real hardware usage during conversion
+            export_dialog = ExportDialog(existing_devices=self.devices)
             export_dialog.target_path.setText(self.gui_settings['experiments_folder'])
             if self.gui_settings_hidden['experiments_source_folder']:
                 export_dialog.source_path.setText(self.gui_settings_hidden['experiments_source_folder'])
