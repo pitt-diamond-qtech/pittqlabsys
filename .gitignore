@@ -94,7 +94,4 @@ src/View/gui_config.json
 **/gui_config.json
 
 # Environment-specific configuration files (should not be committed)
-src/config.lab.json
-src/config.dev.json
-
-# Note: src/config.template.json IS tracked (it's the base template)
+# Note: Template files (*.template.json) ARE tracked for easy setup
