@@ -390,6 +390,167 @@ class MCLNanoDrive(Device):
         #prints product name, id, DLL version, firmware version, and other information
         return self.DLL.MCL_PrintDeviceInfo(self.handle)
 
+    # ===== Device-Specific Public Methods =====
+    # These methods provide a clean, intuitive interface for users
+    
+    def set_position(self, axis, value):
+        """Set position of specified axis.
+        
+        Args:
+            axis (str): Axis to move ('x', 'y', 'z')
+            value (float): Position value in micrometers
+        """
+        if axis not in ['x', 'y', 'z']:
+            raise ValueError(f"Invalid axis: {axis}. Must be 'x', 'y', or 'z'")
+        self.update({f'{axis}_pos': value})
+
+    def get_position(self, axis):
+        """Get current position of specified axis.
+        
+        Args:
+            axis (str): Axis to read ('x', 'y', 'z')
+            
+        Returns:
+            float: Current position in micrometers
+        """
+        if axis not in ['x', 'y', 'z']:
+            raise ValueError(f"Invalid axis: {axis}. Must be 'x', 'y', or 'z'")
+        return self.read_probes(f'{axis}_pos')
+
+    def move_to(self, x=None, y=None, z=None):
+        """Move to specified coordinates.
+        
+        Args:
+            x (float, optional): X position in micrometers
+            y (float, optional): Y position in micrometers  
+            z (float, optional): Z position in micrometers
+        """
+        settings = {}
+        if x is not None:
+            settings['x_pos'] = x
+        if y is not None:
+            settings['y_pos'] = y
+        if z is not None:
+            settings['z_pos'] = z
+        if settings:
+            self.update(settings)
+
+    def setup_load_waveform(self, axis, waveform):
+        """Setup load waveform for specified axis.
+        
+        Args:
+            axis (str): Axis for waveform ('x', 'y', 'z')
+            waveform (list): List of position values
+        """
+        if axis not in ['x', 'y', 'z']:
+            raise ValueError(f"Invalid axis: {axis}. Must be 'x', 'y', or 'z'")
+        
+        self.update({
+            'axis': axis,
+            'num_datapoints': len(waveform),
+            'load_waveform': waveform
+        })
+
+    def setup_read_waveform(self, axis, num_datapoints):
+        """Setup read waveform for specified axis.
+        
+        Args:
+            axis (str): Axis for waveform ('x', 'y', 'z')
+            num_datapoints (int): Number of data points to read
+        """
+        if axis not in ['x', 'y', 'z']:
+            raise ValueError(f"Invalid axis: {axis}. Must be 'x', 'y', or 'z'")
+        
+        self.update({
+            'axis': axis,
+            'num_datapoints': num_datapoints,
+            'read_waveform': self.empty_waveform
+        })
+
+    def execute_waveform(self, axis):
+        """Execute waveform on specified axis.
+        
+        Args:
+            axis (str): Axis to execute waveform on
+            
+        Returns:
+            list: Acquired position data
+        """
+        if axis not in ['x', 'y', 'z']:
+            raise ValueError(f"Invalid axis: {axis}. Must be 'x', 'y', or 'z'")
+        return self.waveform_acquisition(axis=axis)
+
+    def set_read_rate(self, rate):
+        """Set the read rate for waveform acquisition.
+        
+        Args:
+            rate (float): Read rate in milliseconds (0.267, 0.5, 1.0, 2.0, 10.0, 17.0, 20.0)
+        """
+        valid_rates = [0.267, 0.5, 1.0, 2.0, 10.0, 17.0, 20.0]
+        if rate not in valid_rates:
+            raise ValueError(f"Invalid read rate: {rate}. Must be one of {valid_rates}")
+        self.update({'read_rate': rate})
+
+    def set_load_rate(self, rate):
+        """Set the load rate for waveform loading.
+        
+        Args:
+            rate (float): Load rate in milliseconds (must be between 1/6 and 5)
+        """
+        if not (1/6 <= rate <= 5):
+            raise ValueError(f"Invalid load rate: {rate}. Must be between 1/6 and 5 milliseconds")
+        self.update({'load_rate': rate})
+
+    def get_axis_range(self, axis):
+        """Get the range of specified axis.
+        
+        Args:
+            axis (str): Axis to query ('x', 'y', 'z')
+            
+        Returns:
+            float: Axis range in micrometers
+        """
+        if axis not in ['x', 'y', 'z']:
+            raise ValueError(f"Invalid axis: {axis}. Must be 'x', 'y', or 'z'")
+        return self.read_probes(f'{axis}_range')
+
+    def get_all_positions(self):
+        """Get current positions of all axes.
+        
+        Returns:
+            dict: Dictionary with 'x', 'y', 'z' positions
+        """
+        return {
+            'x': self.get_position('x'),
+            'y': self.get_position('y'),
+            'z': self.get_position('z')
+        }
+
+    def home_axes(self):
+        """Move all axes to home position (0, 0, 0)."""
+        self.move_to(x=0, y=0, z=0)
+
+    def is_moving(self, axis):
+        """Check if specified axis is currently moving.
+        
+        Args:
+            axis (str): Axis to check ('x', 'y', 'z')
+            
+        Returns:
+            bool: True if axis is moving, False otherwise
+        """
+        if axis not in ['x', 'y', 'z']:
+            raise ValueError(f"Invalid axis: {axis}. Must be 'x', 'y', or 'z'")
+        
+        # This is a simplified check - in practice you might want to implement
+        # a more sophisticated movement detection based on the device's capabilities
+        current_pos = self.get_position(axis)
+        # Wait a short time and check if position changed
+        import time
+        time.sleep(0.01)
+        new_pos = self.get_position(axis)
+        return abs(new_pos - current_pos) > 0.001  # 1nm threshold
+
     def close(self):
         #releases control of the handle under control in this instance
         self.DLL.MCL_ReleaseHandle(self.handle)
