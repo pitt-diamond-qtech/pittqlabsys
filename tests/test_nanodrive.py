@@ -15,6 +15,22 @@ import ctypes
 from src.Controller.nanodrive import MCLNanoDrive
 
 
+@pytest.fixture
+def real_nanodrive():
+    """Fixture for testing with real hardware (marked with @pytest.mark.hardware)."""
+    try:
+        nanodrive = MCLNanoDrive(settings={'serial': 2849})
+        yield nanodrive
+    except Exception as e:
+        pytest.skip(f"NanoDrive hardware not available: {e}")
+    finally:
+        if 'nanodrive' in locals():
+            try:
+                nanodrive.close()
+            except:
+                pass
+
+
 class TestMCLNanoDrive:
     """Test suite for MCLNanoDrive class."""
 
@@ -75,21 +91,6 @@ class TestMCLNanoDrive:
             }.get(probe, 0.0)
             
             yield nanodrive
-
-    @pytest.fixture
-    def real_nanodrive(self):
-        """Fixture for testing with real hardware (marked with @pytest.mark.hardware)."""
-        try:
-            nanodrive = MCLNanoDrive(settings={'serial': 2849})
-            yield nanodrive
-        except Exception as e:
-            pytest.skip(f"NanoDrive hardware not available: {e}")
-        finally:
-            if 'nanodrive' in locals():
-                try:
-                    nanodrive.close()
-                except:
-                    pass
 
     def test_initialization(self, mock_nanodrive):
         """Test NanoDrive initialization and basic setup."""
