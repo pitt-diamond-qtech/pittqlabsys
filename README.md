@@ -99,6 +99,53 @@ PYTHONPATH=/path/to/pittqlabsys python src/app.py
 
 On Windows systems, the setup is typically more straightforward as most dependencies are pre-compiled. However, ensure you have:
 
+## ⚙️ Configuration
+
+### Configuration Files
+
+AQuISS uses two main configuration files:
+
+#### 1. `src/config.json` - Application Defaults ✅
+- **Purpose**: Contains system-wide default paths and settings
+- **Status**: Tracked in git (shared across all installations)
+- **Content**: Default folder locations, application settings
+- **Location**: `src/config.json`
+
+#### 2. `src/View/gui_config.json` - User Settings ❌
+- **Purpose**: Stores user-specific preferences and paths
+- **Status**: NOT tracked in git (personal to each user)
+- **Content**: Last save paths, personal folder preferences
+- **Location**: `src/View/gui_config.json`
+
+### First-Time Setup
+
+When setting up AQuISS for the first time:
+
+1. **Copy the template**:
+   ```bash
+   cp src/View/gui_config.template.json src/View/gui_config.json
+   ```
+
+2. **Customize the paths** for your system:
+   ```json
+   {
+       "gui_settings": {
+           "experiments_folder": "/path/to/your/experiments",
+           "data_folder": "/path/to/your/data",
+           "probes_folder": "/path/to/your/probes"
+       }
+   }
+   ```
+
+3. **The GUI will automatically** populate these paths when you use the application
+
+### Important Notes
+
+- **Never commit** `gui_config.json` - it contains personal settings
+- **Always commit** `config.json` - it contains application defaults
+- **Each lab PC** should have its own `gui_config.json`
+- **Template file** provides starting point for new installations
+
 - Visual Studio Build Tools (if compiling from source)
 - Proper Python environment variables set
 - Git Bash or similar for command-line operations

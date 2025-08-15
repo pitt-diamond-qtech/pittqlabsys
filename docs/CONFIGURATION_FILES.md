@@ -225,10 +225,11 @@ The AQuISS system uses a hierarchical configuration file structure to manage dif
 
 ## Configuration File Hierarchy
 
-### 1. `src/config.json` - Main Configuration File
+### 1. `src/config.json` - Application Defaults (Tracked in Git)
 **Location**: `src/config.json` (in project root)  
-**Purpose**: Main configuration file with path overrides and default settings  
-**Content**: Static configuration that defines the basic structure of the system
+**Purpose**: Application-wide default paths and system settings  
+**Content**: Static configuration that defines the basic structure of the system  
+**Git Status**: ✅ **Tracked** - Contains application defaults shared across all installations
 
 ```json
 {
@@ -251,10 +252,11 @@ The AQuISS system uses a hierarchical configuration file structure to manage dif
 }
 ```
 
-### 2. `src/View/gui_config.json` - GUI Settings
+### 2. `src/View/gui_config.json` - User Settings (NOT Tracked in Git)
 **Location**: `src/View/gui_config.json` (in project source)  
-**Purpose**: GUI-specific settings and metadata  
-**Content**: Simple GUI metadata like last save path
+**Purpose**: User-specific settings and personal preferences  
+**Content**: Personal paths, last save locations, user preferences  
+**Git Status**: ❌ **NOT Tracked** - Contains user-specific data that varies by installation
 
 ```json
 {
@@ -262,7 +264,13 @@ The AQuISS system uses a hierarchical configuration file structure to manage dif
 }
 ```
 
-### 3. `workspace_config.json` - Runtime Workspace Configuration
+### 3. `src/View/gui_config.template.json` - Template for New Installations
+**Location**: `src/View/gui_config.template.json` (in project source)  
+**Purpose**: Template file for new users to create their own `gui_config.json`  
+**Content**: Empty structure with placeholder values  
+**Git Status**: ✅ **Tracked** - Template file for new installations
+
+### 4. `workspace_config.json` - Runtime Workspace Configuration
 **Location**: `~/Experiments/AQuISS_default_save_location/workspace_config.json` (user data folder)  
 **Purpose**: Complete workspace state including devices, experiments, probes, and GUI settings  
 **Content**: Dynamic configuration created and modified during runtime
@@ -454,14 +462,24 @@ def load_aqs_file(file_name):
 - **Workspace config**: Let `workspace_config.json` handle runtime state
 
 ### 3. Version Control
-- **Include**: `src/config.json`, `src/View/gui_config.json`
+- **Include**: `src/config.json` (application defaults)
+- **Exclude**: `src/View/gui_config.json` (user-specific settings)
 - **Exclude**: `workspace_config.json` (runtime-generated)
-- **Reason**: Workspace config contains user-specific paths and runtime state
+- **Reason**: 
+  - `src/config.json` contains application defaults that should be shared
+  - `src/View/gui_config.json` contains user-specific paths and preferences
+  - `workspace_config.json` contains runtime state and user-specific data
 
 ### 4. Migration
 - **Existing `.aqs` files**: Can continue to be used
 - **New files**: Should use `.json` extension
 - **Gradual transition**: No need to convert existing files immediately
+
+### 5. First-Time Setup
+- **Template file**: `src/View/gui_config.template.json` provides starting point
+- **Copy template**: Users should copy template to `src/View/gui_config.json`
+- **Customize paths**: Update paths for their specific system
+- **Git tracking**: Template file is tracked, actual config is not
 
 ## AQuISS Configuration Troubleshooting
 
@@ -488,10 +506,17 @@ def load_aqs_file(file_name):
 
 The AQuISS configuration system provides a flexible, hierarchical approach to managing laboratory settings:
 
-- **Static configuration**: `src/config.json` for project defaults
-- **GUI settings**: `src/View/gui_config.json` for interface preferences  
-- **Runtime state**: `workspace_config.json` for complete workspace state
+- **Static configuration**: `src/config.json` for project defaults (✅ tracked in git)
+- **User settings**: `src/View/gui_config.json` for personal preferences (❌ not tracked in git)
+- **Template file**: `src/View/gui_config.template.json` for new installations (✅ tracked in git)
+- **Runtime state**: `workspace_config.json` for complete workspace state (❌ not tracked in git)
 - **Format support**: Both `.json` (primary) and `.aqs` (legacy) formats
 - **Backward compatibility**: Existing `.aqs` files continue to work
 
-This structure ensures that the system can be easily configured for different laboratory setups while maintaining compatibility with existing configurations. 
+### Git Tracking Strategy
+- **`.gitignore`**: Excludes `gui_config.json` and `workspace_config.json`
+- **Template approach**: Provides starting point for new users
+- **User isolation**: Each lab PC maintains its own configuration
+- **Application defaults**: Shared across all installations
+
+This structure ensures that the system can be easily configured for different laboratory setups while maintaining compatibility with existing configurations and proper separation of shared vs. personal data. 
