@@ -65,7 +65,7 @@ class MCLNanoDrive(Device):
             self.DLL = windll.LoadLibrary(str(dll_path))
         except (OSError, getattr(__builtins__, 'WindowsError', OSError)) as error:
             print('Unable to load Mad City Labs DLL')
-            raise
+            raise RuntimeError(f'Unable to load Mad City Labs DLL: {error}')
         super(MCLNanoDrive, self).__init__(name, settings)
 
         self.empty_waveform = [0]       #arbitray empty waveform to be used in 'read_waveform':MCL_NanoDrive.empty_waveform. Proper size is created in appropriate method
@@ -127,7 +127,7 @@ class MCLNanoDrive(Device):
                 elif key == 'load_waveform':    #loads waveform onto specified axis
                     if self.settings['num_datapoints'] != len(settings['load_waveform']):
                         print('Error: Length of waveform input list does not match number of data points')
-                        raise
+                        raise ValueError('Length of waveform input list does not match number of data points')
                     ArrayType = c_double * self.settings['num_datapoints']  #creates empty array of proper length
                     wf = ArrayType(*settings['load_waveform'])              #fills array with waveform values
                     load_rate = self._load_rate_check(self.settings['load_rate'])
@@ -183,7 +183,7 @@ class MCLNanoDrive(Device):
             elif key == 'load_waveform':
                 if self.settings['num_datapoints'] != len(settings['load_waveform']):
                     print('Error: Length of waveform imput list does not match number of data points')
-                    raise
+                    raise ValueError('Length of waveform input list does not match number of data points')
                 ArrayType = c_double * self.settings['num_datapoints']
                 wf = ArrayType(*settings['load_waveform'])
                 load_rate = self._load_rate_check(self.settings['load_rate'])
@@ -193,12 +193,12 @@ class MCLNanoDrive(Device):
             elif key == 'mult_ax':
                 if 'time_step' not in settings['mult_ax'] or 'iterations' not in settings['mult_ax']:   #check to make sure time_step and iterations are specified
                     print('Input both time_step and iterations parameters')
-                    raise
+                    raise ValueError('Input both time_step and iterations parameters')
                 self.mult_ax_num_points = self.settings['num_datapoints']
                 wf = self._multiaxis_waveform(settings['mult_ax']['waveform'])  #makes waveform into proper format
                 if not self.mult_ax_num_points==len(wf[0])==len(wf[1])==len(wf[2]):
                     print('ERROR: Length of waveform input lists do not match number of data points. Note TOTAL number of data points is 6666.')
-                    raise
+                    raise ValueError('Length of waveform input lists do not match number of data points')
                 time_step = self._time_step_to_internal(settings['mult_ax']['time_step'])
                 iterations = c_ushort(settings['mult_ax']['iterations'])
                 error = self._check_error(self.DLL.MCL_WfmaSetup(byref(wf[0]), byref(wf[1]), byref(wf[2]), c_uint(self.settings['num_datapoints']), time_step, iterations, self.handle))
@@ -222,7 +222,7 @@ class MCLNanoDrive(Device):
         if key == 'read_waveform':
             if not self.set_read_waveform:      #checks to see if read waveform has been set
                 print('ERROR: Read waveform has not been set!')
-                raise
+                raise RuntimeError('Read waveform has not been set!')
             else:
                 ArrayType = c_double * self.settings['num_datapoints']
                 empty_wf = ArrayType()
@@ -232,13 +232,13 @@ class MCLNanoDrive(Device):
         elif key == 'load_waveform':
             if not self.set_load_waveform:      #checks to see if load waveform has been set
                 print('ERROR: Load waveform has not been set!')
-                raise
+                raise RuntimeError('Load waveform has not been set!')
             error = self._check_error(self.DLL.MCL_Trigger_LoadWaveFormN(axis,self.handle))
 
         elif key == 'mult_ax':
             if not self.set_mult_ax_waveform:
                 print('ERROR: Multi-axis waveform not set!')
-                raise
+                raise RuntimeError('Multi-axis waveform not set!')
             else:
                 error = self._check_error(self.DLL.MCL_WfmaTrigger(self.handle))
 
@@ -252,10 +252,10 @@ class MCLNanoDrive(Device):
         '''
         if not self.set_load_waveform:  # checks to see if load waveform has been set
             print('ERROR: Load waveform has not been set!')
-            raise
+            raise RuntimeError('Load waveform has not been set!')
         if not self.set_read_waveform:  # checks to see if read waveform has been set
             print('ERROR: Read waveform has not been set!')
-            raise
+            raise RuntimeError('Read waveform has not been set!')
         if axis != None:
             self.settings['axis'] = axis
         if num_datapoints != None:
@@ -300,7 +300,7 @@ class MCLNanoDrive(Device):
         if binding != None:
             if polarity == None:
                 print('Polarity must be specified for binding [low-to-high, high-to-low, 2:unbind]')
-                raise
+                raise ValueError('Polarity must be specified for binding')
             else:
                 bind_axis = self._bind_axis_to_internal(binding)
                 bind_polarity = self._polarity_to_internal(polarity)
