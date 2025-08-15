@@ -103,12 +103,12 @@ On Windows systems, the setup is typically more straightforward as most dependen
 
 ### Configuration Files
 
-AQuISS uses two main configuration files:
+AQuISS uses several configuration files for different purposes:
 
 #### 1. `src/config.json` - Application Defaults ✅
-- **Purpose**: Contains system-wide default paths and settings
+- **Purpose**: Contains system-wide default paths, settings, and environment configuration
 - **Status**: Tracked in git (shared across all installations)
-- **Content**: Default folder locations, application settings
+- **Content**: Default folder locations, application settings, environment flags
 - **Location**: `src/config.json`
 
 #### 2. `src/View/gui_config.json` - User Settings ❌
@@ -116,6 +116,12 @@ AQuISS uses two main configuration files:
 - **Status**: NOT tracked in git (personal to each user)
 - **Content**: Last save paths, personal folder preferences
 - **Location**: `src/View/gui_config.json`
+
+#### 3. `src/View/gui_config.template.json` - Template for New Installations ✅
+- **Purpose**: Template file for new users to create their own `gui_config.json`
+- **Status**: Tracked in git (template for new installations)
+- **Content**: Empty structure with placeholder values
+- **Location**: `src/View/gui_config.template.json`
 
 ### First-Time Setup
 
@@ -138,6 +144,52 @@ When setting up AQuISS for the first time:
    ```
 
 3. **The GUI will automatically** populate these paths when you use the application
+
+### Environment Configuration
+
+AQuISS uses environment-specific configuration files to avoid git conflicts between different machines:
+
+#### **Environment-Specific Config Files:**
+
+- **`src/config.lab.json`** - Lab PC configuration (real hardware) ❌ NOT tracked in git
+- **`src/config.dev.json`** - Development machine configuration (mock devices) ❌ NOT tracked in git  
+- **`src/config.json`** - Base configuration (shared defaults) ✅ Tracked in git
+- **`src/config.template.json`** - Template for new installations ✅ Tracked in git
+
+#### **Setup Instructions:**
+
+**For Lab PC (real hardware):**
+```bash
+# Copy the lab-specific config
+cp src/config.lab.json src/config.json
+```
+
+**For Development Machine (mock devices):**
+```bash
+# Copy the development-specific config
+cp src/config.dev.json src/config.json
+```
+
+**For New Installation:**
+```bash
+# Copy the template and customize
+cp src/config.template.json src/config.json
+# Edit config.json to set your environment
+```
+
+#### **Environment Flags:**
+
+- **`is_development`**: Set to `true` for development machines using mock devices
+- **`is_mock`**: Set to `true` to force mock device usage
+- **`force_mock_devices`**: Set to `true` to override hardware detection
+- **`hardware_detection_enabled`**: Set to `false` to disable automatic hardware detection
+
+#### **Benefits:**
+
+✅ **No git conflicts** - Each machine has its own config  
+✅ **Easy setup** - Just copy the appropriate config file  
+✅ **Flexible** - Easy to switch between environments  
+✅ **Maintainable** - Clear separation of concerns
 
 ### Important Notes
 

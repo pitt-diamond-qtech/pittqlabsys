@@ -92,3 +92,8 @@ coverage_reports/
 # User-specific configuration files (should not be committed)
 src/View/gui_config.json
 **/gui_config.json
+
+# Environment-specific configuration files (should not be committed)
+src/config.lab.json
+src/config.dev.json
+**/config.*.json

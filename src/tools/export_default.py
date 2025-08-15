@@ -82,8 +82,59 @@ def detect_mock_devices():
     try:
         import sys
         import os
+        import json
+        from pathlib import Path
         
-        # Check for common testing indicators
+        # FIRST PRIORITY: Check environment-specific config files
+        config_dir = Path(__file__).parent.parent
+        
+        # Look for environment-specific config files first
+        env_config_files = [
+            config_dir / "config.lab.json",      # Lab PC specific
+            config_dir / "config.dev.json",      # Development specific
+            config_dir / "config.json"           # Fallback to base config
+        ]
+        
+        config_loaded = False
+        for config_path in env_config_files:
+            if config_path.exists():
+                try:
+                    with open(config_path, 'r') as f:
+                        config = json.load(f)
+                    
+                    env_config = config.get('environment', {})
+                    config_loaded = True
+                    
+                    # If explicitly set to development/mock, respect that setting
+                    if env_config.get('is_development', False):
+                        mock_devices.append(f"Development environment ({config_path.name})")
+                        return mock_devices, f"⚠️  Development environment detected via {config_path.name}"
+                        
+                    if env_config.get('is_mock', False):
+                        mock_devices.append(f"Mock environment ({config_path.name})")
+                        return mock_devices, f"⚠️  Mock environment detected via {config_path.name}"
+                        
+                    if env_config.get('force_mock_devices', False):
+                        mock_devices.append(f"Mock devices forced ({config_path.name})")
+                        return mock_devices, f"⚠️  Mock devices forced via {config_path.name}"
+                        
+                    # If hardware detection is disabled, assume mock
+                    if not env_config.get('hardware_detection_enabled', True):
+                        mock_devices.append(f"Hardware detection disabled ({config_path.name})")
+                        return mock_devices, f"⚠️  Hardware detection disabled via {config_path.name}"
+                    
+                    # If we get here, config was loaded but no special flags set
+                    # This means it's a production/lab environment
+                    break
+                        
+                except Exception as e:
+                    print(f"Warning: Could not read {config_path.name}: {e}")
+                    continue
+        
+        if not config_loaded:
+            print("Warning: No valid config files found, using fallback detection methods")
+        
+        # SECOND PRIORITY: Check for testing environment variables
         test_indicators = [
             'PYTEST_CURRENT_TEST' in os.environ,
             'RUN_HARDWARE_TESTS' in os.environ,
@@ -91,76 +142,28 @@ def detect_mock_devices():
             any('mock' in arg.lower() for arg in sys.argv)
         ]
         
-        # Check for environment-based mock indicators FIRST (most reliable)
         if any(test_indicators):
-            mock_devices.append("Environment-based testing detected")
+            mock_devices.append("Testing environment detected")
         
-        # Check for mock devices in loaded modules
-        for module_name, module in sys.modules.items():
-            if module_name.startswith('src.Controller') and module is not None:
-                for attr_name in dir(module):
-                    attr = getattr(module, attr_name, None)
-                    if (inspect.isclass(attr) and 
-                        issubclass(attr, Device) and 
-                        attr != Device):
-                        
-                        # Check if it's a mock class
-                        if (hasattr(attr, '__module__') and 
-                            ('mock' in attr.__module__.lower() or 
-                             'test' in attr.__module__.lower())):
-                            mock_devices.append(attr_name)
-                        
-                        # Check if it's a patched/mocked class
-                        elif hasattr(attr, '_mock_name') or hasattr(attr, '_mock_return_value'):
-                            mock_devices.append(attr_name)
-        
-        # ADDITIONAL CHECKS: Look for actual mock instances in sys.modules
-        # Create a copy to avoid iteration issues
-        modules_copy = dict(sys.modules)
-        for module_name, module in modules_copy.items():
-            if module is not None:
-                try:
-                    # Get a copy of dir() to avoid iteration issues
-                    attr_names = list(dir(module))
-                    for attr_name in attr_names:
-                        try:
-                            attr = getattr(module, attr_name, None)
-                            # Check if it's a mock instance (not just class)
-                            # Filter out PyQt proxy objects and other false positives
+        # THIRD PRIORITY: Check for actual mock instances in loaded modules
+        try:
+            from src.core import Device
+            
+            for module_name, module in sys.modules.items():
+                if module_name.startswith('src.Controller') and module is not None:
+                    for attr_name in dir(module):
+                        attr = getattr(module, attr_name, None)
+                        if (inspect.isclass(attr) and 
+                            issubclass(attr, Device) and 
+                            attr != Device):
+                            
+                            # Check if it's a mock class
                             if (hasattr(attr, '_mock_name') or 
-                                hasattr(attr, '_mock_return_value') or
-                                str(type(attr)).find('Mock') != -1):
+                                hasattr(attr, '_mock_return_value')):
+                                mock_devices.append(f"{attr_name} (mock class)")
                                 
-                                # Skip PyQt proxy objects and other false positives
-                                skip_objects = [
-                                    'QtCore', 'QtGui', 'QtWidgets', 'QtNetwork', 'QtSql',
-                                    'ProxyBase', 'LiteralProxyClass', 'ProxyClass', 'ProxyNamespace',
-                                    'QObject', 'QWidget', 'QApplication'
-                                ]
-                                
-                                if not any(skip_name in str(attr) or skip_name in str(type(attr)) 
-                                          for skip_name in skip_objects):
-                                    if attr_name not in mock_devices:
-                                        mock_devices.append(f"{attr_name} (mock instance)")
-                        except Exception:
-                            # Skip problematic attributes
-                            continue
-                except Exception:
-                    # Skip problematic modules
-                    continue
-        
-        # DEVELOPMENT MACHINE DETECTION: Check if we're likely on a dev machine
-        dev_indicators = [
-            'CursorProjects' in os.getcwd(),  # Cursor IDE
-            'PyCharmProjects' in os.getcwd(),  # PyCharm IDE
-            'VSCode' in os.getcwd(),  # VS Code
-            'venv' in os.getcwd(),  # Virtual environment in project
-            os.path.exists('tests/'),  # Test directory exists
-            os.path.exists('src/'),   # Source directory exists
-        ]
-        
-        if any(dev_indicators) and not mock_devices:
-            mock_devices.append("Development environment detected (likely using mock devices)")
+        except ImportError:
+            pass
         
         if mock_devices:
             warning_message = (
@@ -168,6 +171,12 @@ def detect_mock_devices():
                 f"Mock devices found: {', '.join(mock_devices)}\n\n"
                 "This conversion may not reflect real hardware capabilities.\n"
                 "Check device connections and try again for accurate results."
+            )
+        elif hardware_indicators:
+            warning_message = (
+                "✅ Hardware detected! Real hardware implementations found:\n\n"
+                f"Hardware indicators: {', '.join(hardware_indicators)}\n\n"
+                "This conversion should reflect real hardware capabilities."
             )
         else:
             warning_message = "✅ All devices appear to be real hardware implementations."

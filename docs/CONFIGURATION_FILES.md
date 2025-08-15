@@ -225,14 +225,20 @@ The AQuISS system uses a hierarchical configuration file structure to manage dif
 
 ## Configuration File Hierarchy
 
-### 1. `src/config.json` - Application Defaults (Tracked in Git)
+### 1. `src/config.json` - Active Configuration (NOT Tracked in Git)
 **Location**: `src/config.json` (in project root)  
-**Purpose**: Application-wide default paths and system settings  
-**Content**: Static configuration that defines the basic structure of the system  
-**Git Status**: ✅ **Tracked** - Contains application defaults shared across all installations
+**Purpose**: Active configuration file that gets copied from environment-specific templates  
+**Content**: Current environment settings and system configuration  
+**Git Status**: ❌ **NOT Tracked** - Contains environment-specific settings that vary by machine
 
 ```json
 {
+    "environment": {
+        "is_development": false,
+        "is_mock": false,
+        "force_mock_devices": false,
+        "hardware_detection_enabled": true
+    },
     "gui_settings": {
         "data_folder": "",
         "probes_folder": "",
@@ -258,13 +264,95 @@ The AQuISS system uses a hierarchical configuration file structure to manage dif
 **Content**: Personal paths, last save locations, user preferences  
 **Git Status**: ❌ **NOT Tracked** - Contains user-specific data that varies by installation
 
+### Environment Configuration Details
+
+The `environment` section in `src/config.json` provides explicit control over hardware detection and mock device usage:
+
+#### Environment Flags
+
+- **`is_development`** (boolean):
+  - `true`: Indicates this is a development machine (likely using mock devices)
+  - `false`: Indicates this is a production/lab machine (should use real hardware)
+  - **Priority**: Highest - overrides all other detection methods
+
+- **`is_mock`** (boolean):
+  - `true`: Forces the system to use mock devices regardless of hardware
+  - `false`: Allows hardware detection to proceed normally
+  - **Priority**: High - overrides hardware detection
+
+- **`force_mock_devices`** (boolean):
+  - `true`: Forces mock device creation even when real hardware is available
+  - `false`: Allows real hardware to be used when available
+  - **Priority**: Medium - affects device instantiation
+
+- **`hardware_detection_enabled`** (boolean):
+  - `true`: Enables automatic hardware detection and connection testing
+  - `false`: Disables hardware detection (assumes mock environment)
+  - **Priority**: Low - affects detection behavior
+
+#### Configuration Examples
+
+**Lab PC with Real Hardware:**
+```json
+{
+    "environment": {
+        "is_development": false,
+        "is_mock": false,
+        "force_mock_devices": false,
+        "hardware_detection_enabled": true
+    }
+}
+```
+
+**Development Machine with Mock Devices:**
+```json
+{
+    "environment": {
+        "is_development": true,
+        "is_mock": false,
+        "force_mock_devices": false,
+        "hardware_detection_enabled": true
+    }
+}
+```
+
+**Forced Mock Environment (for testing):**
+```json
+{
+    "environment": {
+        "is_development": false,
+        "is_mock": true,
+        "force_mock_devices": true,
+        "hardware_detection_enabled": false
+    }
+}
+```
+
 ```json
 {
     "last_save_path": "C:\\Users\\Duttlab\\Experiments\\AQuISS_default_save_location\\workspace_config.json"
 }
 ```
 
-### 3. `src/View/gui_config.template.json` - Template for New Installations
+### 3. `src/config.lab.json` - Lab PC Configuration Template
+**Location**: `src/config.lab.json` (in project source)  
+**Purpose**: Template for lab PCs with real hardware  
+**Content**: Environment settings optimized for production/lab use  
+**Git Status**: ❌ **NOT Tracked** - Contains lab-specific settings
+
+### 4. `src/config.dev.json` - Development Machine Configuration Template
+**Location**: `src/config.dev.json` (in project source)  
+**Purpose**: Template for development machines with mock devices  
+**Content**: Environment settings optimized for development/testing  
+**Git Status**: ❌ **NOT Tracked** - Contains development-specific settings
+
+### 5. `src/config.template.json` - Base Configuration Template
+**Location**: `src/config.template.json` (in project source)  
+**Purpose**: Base template for new installations  
+**Content**: Minimal configuration structure  
+**Git Status**: ✅ **Tracked** - Template file for new installations
+
+### 6. `src/View/gui_config.template.json` - GUI Template for New Installations
 **Location**: `src/View/gui_config.template.json` (in project source)  
 **Purpose**: Template file for new users to create their own `gui_config.json`  
 **Content**: Empty structure with placeholder values  
@@ -330,10 +418,28 @@ The AQuISS system uses a hierarchical configuration file structure to manage dif
 ## How Configuration Files Are Used
 
 ### 1. System Startup
-1. **Load main config**: `src/config.json` provides default paths and structure
+1. **Load main config**: `src/config.json` provides default paths, structure, and environment flags
 2. **Resolve paths**: `config_paths.py` merges defaults with any overrides
 3. **Load GUI config**: `src/View/gui_config.json` provides GUI-specific settings
 4. **Load workspace**: If exists, `workspace_config.json` restores previous session state
+
+### 2. Hardware Detection Priority
+The system follows this priority order for determining device environment:
+
+1. **Config-based flags** (highest priority):
+   - `is_development` → Forces development mode
+   - `is_mock` → Forces mock mode
+   - `force_mock_devices` → Forces mock device creation
+   - `hardware_detection_enabled` → Enables/disables detection
+
+2. **Environment variables** (medium priority):
+   - `PYTEST_CURRENT_TEST`
+   - `RUN_HARDWARE_TESTS`
+   - Command line arguments
+
+3. **Runtime detection** (lowest priority):
+   - Mock class detection in loaded modules
+   - Hardware connection testing
 
 ### 2. Runtime Operations
 - **Device loading**: Devices are loaded from `workspace_config.json`
@@ -462,13 +568,17 @@ def load_aqs_file(file_name):
 - **Workspace config**: Let `workspace_config.json` handle runtime state
 
 ### 3. Version Control
-- **Include**: `src/config.json` (application defaults)
+- **Include**: `src/config.template.json` (base template)
+- **Include**: `src/View/gui_config.template.json` (GUI template)
+- **Exclude**: `src/config.json` (active configuration - varies by machine)
+- **Exclude**: `src/config.lab.json` (lab-specific settings)
+- **Exclude**: `src/config.dev.json` (development-specific settings)
 - **Exclude**: `src/View/gui_config.json` (user-specific settings)
 - **Exclude**: `workspace_config.json` (runtime-generated)
 - **Reason**: 
-  - `src/config.json` contains application defaults that should be shared
-  - `src/View/gui_config.json` contains user-specific paths and preferences
-  - `workspace_config.json` contains runtime state and user-specific data
+  - Template files provide starting points for new installations
+  - Active config files contain machine-specific settings that shouldn't be shared
+  - User-specific and runtime files contain personal data
 
 ### 4. Migration
 - **Existing `.aqs` files**: Can continue to be used
@@ -519,4 +629,10 @@ The AQuISS configuration system provides a flexible, hierarchical approach to ma
 - **User isolation**: Each lab PC maintains its own configuration
 - **Application defaults**: Shared across all installations
 
-This structure ensures that the system can be easily configured for different laboratory setups while maintaining compatibility with existing configurations and proper separation of shared vs. personal data. 
+This structure ensures that the system can be easily configured for different laboratory setups while maintaining compatibility with existing configurations and proper separation of shared vs. personal data.
+
+### Environment Detection Strategy
+- **Config-based priority**: Environment flags in `config.json` take highest precedence
+- **Explicit control**: Lab admins can explicitly set environment type
+- **Flexible deployment**: Same codebase works for dev, testing, and production
+- **No auto-detection conflicts**: Eliminates false positives from path-based detection 
