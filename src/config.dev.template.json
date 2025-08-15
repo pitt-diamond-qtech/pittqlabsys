@@ -1,9 +1,9 @@
 {
     "environment": {
         "is_development": true,
-        "is_mock": false,
-        "force_mock_devices": false,
-        "hardware_detection_enabled": true
+        "is_mock": true,
+        "force_mock_devices": true,
+        "hardware_detection_enabled": false
     },
     "gui_settings": {
         "data_folder": "",
