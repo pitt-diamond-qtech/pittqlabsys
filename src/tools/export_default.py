@@ -91,6 +91,10 @@ def detect_mock_devices():
             any('mock' in arg.lower() for arg in sys.argv)
         ]
         
+        # Check for environment-based mock indicators FIRST (most reliable)
+        if any(test_indicators):
+            mock_devices.append("Environment-based testing detected")
+        
         # Check for mock devices in loaded modules
         for module_name, module in sys.modules.items():
             if module_name.startswith('src.Controller') and module is not None:
@@ -110,9 +114,53 @@ def detect_mock_devices():
                         elif hasattr(attr, '_mock_name') or hasattr(attr, '_mock_return_value'):
                             mock_devices.append(attr_name)
         
-        # Check for environment-based mock indicators
-        if any(test_indicators):
-            mock_devices.append("Environment-based testing detected")
+        # ADDITIONAL CHECKS: Look for actual mock instances in sys.modules
+        # Create a copy to avoid iteration issues
+        modules_copy = dict(sys.modules)
+        for module_name, module in modules_copy.items():
+            if module is not None:
+                try:
+                    # Get a copy of dir() to avoid iteration issues
+                    attr_names = list(dir(module))
+                    for attr_name in attr_names:
+                        try:
+                            attr = getattr(module, attr_name, None)
+                            # Check if it's a mock instance (not just class)
+                            # Filter out PyQt proxy objects and other false positives
+                            if (hasattr(attr, '_mock_name') or 
+                                hasattr(attr, '_mock_return_value') or
+                                str(type(attr)).find('Mock') != -1):
+                                
+                                # Skip PyQt proxy objects and other false positives
+                                skip_objects = [
+                                    'QtCore', 'QtGui', 'QtWidgets', 'QtNetwork', 'QtSql',
+                                    'ProxyBase', 'LiteralProxyClass', 'ProxyClass', 'ProxyNamespace',
+                                    'QObject', 'QWidget', 'QApplication'
+                                ]
+                                
+                                if not any(skip_name in str(attr) or skip_name in str(type(attr)) 
+                                          for skip_name in skip_objects):
+                                    if attr_name not in mock_devices:
+                                        mock_devices.append(f"{attr_name} (mock instance)")
+                        except Exception:
+                            # Skip problematic attributes
+                            continue
+                except Exception:
+                    # Skip problematic modules
+                    continue
+        
+        # DEVELOPMENT MACHINE DETECTION: Check if we're likely on a dev machine
+        dev_indicators = [
+            'CursorProjects' in os.getcwd(),  # Cursor IDE
+            'PyCharmProjects' in os.getcwd(),  # PyCharm IDE
+            'VSCode' in os.getcwd(),  # VS Code
+            'venv' in os.getcwd(),  # Virtual environment in project
+            os.path.exists('tests/'),  # Test directory exists
+            os.path.exists('src/'),   # Source directory exists
+        ]
+        
+        if any(dev_indicators) and not mock_devices:
+            mock_devices.append("Development environment detected (likely using mock devices)")
         
         if mock_devices:
             warning_message = (
@@ -142,11 +190,212 @@ def python_file_to_aqs(list_of_python_files, target_folder, class_type, raise_er
     
     try:
         if class_type == 'Experiment':
-            loaded, failed, loaded_devices = Experiment.load_and_append(list_of_python_files, raise_errors=False)
+            # Handle both file paths and experiment metadata
+            loaded = {}
+            failed = {}
+            
+            # Check if we received a dict of experiment metadata or list of file paths
+            if isinstance(list_of_python_files, dict):
+                # We have experiment metadata from ExportDialog
+                print(f"Processing {len(list_of_python_files)} experiments from metadata")
+                for name, metadata in list_of_python_files.items():
+                    try:
+                        if 'filepath' in metadata:
+                            # Extract file path from metadata
+                            filepath = metadata['filepath']
+                            print(f"Processing {name} from file: {filepath}")
+                            
+                            # Add src to path for import
+                            sys.path.insert(0, 'src')
+                            
+                            # Try to import the module
+                            # Handle both absolute and relative paths
+                            if 'src/' in filepath:
+                                # Extract the part after 'src/' and before '.py'
+                                src_index = filepath.find('src/')
+                                module_path = filepath[src_index + 4:-3].replace('/', '.')
+                            elif filepath.startswith('src/'):
+                                module_path = filepath[4:-3].replace('/', '.')
+                            else:
+                                module_path = filepath.replace('.py', '').replace('/', '.')
+                            
+                            print(f"Importing module: {module_path}")
+                            module = __import__(module_path, fromlist=['*'])
+                            
+                            # Look for the specific experiment class
+                            if hasattr(module, name):
+                                attr = getattr(module, name)
+                                if (inspect.isclass(attr) and 
+                                    issubclass(attr, Experiment) and 
+                                    attr != Experiment):
+                                    
+                                    # Create instance and save
+                                    try:
+                                        # Check if experiment requires devices
+                                        if hasattr(attr, '_DEVICES') and attr._DEVICES:
+                                            print(f"⚠️  {name} requires devices: {attr._DEVICES}")
+                                            # Create mock device substitutes
+                                            mock_devices = {}
+                                            for device_name, device_class in attr._DEVICES.items():
+                                                try:
+                                                    # Create a simple mock device
+                                                    mock_device = type(f'Mock{device_name}', (), {
+                                                        '__init__': lambda self: None,
+                                                        'name': device_name,
+                                                        'settings': {},
+                                                        'info': f'Mock {device_name} for conversion'
+                                                    })()
+                                                    mock_devices[device_name] = mock_device
+                                                    print(f"  ✅ Created mock device: {device_name}")
+                                                except Exception as e:
+                                                    print(f"  ❌ Failed to create mock {device_name}: {e}")
+                                            
+                                            # Try to create experiment with mock devices
+                                            instance = attr(devices=mock_devices)
+                                        else:
+                                            # Check if constructor requires 'devices' parameter
+                                            sig = inspect.signature(attr.__init__)
+                                            if 'devices' in sig.parameters:
+                                                print(f"⚠️  {name} constructor requires 'devices' parameter")
+                                                # Create basic mock devices based on common requirements
+                                                mock_devices = {}
+                                                # Common device names that experiments might need
+                                                common_devices = ['nanodrive', 'adwin', 'daq', 'microwave', 'awg', 'sg384']
+                                                for device_name in common_devices:
+                                                    try:
+                                                        # Create mock device with expected structure
+                                                        mock_instance = type(f'Mock{device_name}', (), {
+                                                            '__init__': lambda self: None,
+                                                            'name': device_name,
+                                                            'settings': {},
+                                                            'info': f'Mock {device_name} for conversion'
+                                                        })()
+                                                        mock_device = {
+                                                            'instance': mock_instance,
+                                                            'name': device_name,
+                                                            'info': f'Mock {device_name} for conversion',
+                                                            'settings': {}  # Add settings at top level
+                                                        }
+                                                        mock_devices[device_name] = mock_device
+                                                        print(f"  ✅ Created mock device: {device_name}")
+                                                    except Exception as e:
+                                                        print(f"  ❌ Failed to create mock {device_name}: {e}")
+                                                
+                                                # Try to create experiment with mock devices
+                                                instance = attr(devices=mock_devices)
+                                            else:
+                                                # No devices required, create normally
+                                                instance = attr()
+                                        
+                                        loaded[name] = instance
+                                        print(f"✅ Successfully loaded {name}")
+                                    except Exception as e:
+                                        failed[name] = f"Instance creation failed: {e}"
+                                        print(f"❌ Failed to create {name}: {e}")
+                                else:
+                                    failed[name] = f"Not a valid experiment class: {type(attr)}"
+                                    print(f"❌ {name} is not a valid experiment class")
+                            else:
+                                failed[name] = f"Class {name} not found in module"
+                                print(f"❌ Class {name} not found in module")
+                        else:
+                            failed[name] = "No filepath in metadata"
+                            print(f"❌ No filepath for {name}")
+                            
+                    except Exception as e:
+                        failed[name] = f"File processing failed: {e}"
+                        print(f"❌ Failed to process {name}: {e}")
+                        
+            else:
+                # We have a list of file paths (direct usage)
+                print(f"Processing {len(list_of_python_files)} files directly")
+                for python_file in list_of_python_files:
+                    try:
+                        # Extract filename without extension
+                        filename = os.path.basename(python_file)
+                        name = os.path.splitext(filename)[0]
+                        
+                        # Add src to path for import
+                        sys.path.insert(0, 'src')
+                        
+                        # Try to import the module
+                        # Handle both absolute and relative paths
+                        if 'src/' in python_file:
+                            # Extract the part after 'src/' and before '.py'
+                            src_index = python_file.find('src/')
+                            module_path = python_file[src_index + 4:-3].replace('/', '.')
+                        elif python_file.startswith('src/'):
+                            module_path = python_file[4:-3].replace('/', '.')
+                        else:
+                            module_path = python_file.replace('.py', '').replace('/', '.')
+                        
+                        print(f"Importing module: {module_path}")
+                        module = __import__(module_path, fromlist=['*'])
+                        
+                        # Look for experiment classes
+                        for attr_name in dir(module):
+                            attr = getattr(module, attr_name, None)
+                            if (inspect.isclass(attr) and 
+                                issubclass(attr, Experiment) and 
+                                attr != Experiment):
+                                
+                                # Create instance and save
+                                try:
+                                    instance = attr()
+                                    loaded[attr_name] = instance
+                                    print(f"✅ Successfully loaded {attr_name}")
+                                except Exception as e:
+                                    failed[attr_name] = f"Instance creation failed: {e}"
+                                    print(f"❌ Failed to create {attr_name}: {e}")
+                        
+                    except Exception as e:
+                        failed[os.path.basename(python_file)] = f"File processing failed: {e}"
+                        print(f"❌ Failed to process {python_file}: {e}")
+                    
+            loaded_devices = {}  # No devices loaded in this approach
+            
         elif class_type == 'Device':
-            loaded, failed = Device.load_and_append(list_of_python_files, raise_errors=False)
+            # Similar approach for devices
+            loaded = {}
+            failed = {}
+            
+            for python_file in list_of_python_files:
+                try:
+                    # Extract filename without extension
+                    filename = os.path.basename(python_file)
+                    name = os.path.splitext(filename)[0]
+                    
+                    # Add src to path for import
+                    sys.path.insert(0, 'src')
+                    
+                    # Try to import the module
+                    module_path = python_file.replace('src/', '').replace('.py', '').replace('/', '.')
+                    module = __import__(module_path, fromlist=['*'])
+                    
+                    # Look for device classes
+                    for attr_name in dir(module):
+                        attr = getattr(module, attr_name, None)
+                        if (inspect.isclass(attr) and 
+                            issubclass(attr, Device) and 
+                            attr != Device):
+                            
+                            # Create instance and save
+                            try:
+                                instance = attr()
+                                loaded[attr_name] = instance
+                                print(f"✅ Successfully loaded {attr_name}")
+                            except Exception as e:
+                                failed[attr_name] = f"Instance creation failed: {e}"
+                                print(f"❌ Failed to create {attr_name}: {e}")
+                    
+                except Exception as e:
+                    failed[os.path.basename(python_file)] = f"File processing failed: {e}"
+                    print(f"❌ Failed to process {python_file}: {e}")
+                    
     except Exception as e:
         print(f"Error during {class_type} loading: {e}")
+        import traceback
+        traceback.print_exc()
         # If loading fails entirely, return empty results
         return {}, list_of_python_files
 
@@ -154,7 +403,9 @@ def python_file_to_aqs(list_of_python_files, target_folder, class_type, raise_er
     print('failed', failed)
 
     # Only save successfully loaded items
-    for name, value in loaded.items():
+    # Create a copy to avoid iteration issues
+    loaded_copy = dict(loaded)
+    for name, value in loaded_copy.items():
         try:
             filename = os.path.join(target_folder, '{:s}.json'.format(name))  # Use .json extension
             value.save_aqs(filename)
@@ -163,6 +414,7 @@ def python_file_to_aqs(list_of_python_files, target_folder, class_type, raise_er
             print(f"Error saving {name}: {e}")
             failed[name] = f"Save error: {e}"
             # Remove from loaded since we couldn't save it
-            del loaded[name]
+            if name in loaded:
+                del loaded[name]
     
     return loaded, failed
