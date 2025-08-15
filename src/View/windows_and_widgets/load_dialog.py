@@ -15,6 +15,7 @@
 
 
 import os
+from pathlib import Path
 
 from PyQt5 import QtGui, QtWidgets
 from PyQt5.uic import loadUiType
@@ -164,7 +165,11 @@ Returns:
         opens a file dialog to get the path to a file and
         """
         dialog = QtWidgets.QFileDialog
-        filename, _ = dialog.getOpenFileName(self, 'Select a file:', self.txt_probe_log_path.text())
+        
+        # Default to experiments folder if path is empty
+        default_dir = self.txt_probe_log_path.text() if self.txt_probe_log_path.text() else str(Path.home() / "Experiments" / "AQuISS_default_save_location" / "experiments_auto_generated")
+        
+        filename, _ = dialog.getOpenFileName(self, 'Select a file:', default_dir)
         if str(filename) != '':
             self.txt_probe_log_path.setText(filename)
             # load elements from file and display in tree

@@ -15,6 +15,7 @@
 
 
 import traceback, os
+from pathlib import Path
 
 from PyQt5 import QtGui, QtWidgets
 from PyQt5.uic import loadUiType
@@ -73,9 +74,13 @@ class ExportDialog(QDialog, Ui_Dialog):
         sender = self.sender()
         if sender == self.btn_open_source:
             textbox = self.source_path
+            # Default to src/Model folder if source path is empty
+            default_dir = textbox.text() if textbox.text() else str(Path(__file__).parent.parent.parent / "Model")
         elif sender == self.btn_open_target:
             textbox = self.target_path
-        folder = dialog.getExistingDirectory(self, 'Select a file:', textbox.text(), options = QtWidgets.QFileDialog.ShowDirsOnly)
+            default_dir = textbox.text() if textbox.text() else str(Path.home() / "Experiments" / "AQuISS_default_save_location" / "experiments_auto_generated")
+        
+        folder = dialog.getExistingDirectory(self, 'Select a file:', default_dir, options = QtWidgets.QFileDialog.ShowDirsOnly)
         if str(folder) != '':
             textbox.setText(folder)
             # load elements from file and display in tree

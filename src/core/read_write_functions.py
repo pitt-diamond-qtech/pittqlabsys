@@ -77,10 +77,68 @@ def get_config_value(name, path_to_file='config.txt'):
         return config_value
 
 
+def convert_cross_platform_paths(data_dict):
+    """
+    Convert Windows-style paths to current platform paths in loaded data.
+    This handles cases where .aqs files created on Windows are loaded on macOS/Linux.
+    
+    Args:
+        data_dict: Dictionary loaded from .aqs file
+        
+    Returns:
+        Dictionary with converted paths
+    """
+    import platform
+    
+    def convert_path(path_str):
+        """Convert a single path string to current platform format"""
+        if not isinstance(path_str, str):
+            return path_str
+            
+        # Check if this is a Windows path
+        if path_str.startswith(('C:', 'D:', 'E:', 'F:', 'G:', 'H:', 'I:', 'J:', 'K:', 'L:', 'M:', 'N:', 'O:', 'P:', 'Q:', 'R:', 'S:', 'T:', 'U:', 'V:', 'W:', 'X:', 'Y:', 'Z:')):
+            # Convert Windows path to Unix-style
+            # Remove drive letter and convert backslashes to forward slashes
+            path_str = path_str[2:].replace('\\', '/')
+            
+            # Map common Windows paths to Unix equivalents
+            if path_str.startswith('/Users/'):
+                # Already Unix-style, just clean up
+                return path_str
+            elif path_str.startswith('/Program Files/'):
+                # Windows system path - suggest alternative
+                return f"~/Experiments/AQuISS_default_save_location{path_str}"
+            elif path_str.startswith('/Documents/'):
+                # Windows user documents - suggest alternative
+                return f"~/Experiments/AQuISS_default_save_location{path_str}"
+            else:
+                # Generic Windows path - suggest alternative
+                return f"~/Experiments/AQuISS_default_save_location{path_str}"
+        
+        return path_str
+    
+    def convert_dict_paths(obj):
+        """Recursively convert paths in nested dictionaries and lists"""
+        if isinstance(obj, dict):
+            converted = {}
+            for key, value in obj.items():
+                if key in ['data_folder', 'probes_folder', 'device_folder', 'experiments_folder', 'probes_log_folder', 'workspace_config_dir']:
+                    converted[key] = convert_path(value)
+                else:
+                    converted[key] = convert_dict_paths(value)
+            return converted
+        elif isinstance(obj, list):
+            return [convert_dict_paths(item) for item in obj]
+        else:
+            return obj
+    
+    return convert_dict_paths(data_dict)
+
 def load_aqs_file(file_name):
     """
     loads a .aqs or .json file into a dictionary
     Supports both JSON and YAML formats for backward compatibility
+    Handles cross-platform path conversion automatically
 
     Args:
         file_name: Path to the file to load
@@ -96,12 +154,16 @@ def load_aqs_file(file_name):
     # Try JSON first (new format)
     try:
         import json
-        return json.loads(content)
+        data_dict = json.loads(content)
+        # Convert cross-platform paths
+        return convert_cross_platform_paths(data_dict)
     except json.JSONDecodeError:
         # Fall back to YAML (old format)
         try:
             import yaml
-            return yaml.safe_load(content)
+            data_dict = yaml.safe_load(content)
+            # Convert cross-platform paths
+            return convert_cross_platform_paths(data_dict)
         except Exception as e:
             raise ValueError(f"File {file_name} is neither valid JSON nor YAML: {e}")
 
