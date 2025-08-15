@@ -1216,15 +1216,15 @@ class Experiment(QObject):
 
                 #  ========= create the experiment if devices and subexperiments have been loaded successfully =========
                 class_creation_string = ''
-                if experiment_devices:
+                if experiment_devices is not None:
                     class_creation_string += ', devices = experiment_devices'
-                if sub_experiments:
+                if sub_experiments is not None:
                     class_creation_string += ', experiments = sub_experiments'
-                if experiment_settings:
+                if experiment_settings is not None:
                     class_creation_string += ', settings = experiment_settings'
-                if log_function:
+                if log_function is not None:
                     class_creation_string += ', log_function = log_function'
-                if data_path:
+                if data_path is not None:
                     class_creation_string += ', data_path = data_path'
                 class_creation_string = 'class_of_experiment(name=experiment_name{:s})'.format(class_creation_string)
                 #print("Will create instance of",class_creation_string)
@@ -1413,11 +1413,11 @@ class Experiment(QObject):
 
         # create a new instance of same experiment type
         class_creation_string = ''
-        if experiment_devices != {}:
+        if experiment_devices is not None:
             class_creation_string += ', devices = experiment_devices'
-        if sub_experiments != {}:
+        if sub_experiments is not None:
             class_creation_string += ', experiments = sub_experiments'
-        if experiment_settings != {}:
+        if experiment_settings is not None:
             class_creation_string += ', settings = experiment_settings'
         if log_function is not None:
             class_creation_string += ', log_function = log_function'
