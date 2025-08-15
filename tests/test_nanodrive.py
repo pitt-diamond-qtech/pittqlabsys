@@ -317,11 +317,18 @@ class TestMCLNanoDriveHardware:
         # Create a simple test waveform
         test_waveform = list(np.arange(0, 5.1, 0.1))
         
-        # Setup and execute waveform on Y axis
-        real_nanodrive.setup({
+        # Setup load waveform on Y axis
+        real_nanodrive.update({
             'axis': 'y',
             'num_datapoints': len(test_waveform),
             'load_waveform': test_waveform
+        })
+        
+        # Setup read waveform on Y axis
+        real_nanodrive.update({
+            'axis': 'y',
+            'num_datapoints': len(test_waveform),
+            'read_waveform': test_waveform  # This sets up the read waveform
         })
         
         # Execute waveform
