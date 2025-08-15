@@ -749,6 +749,29 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             export_dialog = ExportDialog()
             gui_logger.debug("ExportDialog created successfully")
             
+            # Check for mock devices and warn user
+            try:
+                from src.tools.export_default import detect_mock_devices
+                mock_devices, warning_message = detect_mock_devices()
+                
+                if mock_devices:
+                    gui_logger.warning(f"Mock devices detected: {mock_devices}")
+                    QtWidgets.QMessageBox.warning(
+                        self,
+                        "Mock Devices Detected",
+                        f"⚠️  WARNING: Mock devices detected during conversion!\n\n"
+                        f"Mock devices found: {', '.join(mock_devices)}\n\n"
+                        "This conversion may not reflect real hardware capabilities.\n"
+                        "Check device connections and try again for accurate results.",
+                        QtWidgets.QMessageBox.Ok
+                    )
+                else:
+                    gui_logger.info("All devices appear to be real hardware implementations")
+                    
+            except Exception as e:
+                gui_logger.warning(f"Could not check for mock devices: {e}")
+                # Continue with conversion even if we can't check device status
+            
             if 'experiments_folder' in self.gui_settings:
                 export_dialog.target_path.setText(self.gui_settings['experiments_folder'])
                 gui_logger.debug(f"Set target path to: {self.gui_settings['experiments_folder']}")

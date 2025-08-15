@@ -4,6 +4,7 @@ from src.core import Device,Experiment,ExperimentIterator
 from importlib import import_module
 from src.core.helper_functions import module_name_from_path
 import glob
+import json
 
 
 
@@ -70,7 +71,72 @@ def find_experiments_in_python_files(folder_name, verbose = False):
 def find_devices_in_python_files(folder_name, verbose = False):
     return find_exportable_in_python_files(folder_name, 'Device', verbose)
 
+def detect_mock_devices():
+    """
+    Detect if any devices are using mock implementations.
+    Returns a list of mock device names and a warning message.
+    """
+    mock_devices = []
+    warning_message = ""
+    
+    try:
+        import sys
+        import os
+        
+        # Check for common testing indicators
+        test_indicators = [
+            'PYTEST_CURRENT_TEST' in os.environ,
+            'RUN_HARDWARE_TESTS' in os.environ,
+            any('test' in arg.lower() for arg in sys.argv),
+            any('mock' in arg.lower() for arg in sys.argv)
+        ]
+        
+        # Check for mock devices in loaded modules
+        for module_name, module in sys.modules.items():
+            if module_name.startswith('src.Controller') and module is not None:
+                for attr_name in dir(module):
+                    attr = getattr(module, attr_name, None)
+                    if (inspect.isclass(attr) and 
+                        issubclass(attr, Device) and 
+                        attr != Device):
+                        
+                        # Check if it's a mock class
+                        if (hasattr(attr, '__module__') and 
+                            ('mock' in attr.__module__.lower() or 
+                             'test' in attr.__module__.lower())):
+                            mock_devices.append(attr_name)
+                        
+                        # Check if it's a patched/mocked class
+                        elif hasattr(attr, '_mock_name') or hasattr(attr, '_mock_return_value'):
+                            mock_devices.append(attr_name)
+        
+        # Check for environment-based mock indicators
+        if any(test_indicators):
+            mock_devices.append("Environment-based testing detected")
+        
+        if mock_devices:
+            warning_message = (
+                "⚠️  WARNING: Mock devices detected during conversion!\n\n"
+                f"Mock devices found: {', '.join(mock_devices)}\n\n"
+                "This conversion may not reflect real hardware capabilities.\n"
+                "Check device connections and try again for accurate results."
+            )
+        else:
+            warning_message = "✅ All devices appear to be real hardware implementations."
+            
+    except Exception as e:
+        warning_message = f"⚠️  Warning: Could not verify device status: {e}"
+    
+    return mock_devices, warning_message
+
+
 def python_file_to_aqs(list_of_python_files, target_folder, class_type, raise_errors = False):
+    # Check for mock devices and display warning
+    mock_devices, warning_message = detect_mock_devices()
+    print("\n" + "="*80)
+    print(warning_message)
+    print("="*80 + "\n")
+    
     loaded = {}
     failed = {}
     
