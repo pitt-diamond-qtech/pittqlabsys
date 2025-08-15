@@ -138,7 +138,8 @@ def detect_mock_devices():
         test_indicators = [
             'PYTEST_CURRENT_TEST' in os.environ,
             'RUN_HARDWARE_TESTS' in os.environ,
-            any('test' in arg.lower() for arg in sys.argv),
+            # Only check for actual pytest commands, not script execution
+            any('pytest' in arg.lower() for arg in sys.argv),
             any('mock' in arg.lower() for arg in sys.argv)
         ]
         
@@ -198,7 +199,7 @@ def python_file_to_aqs(list_of_python_files, target_folder, class_type, raise_er
     failed = {}
     
     try:
-        if class_type == 'Experiment':
+    if class_type == 'Experiment':
             # Handle both file paths and experiment metadata
             loaded = {}
             failed = {}
@@ -279,19 +280,16 @@ def python_file_to_aqs(list_of_python_files, target_folder, class_type, raise_er
                                                 common_devices = ['nanodrive', 'adwin', 'daq', 'microwave', 'awg', 'sg384']
                                                 for device_name in common_devices:
                                                     try:
-                                                        # Create mock device with expected structure
-                                                        mock_instance = type(f'Mock{device_name}', (), {
+                                                        # Create simple mock device instance (not nested structure)
+                                                        mock_device = type(f'Mock{device_name}', (), {
                                                             '__init__': lambda self: None,
                                                             'name': device_name,
                                                             'settings': {},
-                                                            'info': f'Mock {device_name} for conversion'
-                                                        })()
-                                                        mock_device = {
-                                                            'instance': mock_instance,
-                                                            'name': device_name,
                                                             'info': f'Mock {device_name} for conversion',
-                                                            'settings': {}  # Add settings at top level
-                                                        }
+                                                            'is_connected': True,  # Add common device attributes
+                                                            'connect': lambda self: None,
+                                                            'disconnect': lambda self: None
+                                                        })()
                                                         mock_devices[device_name] = mock_device
                                                         print(f"  ✅ Created mock device: {device_name}")
                                                     except Exception as e:
@@ -376,7 +374,7 @@ def python_file_to_aqs(list_of_python_files, target_folder, class_type, raise_er
                     
             loaded_devices = {}  # No devices loaded in this approach
             
-        elif class_type == 'Device':
+    elif class_type == 'Device':
             # Similar approach for devices
             loaded = {}
             failed = {}
@@ -429,8 +427,8 @@ def python_file_to_aqs(list_of_python_files, target_folder, class_type, raise_er
     loaded_copy = dict(loaded)
     for name, value in loaded_copy.items():
         try:
-            filename = os.path.join(target_folder, '{:s}.json'.format(name))  # Use .json extension
-            value.save_aqs(filename)
+        filename = os.path.join(target_folder, '{:s}.json'.format(name))  # Use .json extension
+        value.save_aqs(filename)
             print(f"Successfully saved {name} to {filename}")
         except Exception as e:
             print(f"Error saving {name}: {e}")
