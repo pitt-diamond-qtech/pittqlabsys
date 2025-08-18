@@ -49,8 +49,8 @@ class PulseDescription:
             raise ValueError("Channel must be 1 or 2")
         if self.duration <= 0:
             raise ValueError("Duration must be positive")
-        if self.amplitude <= 0:
-            raise ValueError("Amplitude must be positive")
+        if self.amplitude < 0:
+            raise ValueError("Amplitude must be non-negative")
 
 
 @dataclass
@@ -91,13 +91,33 @@ class ConditionalDescription:
 
 @dataclass
 class VariableDescription:
-    """Description of a variable parameter."""
+    """Description of a variable parameter for scanning."""
     
     name: str
-    values: List[Any]
+    start_value: float
+    stop_value: float
+    steps: int
     current_index: int = 0
+    unit: str = ""
     
-    def next_value(self) -> Any:
+    def __post_init__(self):
+        """Validate variable description after initialization."""
+        if self.steps <= 0:
+            raise ValueError("Steps must be positive")
+        if self.start_value == self.stop_value and self.steps > 1:
+            raise ValueError("Start and stop values are identical but steps > 1")
+    
+    @property
+    def values(self) -> List[float]:
+        """Generate the list of values for the scan."""
+        if self.steps == 1:
+            return [self.start_value]
+        
+        # Generate evenly spaced values
+        step_size = (self.stop_value - self.start_value) / (self.steps - 1)
+        return [self.start_value + i * step_size for i in range(self.steps)]
+    
+    def next_value(self) -> float:
         """Get next value and advance index."""
         if self.current_index >= len(self.values):
             raise IndexError("No more values available")
@@ -108,6 +128,18 @@ class VariableDescription:
     def reset(self):
         """Reset index to beginning."""
         self.current_index = 0
+    
+    def get_current_value(self) -> float:
+        """Get current value without advancing index."""
+        if self.current_index >= len(self.values):
+            raise IndexError("Index out of range")
+        return self.values[self.current_index]
+    
+    def get_formatted_value(self, value: float) -> str:
+        """Format value with unit for display."""
+        if self.unit:
+            return f"{value}{self.unit}"
+        return str(value)
 
 
 @dataclass
@@ -123,13 +155,17 @@ class SequenceDescription:
     conditionals: List[ConditionalDescription] = field(default_factory=list)
     variables: Dict[str, VariableDescription] = field(default_factory=dict)
     metadata: Dict[str, Any] = field(default_factory=dict)
+    repeat_count: int = 1
     
     def __post_init__(self):
         """Validate sequence description after initialization."""
-        if self.total_duration <= 0:
-            raise ValueError("Total duration must be positive")
+        if self.total_duration < 0:
+            raise ValueError("Total duration must be non-negative")
+        # Allow zero duration for empty sequences
         if self.sample_rate <= 0:
             raise ValueError("Sample rate must be positive")
+        if self.repeat_count <= 0:
+            raise ValueError("Repeat count must be positive")
     
     def add_pulse(self, pulse: PulseDescription):
         """Add a pulse to the sequence."""
@@ -143,9 +179,15 @@ class SequenceDescription:
         """Add a conditional to the sequence."""
         self.conditionals.append(conditional)
     
-    def add_variable(self, name: str, values: List[Any]):
+    def add_variable(self, name: str, start_value: float, stop_value: float, steps: int, unit: str = ""):
         """Add a variable to the sequence."""
-        self.variables[name] = VariableDescription(name=name, values=values)
+        self.variables[name] = VariableDescription(
+            name=name, 
+            start_value=start_value, 
+            stop_value=stop_value, 
+            steps=steps, 
+            unit=unit
+        )
     
     def get_total_pulses(self) -> int:
         """Get total number of pulses including loops and conditionals."""
@@ -158,6 +200,17 @@ class SequenceDescription:
             total += len(conditional.true_pulses) + len(conditional.false_pulses)
         
         return total
+    
+    def get_total_scan_points(self) -> int:
+        """Get total number of scan points across all variables."""
+        if not self.variables:
+            return 1
+        
+        total_points = 1
+        for var in self.variables.values():
+            total_points *= var.steps
+        
+        return total_points
     
     def validate(self) -> bool:
         """Validate the sequence description for consistency."""

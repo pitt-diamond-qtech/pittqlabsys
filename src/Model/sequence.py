@@ -2,9 +2,6 @@
 from __future__ import annotations
 from typing import List, Dict
 import numpy as np
-from .pulse import Pulse
-
-# sequence.py
 
 """
 Sequence scheduler for waveform generation.
@@ -22,11 +19,7 @@ When you call `to_waveform()`, it:
   3. Iterates over each marker event and ORs its bits into the marker array.
 """
 
-from typing import List, Dict
-import numpy as np
-
-# Import your Pulse base class and MarkerEvent type
-from pulses import Pulse, MarkerEvent
+from .pulses import Pulse, MarkerEvent
 
 class Sequence:
     """

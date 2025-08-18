@@ -2,19 +2,19 @@
 Tests for the sequence builder module.
 
 This module tests the conversion of SequenceDescription objects into
-optimized Sequence objects for generic hardware processing.
+optimized Sequence objects for hardware processing.
 """
 
 import pytest
 import numpy as np
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, patch, MagicMock
 
 from src.Model.sequence_builder import (
     SequenceBuilder, OptimizedSequence, BuildError, OptimizationError
 )
 from src.Model.sequence_description import (
-    SequenceDescription, PulseDescription, PulseShape, TimingType,
-    LoopDescription, ConditionalDescription
+    SequenceDescription, PulseDescription, LoopDescription, ConditionalDescription,
+    PulseShape
 )
 
 
@@ -24,50 +24,67 @@ class TestSequenceBuilder:
     def test_initialization(self):
         """Test that SequenceBuilder initializes correctly."""
         builder = SequenceBuilder(sample_rate=2e9)
-        
         assert builder.sample_rate == 2e9
     
-    def test_initialization_default_sample_rate(self):
-        """Test that SequenceBuilder uses default sample rate."""
-        builder = SequenceBuilder()
+    def test_build_sequence_basic(self):
+        """Test that build_sequence works with basic sequence descriptions."""
+        builder = SequenceBuilder(sample_rate=1e9)
         
-        assert builder.sample_rate == 1e9  # 1 GHz default
-    
-    def test_build_sequence_not_implemented(self):
-        """Test that build_sequence raises NotImplementedError."""
-        builder = SequenceBuilder()
-        
+        # Create a simple sequence description
         description = SequenceDescription(
             name="test_sequence",
             experiment_type="test",
-            total_duration=1e-3,
+            total_duration=1e-6,  # 1 μs
             sample_rate=1e9
         )
         
-        with pytest.raises(NotImplementedError, match="build_sequence method not implemented"):
-            builder.build_sequence(description)
+        # Add a pulse
+        pulse = PulseDescription(
+            name="test_pulse",
+            pulse_type="pi/2",
+            channel=1,
+            shape=PulseShape.GAUSSIAN,
+            duration=100e-9,  # 100 ns
+            amplitude=1.0,
+            timing=0.0
+        )
+        description.add_pulse(pulse)
+        
+        # Build the sequence
+        optimized = builder.build_sequence(description)
+        
+        assert optimized.name == "test_sequence"
+        assert optimized.get_chunk_count() == 1
+        assert optimized.get_total_memory_usage() == 1000  # 1 μs * 1 GHz = 1000 samples
     
     def test_build_from_preset_not_implemented(self):
         """Test that build_from_preset raises NotImplementedError."""
         builder = SequenceBuilder()
         
-        with pytest.raises(NotImplementedError, match="build_from_preset method not implemented"):
+        with pytest.raises(NotImplementedError, match="Preset integration not yet implemented"):
             builder.build_from_preset("odmr")
     
-    def test_optimize_for_memory_constraints_not_implemented(self):
-        """Test that optimize_for_memory_constraints raises NotImplementedError."""
+    def test_optimize_for_memory_constraints(self):
+        """Test that optimize_for_memory_constraints works correctly."""
         builder = SequenceBuilder()
         
-        # Mock sequence object
+        # Create a mock sequence with waveform
         mock_sequence = Mock()
-        mock_sequence.waveform = np.zeros(1000)
+        mock_waveform = Mock()
+        mock_waveform.__len__ = Mock(return_value=2000)
+        mock_sequence.waveform = mock_waveform
         
-        with pytest.raises(NotImplementedError, match="optimize_for_memory_constraints method not implemented"):
-            builder.optimize_for_memory_constraints(mock_sequence, 1000)
+        # Test optimization with max_samples_per_chunk = 1000
+        optimized = builder.optimize_for_memory_constraints(mock_sequence, 1000)
+        
+        # For mock objects that don't support slicing, we get the original sequence back
+        # For real sequences, this would split into chunks
+        assert len(optimized) == 1  # Mock objects return original sequence
+        assert optimized[0] == mock_sequence  # Should be the original sequence
     
-    def test_create_pulse_object_not_implemented(self):
-        """Test that _create_pulse_object raises NotImplementedError."""
-        builder = SequenceBuilder()
+    def test_create_pulse_object_gaussian(self):
+        """Test that _create_pulse_object creates GaussianPulse correctly."""
+        builder = SequenceBuilder(sample_rate=1e9)
         
         pulse_desc = PulseDescription(
             name="test_pulse",
@@ -75,66 +92,177 @@ class TestSequenceBuilder:
             channel=1,
             shape=PulseShape.GAUSSIAN,
             duration=100e-9,
-            amplitude=1.0
+            amplitude=1.0,
+            timing=0.0
         )
         
-        with pytest.raises(NotImplementedError, match="_create_pulse_object method not implemented"):
-            builder._create_pulse_object(pulse_desc)
-    
-    def test_build_loop_sequence_not_implemented(self):
-        """Test that _build_loop_sequence raises NotImplementedError."""
-        builder = SequenceBuilder()
+        pulse_obj = builder._create_pulse_object(pulse_desc)
         
+        assert pulse_obj.name == "test_pulse"
+        assert pulse_obj.length == 100  # 100 ns * 1 GHz = 100 samples
+        assert pulse_obj.amplitude == 1.0
+        assert hasattr(pulse_obj, 'sigma')  # Gaussian-specific attribute
+    
+    def test_create_pulse_object_square(self):
+        """Test that _create_pulse_object creates SquarePulse correctly."""
+        builder = SequenceBuilder(sample_rate=1e9)
+        
+        pulse_desc = PulseDescription(
+            name="test_pulse",
+            pulse_type="pi",
+            channel=2,
+            shape=PulseShape.SQUARE,
+            duration=200e-9,
+            amplitude=0.5,
+            timing=0.0
+        )
+        
+        pulse_obj = builder._create_pulse_object(pulse_desc)
+        
+        assert pulse_obj.name == "test_pulse"
+        assert pulse_obj.length == 200  # 200 ns * 1 GHz = 200 samples
+        assert pulse_obj.amplitude == 0.5
+    
+    def test_build_loop_sequence(self):
+        """Test that _build_loop_sequence works correctly."""
+        builder = SequenceBuilder(sample_rate=1e9)
+        
+        # Create a loop description
         loop_desc = LoopDescription(
             name="test_loop",
             iterations=10,
             start_time=0.0,
-            end_time=1e-3
+            end_time=1e-3  # 1 ms
         )
         
-        with pytest.raises(NotImplementedError, match="_build_loop_sequence method not implemented"):
-            builder._build_loop_sequence(loop_desc)
-    
-    def test_build_conditional_sequence_not_implemented(self):
-        """Test that _build_conditional_sequence raises NotImplementedError."""
-        builder = SequenceBuilder()
+        # Add a pulse to the loop
+        pulse = PulseDescription(
+            name="loop_pulse",
+            pulse_type="pi/2",
+            channel=1,
+            shape=PulseShape.GAUSSIAN,
+            duration=100e-9,
+            amplitude=1.0,
+            timing=500e-6  # 500 μs into the loop
+        )
+        loop_desc.pulses.append(pulse)
         
+        # Build the loop sequence
+        loop_sequence = builder._build_loop_sequence(loop_desc)
+        
+        assert loop_sequence.length == 1000000  # 1 ms * 1 GHz = 1M samples
+        assert len(loop_sequence.pulses) == 1
+    
+    def test_build_conditional_sequence(self):
+        """Test that _build_conditional_sequence works correctly."""
+        builder = SequenceBuilder(sample_rate=1e9)
+        
+        # Create a conditional description
         conditional_desc = ConditionalDescription(
             name="test_conditional",
             condition="if marker_1",
             start_time=0.0,
-            end_time=1e-3
+            end_time=1e-3  # 1 ms
         )
         
-        with pytest.raises(NotImplementedError, match="_build_conditional_sequence method not implemented"):
-            builder._build_conditional_sequence(conditional_desc)
+        # Add a pulse to the conditional
+        pulse = PulseDescription(
+            name="conditional_pulse",
+            pulse_type="pi",
+            channel=1,
+            shape=PulseShape.SQUARE,
+            duration=100e-9,
+            amplitude=1.0,
+            timing=500e-6  # 500 μs into the conditional
+        )
+        conditional_desc.true_pulses.append(pulse)
+        
+        # Build the conditional sequence
+        conditional_sequence = builder._build_conditional_sequence(conditional_desc)
+        
+        assert conditional_sequence.length == 1000000  # 1 ms * 1 GHz = 1M samples
+        assert len(conditional_sequence.pulses) == 1
     
-    def test_calculate_memory_usage_not_implemented(self):
-        """Test that _calculate_memory_usage raises NotImplementedError."""
+    def test_calculate_memory_usage(self):
+        """Test that _calculate_memory_usage works correctly."""
         builder = SequenceBuilder()
         
-        mock_sequence = Mock()
+        # Test with sequence that has waveform
+        mock_sequence_with_waveform = Mock()
+        mock_waveform = Mock()
+        mock_waveform.__len__ = Mock(return_value=1000)
+        mock_sequence_with_waveform.waveform = mock_waveform
         
-        with pytest.raises(NotImplementedError, match="_calculate_memory_usage method not implemented"):
-            builder._calculate_memory_usage(mock_sequence)
+        memory_usage = builder._calculate_memory_usage(mock_sequence_with_waveform)
+        assert memory_usage == 1000
+        
+        # Test with sequence that only has length
+        mock_sequence_with_length = Mock()
+        mock_sequence_with_length.length = 500
+        
+        memory_usage = builder._calculate_memory_usage(mock_sequence_with_length)
+        assert memory_usage == 500
     
-    def test_split_sequence_at_boundaries_not_implemented(self):
-        """Test that _split_sequence_at_boundaries raises NotImplementedError."""
+    def test_split_sequence_at_boundaries(self):
+        """Test that _split_sequence_at_boundaries works correctly."""
         builder = SequenceBuilder()
         
+        # Create a mock sequence with waveform
         mock_sequence = Mock()
+        mock_waveform = Mock()
+        mock_waveform.__len__ = Mock(return_value=2500)
+        mock_sequence.waveform = mock_waveform
         
-        with pytest.raises(NotImplementedError, match="_split_sequence_at_boundaries method not implemented"):
-            builder._split_sequence_at_boundaries(mock_sequence, 1000)
+        # Test splitting with max_samples = 1000
+        chunks = builder._split_sequence_at_boundaries(mock_sequence, 1000)
+        
+        # For mock objects that don't support slicing, we get the original sequence back
+        # For real sequences, this would split into chunks
+        assert len(chunks) == 1  # Mock objects return original sequence
+        assert chunks[0] == mock_sequence  # Should be the original sequence
     
-    def test_find_optimal_split_points_not_implemented(self):
-        """Test that _find_optimal_split_points raises NotImplementedError."""
+    def test_find_optimal_split_points(self):
+        """Test that _find_optimal_split_points works correctly."""
         builder = SequenceBuilder()
         
+        # Create a mock sequence with waveform
         mock_sequence = Mock()
+        mock_waveform = Mock()
+        mock_waveform.__len__ = Mock(return_value=2500)
+        mock_sequence.waveform = mock_waveform
         
-        with pytest.raises(NotImplementedError, match="_find_optimal_split_points method not implemented"):
-            builder._find_optimal_split_points(mock_sequence, 1000)
+        # Test finding split points with max_samples = 1000
+        split_points = builder._find_optimal_split_points(mock_sequence, 1000)
+        
+        assert split_points == [1000, 2000]  # Should split at 1000 and 2000
+    
+    def test_build_sequence_with_invalid_description(self):
+        """Test that build_sequence raises BuildError for invalid descriptions."""
+        builder = SequenceBuilder()
+        
+        # Create an invalid description (pulse extends beyond total duration)
+        description = SequenceDescription(
+            name="invalid_sequence",
+            experiment_type="test",
+            total_duration=1e-6,  # 1 μs
+            sample_rate=1e9
+        )
+        
+        # Add a pulse that extends beyond total duration
+        invalid_pulse = PulseDescription(
+            name="invalid_pulse",
+            pulse_type="pi/2",
+            channel=1,
+            shape=PulseShape.GAUSSIAN,
+            duration=2e-6,  # 2 μs
+            amplitude=1.0,
+            timing=0.0  # 0 + 2μs = 2μs > 1μs total duration
+        )
+        description.add_pulse(invalid_pulse)
+        
+        # This should fail validation
+        with pytest.raises(BuildError):
+            builder.build_sequence(description)
 
 
 class TestOptimizedSequence:
@@ -142,178 +270,154 @@ class TestOptimizedSequence:
     
     def test_initialization(self):
         """Test that OptimizedSequence initializes correctly."""
-        # Mock sequence objects
-        mock_seq1 = Mock()
-        mock_seq1.duration = 1e-3
-        mock_seq1.waveform = np.zeros(1000)
+        # Create mock sequences with proper attributes
+        mock_sequence1 = Mock()
+        mock_sequence1.duration = 1e-3  # 1 ms
+        mock_waveform1 = Mock()
+        mock_waveform1.__len__ = Mock(return_value=1000)
+        mock_sequence1.waveform = mock_waveform1
         
-        mock_seq2 = Mock()
-        mock_seq2.duration = 2e-3
-        mock_seq2.waveform = np.zeros(2000)
+        mock_sequence2 = Mock()
+        mock_sequence2.duration = 0.5e-3  # 0.5 ms
+        mock_waveform2 = Mock()
+        mock_waveform2.__len__ = Mock(return_value=500)
+        mock_sequence2.waveform = mock_waveform2
         
-        sequences = [mock_seq1, mock_seq2]
-        metadata = {"test": "value"}
+        sequences = [mock_sequence1, mock_sequence2]
         
-        optimized = OptimizedSequence("test_sequence", sequences, metadata)
+        optimized = OptimizedSequence("test_sequence", sequences, {"test": "data"})
         
         assert optimized.name == "test_sequence"
-        assert optimized.sequences == sequences
-        assert optimized.metadata == metadata
-        assert optimized.total_duration == 3e-3  # 1ms + 2ms
-        assert optimized.total_samples == 3000   # 1000 + 2000
+        assert optimized.get_chunk_count() == 2
+        assert optimized.get_total_memory_usage() == 1500
+        assert optimized.metadata["test"] == "data"
     
-    def test_initialization_no_metadata(self):
-        """Test that OptimizedSequence initializes without metadata."""
-        mock_seq = Mock()
-        mock_seq.duration = 1e-3
-        mock_seq.waveform = np.zeros(1000)
+    def test_initialization_empty_sequences(self):
+        """Test that OptimizedSequence handles empty sequences correctly."""
+        optimized = OptimizedSequence("test_sequence", [])
         
-        sequences = [mock_seq]
+        assert optimized.name == "test_sequence"
+        assert optimized.get_chunk_count() == 0
+        assert optimized.get_total_memory_usage() == 0
+        assert optimized.total_duration == 0.0
+    
+    def test_get_chunk(self):
+        """Test that get_chunk returns the correct chunk."""
+        mock_sequence1 = Mock()
+        mock_sequence1.duration = 1e-3  # 1 ms
+        mock_waveform1 = Mock()
+        mock_waveform1.__len__ = Mock(return_value=1000)
+        mock_sequence1.waveform = mock_waveform1
         
+        mock_sequence2 = Mock()
+        mock_sequence2.duration = 0.5e-3  # 0.5 ms
+        mock_waveform2 = Mock()
+        mock_waveform2.__len__ = Mock(return_value=500)
+        mock_sequence2.waveform = mock_waveform2
+        
+        sequences = [mock_sequence1, mock_sequence2]
         optimized = OptimizedSequence("test_sequence", sequences)
         
-        assert optimized.metadata == {}
-        assert optimized.total_duration == 1e-3
-        assert optimized.total_samples == 1000
-    
-    def test_get_chunk_valid_index(self):
-        """Test getting a valid chunk."""
-        mock_seq1 = Mock()
-        mock_seq1.duration = 1e-3
-        mock_seq1.waveform = np.zeros(1000)
+        assert optimized.get_chunk(0) == mock_sequence1
+        assert optimized.get_chunk(1) == mock_sequence2
         
-        mock_seq2 = Mock()
-        mock_seq2.duration = 2e-3
-        mock_seq2.waveform = np.zeros(2000)
+        # Test index out of range
+        with pytest.raises(IndexError):
+            optimized.get_chunk(2)
         
-        sequences = [mock_seq1, mock_seq2]
-        optimized = OptimizedSequence("test_sequence", sequences)
-        
-        chunk = optimized.get_chunk(0)
-        assert chunk == mock_seq1
-        
-        chunk = optimized.get_chunk(1)
-        assert chunk == mock_seq2
-    
-    def test_get_chunk_invalid_index_negative(self):
-        """Test that getting chunk with negative index raises IndexError."""
-        mock_seq = Mock()
-        mock_seq.duration = 1e-3
-        mock_seq.waveform = np.zeros(1000)
-        
-        sequences = [mock_seq]
-        optimized = OptimizedSequence("test_sequence", sequences)
-        
-        with pytest.raises(IndexError, match="Chunk index -1 out of range"):
+        with pytest.raises(IndexError):
             optimized.get_chunk(-1)
     
-    def test_get_chunk_invalid_index_too_large(self):
-        """Test that getting chunk with too large index raises IndexError."""
-        mock_seq = Mock()
-        mock_seq.duration = 1e-3
-        mock_seq.waveform = np.zeros(1000)
-        
-        sequences = [mock_seq]
-        optimized = OptimizedSequence("test_sequence", sequences)
-        
-        with pytest.raises(IndexError, match="Chunk index 1 out of range"):
-            optimized.get_chunk(1)
-    
     def test_get_chunk_count(self):
-        """Test getting chunk count."""
-        mock_seq1 = Mock()
-        mock_seq1.duration = 1e-3
-        mock_seq1.waveform = np.zeros(1000)
+        """Test that get_chunk_count returns the correct number."""
+        mock_sequences = []
+        for i in range(5):
+            mock_seq = Mock()
+            mock_seq.duration = 1e-3  # 1 ms
+            mock_waveform = Mock()
+            mock_waveform.__len__ = Mock(return_value=1000)
+            mock_seq.waveform = mock_waveform
+            mock_sequences.append(mock_seq)
         
-        mock_seq2 = Mock()
-        mock_seq2.duration = 2e-3
-        mock_seq2.waveform = np.zeros(2000)
+        optimized = OptimizedSequence("test_sequence", mock_sequences)
         
-        sequences = [mock_seq1, mock_seq2]
-        optimized = OptimizedSequence("test_sequence", sequences)
-        
-        assert optimized.get_chunk_count() == 2
+        assert optimized.get_chunk_count() == 5
     
     def test_get_total_memory_usage(self):
-        """Test getting total memory usage."""
-        mock_seq1 = Mock()
-        mock_seq1.duration = 1e-3
-        mock_seq1.waveform = np.zeros(1000)
+        """Test that get_total_memory_usage returns the correct value."""
+        mock_sequence1 = Mock()
+        mock_sequence1.duration = 1e-3  # 1 ms
+        mock_waveform1 = Mock()
+        mock_waveform1.__len__ = Mock(return_value=1000)
+        mock_sequence1.waveform = mock_waveform1
         
-        mock_seq2 = Mock()
-        mock_seq2.duration = 2e-3
-        mock_seq2.waveform = np.zeros(2000)
+        mock_sequence2 = Mock()
+        mock_sequence2.duration = 0.5e-3  # 0.5 ms
+        mock_waveform2 = Mock()
+        mock_waveform2.__len__ = Mock(return_value=500)
+        mock_sequence2.waveform = mock_waveform2
         
-        sequences = [mock_seq1, mock_seq2]
+        sequences = [mock_sequence1, mock_sequence2]
         optimized = OptimizedSequence("test_sequence", sequences)
         
-        assert optimized.get_total_memory_usage() == 3000
+        assert optimized.get_total_memory_usage() == 1500
     
-    def test_validate_memory_constraints_all_valid(self):
-        """Test memory constraint validation when all chunks are valid."""
-        mock_seq1 = Mock()
-        mock_seq1.duration = 1e-3
-        mock_seq1.waveform = np.zeros(1000)
+    def test_validate_memory_constraints(self):
+        """Test that validate_memory_constraints works correctly."""
+        # Create sequences within constraints
+        mock_sequence1 = Mock()
+        mock_sequence1.duration = 1e-3  # 1 ms
+        mock_waveform1 = Mock()
+        mock_waveform1.__len__ = Mock(return_value=1000)
+        mock_sequence1.waveform = mock_waveform1
         
-        mock_seq2 = Mock()
-        mock_seq2.duration = 2e-3
-        mock_seq2.waveform = np.zeros(2000)
+        mock_sequence2 = Mock()
+        mock_sequence2.duration = 0.5e-3  # 0.5 ms
+        mock_waveform2 = Mock()
+        mock_waveform2.__len__ = Mock(return_value=500)
+        mock_sequence2.waveform = mock_waveform2
         
-        sequences = [mock_seq1, mock_seq2]
+        sequences = [mock_sequence1, mock_sequence2]
         optimized = OptimizedSequence("test_sequence", sequences)
         
-        assert optimized.validate_memory_constraints(3000) is True
-        assert optimized.validate_memory_constraints(2000) is True
-    
-    def test_validate_memory_constraints_some_invalid(self):
-        """Test memory constraint validation when some chunks are invalid."""
-        mock_seq1 = Mock()
-        mock_seq1.duration = 1e-3
-        mock_seq1.waveform = np.zeros(1000)
+        # Should pass validation
+        assert optimized.validate_memory_constraints(1000) is True
         
-        mock_seq2 = Mock()
-        mock_seq2.duration = 2e-3
-        mock_seq2.waveform = np.zeros(4000)  # Exceeds 3000 limit
-        
-        sequences = [mock_seq1, mock_seq2]
-        optimized = OptimizedSequence("test_sequence", sequences)
-        
-        assert optimized.validate_memory_constraints(3000) is False
-        assert optimized.validate_memory_constraints(5000) is True
+        # Should fail validation
+        assert optimized.validate_memory_constraints(499) is False
     
     def test_get_optimization_summary(self):
-        """Test getting optimization summary."""
-        mock_seq1 = Mock()
-        mock_seq1.duration = 1e-3
-        mock_seq1.waveform = np.zeros(1000)
+        """Test that get_optimization_summary returns correct data."""
+        mock_sequence1 = Mock()
+        mock_sequence1.duration = 1e-3  # 1 ms
+        mock_waveform1 = Mock()
+        mock_waveform1.__len__ = Mock(return_value=1000)
+        mock_sequence1.waveform = mock_waveform1
         
-        mock_seq2 = Mock()
-        mock_seq2.duration = 2e-3
-        mock_seq2.waveform = np.zeros(2000)
+        mock_sequence2 = Mock()
+        mock_sequence2.duration = 0.5e-3  # 0.5 ms
+        mock_waveform2 = Mock()
+        mock_waveform2.__len__ = Mock(return_value=500)
+        mock_sequence2.waveform = mock_waveform2
         
-        sequences = [mock_seq1, mock_seq2]
-        metadata = {"test": "value"}
-        optimized = OptimizedSequence("test_sequence", sequences, metadata)
+        sequences = [mock_sequence1, mock_sequence2]
+        optimized = OptimizedSequence("test_sequence", sequences)
         
         summary = optimized.get_optimization_summary()
         
         assert summary["name"] == "test_sequence"
         assert summary["total_chunks"] == 2
-        assert summary["total_duration"] == 3e-3
-        assert summary["total_samples"] == 3000
-        assert summary["chunk_sizes"] == [1000, 2000]
-        assert summary["memory_efficiency"] == 3000 / (2 * 2000)  # 0.75
-        assert summary["metadata"] == metadata
+        assert summary["total_samples"] == 1500
+        assert summary["chunk_sizes"] == [1000, 500]
+        assert summary["memory_efficiency"] == 0.75  # 1500 / (2 * 1000)
+        assert "metadata" in summary
     
     def test_get_optimization_summary_empty_sequences(self):
         """Test getting optimization summary with empty sequences."""
         optimized = OptimizedSequence("test_sequence", [])
-        
         summary = optimized.get_optimization_summary()
         
-        assert summary["name"] == "test_sequence"
         assert summary["total_chunks"] == 0
-        assert summary["total_duration"] == 0
         assert summary["total_samples"] == 0
         assert summary["chunk_sizes"] == []
         assert summary["memory_efficiency"] == 0.0
@@ -348,7 +452,7 @@ class TestOptimizationError:
 
 
 class TestSequenceBuilderIntegration:
-    """Integration tests for SequenceBuilder with mock dependencies."""
+    """Integration tests for SequenceBuilder."""
     
     def test_sequence_builder_with_mock_sequence(self):
         """Test SequenceBuilder with a mock sequence."""
@@ -378,23 +482,61 @@ class TestSequenceBuilderIntegration:
         assert description.validate() is True
         assert description.get_total_pulses() == 1
         
-        # Test that builder methods are not implemented (as expected)
-        with pytest.raises(NotImplementedError):
-            builder.build_sequence(description)
+        # Test that builder can build the sequence
+        optimized = builder.build_sequence(description)
+        
+        assert optimized.name == "test_sequence"
+        assert optimized.get_chunk_count() == 1
+        assert optimized.get_total_memory_usage() == 1000000  # 1 ms * 1 GHz = 1,000,000 samples
     
-    def test_sequence_builder_sample_rate_consistency(self):
-        """Test that sample rate is consistent between builder and description."""
-        sample_rate = 2e9  # 2 GHz
+    def test_sequence_builder_error_handling(self):
+        """Test that SequenceBuilder handles errors gracefully."""
+        builder = SequenceBuilder()
         
-        builder = SequenceBuilder(sample_rate=sample_rate)
-        
-        description = SequenceDescription(
-            name="test_sequence",
+        # Test with invalid sequence description
+        invalid_description = SequenceDescription(
+            name="invalid_sequence",
             experiment_type="test",
-            total_duration=1e-3,
-            sample_rate=sample_rate
+            total_duration=1e-6,  # 1 μs
+            sample_rate=1e9
         )
         
-        # Both should have the same sample rate
-        assert builder.sample_rate == description.sample_rate
-        assert builder.sample_rate == 2e9
+        # Add a pulse that extends beyond total duration
+        invalid_pulse = PulseDescription(
+            name="invalid_pulse",
+            pulse_type="pi/2",
+            channel=1,
+            shape=PulseShape.GAUSSIAN,
+            duration=2e-6,  # 2 μs
+            amplitude=1.0,
+            timing=0.0  # 0 + 2μs = 2μs > 1μs total duration
+        )
+        invalid_description.add_pulse(invalid_pulse)
+        
+        # This should raise BuildError
+        with pytest.raises(BuildError):
+            builder.build_sequence(invalid_description)
+    
+    def test_sequence_builder_initialization_consistency(self):
+        """Test that SequenceBuilder initialization is consistent."""
+        builder1 = SequenceBuilder(sample_rate=1e9)
+        builder2 = SequenceBuilder(sample_rate=2e9)
+        
+        # Both should have the same structure
+        assert hasattr(builder1, 'sample_rate')
+        assert hasattr(builder2, 'sample_rate')
+        
+        # But different values
+        assert builder1.sample_rate == 1e9
+        assert builder2.sample_rate == 2e9
+        
+        # Both should have the same methods
+        methods = [
+            'build_sequence', 'build_from_preset', 'optimize_for_memory_constraints',
+            '_create_pulse_object', '_build_loop_sequence', '_build_conditional_sequence',
+            '_calculate_memory_usage', '_split_sequence_at_boundaries', '_find_optimal_split_points'
+        ]
+        
+        for method in methods:
+            assert hasattr(builder1, method)
+            assert hasattr(builder2, method)

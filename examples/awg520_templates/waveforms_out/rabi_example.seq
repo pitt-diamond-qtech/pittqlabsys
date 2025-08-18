@@ -1,0 +1,7 @@
+MAGIC 3002 
+LINES 2
+"pi2_1.wfm","silence_2.wfm",1,0,0,0
+"silence_1.wfm","silence_2.wfm",20,0,0,0
+JUMP_MODE SOFTWARE
+JUMP_TIMING SYNC
+STROBE 0

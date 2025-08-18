@@ -587,3 +587,42 @@ class TestSequenceDescription:
         
         sequence.add_conditional(conditional)
         assert sequence.validate() is False
+
+    def test_repeat_count_default_and_custom(self):
+        """Repeat count defaults to 1 and accepts positive integers."""
+        seq_default = SequenceDescription(
+            name="seq",
+            experiment_type="test",
+            total_duration=1e-3,
+            sample_rate=1e9,
+        )
+        assert seq_default.repeat_count == 1
+
+        seq_custom = SequenceDescription(
+            name="seq",
+            experiment_type="test",
+            total_duration=1e-3,
+            sample_rate=1e9,
+            repeat_count=50000,
+        )
+        assert seq_custom.repeat_count == 50000
+
+    def test_repeat_count_validation_non_positive(self):
+        """Non-positive repeat counts should raise ValueError."""
+        import pytest
+        with pytest.raises(ValueError, match="Repeat count must be positive"):
+            SequenceDescription(
+                name="seq",
+                experiment_type="test",
+                total_duration=1e-3,
+                sample_rate=1e9,
+                repeat_count=0,
+            )
+        with pytest.raises(ValueError, match="Repeat count must be positive"):
+            SequenceDescription(
+                name="seq",
+                experiment_type="test",
+                total_duration=1e-3,
+                sample_rate=1e9,
+                repeat_count=-10,
+            )
