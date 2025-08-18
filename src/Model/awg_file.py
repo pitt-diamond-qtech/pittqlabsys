@@ -31,7 +31,7 @@ from typing import List, Optional, Tuple, Union
 import numpy as np
 
 # Maximum number of samples per waveform (hardware limit)
-_WFM_MEMORY_LIMIT = 64_000_000
+_WFM_MEMORY_LIMIT = 4_000_000  # 4M words as per AWG520 specification
 
 logger = logging.getLogger("awg_file")
 

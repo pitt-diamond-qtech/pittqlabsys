@@ -61,9 +61,15 @@ ehthumbs.db
 frames/
 wheels_cache/
 
-# Waveform and sequence files
+# AWG520 files - don't track large binary files or experiment-specific sequences
+# Template sequence files ARE tracked (small, reusable)
+# Large waveform files are NOT tracked (binary, large)
 *.wfm
-*.seq
+# Don't track experiment-specific sequence files, only templates
+examples/awg520_templates/*/scan.seq
+examples/awg520_templates/*/experiment_*.seq
+# Allow template sequence files
+!examples/awg520_templates/*.seq
 
 # Configuration and data files (legacy)
 *.aqs

@@ -1,0 +1,22 @@
+# ODMR Scan Sequence Template
+# This file defines the sequence of waveforms for ODMR experiments
+# Format: [Waveform Name] [Duration] [Channel] [Marker Settings]
+
+# Microwave generation for ODMR
+sine_10MHz.wfm    1000    1    M1:ON M2:OFF
+sine_10MHz.wfm    1000    2    M1:OFF M2:ON
+
+# Laser control via markers
+sine_10MHz.wfm    500     1    M1:OFF M2:ON    # Laser ON
+sine_10MHz.wfm    500     1    M1:OFF M2:OFF   # Laser OFF
+
+# Scanning pattern
+ramp_100kHz.wfm   2000    1    M1:ON M2:OFF    # X-axis scan
+ramp_100kHz.wfm   2000    2    M1:OFF M2:ON   # Y-axis scan
+
+# Timing control
+square_1MHz.wfm   100     1    M1:ON M2:OFF    # Trigger pulse
+square_1MHz.wfm   100     2    M1:OFF M2:ON   # Sync signal
+
+# End sequence
+END
