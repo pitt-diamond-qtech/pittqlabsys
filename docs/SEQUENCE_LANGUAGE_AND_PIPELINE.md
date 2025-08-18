@@ -332,16 +332,23 @@ Since the `.seq` file's `repeat` field is now reserved for qubit statistics (e.g
 - **Pulse 2**: pi at 100ns → **Should become 200ns** (100ns + new duration)
 - **Pulse 3**: laser at 200ns → **Should become 300ns** (200ns + new duration)
 
-**Where to Implement**: This timing adjustment logic belongs in `AWG520SequenceOptimizer` because:
-1. It's hardware-specific (different AWGs handle timing differently)
-2. It needs to generate multiple sequences (one per scan point)
-3. It creates the final .seq files with proper timing
+**Where to Implement**: This timing adjustment logic belongs in **`SequenceBuilder`** because:
+1. It's **pure sequence logic** - mathematical timing calculations, no hardware dependencies
+2. It needs to generate multiple sequences (one per scan point) with adjusted timing
+3. The `AWG520SequenceOptimizer` should only handle hardware-specific concerns (memory, file formats)
 
 **Implementation Requirements**:
 1. **Generate scan sequences**: Create one sequence per variable combination
 2. **Adjust timing**: Recalculate all subsequent pulse timings based on variable changes
-3. **Create .seq entries**: Generate one .seq entry per scan point with correct timing
+3. **Return multiple sequences**: Pass all scan sequences to the hardware optimizer
 4. **Handle arming sequence**: Add laser-on sequence for full duration as first entry
+
+**Architecture Flow**:
+```
+SequenceDescription → SequenceBuilder → [Multiple Sequences with Adjusted Timing] → AWG520SequenceOptimizer → Hardware Files
+```
+
+The `SequenceBuilder` handles the **logical timing math**, while `AWG520SequenceOptimizer` handles the **hardware-specific optimization**.
 
 #### New Memory Optimization Strategy
 
