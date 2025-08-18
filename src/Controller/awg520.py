@@ -677,6 +677,7 @@ class AWG520Driver:
             return removed
 
     def cleanup(self):
+        """Clean up resources and mark device as disconnected."""
         try:
             self.stop()
         except:
@@ -733,8 +734,47 @@ class AWG520Device(Device):
         )
         self._ftp_thread = None
         self._ftp_worker = None
+        # Test connection and set connection status
+        self._test_connection()
+
+    def _test_connection(self):
+        """Test if the device is reachable and set connection status."""
+        try:
+            # Test SCPI connection with *IDN? query
+            idn = self.driver.send_command('*IDN?', query=True)
+            if idn and ('SONY/TEK' in idn or 'AWG520' in idn):
+                self._is_connected = True
+                self.logger.info(f"Connected to AWG520: {idn}")
+            else:
+                self._is_connected = False
+                self.logger.warning("AWG520 responded but ID not recognized")
+        except Exception as e:
+            self._is_connected = False
+            self.logger.error(f"Failed to connect to AWG520: {e}")
+
+    @property
+    def is_connected(self):
+        """
+        Check if device is active and connected.
+        Returns: bool indicating connection status
+        """
+        # Re-test connection if we think we're connected but want to verify
+        if self._is_connected:
+            try:
+                # Quick connection test
+                self.driver.send_command('*STB?', query=True)
+                return True
+            except Exception:
+                self._is_connected = False
+                self.logger.warning("AWG520 connection lost")
+        return self._is_connected
 
     def setup(self):
+        """Setup the AWG520 device with sequence file."""
+        if not self.is_connected:
+            self.logger.error("Cannot setup AWG520: device not connected")
+            return False
+            
         cfg = self.settings
         seq = cfg['seq_file']
         self.driver.set_ref_clock(1, 'EXT')
@@ -743,6 +783,7 @@ class AWG520Device(Device):
         self.driver.send_command('AWGC:RMOD ENH')
         time.sleep(0.1)
         self._start_file_transfer(seq)
+        return True
 
     def _start_file_transfer(self, local_path: str):
         remote_name = local_path
@@ -858,7 +899,37 @@ class AWG520Device(Device):
         raise KeyError(f"Unknown probe '{key}'")
 
     def cleanup(self):
+        """Clean up resources and mark device as disconnected."""
         if self._ftp_thread and self._ftp_thread.isRunning():
             self._ftp_thread.quit()
             self._ftp_thread.wait()
-        self.driver.cleanup()
+        if hasattr(self, 'driver'):
+            self.driver.cleanup()
+        self._is_connected = False
+        self.logger.info("AWG520 device disconnected")
+
+    def reconnect(self):
+        """Attempt to reconnect to the AWG520 device."""
+        try:
+            self.logger.info("Attempting to reconnect to AWG520...")
+            # Recreate driver instance
+            cfg = self.settings
+            self.driver = AWG520Driver(
+                ip_address=cfg['ip_address'],
+                scpi_port=cfg['scpi_port'],
+                ftp_port=cfg['ftp_port'],
+                ftp_user=cfg['ftp_user'],
+                ftp_pass=cfg['ftp_pass']
+            )
+            # Test connection
+            self._test_connection()
+            if self.is_connected:
+                self.logger.info("Successfully reconnected to AWG520")
+                return True
+            else:
+                self.logger.error("Failed to reconnect to AWG520")
+                return False
+        except Exception as e:
+            self.logger.error(f"Reconnection failed: {e}")
+            self._is_connected = False
+            return False

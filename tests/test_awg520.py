@@ -456,9 +456,12 @@ class TestAWG520Device:
     @pytest.fixture
     def mock_awg_device(self):
         """Create a mocked AWG520Device instance."""
-        with patch('Controller.awg520.AWG520Driver') as mock_driver_class:
+        with patch('src.Controller.awg520.AWG520Driver') as mock_driver_class:
             mock_driver = Mock()
             mock_driver_class.return_value = mock_driver
+            
+            # Mock the send_command method for connection testing
+            mock_driver.send_command.return_value = "SONY/TEK,AWG520,0,SCPI:95.0 OS:3.0"
             
             # Create device first
             device = AWG520Device(settings={
@@ -477,7 +480,7 @@ class TestAWG520Device:
             object.__setattr__(device, '_ftp_thread', Mock())
             
             return device, mock_driver
-    
+
     def test_device_initialization(self, mock_awg_device):
         """Test AWG520Device initialization."""
         device, mock_driver = mock_awg_device
@@ -488,7 +491,150 @@ class TestAWG520Device:
         assert device.settings['seq_file'] == 'test.seq'
         assert device.settings['enable_iq'] is False
         assert device.driver is mock_driver
-    
+
+    def test_device_connection_testing(self, mock_awg_device):
+        """Test AWG520Device connection testing functionality."""
+        device, mock_driver = mock_awg_device
+        
+        # Test successful connection
+        mock_driver.send_command.return_value = "SONY/TEK,AWG520,0,SCPI:95.0 OS:3.0"
+        device._test_connection()
+        assert device.is_connected is True
+        
+        # Test failed connection
+        mock_driver.send_command.side_effect = Exception("Connection failed")
+        device._test_connection()
+        assert device.is_connected is False
+        
+        # Test unrecognized device
+        mock_driver.send_command.side_effect = None
+        mock_driver.send_command.return_value = "UNKNOWN_DEVICE"
+        device._test_connection()
+        assert device.is_connected is False
+
+    def test_device_identification_variants(self, mock_awg_device):
+        """Test AWG520Device identification with different valid response formats."""
+        device, mock_driver = mock_awg_device
+        
+        # Test with SONY/TEK identifier
+        mock_driver.send_command.return_value = "SONY/TEK,AWG520,0,SCPI:95.0 OS:3.0"
+        device._test_connection()
+        assert device.is_connected is True
+        
+        # Test with just AWG520 identifier
+        mock_driver.send_command.return_value = "AWG520,SomeOtherInfo,Version"
+        device._test_connection()
+        assert device.is_connected is True
+        
+        # Test with empty response
+        mock_driver.send_command.return_value = ""
+        device._test_connection()
+        assert device.is_connected is False
+        
+        # Test with None response
+        mock_driver.send_command.return_value = None
+        device._test_connection()
+        assert device.is_connected is False
+
+    def test_device_connection_status(self, mock_awg_device):
+        """Test AWG520Device connection status property."""
+        device, mock_driver = mock_awg_device
+        
+        # Mock the connection test to simulate successful connection
+        mock_driver.send_command.return_value = "SONY/TEK,AWG520,0,SCPI:95.0 OS:3.0"
+        
+        # Test connection status
+        assert device.is_connected is True
+        
+        # Test connection loss
+        mock_driver.send_command.side_effect = Exception("Connection lost")
+        assert device.is_connected is False
+
+    def test_device_connection_loss_detection(self, mock_awg_device):
+        """Test AWG520Device connection loss detection in is_connected property."""
+        device, mock_driver = mock_awg_device
+        
+        # Start with successful connection
+        mock_driver.send_command.return_value = "SONY/TEK,AWG520,0,SCPI:95.0 OS:3.0"
+        device._test_connection()
+        assert device.is_connected is True
+        
+        # Simulate connection loss during status check
+        mock_driver.send_command.side_effect = Exception("Connection lost")
+        
+        # The is_connected property should detect this and update internal state
+        assert device.is_connected is False
+        assert device._is_connected is False
+
+    def test_device_setup_with_connection(self, mock_awg_device):
+        """Test AWG520Device setup when connected."""
+        device, mock_driver = mock_awg_device
+        
+        # Mock successful connection
+        mock_driver.send_command.return_value = "SONY/TEK,AWG520,0,SCPI:95.0 OS:3.0"
+        
+        # Setup should succeed when connected
+        result = device.setup()
+        assert result is True
+        
+        # Verify setup commands were called
+        mock_driver.set_ref_clock.assert_any_call(1, 'EXT')
+        mock_driver.set_ref_clock.assert_any_call(2, 'EXT')
+        mock_driver.send_command.assert_any_call('AWGC:RMOD ENH')
+
+    def test_device_setup_without_connection(self, mock_awg_device):
+        """Test AWG520Device setup when not connected."""
+        device, mock_driver = mock_awg_device
+        
+        # Mock failed connection
+        mock_driver.send_command.side_effect = Exception("Connection failed")
+        
+        # Setup should fail when not connected
+        result = device.setup()
+        assert result is False
+
+    def test_device_setup_connection_required(self, mock_awg_device):
+        """Test AWG520Device setup requires active connection."""
+        device, mock_driver = mock_awg_device
+        
+        # Ensure device is not connected
+        device._is_connected = False
+        
+        # Setup should fail and return False
+        result = device.setup()
+        assert result is False
+        
+        # No setup commands should be called
+        mock_driver.set_ref_clock.assert_not_called()
+        mock_driver.send_command.assert_not_called()
+
+    def test_device_reconnect(self, mock_awg_device):
+        """Test AWG520Device reconnection functionality."""
+        device, mock_driver = mock_awg_device
+        
+        # Mock successful reconnection
+        mock_driver.send_command.return_value = "SONY/TEK,AWG520,0,SCPI:95.0 OS:3.0"
+        
+        # Test reconnection
+        result = device.reconnect()
+        assert result is True
+        assert device.is_connected is True
+
+    def test_device_cleanup(self, mock_awg_device):
+        """Test AWG520Device cleanup functionality."""
+        device, mock_driver = mock_awg_device
+        
+        # Mock successful connection first
+        mock_driver.send_command.return_value = "SONY/TEK,AWG520,0,SCPI:95.0 OS:3.0"
+        assert device.is_connected is True
+        
+        # Test cleanup
+        device.cleanup()
+        assert device.is_connected is False
+        
+        # Verify driver cleanup was called
+        mock_driver.cleanup.assert_called_once()
+
     def test_laser_control_methods(self, mock_awg_device):
         """Test laser control methods in device wrapper."""
         device, mock_driver = mock_awg_device
