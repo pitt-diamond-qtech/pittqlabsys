@@ -317,6 +317,58 @@ python -m pytest --cov=src
 4. **Hardware Abstraction**: Support for other AWG models
 5. **Visual Editor**: GUI for sequence design
 
+## Upcoming Optimization Plan
+
+### AWG520 Memory Optimization Strategy (Next Phase)
+
+Since the `.seq` file's `repeat` field is now reserved for qubit statistics (e.g., 50,000 repetitions for measurements), we need a new approach for memory optimization.
+
+#### New Memory Optimization Strategy
+
+1. **Waveform-Level Optimization** (Primary Strategy)
+   - **Chunking**: Break long waveforms into smaller, reusable chunks
+   - **Compression**: Use mathematical compression algorithms (LZ, RLE, etc.)
+   - **Pattern Recognition**: Identify repeated patterns within waveforms and store them once
+
+2. **Sequence Splitting** (Secondary Strategy)
+   - **Boundary Detection**: Find natural break points (e.g., between pulse groups)
+   - **Optimal Chunking**: Create chunks that maximize memory efficiency
+   - **Cross-Reference**: Use sequence file to reference multiple waveform chunks
+
+3. **Smart Dead-Time Handling**
+   - **Silence Waveforms**: Create minimal "silence" waveforms (just zeros)
+   - **Variable Sampling**: Use lower sampling rates for long dead times
+   - **Hybrid Approach**: Combine high-resolution pulses with low-resolution dead times
+
+#### Implementation Plan
+
+1. **Remove Dead-Time Repetition Logic**
+   - Eliminate the `create_repetition_patterns` method
+   - Remove repetition-based memory optimization
+
+2. **Add Waveform Compression**
+   - Implement LZ compression for long waveforms
+   - Add chunking for sequences that exceed memory limits
+   - Create pattern recognition for repeated sub-sequences
+
+3. **Update Sequence Generation**
+   - Generate multiple `.seq` entries for scan variables
+   - Each entry uses the user-specified `repeat_count`
+   - Handle arming sequence (laser on for full duration)
+
+4. **Memory Management**
+   - Track actual memory usage of compressed waveforms
+   - Split sequences when they exceed 4M words
+   - Optimize chunk boundaries for maximum efficiency
+
+#### Key Insight
+
+**Memory optimization and experiment repetition are now completely separate concerns**:
+- **Memory optimization** → Waveform compression, chunking, pattern recognition
+- **Experiment repetition** → Sequence file entries with user-specified repeat counts
+
+This gives us much more flexibility and better memory efficiency while maintaining the user's ability to specify exactly how many times each sequence should repeat for statistical purposes.
+
 ## Troubleshooting
 
 ### Common Issues
