@@ -323,12 +323,33 @@ python -m pytest --cov=src
 
 Since the `.seq` file's `repeat` field is now reserved for qubit statistics (e.g., 50,000 repetitions for measurements), we need a new approach for memory optimization.
 
+#### Critical Missing Feature: Variable Scanning with Timing Adjustment
+
+**The Problem**: When scanning variables like `pulse_duration`, the current pipeline doesn't handle timing adjustments for subsequent pulses and dead times.
+
+**Example**: If `pulse_duration` changes from 100ns to 200ns:
+- **Pulse 1**: pi/2 at 0ns, duration = 100ns → 200ns
+- **Pulse 2**: pi at 100ns → **Should become 200ns** (100ns + new duration)
+- **Pulse 3**: laser at 200ns → **Should become 300ns** (200ns + new duration)
+
+**Where to Implement**: This timing adjustment logic belongs in `AWG520SequenceOptimizer` because:
+1. It's hardware-specific (different AWGs handle timing differently)
+2. It needs to generate multiple sequences (one per scan point)
+3. It creates the final .seq files with proper timing
+
+**Implementation Requirements**:
+1. **Generate scan sequences**: Create one sequence per variable combination
+2. **Adjust timing**: Recalculate all subsequent pulse timings based on variable changes
+3. **Create .seq entries**: Generate one .seq entry per scan point with correct timing
+4. **Handle arming sequence**: Add laser-on sequence for full duration as first entry
+
 #### New Memory Optimization Strategy
 
 1. **Waveform-Level Optimization** (Primary Strategy)
-   - **Chunking**: Break long waveforms into smaller, reusable chunks
-   - **Compression**: Use mathematical compression algorithms (LZ, RLE, etc.)
-   - **Pattern Recognition**: Identify repeated patterns within waveforms and store them once
+   - **Mathematical Representation**: Store dead times as `(start, end, value)` instead of samples
+   - **Pulse Parameter Storage**: Store pulse parameters and regenerate waveforms (e.g., `gaussian, amp=1.0, width=100ns`)
+   - **Run-Length Encoding**: Compress long sequences of constant values (perfect for dead times)
+   - **Delta Encoding**: Store differences between consecutive samples for smooth transitions
 
 2. **Sequence Splitting** (Secondary Strategy)
    - **Boundary Detection**: Find natural break points (e.g., between pulse groups)
@@ -336,9 +357,9 @@ Since the `.seq` file's `repeat` field is now reserved for qubit statistics (e.g
    - **Cross-Reference**: Use sequence file to reference multiple waveform chunks
 
 3. **Smart Dead-Time Handling**
-   - **Silence Waveforms**: Create minimal "silence" waveforms (just zeros)
+   - **Mathematical Dead Times**: Store as `(start_time, end_time, constant_value)` instead of samples
    - **Variable Sampling**: Use lower sampling rates for long dead times
-   - **Hybrid Approach**: Combine high-resolution pulses with low-resolution dead times
+   - **Hybrid Approach**: Combine high-resolution pulses with mathematical dead-time representation
 
 #### Implementation Plan
 
@@ -347,9 +368,10 @@ Since the `.seq` file's `repeat` field is now reserved for qubit statistics (e.g
    - Remove repetition-based memory optimization
 
 2. **Add Waveform Compression**
-   - Implement LZ compression for long waveforms
-   - Add chunking for sequences that exceed memory limits
-   - Create pattern recognition for repeated sub-sequences
+   - Implement mathematical representation for dead times and pulse shapes
+   - Add run-length encoding for constant-value sequences
+   - Use delta encoding for smooth transitions
+   - Create parameter-based waveform regeneration
 
 3. **Update Sequence Generation**
    - Generate multiple `.seq` entries for scan variables
