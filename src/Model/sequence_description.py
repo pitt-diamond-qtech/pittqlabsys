@@ -40,8 +40,9 @@ class PulseDescription:
     amplitude: float = 1.0
     timing: float = 0.0  # absolute time in seconds
     timing_type: TimingType = TimingType.ABSOLUTE
-    parameters: Dict[str, Any] = field(default_factory=dict)
+    parameters: Dict[str, Any] = field(default_factory=dict)  # amplitude, phase, frequency, etc.
     markers: List[MarkerDescription] = field(default_factory=list)
+    fixed_timing: bool = False  # [fixed] marker to prevent timing adjustment
     
     def __post_init__(self):
         """Validate pulse description after initialization."""
@@ -51,6 +52,20 @@ class PulseDescription:
             raise ValueError("Duration must be positive")
         if self.amplitude < 0:
             raise ValueError("Amplitude must be non-negative")
+        if self.timing < 0:
+            raise ValueError("Timing must be non-negative")
+    
+    def get_parameter(self, key: str, default: Any = None) -> Any:
+        """Get a parameter value with default."""
+        return self.parameters.get(key, default)
+    
+    def set_parameter(self, key: str, value: Any):
+        """Set a parameter value."""
+        self.parameters[key] = value
+    
+    def is_fixed_timing(self) -> bool:
+        """Check if this pulse should not have its timing adjusted during scans."""
+        return self.fixed_timing
 
 
 @dataclass

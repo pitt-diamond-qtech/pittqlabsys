@@ -23,13 +23,15 @@ class Pulse(ABC):
     Abstract base class for hardware-agnostic waveform pulses.
     Subclasses implement `generate_samples()` to return a float array of envelope values.
     """
-    def __init__(self, name: str, length: int):
+    def __init__(self, name: str, length: int, fixed_timing: bool = False):
         """
         :param name: Identifier for this pulse
         :param length: Number of samples in the pulse envelope
+        :param fixed_timing: If True, this pulse's timing should not be adjusted during scans
         """
         self.name = name
         self.length = length
+        self.fixed_timing = fixed_timing
 
     @abstractmethod
     def generate_samples(self) -> np.ndarray:
@@ -43,8 +45,8 @@ class GaussianPulse(Pulse):
     """
     Gaussian-shaped pulse envelope.
     """
-    def __init__(self, name: str, length: int, sigma: float, amplitude: float = 1.0):
-        super().__init__(name, length)
+    def __init__(self, name: str, length: int, sigma: float, amplitude: float = 1.0, fixed_timing: bool = False):
+        super().__init__(name, length, fixed_timing)
         self.sigma = sigma
         self.amplitude = amplitude
         # Center the Gaussian at the midpoint
@@ -60,8 +62,8 @@ class SechPulse(Pulse):
     """
     Hyperbolic secant-shaped pulse envelope.
     """
-    def __init__(self, name: str, length: int, width: float, amplitude: float = 1.0):
-        super().__init__(name, length)
+    def __init__(self, name: str, length: int, width: float, amplitude: float = 1.0, fixed_timing: bool = False):
+        super().__init__(name, length, fixed_timing)
         self.width = width
         self.amplitude = amplitude
         self.center = (length - 1) / 2.0
@@ -76,8 +78,8 @@ class LorentzianPulse(Pulse):
     """
     Lorentzian-shaped pulse envelope.
     """
-    def __init__(self, name: str, length: int, gamma: float, amplitude: float = 1.0):
-        super().__init__(name, length)
+    def __init__(self, name: str, length: int, gamma: float, amplitude: float = 1.0, fixed_timing: bool = False):
+        super().__init__(name, length, fixed_timing)
         self.gamma = gamma
         self.amplitude = amplitude
         self.center = (length - 1) / 2.0
@@ -92,8 +94,8 @@ class SquarePulse(Pulse):
     """
     Constant-amplitude (square) pulse envelope.
     """
-    def __init__(self, name: str, length: int, amplitude: float = 1.0):
-        super().__init__(name, length)
+    def __init__(self, name: str, length: int, amplitude: float = 1.0, fixed_timing: bool = False):
+        super().__init__(name, length, fixed_timing)
         self.amplitude = amplitude
 
     def generate_samples(self) -> np.ndarray:

@@ -10,10 +10,11 @@ from typing import List, Dict, Any, Optional, Union
 from pathlib import Path
 import re
 from dataclasses import dataclass
+import numpy as np
 
 from .sequence_description import (
     SequenceDescription, PulseDescription, LoopDescription, ConditionalDescription,
-    PulseShape, TimingType, MarkerDescription
+    PulseShape, TimingType, MarkerDescription, VariableDescription
 )
 from .preset_qubit_experiments import PresetQubitExperiments, PresetExperiment
 
@@ -115,20 +116,20 @@ class SequenceTextParser:
     
     def parse_text(self, text: str) -> SequenceDescription:
         """
-        Parse a text string directly into a sequence description.
+        Parse text into a sequence description.
         
         Args:
-            text: Text string containing sequence description
+            text: Text sequence definition
             
         Returns:
-            SequenceDescription object with parsed sequence data
+            SequenceDescription object
             
         Raises:
-            ParseError: If the text contains invalid syntax
+            ParseError: If parsing fails
         """
         try:
             lines = [line.strip() for line in text.split('\n') if line.strip() and not line.startswith('#')]
-            
+
             # Parse sequence header
             sequence_name = "parsed_sequence"
             experiment_type = "custom"
@@ -145,12 +146,12 @@ class SequenceTextParser:
             i = 0
             while i < len(lines):
                 line = lines[i].strip()
-                
+
                 # Skip empty lines and comments
                 if not line or line.startswith("#"):
                     i += 1
                     continue
-                
+
                 # Parse different types of lines
                 if line.startswith("sequence:"):
                     header_info = self._parse_sequence_header(line)
@@ -160,187 +161,240 @@ class SequenceTextParser:
                     sample_rate = header_info.get("sample_rate", sample_rate)
                     repeat_count = header_info.get("repeat_count", repeat_count)
                     i += 1
-                elif line.startswith("loop:"):
-                    loop_desc, skip_lines = self._parse_loop_block(lines[i:])
-                    loops.append(loop_desc)
-                    i += skip_lines
-                elif line.startswith("if ") or line.startswith("else:"):
-                    cond_desc, skip_lines = self._parse_conditional_block(lines[i:])
-                    conditionals.append(cond_desc)
-                    i += skip_lines
-                elif line.startswith("variable "):
-                    try:
-                        var_name, start_val, stop_val, steps, unit = self._parse_variable_line(line)
-                        # Store variable info to add later
-                        variables[var_name] = (start_val, stop_val, steps, unit)
-                    except ParseError as e:
-                        print(f"Warning: Skipping invalid variable line: {line} - {e}")
-                    except ValueError as e:
-                        print(f"Warning: Skipping invalid variable line: {line} - {e}")
+
+                elif line.startswith("variable"):
+                    var_name, start_val, stop_val, steps, unit = self._parse_variable_line(line)
+                    variables[var_name] = VariableDescription(
+                        name=var_name,
+                        start_value=start_val,
+                        stop_value=stop_val,
+                        steps=steps,
+                        unit=unit
+                    )
                     i += 1
+
+                elif line.startswith("loop"):
+                    loop_desc, lines_consumed = self._parse_loop_block(lines[i:])
+                    loops.append(loop_desc)
+                    i += lines_consumed
+
+                elif line.startswith("if"):
+                    conditional_desc, lines_consumed = self._parse_conditional_block(lines[i:])
+                    conditionals.append(conditional_desc)
+                    i += lines_consumed
+
+                elif line.startswith("load preset:"):
+                    preset_name = line.split(":", 1)[1].strip()
+                    preset_desc = self._load_preset_qubit_experiments(preset_name)
+                    if preset_desc:
+                        # Merge preset with current description
+                        pulses.extend(preset_desc.pulses)
+                        loops.extend(preset_desc.loops)
+                        conditionals.extend(preset_desc.conditionals)
+                        variables.update(preset_desc.variables)
+                    i += 1
+
                 else:
-                    # Parse as pulse line
+                    # Assume it's a pulse line
                     try:
                         pulse_desc = self._parse_pulse_line(line)
                         pulses.append(pulse_desc)
-                        # Update total duration if this pulse extends beyond current duration
-                        pulse_end = pulse_desc.timing + pulse_desc.duration
-                        total_duration = max(total_duration, pulse_end)
                     except ParseError as e:
-                        # Skip invalid lines but log warning
-                        print(f"Warning: Skipping invalid line '{line}': {e}")
-                    except ValueError as e:
-                        # Skip lines that fail validation (e.g., template variables)
-                        print(f"Warning: Skipping invalid line '{line}' due to validation: {e}")
+                        # Log warning but continue parsing
+                        print(f"Warning: Skipping invalid pulse line '{line}': {e}")
                     i += 1
-            
+
+            # Validate single variable scanning
+            if len(variables) > 1:
+                print(f"Warning: Scanning {len(variables)} variables simultaneously. "
+                      f"This creates {self._calculate_total_combinations(variables)} sequences. "
+                      "Consider scanning one variable at a time for clean data correlation.")
+
             # Create sequence description
-            sequence_desc = SequenceDescription(
+            desc = SequenceDescription(
                 name=sequence_name,
                 experiment_type=experiment_type,
                 total_duration=total_duration,
                 sample_rate=sample_rate,
-                pulses=pulses,
-                loops=loops,
-                conditionals=conditionals,
                 repeat_count=repeat_count
             )
-            
-            # Add variables to the description
-            for var_name, (start_val, stop_val, steps, unit) in variables.items():
-                sequence_desc.add_variable(var_name, start_val, stop_val, steps, unit)
-            
-            # Validate the sequence
-            if not self.validate_sequence(sequence_desc):
-                raise ValidationError("Generated sequence description is invalid")
-            
-            return sequence_desc
-            
+
+            # Add all components
+            for pulse in pulses:
+                desc.add_pulse(pulse)
+            for loop in loops:
+                desc.add_loop(loop)
+            for conditional in conditionals:
+                desc.add_conditional(conditional)
+            for var_name, var_desc in variables.items():
+                desc.add_variable(var_name, var_desc.start_value, var_desc.stop_value, var_desc.steps, var_desc.unit)
+
+            return desc
+
         except Exception as e:
-            if isinstance(e, (ParseError, ValidationError)):
+            if isinstance(e, ParseError):
                 raise
             raise ParseError(f"Failed to parse sequence text: {e}")
-    
-    def _load_preset_qubit_experiments(self) -> Dict[str, Dict[str, Any]]:
+
+    def _load_preset_qubit_experiments(self, preset_name: str) -> Optional[SequenceDescription]:
         """
-        Load preset qubit experiment definitions.
+        Load a single preset experiment definition.
         
+        Args:
+            preset_name: Name of the preset experiment
+            
         Returns:
-            Dictionary mapping preset names to their definitions
+            SequenceDescription object for the preset experiment, or None if not found
         """
         if self._preset_loader is None:
             self._preset_loader = PresetQubitExperiments()
         
-        # Convert to the expected format
-        presets = {}
-        for name, experiment in self._preset_loader.experiments.items():
-            presets[name] = {
-                "name": experiment.name,
-                "description": experiment.description,
-                "parameters": experiment.parameters,
-                "sequence_template": experiment.sequence_template,
-                "metadata": experiment.metadata
-            }
+        if preset_name not in self._preset_loader.experiments:
+            print(f"Warning: Preset experiment '{preset_name}' not found.")
+            return None
         
-        self.preset_qubit_experiments = presets
-        return presets
-    
+        experiment = self._preset_loader.experiments[preset_name]
+        
+        # Convert to the expected format
+        pulses = []
+        loops = []
+        conditionals = []
+        variables = {}
+
+        # Add pulses
+        for pulse_desc in experiment.sequence_template.pulses:
+            pulses.append(pulse_desc)
+        
+        # Add loops
+        for loop_desc in experiment.sequence_template.loops:
+            loops.append(loop_desc)
+        
+        # Add conditionals
+        for cond_desc in experiment.sequence_template.conditionals:
+            conditionals.append(cond_desc)
+        
+        # Add variables
+        for var_name, var_desc in experiment.sequence_template.variables.items():
+            variables[var_name] = var_desc
+        
+        # Create a dummy sequence description to hold the preset data
+        # This is a simplified representation, as the full sequence is in the template
+        return SequenceDescription(
+            name=f"{preset_name}_preset",
+            experiment_type=experiment.name,
+            total_duration=0.0, # No total duration for a preset template
+            sample_rate=1e9,
+            pulses=pulses,
+            loops=loops,
+            conditionals=conditionals,
+            repeat_count=1,
+            variables=variables
+        )
+
     def _parse_pulse_line(self, line: str) -> PulseDescription:
         """
-        Parse a single pulse line from the text.
-        
-        Expected format: "pulse_type on channel N at time, shape, duration, amplitude"
-        Examples:
-        - "pi/2 on channel 1 at 0ms, gaussian, 100ns, 1.0"
-        - "pi pulse on channel 2 at 1ms, square, 200ns"
-        - "wait 2ms"
+        Parse a pulse line: pulse_type pulse on channel N at time, shape, duration, amplitude, param=value, param=value [fixed]
         
         Args:
-            line: Text line describing a pulse
+            line: Pulse definition line
             
         Returns:
             PulseDescription object
             
         Raises:
-            ParseError: If the line contains invalid syntax
+            ParseError: If line format is invalid
         """
-        line = line.strip()
-        
-        # Handle wait/empty lines
-        if line.startswith("wait") or line == "":
-            # Parse wait time
-            wait_match = re.match(r"wait\s+([\d.]+[mun]?s)", line)
-            if wait_match:
-                wait_time = self._parse_timing_expression(wait_match.group(1))
-                return PulseDescription(
-                    name="wait",
-                    pulse_type="wait",
-                    channel=1,  # Default channel for wait
-                    shape=PulseShape.SQUARE,
-                    duration=wait_time,
-                    amplitude=0.0,  # No output during wait
-                    timing=0.0,
-                    timing_type=TimingType.RELATIVE
-                )
-            else:
-                return PulseDescription(
-                    name="empty",
-                    pulse_type="empty",
-                    channel=1,
-                    shape=PulseShape.SQUARE,
-                    duration=0.0,
-                    amplitude=0.0,
-                    timing=0.0
-                )
-        
-        # Parse pulse line
-        # Pattern: "pulse_type on channel N at time, shape, duration, amplitude"
-        # Also handle: "pulse_type pulse on channel N at time"
-        pulse_pattern = r"(\w+(?:/\d+)?)\s+(?:pulse\s+)?on\s+channel\s+(\d+)\s+at\s+([\d.]+[mun]?s)(?:,\s*(\w+)(?:,\s*([\d.]+[mun]?s))?(?:,\s*([\d.]+))?)?"
-        
-        match = re.match(pulse_pattern, line)
-        if not match:
-            raise ParseError(f"Invalid pulse line format: {line}")
-        
-        pulse_type = match.group(1)
-        channel = int(match.group(2))
-        timing_str = match.group(3)
-        shape_str = match.group(4) or "gaussian"  # Default to gaussian
-        duration_str = match.group(5) or "100ns"  # Default to 100ns
-        amplitude_str = match.group(6) or "1.0"   # Default to 1.0
-        
-        # Parse timing
-        timing = self._parse_timing_expression(timing_str)
-        
-        # Parse duration
-        duration = self._parse_timing_expression(duration_str)
-        
-        # Parse amplitude
         try:
-            amplitude = float(amplitude_str)
-        except ValueError:
-            raise ParseError(f"Invalid amplitude: {amplitude_str}")
-        
-        # Parse shape
-        try:
-            shape = PulseShape(shape_str.lower())
-        except ValueError:
-            raise ParseError(f"Unsupported pulse shape: {shape_str}")
-        
-        # Validate channel
-        if channel not in [1, 2]:
-            raise ParseError(f"Invalid channel: {channel}. Must be 1 or 2.")
-        
-        return PulseDescription(
-            name=f"{pulse_type.replace('/', '_')}_{channel}",
-            pulse_type=pulse_type,
-            channel=channel,
-            shape=shape,
-            duration=duration,
-            amplitude=amplitude,
-            timing=timing,
-            timing_type=TimingType.ABSOLUTE
-        )
+            # Check for [fixed] marker
+            fixed_timing = "[fixed]" in line
+            line = line.replace("[fixed]", "").strip()
+            
+            # Split the line into components
+            parts = [part.strip() for part in line.split(',')]
+            if len(parts) < 4:
+                raise ParseError(f"Pulse line must have at least 4 parts: {line}")
+            
+            # Parse basic components
+            pulse_part = parts[0]  # "pi/2 pulse on channel 1 at 0ns"
+            shape = parts[1]  # "gaussian"
+            duration = parts[2]  # "100ns"
+            amplitude = parts[3]  # "1.0"
+            
+            # Parse pulse part: "pi/2 pulse on channel 1 at 0ns"
+            pulse_match = re.match(r"(\S+)\s+pulse\s+on\s+channel\s+(\d+)\s+at\s+(.+)", pulse_part)
+            if not pulse_match:
+                raise ParseError(f"Invalid pulse format: {pulse_part}")
+            
+            pulse_type = pulse_match.group(1)
+            channel = int(pulse_match.group(2))
+            timing_str = pulse_match.group(3)
+            
+            # Parse timing
+            timing = self._parse_timing_expression(timing_str)
+            
+            # Parse duration
+            duration_val = self._parse_timing_expression(duration)
+            
+            # Parse amplitude
+            try:
+                amplitude_val = float(amplitude)
+            except ValueError:
+                raise ParseError(f"Invalid amplitude: {amplitude}")
+            
+            # Parse shape
+            try:
+                shape_enum = PulseShape(shape.lower())
+            except ValueError:
+                raise ParseError(f"Invalid pulse shape: {shape}")
+            
+            # Parse additional parameters (amplitude=, phase=, etc.)
+            parameters = {}
+            for part in parts[4:]:
+                if '=' in part:
+                    param_match = re.match(r"(\w+)\s*=\s*(.+)", part)
+                    if param_match:
+                        param_name = param_match.group(1)
+                        param_value = param_match.group(2)
+                        
+                        # Parse parameter value based on type
+                        if param_name == "amplitude":
+                            parameters[param_name] = float(param_value)
+                        elif param_name == "phase":
+                            # Handle phase with units (deg, rad)
+                            if "deg" in param_value:
+                                parameters[param_name] = float(param_value.replace("deg", ""))
+                            elif "rad" in param_value:
+                                parameters[param_name] = float(param_value.replace("rad", "")) * 180 / np.pi
+                            else:
+                                parameters[param_name] = float(param_value)
+                        elif param_name == "frequency":
+                            # Handle frequency with units
+                            numeric_value, unit = self._parse_value_with_unit(param_value)
+                            parameters[param_name] = numeric_value
+                        else:
+                            # Generic parameter
+                            try:
+                                parameters[param_name] = float(param_value)
+                            except ValueError:
+                                parameters[param_name] = param_value
+            
+            # Create pulse description
+            return PulseDescription(
+                name=f"{pulse_type.replace('/', '_')}_{channel}",
+                pulse_type=pulse_type,
+                channel=channel,
+                shape=shape_enum,
+                duration=duration_val,
+                amplitude=amplitude_val,
+                timing=timing,
+                parameters=parameters,
+                fixed_timing=fixed_timing
+            )
+            
+        except Exception as e:
+            if isinstance(e, ParseError):
+                raise
+            raise ParseError(f"Failed to parse pulse line '{line}': {e}")
     
     def _parse_timing_expression(self, timing: str) -> float:
         """
@@ -729,6 +783,13 @@ class SequenceTextParser:
             raise
         except Exception as e:
             raise ValidationError(f"Validation failed with unexpected error: {e}")
+
+    def _calculate_total_combinations(self, variables: Dict[str, VariableDescription]) -> int:
+        """Calculate total number of scan combinations."""
+        total = 1
+        for var_desc in variables.values():
+            total *= var_desc.steps
+        return total
 
 
 class ParseError(Exception):

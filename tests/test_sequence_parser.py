@@ -651,3 +651,190 @@ pi/2 pulse on channel 1 at 0ms, square, 100ns, 1.0
 """
         with pytest.raises(ParseError):
             parser.parse_text(text)
+
+
+class TestSequenceParserExtendedFeatures:
+    """Test the new extended parser features."""
+    
+    def test_parse_pulse_line_with_fixed_marker(self):
+        """Test parsing pulse lines with [fixed] marker."""
+        from src.Model.sequence_parser import SequenceTextParser
+        parser = SequenceTextParser()
+        
+        text = """
+sequence: name=test, duration=1ms, sample_rate=1GHz
+pi/2 pulse on channel 1 at 0ns, gaussian, 100ns, 1.0 [fixed]
+"""
+        desc = parser.parse_text(text)
+        
+        assert len(desc.pulses) == 1
+        pulse = desc.pulses[0]
+        assert pulse.fixed_timing is True
+        assert pulse.name == "pi_2_1"
+    
+    def test_parse_pulse_line_with_amplitude_parameter(self):
+        """Test parsing pulse lines with amplitude= parameter."""
+        from src.Model.sequence_parser import SequenceTextParser
+        parser = SequenceTextParser()
+        
+        text = """
+sequence: name=test, duration=1ms, sample_rate=1GHz
+pi/2 pulse on channel 1 at 0ns, gaussian, 100ns, 1.0, amplitude=0.8
+"""
+        desc = parser.parse_text(text)
+        
+        assert len(desc.pulses) == 1
+        pulse = desc.pulses[0]
+        assert pulse.parameters["amplitude"] == 0.8
+        assert pulse.amplitude == 1.0  # Base amplitude unchanged
+    
+    def test_parse_pulse_line_with_phase_parameter_degrees(self):
+        """Test parsing pulse lines with phase= parameter in degrees."""
+        from src.Model.sequence_parser import SequenceTextParser
+        parser = SequenceTextParser()
+        
+        text = """
+sequence: name=test, duration=1ms, sample_rate=1GHz
+pi/2 pulse on channel 1 at 0ns, gaussian, 100ns, 1.0, phase=45deg
+"""
+        desc = parser.parse_text(text)
+        
+        assert len(desc.pulses) == 1
+        pulse = desc.pulses[0]
+        assert pulse.parameters["phase"] == 45.0
+    
+    def test_parse_pulse_line_with_phase_parameter_radians(self):
+        """Test parsing pulse lines with phase= parameter in radians."""
+        from src.Model.sequence_parser import SequenceTextParser
+        parser = SequenceTextParser()
+        
+        text = """
+sequence: name=test, duration=1ms, sample_rate=1GHz
+pi/2 pulse on channel 1 at 0ns, gaussian, 100ns, 1.0, phase=1.57rad
+"""
+        desc = parser.parse_text(text)
+        
+        assert len(desc.pulses) == 1
+        pulse = desc.pulses[0]
+        # 1.57 rad ≈ 90 degrees
+        expected_phase = 1.57 * 180 / 3.14159
+        assert abs(pulse.parameters["phase"] - expected_phase) < 1.0
+    
+    def test_parse_pulse_line_with_frequency_parameter(self):
+        """Test parsing pulse lines with frequency= parameter."""
+        from src.Model.sequence_parser import SequenceTextParser
+        parser = SequenceTextParser()
+        
+        text = """
+sequence: name=test, duration=1ms, sample_rate=1GHz
+pi/2 pulse on channel 1 at 0ns, gaussian, 100ns, 1.0, frequency=1MHz
+"""
+        desc = parser.parse_text(text)
+        
+        assert len(desc.pulses) == 1
+        pulse = desc.pulses[0]
+        assert pulse.parameters["frequency"] == 1e6
+    
+    def test_parse_pulse_line_with_multiple_parameters(self):
+        """Test parsing pulse lines with multiple parameters."""
+        from src.Model.sequence_parser import SequenceTextParser
+        parser = SequenceTextParser()
+        
+        text = """
+sequence: name=test, duration=1ms, sample_rate=1GHz
+pi/2 pulse on channel 1 at 0ns, gaussian, 100ns, 1.0, amplitude=0.8, phase=90deg, frequency=1MHz
+"""
+        desc = parser.parse_text(text)
+        
+        assert len(desc.pulses) == 1
+        pulse = desc.pulses[0]
+        assert pulse.parameters["amplitude"] == 0.8
+        assert pulse.parameters["phase"] == 90.0
+        assert pulse.parameters["frequency"] == 1e6
+    
+    def test_parse_pulse_line_with_fixed_and_parameters(self):
+        """Test parsing pulse lines with both [fixed] marker and parameters."""
+        from src.Model.sequence_parser import SequenceTextParser
+        parser = SequenceTextParser()
+        
+        text = """
+sequence: name=test, duration=1ms, sample_rate=1GHz
+pi/2 pulse on channel 1 at 0ns, gaussian, 100ns, 1.0, amplitude=0.8, phase=45deg [fixed]
+"""
+        desc = parser.parse_text(text)
+        
+        assert len(desc.pulses) == 1
+        pulse = desc.pulses[0]
+        assert pulse.fixed_timing is True
+        assert pulse.parameters["amplitude"] == 0.8
+        assert pulse.parameters["phase"] == 45.0
+    
+    def test_parse_pulse_line_invalid_format(self):
+        """Test that invalid pulse line format is handled gracefully with warnings."""
+        from src.Model.sequence_parser import SequenceTextParser
+        parser = SequenceTextParser()
+        
+        # Missing parts - should be skipped with warning
+        text = """
+sequence: name=test, duration=1ms, sample_rate=1GHz
+pi/2 pulse on channel 1 at 0ns, gaussian
+"""
+        desc = parser.parse_text(text)
+        
+        # Should parse successfully but skip invalid pulse line
+        assert len(desc.pulses) == 0  # No valid pulses
+        assert desc.name == "test"
+    
+    def test_single_variable_scanning_warning(self):
+        """Test that single variable scanning works without warnings."""
+        from src.Model.sequence_parser import SequenceTextParser
+        parser = SequenceTextParser()
+        
+        text = """
+sequence: name=test, duration=1ms, sample_rate=1GHz
+variable pulse_duration, start=100ns, stop=200ns, steps=5
+pi/2 pulse on channel 1 at 0ns, gaussian, pulse_duration, 1.0
+"""
+        desc = parser.parse_text(text)
+        
+        # Should have one variable
+        assert len(desc.variables) == 1
+        assert "pulse_duration" in desc.variables
+    
+    def test_multiple_variables_scanning_warning(self):
+        """Test that multiple variables trigger a warning."""
+        from src.Model.sequence_parser import SequenceTextParser
+        parser = SequenceTextParser()
+        
+        text = """
+sequence: name=test, duration=1ms, sample_rate=1GHz
+variable pulse_duration, start=100ns, stop=200ns, steps=5
+variable amplitude, start=0.8, stop=1.2, steps=3
+pi/2 pulse on channel 1 at 0ns, gaussian, pulse_duration, amplitude
+"""
+        
+        # Should warn about multiple variables but still parse
+        desc = parser.parse_text(text)
+        
+        # Should have two variables
+        assert len(desc.variables) == 2
+        assert "pulse_duration" in desc.variables
+        assert "amplitude" in desc.variables
+    
+    def test_calculate_total_combinations(self):
+        """Test calculation of total scan combinations."""
+        from src.Model.sequence_parser import SequenceTextParser
+        parser = SequenceTextParser()
+        
+        text = """
+sequence: name=test, duration=1ms, sample_rate=1GHz
+variable pulse_duration, start=100ns, stop=200ns, steps=5
+variable amplitude, start=0.8, stop=1.2, steps=3
+pi/2 pulse on channel 1 at 0ns, gaussian, pulse_duration, amplitude
+"""
+        desc = parser.parse_text(text)
+        
+        # Should calculate total combinations correctly
+        # 5 steps × 3 steps = 15 total combinations
+        total_combinations = parser._calculate_total_combinations(desc.variables)
+        assert total_combinations == 15

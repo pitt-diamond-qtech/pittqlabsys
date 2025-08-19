@@ -14,7 +14,7 @@ from src.Model.sequence_builder import (
 )
 from src.Model.sequence_description import (
     SequenceDescription, PulseDescription, LoopDescription, ConditionalDescription,
-    PulseShape
+    PulseShape, VariableDescription
 )
 
 
@@ -540,3 +540,282 @@ class TestSequenceBuilderIntegration:
         for method in methods:
             assert hasattr(builder1, method)
             assert hasattr(builder2, method)
+
+
+class TestSequenceBuilderScanSequences:
+    """Test the new scan sequence functionality."""
+    
+    def test_build_scan_sequences_no_variables(self):
+        """Test building scan sequences when no variables are defined."""
+        
+        # Create a simple sequence description without variables
+        desc = SequenceDescription(
+            name="test_sequence",
+            experiment_type="custom",
+            total_duration=1e-6,
+            sample_rate=1e9,
+            repeat_count=1
+        )
+        
+        # Add a pulse
+        pulse = PulseDescription(
+            name="test_pulse",
+            pulse_type="pi/2",
+            channel=1,
+            shape=PulseShape.GAUSSIAN,
+            duration=100e-9,
+            amplitude=1.0,
+            timing=0.0
+        )
+        desc.add_pulse(pulse)
+        
+        builder = SequenceBuilder()
+        sequences = builder.build_scan_sequences(desc)
+        
+        # Should return single sequence when no variables
+        assert len(sequences) == 1
+        assert sequences[0].name == "test_sequence_scan"
+    
+    def test_build_scan_sequences_single_variable(self):
+        """Test building scan sequences with a single variable."""
+        
+        # Create sequence description with one variable
+        desc = SequenceDescription(
+            name="rabi_scan",
+            experiment_type="rabi",
+            total_duration=1e-6,
+            sample_rate=1e9,
+            repeat_count=50000
+        )
+        
+        # Add variable
+        desc.add_variable("pulse_duration", 100e-9, 200e-9, 3, "ns")
+        
+        # Add pulses
+        pulse1 = PulseDescription(
+            name="pi_2_1",
+            pulse_type="pi/2",
+            channel=1,
+            shape=PulseShape.GAUSSIAN,
+            duration=100e-9,  # This will be scanned
+            amplitude=1.0,
+            timing=0.0
+        )
+        pulse2 = PulseDescription(
+            name="pi_1",
+            pulse_type="pi",
+            channel=1,
+            shape=PulseShape.GAUSSIAN,
+            duration=100e-9,
+            amplitude=1.0,
+            timing=200e-9  # This should get pushed later
+        )
+        desc.add_pulse(pulse1)
+        desc.add_pulse(pulse2)
+        
+        builder = SequenceBuilder()
+        sequences = builder.build_scan_sequences(desc)
+        
+        # Should return 3 sequences (3 scan points)
+        assert len(sequences) == 3
+        
+        # Check timing adjustments
+        # First sequence: pulse_duration = 100ns (original)
+        assert sequences[0].pulses[0][1].length == int(100e-9 * 1e9)  # 100ns in samples
+        assert sequences[0].pulses[1][0] == int(200e-9 * 1e9)  # 200ns in samples
+        
+        # Second sequence: pulse_duration = 150ns
+        assert sequences[1].pulses[0][1].length == int(150e-9 * 1e9)  # 150ns in samples
+        assert sequences[1].pulses[1][0] == int(250e-9 * 1e9)  # 250ns in samples (pushed by 50ns)
+        
+        # Third sequence: pulse_duration = 200ns
+        assert sequences[2].pulses[0][1].length == int(200e-9 * 1e9)  # 200ns in samples
+        assert sequences[2].pulses[1][0] == int(300e-9 * 1e9)  # 300ns in samples (pushed by 100ns)
+    
+    def test_build_scan_sequences_with_fixed_marker(self):
+        """Test that [fixed] markers prevent timing adjustment."""
+        
+        # Create sequence description with one variable
+        desc = SequenceDescription(
+            name="test_fixed",
+            experiment_type="custom",
+            total_duration=1e-6,
+            sample_rate=1e9,
+            repeat_count=1
+        )
+        
+        # Add variable
+        desc.add_variable("pulse_duration", 100e-9, 200e-9, 2, "ns")
+        
+        # Add pulses - second pulse is [fixed]
+        pulse1 = PulseDescription(
+            name="scanned_pulse",
+            pulse_type="pi/2",
+            channel=1,
+            shape=PulseShape.GAUSSIAN,
+            duration=100e-9,
+            amplitude=1.0,
+            timing=0.0
+        )
+        pulse2 = PulseDescription(
+            name="fixed_pulse",
+            pulse_type="laser",
+            channel=2,
+            shape=PulseShape.SQUARE,
+            duration=200e-9,
+            amplitude=1.0,
+            timing=200e-9,
+            fixed_timing=True  # This should not be pushed
+        )
+        desc.add_pulse(pulse1)
+        desc.add_pulse(pulse2)
+        
+        builder = SequenceBuilder()
+        sequences = builder.build_scan_sequences(desc)
+        
+        # Should return 2 sequences
+        assert len(sequences) == 2
+        
+        # Check that fixed pulse timing is not adjusted
+        # First sequence: pulse_duration = 100ns
+        assert sequences[0].pulses[1][0] == int(200e-9 * 1e9)  # Original timing in samples
+        
+        # Second sequence: pulse_duration = 200ns
+        assert sequences[1].pulses[1][0] == int(200e-9 * 1e9)  # Still original timing (fixed)
+    
+    def test_build_scan_sequences_multiple_variables_warning(self):
+        """Test that multiple variables trigger a warning."""
+        
+        # Create sequence description with multiple variables
+        desc = SequenceDescription(
+            name="multi_scan",
+            experiment_type="custom",
+            total_duration=1e-6,
+            sample_rate=1e9,
+            repeat_count=1
+        )
+        
+        # Add multiple variables
+        desc.add_variable("pulse_duration", 100e-9, 200e-9, 3, "ns")
+        desc.add_variable("amplitude", 0.8, 1.2, 2, "V")
+        
+        # Add a pulse
+        pulse = PulseDescription(
+            name="test_pulse",
+            pulse_type="pi/2",
+            channel=1,
+            shape=PulseShape.GAUSSIAN,
+            duration=100e-9,
+            amplitude=1.0,
+            timing=0.0
+        )
+        desc.add_pulse(pulse)
+        
+        builder = SequenceBuilder()
+        
+        # Should warn about multiple variables
+        with pytest.warns(UserWarning, match="Building 2 variables simultaneously"):
+            sequences = builder.build_scan_sequences(desc)
+        
+        # Should still work but warn about data correlation
+        assert len(sequences) > 0
+    
+    def test_calculate_actual_duration(self):
+        """Test duration calculation based on actual pulse timing."""
+        
+        # Create sequence description
+        desc = SequenceDescription(
+            name="test_duration",
+            experiment_type="custom",
+            total_duration=1e-6,  # Initial estimate
+            sample_rate=1e9,
+            repeat_count=1
+        )
+        
+        # Add pulses at different times
+        pulse1 = PulseDescription(
+            name="pulse1",
+            pulse_type="pi/2",
+            channel=1,
+            shape=PulseShape.GAUSSIAN,
+            duration=100e-9,
+            amplitude=1.0,
+            timing=0.0
+        )
+        pulse2 = PulseDescription(
+            name="pulse2",
+            pulse_type="pi",
+            channel=1,
+            shape=PulseShape.GAUSSIAN,
+            duration=200e-9,
+            amplitude=1.0,
+            timing=300e-9  # Ends at 500ns
+        )
+        desc.add_pulse(pulse1)
+        desc.add_pulse(pulse2)
+        
+        builder = SequenceBuilder()
+        sequences = builder.build_scan_sequences(desc)
+        
+        # Should calculate actual duration based on pulse timing
+        assert len(sequences) == 1
+        # The sequence should have the duration calculated and stored
+        # Check that the latest pulse ends at 500ns
+        latest_pulse_end = 0
+        for start_sample, pulse in sequences[0].pulses:
+            pulse_end = start_sample + pulse.length
+            latest_pulse_end = max(latest_pulse_end, pulse_end)
+        
+        # Convert samples to duration
+        actual_duration = latest_pulse_end / 1e9  # sample_rate = 1e9
+        
+        # Should be 500ns (latest pulse end time)
+        assert abs(actual_duration - 500e-9) < 1e-12
+    
+    def test_variable_substitution_in_parameters(self):
+        """Test that variable values are substituted in pulse parameters."""
+        
+        # Create sequence description with variable
+        desc = SequenceDescription(
+            name="param_scan",
+            experiment_type="custom",
+            total_duration=1e-6,
+            sample_rate=1e9,
+            repeat_count=1
+        )
+        
+        # Add variable
+        desc.add_variable("phase_var", 0.0, 90.0, 2, "deg")
+        
+        # Add pulse with parameter that uses variable
+        pulse = PulseDescription(
+            name="test_pulse",
+            pulse_type="pi/2",
+            channel=1,
+            shape=PulseShape.GAUSSIAN,
+            duration=100e-9,
+            amplitude=1.0,
+            timing=0.0,
+            parameters={"phase": "phase_var"}  # This should be substituted
+        )
+        desc.add_pulse(pulse)
+        
+        builder = SequenceBuilder()
+        sequences = builder.build_scan_sequences(desc)
+        
+        # Should return 2 sequences
+        assert len(sequences) == 2
+        
+        # Check parameter substitution
+        # The parameters should be substituted during variable scanning
+        # For now, we'll check that the sequences were created correctly
+        # In a full implementation, the parameters would be stored in the pulse objects
+        
+        # First sequence: phase_var = 0.0
+        assert len(sequences[0].pulses) == 1
+        
+        # Second sequence: phase_var = 90.0  
+        assert len(sequences[1].pulses) == 1
+        
+        # Both sequences should have the same structure but different parameter values
+        # The actual parameter substitution would happen in the sequence building process

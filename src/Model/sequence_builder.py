@@ -145,6 +145,212 @@ class SequenceBuilder:
         except Exception as e:
             raise OptimizationError(f"Failed to optimize sequence: {e}")
     
+    def build_scan_sequences(self, description: SequenceDescription) -> List[Sequence]:
+        """
+        Build multiple sequences for each scan point with proper timing adjustments.
+        
+        This method handles variable scanning by:
+        1. Generating all variable value combinations
+        2. Creating a sequence for each combination
+        3. Adjusting timing of subsequent pulses based on variable changes
+        4. Respecting [fixed] markers that prevent timing adjustment
+        
+        Args:
+            description: SequenceDescription with variables to scan
+            
+        Returns:
+            List of Sequence objects, one for each scan point
+            
+        Raises:
+            BuildError: If sequence building fails
+        """
+        try:
+            if not description.variables:
+                # No variables to scan, return single sequence
+                optimized_sequence = self.build_sequence(description)
+                main_sequence = optimized_sequence.sequences[0]
+                main_sequence.name = f"{description.name}_scan"
+                return [main_sequence]
+            
+            # Validate single variable scanning
+            if len(description.variables) > 1:
+                import warnings
+                warnings.warn(
+                    f"Building {len(description.variables)} variables simultaneously. "
+                    f"This creates {self._calculate_total_combinations(description.variables)} sequences. "
+                    "Consider scanning one variable at a time for clean data correlation.",
+                    UserWarning
+                )
+            
+            # Generate all variable value combinations
+            variable_combinations = self._generate_variable_combinations(description.variables)
+            
+            scan_sequences = []
+            for combo in variable_combinations:
+                # Create sequence with these variable values
+                optimized_sequence = self._create_sequence_with_variables(description, combo)
+                
+                # Get the main sequence from the optimized sequence
+                main_sequence = optimized_sequence.sequences[0]
+                
+                # Apply timing adjustments for scanned variables
+                main_sequence = self._adjust_timing_for_variable_scan(main_sequence, combo)
+                
+                # Recalculate actual duration based on adjusted timing
+                actual_duration = self._calculate_actual_duration_from_sequence(main_sequence)
+                main_sequence.total_duration = actual_duration
+                
+                scan_sequences.append(main_sequence)
+            
+            return scan_sequences
+            
+        except Exception as e:
+            raise BuildError(f"Failed to build scan sequences: {e}")
+    
+    def _generate_variable_combinations(self, variables: Dict[str, VariableDescription]) -> List[Dict[str, float]]:
+        """Generate all combinations of variable values."""
+        if not variables:
+            return [{}]
+        
+        # Get the first variable
+        var_name = list(variables.keys())[0]
+        var_desc = variables[var_name]
+        
+        # For single variable scanning, just create list of values
+        combinations = []
+        for value in var_desc.values:
+            combinations.append({var_name: value})
+        
+        return combinations
+    
+    def _create_sequence_with_variables(self, description: SequenceDescription, variable_values: Dict[str, float]) -> OptimizedSequence:
+        """Create a sequence with specific variable values substituted."""
+        # Create a copy of the description with variable values
+        modified_description = SequenceDescription(
+            name=f"{description.name}_scan",
+            experiment_type=description.experiment_type,
+            total_duration=description.total_duration,
+            sample_rate=description.sample_rate,
+            repeat_count=description.repeat_count
+        )
+        
+        # Add pulses with variable values substituted
+        for pulse in description.pulses:
+            modified_pulse = PulseDescription(
+                name=pulse.name,
+                pulse_type=pulse.pulse_type,
+                channel=pulse.channel,
+                shape=pulse.shape,
+                duration=pulse.duration,
+                amplitude=pulse.amplitude,
+                timing=pulse.timing,
+                timing_type=pulse.timing_type,
+                parameters=pulse.parameters.copy(),
+                markers=pulse.markers.copy(),
+                fixed_timing=pulse.fixed_timing
+            )
+            
+            # Substitute variable values in parameters
+            for param_name, param_value in modified_pulse.parameters.items():
+                if isinstance(param_value, str) and param_value in variable_values:
+                    modified_pulse.parameters[param_name] = variable_values[param_value]
+            
+            # Substitute variable values in duration if it's a variable
+            if pulse.duration in variable_values:
+                modified_pulse.duration = variable_values[pulse.duration]
+            
+            modified_description.add_pulse(modified_pulse)
+        
+        # Add other components
+        for loop in description.loops:
+            modified_description.add_loop(loop)
+        for conditional in description.conditionals:
+            modified_description.add_conditional(conditional)
+        
+        return self.build_sequence(modified_description)
+    
+    def _adjust_timing_for_variable_scan(self, sequence: Sequence, variable_values: Dict[str, float]) -> Sequence:
+        """Adjust timing of pulses based on variable changes, respecting [fixed] markers."""
+        if not variable_values:
+            return sequence
+        
+        # Find the scanned variable (we assume single variable scanning)
+        var_name = list(variable_values.keys())[0]
+        var_value = variable_values[var_name]
+        
+        # For now, assume the first pulse uses the scanned variable
+        # In a more sophisticated implementation, we'd check if the pulse duration
+        # actually matches the variable name or description
+        if not sequence.pulses:
+            return sequence
+        
+        # Sort pulses by start time
+        sorted_pulses = sorted(sequence.pulses, key=lambda x: x[0])
+        
+        # Find the first pulse (that uses the scanned variable)
+        first_start_sample, first_pulse = sorted_pulses[0]
+        
+        # Convert current pulse length to duration
+        current_duration = first_pulse.length / self.sample_rate
+        
+        # Calculate how much the timing needs to shift
+        duration_change = var_value - current_duration
+        
+        if duration_change == 0:
+            return sequence
+        
+        # Update the first pulse length based on new duration
+        new_length = int(var_value * self.sample_rate)
+        first_pulse.length = new_length
+        
+        # Move ALL subsequent pulses by the duration change
+        # UNLESS they are marked as [fixed]
+        for start_sample, pulse in sorted_pulses[1:]:  # Skip the first pulse
+            if not getattr(pulse, 'fixed_timing', False):
+                # Calculate new start sample
+                new_start_sample = start_sample + int(duration_change * self.sample_rate)
+                # Update the pulse timing
+                sequence.pulses.remove((start_sample, pulse))
+                sequence.pulses.append((new_start_sample, pulse))
+            # If pulse has fixed_timing=True, leave it at its original position
+        
+        return sequence
+    
+    def _calculate_actual_duration(self, sequence: OptimizedSequence) -> float:
+        """Calculate the actual duration of a sequence based on pulse timing."""
+        if not sequence.sequences:
+            return 0.0
+        
+        main_sequence = sequence.sequences[0]
+        if not main_sequence.pulses:
+            return 0.0
+        
+        max_end_time = 0.0
+        for start_sample, pulse in main_sequence.pulses:
+            pulse_end_time = start_sample / self.sample_rate + pulse.length / self.sample_rate
+            max_end_time = max(max_end_time, pulse_end_time)
+        
+        return max_end_time
+    
+    def _calculate_actual_duration_from_sequence(self, sequence: Sequence) -> float:
+        """Calculate the actual duration of a sequence based on pulse timing."""
+        if not sequence.pulses:
+            return 0.0
+        
+        max_end_time = 0.0
+        for start_sample, pulse in sequence.pulses:
+            pulse_end_time = start_sample / self.sample_rate + pulse.length / self.sample_rate
+            max_end_time = max(max_end_time, pulse_end_time)
+        
+        return max_end_time
+    
+    def _calculate_total_combinations(self, variables: Dict[str, VariableDescription]) -> int:
+        """Calculate total number of scan combinations."""
+        total = 1
+        for var_desc in variables.values():
+            total *= var_desc.steps
+        return total
+    
     def _create_pulse_object(self, pulse_desc: PulseDescription) -> Pulse:
         """
         Create a Pulse object from a PulseDescription.
@@ -167,7 +373,8 @@ class SequenceBuilder:
                 name=pulse_desc.name,
                 length=pulse_length,
                 sigma=sigma,
-                amplitude=pulse_desc.amplitude
+                amplitude=pulse_desc.amplitude,
+                fixed_timing=getattr(pulse_desc, 'fixed_timing', False)
             )
         
         elif pulse_desc.shape.value == "sech":
@@ -177,7 +384,8 @@ class SequenceBuilder:
                 name=pulse_desc.name,
                 length=pulse_length,
                 width=width,
-                amplitude=pulse_desc.amplitude
+                amplitude=pulse_desc.amplitude,
+                fixed_timing=getattr(pulse_desc, 'fixed_timing', False)
             )
         
         elif pulse_desc.shape.value == "lorentzian":
@@ -187,14 +395,16 @@ class SequenceBuilder:
                 name=pulse_desc.name,
                 length=pulse_length,
                 gamma=gamma,
-                amplitude=pulse_desc.amplitude
+                amplitude=pulse_desc.amplitude,
+                fixed_timing=getattr(pulse_desc, 'fixed_timing', False)
             )
         
         elif pulse_desc.shape.value == "square":
             return SquarePulse(
                 name=pulse_desc.name,
                 length=pulse_length,
-                amplitude=pulse_desc.amplitude
+                amplitude=pulse_desc.amplitude,
+                fixed_timing=getattr(pulse_desc, 'fixed_timing', False)
             )
         
         elif pulse_desc.shape.value == "sine":
@@ -203,7 +413,8 @@ class SequenceBuilder:
             return SquarePulse(  # Fallback to square for now
                 name=pulse_desc.name,
                 length=pulse_length,
-                amplitude=pulse_desc.amplitude
+                amplitude=pulse_desc.amplitude,
+                fixed_timing=getattr(pulse_desc, 'fixed_timing', False)
             )
         
         elif pulse_desc.shape.value == "loadfile":
