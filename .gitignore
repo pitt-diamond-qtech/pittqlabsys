@@ -111,6 +111,3 @@ src/config.dev.json
 # Active connection files (should not be committed)
 src/Controller/awg520_connection.json
 **/awg520_connection.json
-
-# Setup scripts (user-customizable utilities)
-setup_awg520_connections.py
