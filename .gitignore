@@ -105,3 +105,12 @@ src/View/gui_config.json
 src/config.json
 src/config.lab.json
 src/config.dev.json
+
+# Hardware connection files (lab-specific, should not be committed)
+# Note: Template files (*.template.json) ARE tracked for easy setup
+# Active connection files (should not be committed)
+src/Controller/awg520_connection.json
+**/awg520_connection.json
+
+# Setup scripts (user-customizable utilities)
+setup_awg520_connections.py

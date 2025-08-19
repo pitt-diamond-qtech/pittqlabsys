@@ -388,6 +388,7 @@ pytest --cov=src tests/
 - **Developer Guide**: Architecture and extension guidelines
 - **Hardware Manual**: Device connection and configuration
 - **[Configuration Files](docs/CONFIGURATION_FILES.md)**: Complete guide to configuration file structure and management
+- **[Hardware Connection System](docs/HARDWARE_CONNECTION_SYSTEM.md)**: AWG520 connection mapping and calibration delays
 
 ## 🤝 Contributing
 
