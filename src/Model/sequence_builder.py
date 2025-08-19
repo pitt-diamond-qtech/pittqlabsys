@@ -593,6 +593,288 @@ class SequenceBuilder:
         
         return split_points
 
+    def plot_sequence(self, sequence: Sequence, title: str = None, 
+                     show_legend: bool = True, save_path: str = None) -> 'matplotlib.figure.Figure':
+        """
+        Create a static plot of a single sequence.
+        
+        Args:
+            sequence: Sequence object to plot
+            title: Optional title for the plot
+            show_legend: Whether to show the legend
+            save_path: Optional path to save the plot
+            
+        Returns:
+            matplotlib Figure object
+            
+        Note: This method requires matplotlib to be installed.
+        """
+        try:
+            import matplotlib.pyplot as plt
+            import matplotlib.patches as patches
+        except ImportError:
+            raise ImportError("matplotlib is required for visualization. Install with: pip install matplotlib")
+        
+        # Create figure and axis
+        fig, ax = plt.subplots(figsize=(12, 8))
+        
+        # Get unique channels from the sequence
+        channels = set()
+        for start_sample, pulse in sequence.pulses:
+            if hasattr(pulse, 'channel'):
+                channels.add(pulse.channel)
+            else:
+                # Default channel assignment based on pulse name
+                if 'pi_2' in pulse.name.lower():
+                    channels.add(1)
+                elif 'laser' in pulse.name.lower():
+                    channels.add(2)
+                elif 'counter' in pulse.name.lower():
+                    channels.add(3)
+                elif 'trigger' in pulse.name.lower():
+                    channels.add(5)
+                else:
+                    channels.add(1)
+        
+        channels = sorted(list(channels))
+        
+        # Channel colors and names
+        colors = {1: 'blue', 2: 'red', 3: 'green', 4: 'orange', 5: 'purple'}
+        channel_names = {1: 'Pi/2', 2: 'Laser', 3: 'Counter', 4: 'Channel 4', 5: 'Trigger'}
+        
+        # Calculate dynamic x-axis limits
+        max_time = 1000  # Default minimum
+        for start_sample, pulse in sequence.pulses:
+            pulse_end_time = start_sample / self.sample_rate * 1e9 + pulse.length / self.sample_rate * 1e9
+            max_time = max(max_time, pulse_end_time + 100)  # Add 100ns padding
+        
+        # Set plot limits
+        ax.set_xlim(0, max_time)
+        ax.set_ylim(min(channels) - 0.5, max(channels) + 1.0)
+        
+        # Create time array
+        time_ns = np.arange(0, int(max_time), 1)
+        
+        # Create signal arrays for each channel
+        channel_signals = {}
+        for channel in channels:
+            channel_signals[channel] = np.zeros_like(time_ns, dtype=float)
+        
+        # Fill in the signals based on pulses
+        for start_sample, pulse in sequence.pulses:
+            start_time_ns = int(start_sample / self.sample_rate * 1e9)
+            duration_ns = int(pulse.length / self.sample_rate * 1e9)
+            end_time_ns = start_time_ns + duration_ns
+            
+            # Determine channel
+            if hasattr(pulse, 'channel'):
+                channel = pulse.channel
+            else:
+                if 'pi_2' in pulse.name.lower():
+                    channel = 1
+                elif 'laser' in pulse.name.lower():
+                    channel = 2
+                elif 'counter' in pulse.name.lower():
+                    channel = 3
+                elif 'trigger' in pulse.name.lower():
+                    channel = 5
+                else:
+                    channel = 1
+            
+            # Create pulse shape
+            if 'gaussian' in pulse.name.lower() or 'pi_2' in pulse.name.lower():
+                # Gaussian shape
+                pulse_time = np.arange(max(0, start_time_ns), min(len(time_ns), end_time_ns))
+                if len(pulse_time) > 0:
+                    center = start_time_ns + duration_ns / 2
+                    width = duration_ns / 4
+                    amplitude = 0.4
+                    gaussian_vals = amplitude * np.exp(-((pulse_time - center) ** 2) / (2 * width ** 2))
+                    
+                    valid_indices = (pulse_time >= 0) & (pulse_time < len(time_ns))
+                    channel_signals[channel][pulse_time[valid_indices]] = gaussian_vals[valid_indices]
+            else:
+                # Square pulse
+                if start_time_ns >= 0 and start_time_ns < len(time_ns):
+                    end_idx = min(len(time_ns), end_time_ns)
+                    channel_signals[channel][start_time_ns:end_idx] = 0.4
+        
+        # Plot signals
+        for channel in channels:
+            signal_y = channel + channel_signals[channel]
+            ax.plot(time_ns, signal_y, color=colors.get(channel, 'black'), 
+                   linewidth=2, alpha=0.8, label=channel_names.get(channel, f'Channel {channel}'))
+        
+        # Add labels and title
+        ax.set_xlabel('Time (ns)')
+        ax.set_ylabel('Channel')
+        if title:
+            ax.set_title(title)
+        else:
+            ax.set_title(f'Sequence: {getattr(sequence, "name", "Unnamed")}')
+        
+        # Set y-axis
+        ax.set_yticks(channels)
+        ax.set_yticklabels([channel_names.get(c, f'Channel {c}') for c in channels])
+        
+        # Add grid and legend
+        ax.grid(True, alpha=0.3)
+        if show_legend:
+            ax.legend(loc='upper right')
+        
+        # Save if requested
+        if save_path:
+            fig.savefig(save_path, dpi=300, bbox_inches='tight')
+        
+        return fig
+
+    def animate_scan_sequences(self, sequences: List[Sequence], 
+                              title: str = None, interval: int = 1000) -> 'matplotlib.animation.Animation':
+        """
+        Create an animation showing the progression through scan sequences.
+        
+        Args:
+            sequence: List of Sequence objects to animate
+            title: Optional title for the animation
+            interval: Animation interval in milliseconds
+            
+        Returns:
+            matplotlib Animation object
+            
+        Note: This method requires matplotlib to be installed.
+        """
+        try:
+            import matplotlib.pyplot as plt
+            import matplotlib.animation as animation
+        except ImportError:
+            raise ImportError("matplotlib is required for visualization. Install with: pip install matplotlib")
+        
+        # Create figure and axis
+        fig, ax = plt.subplots(figsize=(12, 8))
+        
+        # Get unique channels from all sequences
+        all_channels = set()
+        for seq in sequences:
+            for start_sample, pulse in seq.pulses:
+                if hasattr(pulse, 'channel'):
+                    all_channels.add(pulse.channel)
+                else:
+                    # Default channel assignment
+                    if 'pi_2' in pulse.name.lower():
+                        all_channels.add(1)
+                    elif 'laser' in pulse.name.lower():
+                        all_channels.add(2)
+                    elif 'counter' in pulse.name.lower():
+                        all_channels.add(3)
+                    elif 'trigger' in pulse.name.lower():
+                        all_channels.add(5)
+                    else:
+                        all_channels.add(1)
+        
+        channels = sorted(list(all_channels))
+        
+        # Channel colors and names
+        colors = {1: 'blue', 2: 'red', 3: 'green', 4: 'orange', 5: 'purple'}
+        channel_names = {1: 'Pi/2', 2: 'Laser', 3: 'Counter', 4: 'Channel 4', 5: 'Trigger'}
+        
+        # Calculate global x-axis limits
+        max_time = 1000
+        for seq in sequences:
+            for start_sample, pulse in seq.pulses:
+                pulse_end_time = start_sample / self.sample_rate * 1e9 + pulse.length / self.sample_rate * 1e9
+                max_time = max(max_time, pulse_end_time + 100)
+        
+        # Set plot limits
+        ax.set_xlim(0, max_time)
+        ax.set_ylim(min(channels) - 0.5, max(channels) + 1.0)
+        
+        # Create time array
+        time_ns = np.arange(0, int(max_time), 1)
+        
+        def animate(frame):
+            ax.clear()
+            
+            seq = sequences[frame]
+            
+            # Set labels and title
+            ax.set_xlabel('Time (ns)')
+            ax.set_ylabel('Channel')
+            if title:
+                ax.set_title(f'{title} - Frame {frame + 1}/{len(sequences)}')
+            else:
+                ax.set_title(f'Sequence {frame + 1}/{len(sequences)}')
+            
+            # Set plot limits
+            ax.set_xlim(0, max_time)
+            ax.set_ylim(min(channels) - 0.5, max(channels) + 1.0)
+            
+            # Set y-axis
+            ax.set_yticks(channels)
+            ax.set_yticklabels([channel_names.get(c, f'Channel {c}') for c in channels])
+            
+            # Create signal arrays
+            channel_signals = {}
+            for channel in channels:
+                channel_signals[channel] = np.zeros_like(time_ns, dtype=float)
+            
+            # Fill signals
+            for start_sample, pulse in seq.pulses:
+                start_time_ns = int(start_sample / self.sample_rate * 1e9)
+                duration_ns = int(pulse.length / self.sample_rate * 1e9)
+                end_time_ns = start_time_ns + duration_ns
+                
+                # Determine channel
+                if hasattr(pulse, 'channel'):
+                    channel = pulse.channel
+                else:
+                    if 'pi_2' in pulse.name.lower():
+                        channel = 1
+                    elif 'laser' in pulse.name.lower():
+                        channel = 2
+                    elif 'counter' in pulse.name.lower():
+                        channel = 3
+                    elif 'trigger' in pulse.name.lower():
+                        channel = 5
+                    else:
+                        channel = 1
+                
+                # Create pulse shape
+                if 'gaussian' in pulse.name.lower() or 'pi_2' in pulse.name.lower():
+                    pulse_time = np.arange(max(0, start_time_ns), min(len(time_ns), end_time_ns))
+                    if len(pulse_time) > 0:
+                        center = start_time_ns + duration_ns / 2
+                        width = duration_ns / 4
+                        amplitude = 0.4
+                        gaussian_vals = amplitude * np.exp(-((pulse_time - center) ** 2) / (2 * width ** 2))
+                        
+                        valid_indices = (pulse_time >= 0) & (pulse_time < len(time_ns))
+                        channel_signals[channel][pulse_time[valid_indices]] = gaussian_vals[valid_indices]
+                else:
+                    if start_time_ns >= 0 and start_time_ns < len(time_ns):
+                        end_idx = min(len(time_ns), end_time_ns)
+                        channel_signals[channel][start_time_ns:end_idx] = 0.4
+            
+            # Plot signals
+            for channel in channels:
+                signal_y = channel + channel_signals[channel]
+                ax.plot(time_ns, signal_y, color=colors.get(channel, 'black'), 
+                       linewidth=2, alpha=0.8, label=channel_names.get(channel, f'Channel {channel}'))
+            
+            # Add grid and legend
+            ax.grid(True, alpha=0.3)
+            ax.legend(loc='upper right')
+            
+            # Add frame counter
+            ax.text(0.02, 0.98, f'Frame {frame + 1}/{len(sequences)}', 
+                   transform=ax.transAxes, fontsize=10, verticalalignment='top',
+                   bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
+        
+        # Create animation
+        anim = animation.FuncAnimation(fig, animate, frames=len(sequences), 
+                                     interval=interval, repeat=True, blit=False)
+        
+        return anim
+
 
 class OptimizedSequence:
     """

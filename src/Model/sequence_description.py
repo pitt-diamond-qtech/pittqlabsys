@@ -46,8 +46,8 @@ class PulseDescription:
     
     def __post_init__(self):
         """Validate pulse description after initialization."""
-        if self.channel not in [1, 2]:
-            raise ValueError("Channel must be 1 or 2")
+        if not isinstance(self.channel, int) or self.channel < 1:
+            raise ValueError("Channel must be a positive integer")
         if self.duration <= 0:
             raise ValueError("Duration must be positive")
         if self.amplitude < 0:
