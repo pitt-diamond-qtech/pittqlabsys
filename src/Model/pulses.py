@@ -112,7 +112,8 @@ class DataPulse(Pulse):
         self.filename = filename
 
     def generate_samples(self) -> np.ndarray:
-        data = np.loadtxt(self.filename, delimiter=',')
+        # Load data, skipping the first row (header) and using comma delimiter
+        data = np.loadtxt(self.filename, delimiter=',', skiprows=1)
         # assume data[:,0] = time, data[:,1] = amplitude
         times = data[:,0]
         amps = data[:,1]

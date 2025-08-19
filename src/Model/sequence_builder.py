@@ -426,6 +426,18 @@ class SequenceBuilder:
                 amplitude=pulse_desc.amplitude
             )
         
+        elif pulse_desc.shape.value == "data":
+            # For data pulses, we need a filename parameter
+            filename = pulse_desc.get_parameter("filename")
+            if not filename:
+                raise ValueError(f"DataPulse requires 'filename' parameter for {pulse_desc.name}")
+            
+            return DataPulse(
+                name=pulse_desc.name,
+                length=pulse_length,
+                filename=filename
+            )
+        
         else:
             # Default to square pulse
             return SquarePulse(
@@ -681,20 +693,33 @@ class SequenceBuilder:
                 else:
                     channel = 1
             
-            # Create pulse shape
-            if 'gaussian' in pulse.name.lower() or 'pi_2' in pulse.name.lower():
-                # Gaussian shape
-                pulse_time = np.arange(max(0, start_time_ns), min(len(time_ns), end_time_ns))
-                if len(pulse_time) > 0:
-                    center = start_time_ns + duration_ns / 2
-                    width = duration_ns / 4
-                    amplitude = 0.4
-                    gaussian_vals = amplitude * np.exp(-((pulse_time - center) ** 2) / (2 * width ** 2))
+            # Create pulse shape based on pulse type
+            if hasattr(pulse, 'generate_samples'):
+                # Use the pulse's actual shape from SequenceBuilder
+                try:
+                    # Get the actual pulse envelope that was already generated
+                    pulse_envelope = pulse.generate_samples()
                     
-                    valid_indices = (pulse_time >= 0) & (pulse_time < len(time_ns))
-                    channel_signals[channel][pulse_time[valid_indices]] = gaussian_vals[valid_indices]
+                    # Scale and position the envelope for visualization
+                    pulse_time = np.arange(max(0, start_time_ns), min(len(time_ns), end_time_ns))
+                    if len(pulse_time) > 0:
+                        # Map pulse envelope to time range
+                        envelope_indices = np.linspace(0, len(pulse_envelope)-1, len(pulse_time), dtype=int)
+                        envelope_values = pulse_envelope[envelope_indices]
+                        
+                        # Scale to visualization amplitude (0.4 above baseline)
+                        scaled_values = 0.4 * envelope_values / np.max(envelope_values) if np.max(envelope_values) > 0 else 0
+                        
+                        valid_indices = (pulse_time >= 0) & (pulse_time < len(time_ns))
+                        channel_signals[channel][pulse_time[valid_indices]] = scaled_values[valid_indices]
+                except Exception as e:
+                    # If pulse generation fails, use square pulse as fallback
+                    print(f"Warning: Could not generate pulse shape for {pulse.name}, using square fallback: {e}")
+                    if start_time_ns >= 0 and start_time_ns < len(time_ns):
+                        end_idx = min(len(time_ns), end_time_ns)
+                        channel_signals[channel][start_time_ns:end_idx] = 0.4
             else:
-                # Square pulse
+                # For pulses without generate_samples method, use square pulse
                 if start_time_ns >= 0 and start_time_ns < len(time_ns):
                     end_idx = min(len(time_ns), end_time_ns)
                     channel_signals[channel][start_time_ns:end_idx] = 0.4
@@ -838,18 +863,33 @@ class SequenceBuilder:
                     else:
                         channel = 1
                 
-                # Create pulse shape
-                if 'gaussian' in pulse.name.lower() or 'pi_2' in pulse.name.lower():
-                    pulse_time = np.arange(max(0, start_time_ns), min(len(time_ns), end_time_ns))
-                    if len(pulse_time) > 0:
-                        center = start_time_ns + duration_ns / 2
-                        width = duration_ns / 4
-                        amplitude = 0.4
-                        gaussian_vals = amplitude * np.exp(-((pulse_time - center) ** 2) / (2 * width ** 2))
+                # Create pulse shape based on pulse type
+                if hasattr(pulse, 'generate_samples'):
+                    # Use the pulse's actual shape from SequenceBuilder
+                    try:
+                        # Get the actual pulse envelope that was already generated
+                        pulse_envelope = pulse.generate_samples()
                         
-                        valid_indices = (pulse_time >= 0) & (pulse_time < len(time_ns))
-                        channel_signals[channel][pulse_time[valid_indices]] = gaussian_vals[valid_indices]
+                        # Scale and position the envelope for visualization
+                        pulse_time = np.arange(max(0, start_time_ns), min(len(time_ns), end_time_ns))
+                        if len(pulse_time) > 0:
+                            # Map pulse envelope to time range
+                            envelope_indices = np.linspace(0, len(pulse_envelope)-1, len(pulse_time), dtype=int)
+                            envelope_values = pulse_envelope[envelope_indices]
+                            
+                            # Scale to visualization amplitude (0.4 above baseline)
+                            scaled_values = 0.4 * envelope_values / np.max(envelope_values) if np.max(envelope_values) > 0 else 0
+                            
+                            valid_indices = (pulse_time >= 0) & (pulse_time < len(time_ns))
+                            channel_signals[channel][pulse_time[valid_indices]] = scaled_values[valid_indices]
+                    except Exception as e:
+                        # If pulse generation fails, use square pulse as fallback
+                        print(f"Warning: Could not generate pulse shape for {pulse.name}, using square fallback: {e}")
+                        if start_time_ns >= 0 and start_time_ns < len(time_ns):
+                            end_idx = min(len(time_ns), end_time_ns)
+                            channel_signals[channel][start_time_ns:end_idx] = 0.4
                 else:
+                    # For pulses without generate_samples method, use square pulse
                     if start_time_ns >= 0 and start_time_ns < len(time_ns):
                         end_idx = min(len(time_ns), end_time_ns)
                         channel_signals[channel][start_time_ns:end_idx] = 0.4

@@ -19,6 +19,7 @@ class PulseShape(Enum):
     SQUARE = "square"
     SINE = "sine"
     LOADFILE = "loadfile"
+    DATA = "data"
 
 
 class TimingType(Enum):

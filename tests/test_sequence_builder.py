@@ -819,3 +819,280 @@ class TestSequenceBuilderScanSequences:
         
         # Both sequences should have the same structure but different parameter values
         # The actual parameter substitution would happen in the sequence building process
+
+
+class TestSequenceBuilderPulseTypes:
+    """Test that SequenceBuilder correctly handles all pulse types."""
+    
+    def test_create_pulse_object_sech(self):
+        """Test that _create_pulse_object creates SechPulse correctly."""
+        builder = SequenceBuilder(sample_rate=1e9)
+        
+        pulse_desc = PulseDescription(
+            name="test_sech",
+            pulse_type="sech",
+            channel=1,
+            shape=PulseShape.SECH,  # Use correct shape
+            duration=100e-9,
+            amplitude=1.0,
+            timing=0.0
+        )
+        
+        pulse_obj = builder._create_pulse_object(pulse_desc)
+        
+        assert pulse_obj.name == "test_sech"
+        assert pulse_obj.length == 100  # 100 ns * 1 GHz = 100 samples
+        assert hasattr(pulse_obj, 'width')  # Sech-specific attribute
+        assert hasattr(pulse_obj, 'generate_samples')  # Should have this method
+    
+    def test_create_pulse_object_lorentzian(self):
+        """Test that _create_pulse_object creates LorentzianPulse correctly."""
+        builder = SequenceBuilder(sample_rate=1e9)
+        
+        pulse_desc = PulseDescription(
+            name="test_lorentzian",
+            pulse_type="lorentzian",
+            channel=2,
+            shape=PulseShape.LORENTZIAN,  # Use correct shape
+            duration=150e-9,
+            amplitude=0.8,
+            timing=0.0
+        )
+        
+        pulse_obj = builder._create_pulse_object(pulse_desc)
+        
+        assert pulse_obj.name == "test_lorentzian"
+        assert pulse_obj.length == 150  # 150 ns * 1 GHz = 150 samples
+        assert hasattr(pulse_obj, 'gamma')  # Lorentzian-specific attribute
+        assert hasattr(pulse_obj, 'generate_samples')  # Should have this method
+    
+    def test_create_pulse_object_data_pulse(self):
+        """Test that _create_pulse_object creates DataPulse correctly."""
+        builder = SequenceBuilder(sample_rate=1e9)
+        
+        pulse_desc = PulseDescription(
+            name="test_data",
+            pulse_type="data",
+            channel=3,
+            shape=PulseShape.DATA,  # Use correct shape
+            duration=200e-9,
+            amplitude=1.0,
+            timing=0.0,
+            parameters={"filename": "tests/test_data_sine_wave.csv"}
+        )
+        
+        pulse_obj = builder._create_pulse_object(pulse_desc)
+        
+        assert pulse_obj.name == "test_data"
+        assert pulse_obj.length == 200  # 200 ns * 1 GHz = 200 samples
+        assert hasattr(pulse_obj, 'filename')  # DataPulse-specific attribute
+        assert hasattr(pulse_obj, 'generate_samples')  # Should have this method
+
+
+class TestSequenceBuilderVisualization:
+    """Test the visualization methods in SequenceBuilder."""
+    
+    def test_plot_sequence_basic(self):
+        """Test basic plot_sequence functionality."""
+        builder = SequenceBuilder(sample_rate=1e9)
+        
+        # Create a simple sequence with one pulse
+        from src.Model.sequence import Sequence
+        from src.Model.pulses import GaussianPulse
+        
+        seq = Sequence(1000)  # 1000 samples
+        pulse = GaussianPulse("test", 100, sigma=20, amplitude=1.0)
+        seq.add_pulse(100, pulse)  # Start at sample 100
+        
+        # Test plotting
+        fig = builder.plot_sequence(seq, title="Test Plot")
+        
+        assert fig is not None
+        assert hasattr(fig, 'savefig')  # Should be a matplotlib figure
+        
+        # Clean up
+        import matplotlib.pyplot as plt
+        plt.close(fig)
+    
+    def test_plot_sequence_all_pulse_types(self):
+        """Test that plot_sequence correctly displays all pulse types."""
+        builder = SequenceBuilder(sample_rate=1e9)
+        
+        from src.Model.sequence import Sequence
+        from src.Model.pulses import GaussianPulse, SechPulse, LorentzianPulse, SquarePulse, DataPulse
+        
+        # Create sequence with all pulse types
+        seq = Sequence(2000)  # 2000 samples
+        
+        # Add different pulse types at different times
+        gaussian = GaussianPulse("gaussian", 100, sigma=25, amplitude=1.0)
+        sech = SechPulse("sech", 80, width=15, amplitude=1.0)
+        lorentzian = LorentzianPulse("lorentzian", 120, gamma=30, amplitude=1.0)
+        square = SquarePulse("square", 100, amplitude=1.0)
+        
+        seq.add_pulse(0, gaussian)
+        seq.add_pulse(200, sech)
+        seq.add_pulse(400, lorentzian)
+        seq.add_pulse(600, square)
+        
+        # Test plotting
+        fig = builder.plot_sequence(seq, title="All Pulse Types")
+        
+        assert fig is not None
+        
+        # Clean up
+        import matplotlib.pyplot as plt
+        plt.close(fig)
+    
+    def test_plot_sequence_data_pulse(self):
+        """Test that plot_sequence correctly displays DataPulse."""
+        builder = SequenceBuilder(sample_rate=1e9)
+        
+        from src.Model.sequence import Sequence
+        from src.Model.pulses import DataPulse
+        
+        # Create sequence with DataPulse
+        seq = Sequence(1000)
+        
+        # Test with sine wave data
+        data_pulse = DataPulse("sine_wave", 200, "tests/test_data_sine_wave.csv")
+        seq.add_pulse(100, data_pulse)
+        
+        # Test plotting
+        fig = builder.plot_sequence(seq, title="DataPulse Test")
+        
+        assert fig is not None
+        
+        # Clean up
+        import matplotlib.pyplot as plt
+        plt.close(fig)
+    
+    def test_animate_scan_sequences_basic(self):
+        """Test basic animate_scan_sequences functionality."""
+        builder = SequenceBuilder(sample_rate=1e9)
+        
+        from src.Model.sequence import Sequence
+        from src.Model.pulses import GaussianPulse
+        
+        # Create multiple sequences for animation
+        sequences = []
+        for i in range(3):
+            seq = Sequence(1000)
+            pulse = GaussianPulse(f"pulse_{i}", 100 + i*20, sigma=25, amplitude=1.0)
+            seq.add_pulse(100, pulse)
+            sequences.append(seq)
+        
+        # Test animation
+        anim = builder.animate_scan_sequences(sequences, title="Test Animation")
+        
+        assert anim is not None
+        assert hasattr(anim, 'event_source')  # Should be a matplotlib animation
+    
+    def test_animate_scan_sequences_all_pulse_types(self):
+        """Test that animate_scan_sequences works with all pulse types."""
+        builder = SequenceBuilder(sample_rate=1e9)
+        
+        from src.Model.sequence import Sequence
+        from src.Model.pulses import GaussianPulse, SechPulse, LorentzianPulse, SquarePulse
+        
+        # Create sequences with different pulse types
+        sequences = []
+        pulse_types = [
+            ("gaussian", GaussianPulse, {"sigma": 25}),
+            ("sech", SechPulse, {"width": 15}),
+            ("lorentzian", LorentzianPulse, {"gamma": 30}),
+            ("square", SquarePulse, {})
+        ]
+        
+        for i, (pulse_name, pulse_class, params) in enumerate(pulse_types):
+            seq = Sequence(1000)
+            pulse = pulse_class(f"{pulse_name}_pulse", 100, amplitude=1.0, **params)
+            seq.add_pulse(100, pulse)
+            sequences.append(seq)
+        
+        # Test animation
+        anim = builder.animate_scan_sequences(sequences, title="All Pulse Types Animation")
+        
+        assert anim is not None
+    
+    def test_visualization_error_handling(self):
+        """Test that visualization methods handle errors gracefully."""
+        builder = SequenceBuilder(sample_rate=1e9)
+        
+        from src.Model.sequence import Sequence
+        
+        # Create sequence with invalid pulse (no generate_samples method)
+        seq = Sequence(1000)
+        
+        # Mock pulse without generate_samples but with channel attribute
+        mock_pulse = Mock()
+        mock_pulse.name = "invalid_pulse"
+        mock_pulse.length = 100
+        mock_pulse.fixed_timing = False
+        mock_pulse.channel = 1  # Add channel attribute
+        # Don't add generate_samples method
+        
+        seq.add_pulse(100, mock_pulse)
+        
+        # Should handle gracefully and use square fallback
+        fig = builder.plot_sequence(seq, title="Error Handling Test")
+        
+        assert fig is not None
+        
+        # Clean up
+        import matplotlib.pyplot as plt
+        plt.close(fig)
+    
+    def test_visualization_channel_handling(self):
+        """Test that visualization correctly handles multiple channels."""
+        builder = SequenceBuilder(sample_rate=1e9)
+        
+        from src.Model.sequence import Sequence
+        from src.Model.pulses import GaussianPulse, SquarePulse
+        
+        # Create sequence with pulses on different channels
+        seq = Sequence(1000)
+        
+        # Add pulses on different channels
+        pulse1 = GaussianPulse("ch1_pulse", 100, sigma=25, amplitude=1.0)
+        pulse2 = SquarePulse("ch2_pulse", 80, amplitude=1.0)
+        pulse3 = GaussianPulse("ch3_pulse", 120, sigma=30, amplitude=1.0)
+        
+        seq.add_pulse(0, pulse1)    # Channel 1
+        seq.add_pulse(200, pulse2)  # Channel 2  
+        seq.add_pulse(400, pulse3)  # Channel 3
+        
+        # Test plotting
+        fig = builder.plot_sequence(seq, title="Multi-Channel Test")
+        
+        assert fig is not None
+        
+        # Clean up
+        import matplotlib.pyplot as plt
+        plt.close(fig)
+    
+    def test_visualization_dynamic_x_axis(self):
+        """Test that visualization dynamically adjusts x-axis limits."""
+        builder = SequenceBuilder(sample_rate=1e9)
+        
+        from src.Model.sequence import Sequence
+        from src.Model.pulses import GaussianPulse
+        
+        # Create sequence with pulses at different times
+        seq = Sequence(2000)  # Large sequence
+        
+        # Add pulses at different times
+        pulse1 = GaussianPulse("early_pulse", 100, sigma=25, amplitude=1.0)
+        pulse2 = GaussianPulse("late_pulse", 100, sigma=25, amplitude=1.0)
+        
+        seq.add_pulse(0, pulse1)      # Early pulse
+        seq.add_pulse(1500, pulse2)   # Late pulse (should extend x-axis)
+        
+        # Test plotting
+        fig = builder.plot_sequence(seq, title="Dynamic X-Axis Test")
+        
+        assert fig is not None
+        
+        # Clean up
+        import matplotlib.pyplot as plt
+        plt.close(fig)
