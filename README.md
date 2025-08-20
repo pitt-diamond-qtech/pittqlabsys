@@ -389,6 +389,7 @@ pytest --cov=src tests/
 - **Hardware Manual**: Device connection and configuration
 - **[Configuration Files](docs/CONFIGURATION_FILES.md)**: Complete guide to configuration file structure and management
 - **[Hardware Connection System](docs/HARDWARE_CONNECTION_SYSTEM.md)**: AWG520 connection mapping and calibration delays
+- **[AWG520 Compression Pipeline](docs/AWG520_COMPRESSION_PIPELINE.md)**: Waveform-level memory optimization and compression algorithms
 
 ## 🤝 Contributing
 
