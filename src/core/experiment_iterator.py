@@ -58,7 +58,13 @@ class ExperimentIterator(Experiment):
         Experiment.__init__(self, name, sub_experiments=experiments, settings=settings, log_function=log_function, data_path=data_path)
         self.iterator_type = self.get_iterator_type(self.settings, experiments)
 
-        self._current_subexperiment_stage = None
+        # Initialize the missing data structure properly
+        self._current_subexperiment_stage = {
+            'current_subexperiment': None,
+            'subexperiment_exec_duration': {},
+            'subexperiment_exec_count': {}
+        }
+        
         # for multi iterator experiments tracks how many iterator levels there is; value equal num layers below
         self.iterator_level = self.detect_iterator_depth(self.experiments)
         print('iterator level',self.iterator_level)
@@ -308,12 +314,18 @@ class ExperimentIterator(Experiment):
         """
         estimate = True
         progress_subexperiment = 0
+        
+        # Check if _current_subexperiment_stage is properly initialized
+        if not hasattr(self, '_current_subexperiment_stage') or self._current_subexperiment_stage is None:
+            print('Warning: _current_subexperiment_stage not initialized, cannot estimate progress')
+            return 50
+        
         # ==== get the current subexperiment and the time it takes to execute it =====
-        current_subexperiment = self._current_subexperiment_stage['current_subexperiment']
-
+        current_subexperiment = self._current_subexperiment_stage.get('current_subexperiment')
+        
         # ==== get the number of subexperiments =====
         num_subexperiments = len(self.experiments)
-
+        
         # ==== get number of iterations and loop index ======================
         if self.iterator_type == 'loop':
             num_iterations = self.settings['num_loops']
@@ -324,7 +336,7 @@ class ExperimentIterator(Experiment):
                     (sweep_range['max_value'] - sweep_range['min_value']) / sweep_range['N/value_step']) + 1
                 # len(np.linspace(sweep_range['min_value'], sweep_range['max_value'],
                 #                                        (sweep_range['max_value'] - sweep_range['min_value']) /
-                #                                        sweep_range['N/value_step'] + 1, endpoint=True).tolist())
+                #                                        sweep_range['N/value_step'] + 1, endpoint=True))
             elif self.settings['stepping_mode'] == 'N':
                 num_iterations = sweep_range['N/value_step']
             else:
@@ -336,7 +348,12 @@ class ExperimentIterator(Experiment):
 
         if estimate:
             # get number of loops (completed + 1)
-            loop_index = self.loop_index
+            try:
+                loop_index = self.loop_index
+            except (KeyError, AttributeError):
+                # If loop_index calculation fails, use a default value
+                print('Warning: Could not calculate loop_index, using default progress estimation')
+                return 50
 
             if num_subexperiments > 1:
                 # estimate the progress based on the duration the individual subexperiments
@@ -346,17 +363,20 @@ class ExperimentIterator(Experiment):
 
                 # ==== get typical duration of current subexperiment ======================
                 if current_subexperiment is not None:
-                    current_subexperiment_exec_duration = self._current_subexperiment_stage['subexperiment_exec_duration'][
-                        current_subexperiment.name].total_seconds()
+                    current_subexperiment_exec_duration = self._current_subexperiment_stage['subexperiment_exec_duration'].get(
+                        current_subexperiment.name, datetime.timedelta(0)).total_seconds()
                 else:
                     current_subexperiment_exec_duration = 0.0
 
                 current_subexperiment_elapsed_time = (
-                            datetime.datetime.now() - current_subexperiment.start_time).total_seconds()
+                            datetime.datetime.now() - current_subexperiment.start_time).total_seconds() if current_subexperiment else 0.0
                 # estimate the duration of the current subexperiment if the experiment hasn't been executed once fully and subexperiment_exec_duration is 0
                 if current_subexperiment_exec_duration == 0.0:
-                    remaining_time = current_subexperiment.remaining_time.total_seconds()
-                    current_subexperiment_exec_duration = remaining_time + current_subexperiment_elapsed_time
+                    if current_subexperiment and hasattr(current_subexperiment, 'remaining_time'):
+                        remaining_time = current_subexperiment.remaining_time.total_seconds()
+                        current_subexperiment_exec_duration = remaining_time + current_subexperiment_elapsed_time
+                    else:
+                        current_subexperiment_exec_duration = 1.0  # Default 1 second if we can't estimate
 
                 # ==== get typical duration of one loop iteration ======================
                 remaining_experiments = 0  # experiment that remain to be executed for the first time
@@ -366,7 +386,7 @@ class ExperimentIterator(Experiment):
                     loop_execution_time += duration.total_seconds()
                     # add the times of the subexperiments that have been executed in the current loop
                     # ignore the current subexperiment, because that will be taken care of later
-                    if self._current_subexperiment_stage['subexperiment_exec_count'][subexperiment_name] == loop_index \
+                    if self._current_subexperiment_stage['subexperiment_exec_count'].get(subexperiment_name, 0) == loop_index \
                             and subexperiment_name is not current_subexperiment.name:
                         # this subexperiment has already been executed in this iteration
                         sub_progress_time += duration.total_seconds()
@@ -415,8 +435,21 @@ class ExperimentIterator(Experiment):
 
     @property
     def loop_index(self):
-        loop_index = max(self._current_subexperiment_stage['subexperiment_exec_count'].values())
-        return loop_index
+        """Get the current loop index safely."""
+        try:
+            if (hasattr(self, '_current_subexperiment_stage') and 
+                self._current_subexperiment_stage is not None and
+                'subexperiment_exec_count' in self._current_subexperiment_stage and
+                self._current_subexperiment_stage['subexperiment_exec_count']):
+                
+                loop_index = max(self._current_subexperiment_stage['subexperiment_exec_count'].values())
+                return loop_index
+            else:
+                # Return default value if data structure is not ready
+                return 1
+        except (KeyError, ValueError, AttributeError):
+            # Return default value if calculation fails
+            return 1
 
     def save_data_to_matlab(self, filename=None):
         if self.iterator_type == 'loop':
