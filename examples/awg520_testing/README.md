@@ -1,99 +1,158 @@
-# AWG520 + ADwin Integration Testing
+# ADwin→AWG520 External Trigger Testing
 
-This directory contains tools to test the integration between ADwin and AWG520 for external trigger control and compression testing.
+This directory contains test files to verify the new control architecture where **ADwin generates trigger pulses to control AWG520 sequence advancement**, instead of the traditional AWG520→ADwin control.
 
-## Files
+## 🎯 **Test Objective**
 
-### Test Scripts
-- **`test_adwin_trigger.py`**: Tests ADwin's ability to generate precise trigger pulses
-- **`generate_test_sequences.py`**: Generates test waveforms and sequence files for AWG520
+Verify that the ADwin can successfully control AWG520 sequence progression using external triggers, enabling:
+- **Longer sequences** that fit within AWG520 memory limits
+- **Better memory optimization** using repeat field compression
+- **Computer-controlled sequence advancement** via JUMP_MODE software
 
-### Documentation
-- **`docs/AWG520_ADWIN_TESTING.md`**: Comprehensive testing guide with wiring diagrams
+## 🔌 **Hardware Setup**
 
-## Quick Start
+### Wiring Diagram
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│     ADwin       │    │    BNC Cable    │    │    AWG520       │
+│                 │    │   (50Ω coax)    │    │                 │
+│  Digital Out    │────│                 │────│  TRIG IN       │
+│  (DIO 0)       │    │                 │    │  (Rear Panel)  │
+│                 │    │                 │    │                 │
+│  GND           │────│                 │────│  Chassis GND   │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+```
 
-### 1. Test ADwin Trigger Capability
+### Connection Details
+- **ADwin Digital Output**: DIO 0 (configurable in ADbasic)
+- **BNC Cable**: 50Ω impedance, BNC male to BNC male
+- **AWG520 TRIG IN**: Rear panel BNC connector
+- **Ground Connection**: ADwin GND to AWG520 chassis ground
+
+## 📁 **Test Files**
+
+### 1. ADbasic Trigger Program
+- **File**: `awg520_trigger_test.bas`
+- **Purpose**: Generates trigger pulses at specified intervals
+- **Process**: Process 1, Timer-based, High Priority
+- **Output**: Digital output on DIO 0
+
+### 2. Python Test Script
+- **File**: `test_adwin_awg520_trigger.py`
+- **Purpose**: Complete end-to-end test with hardware control
+- **Features**: Waveform generation, sequence creation, hardware configuration
+
+### 3. Pytest Version
+- **File**: `test_adwin_awg520_trigger_pytest.py`
+- **Purpose**: Structured testing with pytest fixtures and assertions
+- **Features**: Automated testing, better error reporting
+
+## 🚀 **Running the Tests**
+
+### Prerequisites
+1. **Hardware connected** as per wiring diagram
+2. **ADwin Gold II** with ADbasic development environment
+3. **AWG520** with external trigger support
+4. **Python environment** with required packages
+
+### Step 1: Load ADbasic Program
+1. Open ADbasic development environment
+2. Load `awg520_trigger_test.bas`
+3. Compile and download to ADwin
+4. Verify process 1 is loaded
+
+### Step 2: Run Python Test
 ```bash
 cd examples/awg520_testing
-python test_adwin_trigger.py
+python test_adwin_awg520_trigger.py
 ```
 
-This will test:
-- Basic trigger generation
-- Precise timing accuracy
-- Trigger sequences
-- AWG520 simulation
-
-### 2. Generate AWG520 Test Files
+### Step 3: Run Pytest Version (Optional)
 ```bash
-python generate_test_sequences.py
+cd examples/awg520_testing
+python -m pytest test_adwin_awg520_trigger_pytest.py -v
 ```
 
-This will create:
-- Test waveform files (.wfm)
-- Test sequence files (.seq)
-- Compression analysis
-- Test instructions
+## 📊 **Test Waveforms**
 
-### 3. Hardware Setup
-Follow the wiring diagram in `docs/AWG520_ADWIN_TESTING.md`:
-- Connect ADwin DIO output to AWG520 TRIG IN
-- Use 50Ω BNC cable
-- Connect grounds together
+The test generates 4 different waveform types:
+- **Sine wave**: 1MHz frequency, 1μs duration
+- **Ramp wave**: Linear ramp from -1V to +1V, 1μs duration
+- **Triangle wave**: 1MHz triangle wave, 1μs duration
+- **Square wave**: 1MHz square wave, 1μs duration
 
-### 4. AWG520 Configuration
-- Set Run Mode = Enhanced
-- Set Trigger Source = External
-- Set Trigger Level = 2.5V
-- Set Input Impedance = 50Ω
+## ⚙️ **AWG520 Configuration**
 
-## Test Sequences
+The test automatically configures AWG520 for external triggering:
+- **Trigger Source**: External
+- **Trigger Level**: 2.5V (for 0→5V TTL input)
+- **Trigger Impedance**: 50Ω
+- **Run Mode**: Enhanced (enables Wait Trigger)
+- **Jump Mode**: Software (computer controlled)
 
-### Basic Test (test_basic.seq)
-Tests basic external trigger functionality with 3 different pulse types.
+## 🔄 **Test Sequence**
 
-### Compression Test (test_compression.seq)
-Tests repeat field compression for dead times:
-- 1μs dead time × 10,000 reps = 10μs total
-- 10μs dead time × 100,000 reps = 100μs total
+1. **ADwin generates trigger pulse** (1ms duration)
+2. **AWG520 receives trigger** and outputs first waveform
+3. **AWG520 waits** for next trigger (Wait Trigger enabled)
+4. **ADwin generates next trigger** after 1 second interval
+5. **AWG520 advances** to next sequence line
+6. **Process repeats** for all 4 waveforms
+7. **Sequence loops back** to first waveform
 
-### Memory Test (test_memory.seq)
-Tests memory usage with 100 sequence lines.
+## 📈 **Expected Results**
 
-## Expected Results
+### Success Criteria
+- ✅ **AWG520 responds** to external triggers within 100ns
+- ✅ **Waveforms output correctly** after each trigger
+- ✅ **Sequence advances** through all 4 waveforms
+- ✅ **Timing preserved** for all waveform components
+- ✅ **No memory overflow** or sequence errors
 
-- **ADwin**: Should generate precise triggers with <100μs timing accuracy
-- **AWG520**: Should respond to external triggers and execute sequences
-- **Compression**: Should reduce memory usage significantly using repeat field
-- **Memory**: Sequences should fit within 8MB AWG520 limit
+### Monitoring
+- **ADwin parameters** show trigger count and state
+- **AWG520 display** shows current sequence line
+- **Oscilloscope** (optional) shows trigger signals and waveforms
 
-## Troubleshooting
+## 🐛 **Troubleshooting**
 
 ### Common Issues
 1. **No trigger response**: Check trigger level, impedance, and source settings
 2. **Waveform corruption**: Verify BNC connections and grounding
-3. **Memory overflow**: Reduce repeat counts or sequence complexity
-4. **Timing issues**: Check sample rate and sequence configuration
+3. **Sequence not advancing**: Check Wait Trigger column in sequence file
+4. **Timing issues**: Verify sample rate and sequence configuration
 
 ### Debug Steps
-1. Use oscilloscope to verify trigger signal integrity
-2. Check AWG520 error messages and status displays
-3. Verify sequence file format and syntax
-4. Test with simpler sequences to isolate issues
+1. **Use oscilloscope** to verify trigger signal integrity
+2. **Check AWG520 error messages** and status displays
+3. **Verify ADwin process** is running and parameters are set
+4. **Test with simpler sequences** to isolate issues
 
-## Next Steps
+## 🔮 **Next Steps After Testing**
 
-After successful testing:
-1. Implement full pulsed ODMR sequence
-2. Optimize repeat field usage for maximum compression
-3. Integrate with existing mux control architecture
-4. Test with real quantum experiments
+### If External Trigger Works
+1. **Implement full pulsed ODMR sequence** with this architecture
+2. **Optimize repeat field usage** for maximum memory compression
+3. **Integrate with existing mux control architecture**
+4. **Test with real quantum experiments**
 
-## Hardware Requirements
+### If External Trigger Fails
+1. **Investigate alternative AWG520 control methods**
+2. **Consider software jump commands** over GPIB/Ethernet
+3. **Explore different compression strategies**
+4. **Reassess hardware architecture** requirements
 
-- ADwin Gold II with digital I/O capability
-- AWG520 with external trigger support
-- 50Ω BNC cable (male to male)
-- Oscilloscope for signal monitoring (optional)
-- Ground connection wire
+## 📚 **Additional Resources**
+
+- **AWG520 User Manual**: External trigger configuration
+- **ADwin Gold II Manual**: Digital I/O and process control
+- **Hardware Connection System**: `docs/HARDWARE_CONNECTION_SYSTEM.md`
+- **AWG520 Testing Guide**: `docs/AWG520_ADWIN_TESTING.md`
+
+## 🤝 **Support**
+
+For issues or questions:
+1. Check the troubleshooting section above
+2. Review hardware connections and configuration
+3. Consult the AWG520 and ADwin manuals
+4. Check system logs and error messages
