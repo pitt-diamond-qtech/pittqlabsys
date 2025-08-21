@@ -206,9 +206,10 @@ class SequenceTextParser:
 
             # Validate single variable scanning
             if len(variables) > 1:
-                print(f"Warning: Scanning {len(variables)} variables simultaneously. "
-                      f"This creates {self._calculate_total_combinations(variables)} sequences. "
-                      "Consider scanning one variable at a time for clean data correlation.")
+                raise ParseError(
+                    f"Multiple variable scanning not allowed. Found {len(variables)} variables: {list(variables.keys())}. "
+                    f"Use experiment_iterator class for multi-dimensional scans to ensure clean data correlation."
+                )
 
             # Create sequence description
             desc = SequenceDescription(

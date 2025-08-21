@@ -1,0 +1,28 @@
+# ODMR Pulsed Experiment Sequence
+# This sequence demonstrates a typical pulsed ODMR measurement
+# - Rabi oscillation measurement with variable pulse duration
+# - Laser initialization, microwave pulse, wait time, readout
+# - Each point repeated 50,000 times for statistics
+# - Sequence automatically handles timing adjustments for scanned variables
+
+sequence: name=odmr_pulsed_rabi, type=rabi, duration=6μs, sample_rate=1GHz, repeat=50000
+
+# Define scan variable (only one variable allowed for clean data correlation)
+variable pulse_duration, start=50ns, stop=500ns, steps=20
+
+# Define the pulse sequence
+# Laser initialization (arming sequence)
+laser_init pulse on channel 1 at 0ns, square, 1000ns, 1.0
+
+# Microwave pi/2 pulse (fixed duration for now - parser limitation)
+pi/2 pulse on channel 2 at 1200ns, gaussian, 100ns, 1.0
+
+# Wait time (fixed duration)
+wait pulse on channel 1 at 1500ns, square, 500ns, 0.0
+
+# Microwave pi pulse (fixed duration for now - parser limitation)
+pi pulse on channel 2 at 2000ns, gaussian, 100ns, 1.0
+
+# Laser readout and counter trigger (simultaneous)
+laser_readout pulse on channel 1 at 2500ns, square, 3000ns, 1.0
+counter_trigger pulse on channel 2 at 2500ns, square, 3000ns, 1.0

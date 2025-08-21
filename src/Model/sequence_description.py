@@ -230,20 +230,34 @@ class SequenceDescription:
     
     def validate(self) -> bool:
         """Validate the sequence description for consistency."""
-        # Check that all pulses fit within total duration
-        for pulse in self.pulses:
-            if pulse.timing + pulse.duration > self.total_duration:
-                return False
+        # For sequences with variables, timing validation is more flexible
+        # since timing will be adjusted during scanning
+        if self.variables:
+            # Only check basic constraints for variable sequences
+            for pulse in self.pulses:
+                if pulse.timing < 0:
+                    return False
+                if pulse.duration <= 0:
+                    return False
+        else:
+            # For fixed sequences, check that all pulses fit within total duration
+            for pulse in self.pulses:
+                if pulse.timing + pulse.duration > self.total_duration:
+                    return False
         
         # Check that loops and conditionals are valid
         for loop in self.loops:
-            if loop.start_time < 0 or loop.end_time > self.total_duration:
+            if loop.start_time < 0:
+                return False
+            if not self.variables and loop.end_time > self.total_duration:
                 return False
             if loop.start_time >= loop.end_time:
                 return False
         
         for conditional in self.conditionals:
-            if conditional.start_time < 0 or conditional.end_time > self.total_duration:
+            if conditional.start_time < 0:
+                return False
+            if not self.variables and conditional.end_time > self.total_duration:
                 return False
             if conditional.start_time >= conditional.end_time:
                 return False

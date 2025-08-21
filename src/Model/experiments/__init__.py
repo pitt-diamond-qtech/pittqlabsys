@@ -53,4 +53,7 @@ from .odmr_stepped import ODMRSteppedExperiment
 from .odmr_sweep_continuous import ODMRSweepContinuousExperiment
 from .odmr_fm_modulation import ODMRFMModulationExperiment
 
+# ODMR Pulsed experiment with AWG520 integration
+from .odmr_pulsed import ODMRPulsedExperiment
+
 from src.core.experiment_iterator import ExperimentIterator
