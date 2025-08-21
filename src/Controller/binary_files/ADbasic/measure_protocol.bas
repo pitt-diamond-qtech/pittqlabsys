@@ -1,119 +1,78 @@
-' Measure Protocol for ODMR Pulsed Experiment
-' This ADbasic program handles photon counting during AWG520 trigger pulses
-' and stores counts for each scan point in the experiment.
-'
-' Hardware Setup:
-' - AWG520 triggers ADwin via digital output
-' - ADwin counts photons during trigger pulse
-' - Counts stored for each scan point
-' - Supports 50,000 repetitions per scan point for statistics
-'
-' Parameters (set via ADbasic):
-' - count_time: Duration of counting window in microseconds
-' - reset_time: Time between counts in microseconds  
-' - repetitions_per_point: Number of repetitions per scan point (default: 50000)
-' - microwave_frequency: Microwave frequency in Hz
-' - microwave_power: Microwave power in dBm
-' - laser_power: Laser power in mW
-' - laser_wavelength: Laser wavelength in nm
+<ADbasic Header, Headerversion 001.001>
+' Process_Number                 = 2
+' Initial_Processdelay           = 3000
+' Eventsource                    = External
+' Control_long_Delays_for_Stop   = No
+' Priority                       = High
+' Version                        = 1
+' ADbasic_Version                = 6.3.0
+' Optimize                       = Yes
+' Optimize_Level                 = 1
+' Stacksize                      = 1000
+' Info_Last_Save                 = DUTTLAB8  Duttlab8\Duttlab
+<Header End>
+' MeasureProtocol.bas
+' Configured as Process 2, Priority High, External trigger.
+' This process handles photon counting for ODMR pulsed experiments.
+' AWG520 triggers this process via external event, and we perform
+' dual-gate counting to separate signal from reference.
 
-' ADbasic Header
-#HEADER_START
-#HEADER_VERSION 001.001
-#HEADER_END
 
-' Variable declarations
-DIM count_time AS LONG        ' Counting time in microseconds
-DIM reset_time AS LONG        ' Reset time between counts in microseconds
-DIM repetitions_per_point AS LONG  ' Repetitions per scan point
-DIM current_scan_point AS LONG     ' Current scan point index
-DIM total_scan_points AS LONG      ' Total number of scan points
-DIM photon_counts[1000] AS LONG    ' Array to store counts (max 1000 scan points)
-DIM current_repetition AS LONG     ' Current repetition within scan point
-DIM trigger_detected AS BOOL       ' Flag for AWG520 trigger detection
-DIM count_start_time AS LONG       ' Start time for counting
-DIM count_end_time AS LONG         ' End time for counting
+#Include ADwinGoldII.inc
+DIM signal_count, reference_count, repetition_counter AS LONG
+DIM count_time, reset_time as LONG
 
-' Initialize parameters
-count_time = 300        ' 300 microseconds counting time
-reset_time = 2000       ' 2 milliseconds reset time
-repetitions_per_point = 50000  ' 50K repetitions for statistics
-current_scan_point = 0
-total_scan_points = 0
-current_repetition = 0
-trigger_detected = FALSE
 
-' Main program loop
-DO
-    ' Wait for AWG520 trigger on digital input
-    IF DIGIN(1) = 1 AND NOT trigger_detected THEN
-        trigger_detected = TRUE
-        current_repetition = 0
-        
-        ' Start counting for this scan point
-        count_start_time = TIMER
-        count_end_time = count_start_time + count_time
-        
-        ' Count photons during trigger pulse
-        WHILE TIMER < count_end_time
-            ' Increment counter for each photon detected
-            ' This assumes photon detector is connected to counter input
-            IF COUNTER(1) > 0 THEN
-                photon_counts[current_scan_point] = photon_counts[current_scan_point] + COUNTER(1)
-                COUNTER(1) = 0  ' Reset counter
-            ENDIF
-        WEND
-        
-        ' Wait for reset time
-        WAIT(reset_time)
-        
-        ' Check if we've completed all repetitions for this scan point
-        current_repetition = current_repetition + 1
-        IF current_repetition >= repetitions_per_point THEN
-            ' Move to next scan point
-            current_scan_point = current_repetition + 1
-            current_repetition = 0
-            
-            ' Check if experiment is complete
-            IF current_scan_point >= total_scan_points THEN
-                ' Experiment complete - save data
-                SAVE_DATA
-                BREAK
-            ENDIF
-        ENDIF
-        
-        trigger_detected = FALSE
-    ENDIF
-    
-    ' Small delay to prevent busy waiting
-    WAIT(100)
-LOOP
+init:
+  Cnt_Enable(0)
+  Cnt_Mode(1,8)          ' Counter 1 set to increasing
+  
+  Cnt_Clear(1)           ' Clear counter 1
+  repetition_counter=0
+  signal_count=0
+  reference_count=0
+  Par_10=0
 
-' Subroutine to save experimental data
-SUB SAVE_DATA()
-    DIM i AS LONG
-    DIM filename AS STRING
+  ' NOTE: The offsets (10 and 30) are historical calibration values
+  ' that were determined empirically. The actual timing values are:
+  ' count_time = (Par_3-10)/10  where Par_3 is passed from Python
+  ' reset_time = (Par_4-30)/10  where Par_4 is passed from Python
+  ' These offsets ensure proper timing calibration for the hardware setup.
+  count_time = (Par_3-10)/10 'added on 2/6/20 to allow passing parameter from Python
+  reset_time = (Par_4-30)/10  'added on 2/6/20 to allow passing parameter from Python
+
+
+event:
+  Inc(repetition_counter)
+  Cnt_Enable(1)          ' enable counter 1
+  CPU_Sleep(count_time)          ' count time 300 ns
+  Cnt_Enable(0)          ' disable counter 1
+  Cnt_Latch(1)           ' Latch counter 1
+  CPU_Sleep(reset_time)         ' reset time 2000 ns
+  Cnt_Enable(1)          ' enable counter 1
+  CPU_Sleep(count_time)          ' count time 300 ns
+  Cnt_Enable(0)          ' disable counter 1
+  signal_count=signal_count+Cnt_Read_Latch(1)  ' accumulate signal counts
+  reference_count=reference_count+Cnt_Read(1)        ' accumulate total counts (signal + reference)
+  Cnt_Clear(1)           ' Clear counter 1
+  
+
+  ' Check if we've completed all repetitions for the current scan point
+  ' Par_5 contains the number of repetitions per scan point (e.g., 50000)
+  IF (repetition_counter>=Par_5) THEN
+    ' Store accumulated counts in ADwin parameters for Python to read
+    Par_1=signal_count        ' Signal counts for this scan point
+    Par_2=reference_count-signal_count  ' Reference counts (total - signal) for this scan point
     
-    ' Create filename with timestamp
-    filename = "odmr_pulsed_data_" + STR$(TIMESTAMP()) + ".txt"
+    ' Reset counters for next scan point
+    signal_count=0
+    reference_count=0
+    repetition_counter=0
     
-    ' Open file for writing
-    OPEN filename FOR OUTPUT AS #1
-    
-    ' Write header
-    PRINT #1, "ODMR Pulsed Experiment Data"
-    PRINT #1, "Timestamp: " + STR$(TIMESTAMP())
-    PRINT #1, "Count time: " + STR$(count_time) + " microseconds"
-    PRINT #1, "Reset time: " + STR$(reset_time) + " microseconds"
-    PRINT #1, "Repetitions per point: " + STR$(repetitions_per_point)
-    PRINT #1, ""
-    PRINT #1, "Scan Point,Photon Count,Average Count"
-    
-    ' Write data
-    FOR i = 0 TO current_scan_point - 1
-        PRINT #1, STR$(i) + "," + STR$(photon_counts[i]) + "," + STR$(photon_counts[i] / repetitions_per_point)
-    NEXT i
-    
-    ' Close file
-    CLOSE #1
-END SUB
+    ' Increment scan point counter (Par_10 tracks which scan point we're on)
+    Inc(Par_10)
+  ENDIF
+
+
+finish:
+  Cnt_Enable(0)
