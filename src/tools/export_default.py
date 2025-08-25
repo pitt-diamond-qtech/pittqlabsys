@@ -5,6 +5,7 @@ from importlib import import_module
 from src.core.helper_functions import module_name_from_path
 import glob
 import json
+import numpy as np
 
 
 
@@ -286,7 +287,8 @@ def python_file_to_aqs(list_of_python_files, target_folder, class_type, raise_er
                                                             'settings': {},
                                                             'info': f'Mock {device_name} for conversion'
                                                         })()
-                                                        experiment_devices[device_name] = mock_device
+                                                        # Wrap in the expected {'instance': device} format
+                                                        experiment_devices[device_name] = {'instance': mock_device}
                                                         print(f"  ⚠️  Created mock device: {device_name} (not available)")
                                                     except Exception as e:
                                                         print(f"  ❌ Failed to create mock {device_name}: {e}")
@@ -319,7 +321,7 @@ def python_file_to_aqs(list_of_python_files, target_folder, class_type, raise_er
                                                         # Create mock device for missing one
                                                         missing_devices.append(device_name)
                                                         try:
-                                                            # Create simple mock device instance (not nested structure)
+                                                            # Create simple mock device instance with common methods
                                                             mock_device = type(f'Mock{device_name}', (), {
                                                                 '__init__': lambda self: None,
                                                                 'name': device_name,
@@ -327,9 +329,20 @@ def python_file_to_aqs(list_of_python_files, target_folder, class_type, raise_er
                                                                 'info': f'Mock {device_name} for conversion',
                                                                 'is_connected': True,  # Add common device attributes
                                                                 'connect': lambda self: None,
-                                                                'disconnect': lambda self: None
+                                                                'disconnect': lambda self: None,
+                                                                # Common methods that experiments might call
+                                                                'update': lambda self, settings: None,
+                                                                'read_probes': lambda self, probe_name: 0.0,
+                                                                'stop_process': lambda self, process_id: None,
+                                                                'clear_process': lambda self, process_id: None,
+                                                                'reboot_adwin': lambda self: None,
+                                                                'clock_functions': lambda self, clock_type, reset=False: None,
+                                                                'setup': lambda self, settings, axis: None,
+                                                                'waveform_acquisition': lambda self, axis: 0.0,
+                                                                'empty_waveform': np.zeros(100)  # Default empty waveform
                                                             })()
-                                                            experiment_devices[device_name] = mock_device
+                                                            # Wrap in the expected {'instance': device} format
+                                                            experiment_devices[device_name] = {'instance': mock_device}
                                                             print(f"  ⚠️  Created mock device: {device_name} (not available)")
                                                         except Exception as e:
                                                             print(f"  ❌ Failed to create mock {device_name}: {e}")
