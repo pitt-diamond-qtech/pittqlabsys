@@ -25,9 +25,11 @@ from typing import List, Dict, Any, Optional, Tuple
 import time
 import warnings
 
-from src.core import Experiment, Parameter
-from src.Controller import SG384Generator, AdwinGoldDevice
-from src.core.adwin_helpers import setup_adwin_for_odmr, read_adwin_odmr_data
+from ...core.experiment import Experiment
+from ...core.parameter import Parameter
+from ...Controller.sg384 import SG384Generator
+from ...Controller.adwin_gold import AdwinGoldDevice
+from ...core.adwin_helpers import setup_adwin_for_odmr, read_adwin_odmr_data
 
 # Emit a deprecation warning when this module is imported
 warnings.warn(

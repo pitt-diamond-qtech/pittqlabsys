@@ -173,12 +173,6 @@ def detect_mock_devices():
                 "This conversion may not reflect real hardware capabilities.\n"
                 "Check device connections and try again for accurate results."
             )
-        elif hardware_indicators:
-            warning_message = (
-                "✅ Hardware detected! Real hardware implementations found:\n\n"
-                f"Hardware indicators: {', '.join(hardware_indicators)}\n\n"
-                "This conversion should reflect real hardware capabilities."
-            )
         else:
             warning_message = "✅ All devices appear to be real hardware implementations."
             
@@ -410,12 +404,32 @@ def python_file_to_aqs(list_of_python_files, target_folder, class_type, raise_er
                                 
                                 # Create instance and save
                                 try:
-                                    instance = attr()
-                                    loaded[attr_name] = instance
-                                    print(f"✅ Successfully loaded {attr_name}")
+                                    # Check if this experiment requires specific devices
+                                    if hasattr(attr, '_DEVICES') and attr._DEVICES:
+                                        print(f"⚠️  {attr_name} requires devices: {list(attr._DEVICES.keys())}")
+                                        print(f"  ⚠️  Created mock device: {list(attr._DEVICES.keys())[0]} (not available)")
+                                        # Create mock devices for required devices
+                                        mock_devices = {}
+                                        for device_name in attr._DEVICES.keys():
+                                            mock_devices[device_name] = f"Mock{device_name}"
+                                        print(f"  ⚠️  Missing devices (using mocks): {list(mock_devices.keys())}")
+                                        
+                                        # Try to create instance with mock devices
+                                        try:
+                                            instance = attr(devices=mock_devices)
+                                            loaded[attr_name] = instance
+                                            print(f"✅ Successfully loaded {attr_name} with mock devices")
+                                        except Exception as e2:
+                                            failed[attr_name] = f"Instance creation failed with mock devices: {e2}"
+                                            print(f"❌ Failed to create {attr_name} with mock devices: {e2}")
+                                    else:
+                                        # No devices required, create instance normally
+                                        instance = attr()
+                                        loaded[attr_name] = instance
+                                        print(f"✅ Successfully loaded {attr_name}")
                                 except Exception as e:
                                     failed[attr_name] = f"Instance creation failed: {e}"
-                                    print(f"❌ Failed to create {attr_name}")
+                                    print(f"❌ Failed to create {attr_name}: {e}")
                         
                     except Exception as e:
                         failed[os.path.basename(python_file)] = f"File processing failed: {e}"
