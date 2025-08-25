@@ -9,8 +9,8 @@ import logging
 import pyvisa as visa
 from typing import Optional, Literal
 
-from ..core.device import Device
-from ..core.parameter import Parameter
+from src.core.device import Device
+from src.core.parameter import Parameter
 
 # Default connection settings
 _DEFAULT_PORT = 'COM3'
