@@ -207,8 +207,44 @@ def python_file_to_aqs(list_of_python_files, target_folder, class_type, raise_er
             device_type = type(device).__name__
             print(f"  ✅ {device_name}: {device_type}")
     else:
-        print("⚠️  No existing devices provided - will create mock devices as needed")
-        existing_devices = {}
+        print("⚠️  No existing devices provided from GUI")
+        print("🔍 Attempting to load real hardware devices...")
+        
+        # Try to load real devices
+        try:
+            from src.Controller.sg384 import SG384Generator
+            from src.Controller.adwin_gold import AdwinGoldDevice
+            from src.Controller.nanodrive import MCLNanoDrive
+            
+            # Attempt to create real device instances
+            real_devices = {}
+            device_attempts = [
+                ('sg384', SG384Generator, {}),
+                ('adwin', AdwinGoldDevice, {}),
+                ('nanodrive', MCLNanoDrive, {})
+            ]
+            
+            for device_name, device_class, device_settings in device_attempts:
+                try:
+                    print(f"  🔧 Attempting to connect to {device_name}...")
+                    device_instance = device_class(settings=device_settings)
+                    real_devices[device_name] = device_instance
+                    print(f"  ✅ Successfully connected to {device_name}")
+                except Exception as e:
+                    print(f"  ❌ Failed to connect to {device_name}: {e}")
+                    real_devices[device_name] = None
+            
+            if any(real_devices.values()):
+                print(f"🔧 Successfully loaded {sum(1 for d in real_devices.values() if d is not None)} real devices")
+                existing_devices = {k: v for k, v in real_devices.items() if v is not None}
+            else:
+                print("⚠️  No real devices could be loaded - will create mock devices as needed")
+                existing_devices = {}
+                
+        except Exception as e:
+            print(f"⚠️  Error during device loading: {e}")
+            print("⚠️  Will create mock devices as needed")
+            existing_devices = {}
     
     loaded = {}
     failed = {}

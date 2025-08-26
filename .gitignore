@@ -85,6 +85,16 @@ debug/**/*.png
 debug/**/*.npz
 debug/**/*.txt
 
+# image files
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+*.tiff
+*.ico
+*.webp
+
 # Coverage reports
 coverage_reports/
 *.html
