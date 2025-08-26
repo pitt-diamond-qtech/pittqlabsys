@@ -36,7 +36,7 @@ class MockSG384Generator(Device):
     
     _DEFAULT_SETTINGS = Parameter([
         Parameter('connection_type', 'LAN', ['LAN','GPIB','RS232'], 'Transport type'),
-        Parameter('ip_address', '192.168.1.100', str, 'IP for LAN'),
+        Parameter('ip_address', '192.168.2.217', str, 'IP for LAN'),
         Parameter('port', 5025, int, 'Port for LAN'),
         Parameter('visa_resource', '', str, 'PyVISA resource string'),
         Parameter('baud_rate', 115200, int, 'Baud for RS232'),
@@ -71,7 +71,7 @@ class MockSG384Generator(Device):
         if settings is None:
             settings = {
                 'connection_type': 'LAN',
-                'ip_address': '192.168.1.100',
+                'ip_address': '192.168.2.217',
                 'port': 5025,
                 'frequency': 2.87e9,
                 'power': -10.0,
@@ -81,7 +81,7 @@ class MockSG384Generator(Device):
         
         # Set up mock attributes
         self._inst = None
-        self._addr = (settings.get('ip_address', '192.168.1.100'), settings.get('port', 5025))
+        self._addr = (settings.get('ip_address', '192.168.2.217'), settings.get('port', 5025))
         self._sock = None
         
         super().__init__(settings=settings)
@@ -90,7 +90,7 @@ class MockSG384Generator(Device):
     def _init_transport(self):
         """Mock transport initialization - no real connection needed."""
         # Mock transport setup
-        self._addr = (self.settings.get('ip_address', '192.168.1.100'), self.settings.get('port', 5025))
+        self._addr = (self.settings.get('ip_address', '192.168.2.217'), self.settings.get('port', 5025))
         self._inst = None
         print(f"Mock SG384Generator: Transport initialized for {self._addr}")
     

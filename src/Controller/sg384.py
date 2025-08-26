@@ -99,7 +99,7 @@ class SG384Generator(MicrowaveGeneratorBase):
     _DEFAULT_SETTINGS = Parameter([
         # Base settings from MicrowaveGeneratorBase
         Parameter('connection_type', 'LAN', ['LAN','GPIB','RS232'], 'Transport type'),
-        Parameter('ip_address', '',     str, 'IP for LAN'),
+        Parameter('ip_address', '192.168.2.217', str, 'IP for LAN'),
         Parameter('port',       5025,   int, 'Port for LAN'),
         Parameter('visa_resource', '',  str, 'PyVISA resource string, e.g. GPIB0::20::INSTR or ASRL9::INSTR'),
         Parameter('baud_rate',   115200,int, 'Baud for RS232'),
