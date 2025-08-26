@@ -285,6 +285,46 @@ python examples/sg384_example.py --ip-address 192.168.1.100 --port 5025 -v
 - **Power Range**: -110 to +16.5 dBm (hardware limit)
 - **Phase Resolution**: 0.1° (typical)
 
+## Planned Improvements
+
+### Modulation Depth Validation System
+
+The SG384 implementation is planned to include a comprehensive modulation depth validation system:
+
+#### **Context-Aware SCPI Mapping**
+- **AM Modulation**: `ADEP` command for depth (0-100%)
+- **FM Modulation**: `FDEV` command for frequency deviation (Hz)
+- **Phase Modulation**: `PDEV` command for phase deviation (0-360°)
+
+#### **Type-Specific Validation**
+- **AM Depth**: 0.0% to 100.0% (percentage)
+- **FM Deviation**: 0 Hz to max allowed by instrument (typically 100 MHz)
+- **PM Deviation**: 0° to 360° (degrees)
+
+#### **Implementation Benefits**
+- **Prevents invalid commands** being sent to hardware
+- **User-friendly error messages** with context
+- **Automatic SCPI command selection** based on modulation type
+- **Consistent validation** across all modulation types
+
+#### **Example Usage**
+```python
+# The system will automatically:
+# 1. Detect modulation type (AM/FM/PM)
+# 2. Validate depth value against type-specific limits
+# 3. Select appropriate SCPI command (ADEP/FDEV/PDEV)
+# 4. Send validated command to hardware
+
+sg384.set_modulation_type('AM')
+sg384.set_modulation_depth(50.0)  # 50% AM depth → ADEP 50.0
+```
+
+### Current Status
+- ✅ **SCPI_MAPPINGS** implemented (replacing hardcoded commands)
+- ✅ **Phase stepping logic** with 360° limit validation
+- ✅ **Proper output channel mapping** (BNC vs RF)
+- 🔄 **Modulation depth validation** - planned for next phase
+
 ## Integration with Experiments
 
 The SG384 can be integrated with other experiment classes:

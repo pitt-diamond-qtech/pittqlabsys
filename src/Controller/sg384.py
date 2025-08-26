@@ -12,13 +12,14 @@ class SG384Generator(MicrowaveGeneratorBase):
     Adds any SG384‐specific settings and maps them to SCPI.
     """
     
-    # Parameter mappings for SG384
-    PARAM_MAPPINGS = {
-        'enable_output': 'ENBR',
-        'enable_rf_output': 'ENBL', 
+    # SCPI command mappings for SG384
+    SCPI_MAPPINGS = {
+        'enable_output': 'ENBL',
+        'enable_rf_output': 'ENBR', 
         'frequency': 'FREQ',
-        'amplitude': 'AMPR',
-        'amplitude_rf': 'AMPL',
+        'amplitude': 'AMPL',
+        'amplitude_rf': 'AMPR',
+        'power': 'AMPR',  # Add power mapping for RF output
         'phase': 'PHAS',
         'enable_modulation': 'MODL',
         'modulation_type': 'TYPE',
@@ -28,7 +29,8 @@ class SG384Generator(MicrowaveGeneratorBase):
         'mod_rate': 'RATE',
         'sweep_function': 'SFNC',
         'sweep_rate': 'SRAT',
-        'sweep_deviation': 'SDEV'
+        'sweep_deviation': 'SDEV',
+        'modulation_depth': 'FDEV'  # Add modulation depth mapping
     }
     
     # Modulation type mappings
@@ -134,33 +136,72 @@ class SG384Generator(MicrowaveGeneratorBase):
         logger.info(f"SG384 IDN: {idn}")
 
     def set_frequency(self, hz: float):
-        """SCPI: FREQ <value>HZ"""
+        """Set frequency using SCPI_MAPPINGS."""
         self.settings['frequency'] = hz
-        self._send(f"FREQ {hz}HZ")
+        param = self._param_to_scpi('frequency')
+        self._send(f"{param} {hz}HZ")
 
     def set_power(self, dbm: float):
-        """SCPI: POWR <value>DBM"""
+        """Set power using SCPI_MAPPINGS."""
         self.settings['amplitude'] = dbm
-        self._send(f"POWR {dbm}DBM")
+        param = self._param_to_scpi('power')
+        self._send(f"{param} {dbm}DBM")
 
     def set_phase(self, deg: float):
-        """SCPI: PHAS <value>DEG"""
+        """Set phase using SCPI_MAPPINGS with step validation and stepping."""
+        current_phase = float(self._query(self._param_to_scpi('phase') + '?'))  # Get current phase
+        
+        # Calculate phase step (handle wraparound)
+        phase_diff = abs(deg - current_phase)
+        if phase_diff > 360:
+            # Need to step in smaller increments
+            print(f"⚠️  Phase step {phase_diff:.1f}° exceeds 360° limit. Current: {current_phase:.1f}°, Target: {deg:.1f}°")
+            print(f"   Stepping phase in 360° increments...")
+            logger.warning(f"Phase step {phase_diff:.1f}° exceeds 360° limit. Stepping from {current_phase:.1f}° to {deg:.1f}°")
+            
+            # Implement stepping logic
+            if deg > current_phase:
+                # Step up
+                step_phase = current_phase + 360
+                while step_phase < deg:
+                    param = self._param_to_scpi('phase')
+                    self._send(f"{param} {step_phase:.1f}DEG")
+                    step_phase += 360
+            else:
+                # Step down
+                step_phase = current_phase - 360
+                while step_phase > deg:
+                    param = self._param_to_scpi('phase')
+                    self._send(f"{param} {step_phase:.1f}DEG")
+                    step_phase -= 360
+            
+            print(f"   Final phase step: {deg:.1f}°")
+            logger.info(f"Completed phase stepping to {deg:.1f}°")
+        else:
+            print(f"✅ Phase step {phase_diff:.1f}° within 360° limit. Setting directly to {deg:.1f}°")
+            logger.info(f"Setting phase directly to {deg:.1f}° (step: {phase_diff:.1f}°)")
+        
         self.settings['phase'] = deg
-        self._send(f"PHAS {deg}DEG")
+        param = self._param_to_scpi('phase')
+        self._send(f"{param} {deg}DEG")
 
     def enable_modulation(self):
-        self._send("MODL:STAT ON")
+        param = self._param_to_scpi('enable_modulation')
+        self._send(f"{param}:STAT ON")
 
     def disable_modulation(self):
-        self._send("MODL:STAT OFF")
+        param = self._param_to_scpi('enable_modulation')
+        self._send(f"{param}:STAT OFF")
 
     def set_modulation_type(self, mtype: str):
         self.settings['modulation_type'] = mtype
-        self._send(f"MODL:TYPE {mtype}")
+        param = self._param_to_scpi('modulation_type')
+        self._send(f"{param} {mtype}")
 
     def set_modulation_depth(self, depth_hz: float):
         self.settings['modulation_depth'] = depth_hz
-        self._send(f"FDEV {depth_hz}")
+        param = self._param_to_scpi('modulation_depth')
+        self._send(f"{param} {depth_hz}")
     
     def validate_sweep_parameters(self, center_freq: float, deviation: float, sweep_rate: float = None) -> bool:
         """
@@ -196,11 +237,11 @@ class SG384Generator(MicrowaveGeneratorBase):
         return True
 
     # Helper methods using mapping dictionaries
-    def _param_to_internal(self, param: str) -> str:
-        """Convert parameter name to internal command using mapping dictionary."""
-        if param not in self.PARAM_MAPPINGS:
+    def _param_to_scpi(self, param: str) -> str:
+        """Convert parameter name to SCPI command using mapping dictionary."""
+        if param not in self.SCPI_MAPPINGS:
             raise KeyError(f"Unknown parameter: {param}")
-        return self.PARAM_MAPPINGS[param]
+        return self.SCPI_MAPPINGS[param]
     
     def _mod_type_to_internal(self, value: str) -> int:
         """Convert modulation type string to internal value using mapping dictionary."""
@@ -280,45 +321,55 @@ class SG384Generator(MicrowaveGeneratorBase):
     # Setter methods for update dispatch
     def _set_output_enable(self, enable: int):
         """Set output enable/disable."""
-        self._send(f"ENBR {enable}")
+        param = self._param_to_scpi('enable_rf_output')
+        self._send(f"{param} {enable}")
     
     def _set_modulation_enable(self, enable: int):
         """Set modulation enable/disable."""
-        self._send(f"MODL {enable}")
+        param = self._param_to_scpi('enable_modulation')
+        self._send(f"{param} {enable}")
     
     def _set_modulation_type(self, mod_type: int):
         """Set modulation type."""
-        self._send(f"TYPE {mod_type}")
+        param = self._param_to_scpi('modulation_type')
+        self._send(f"{param} {mod_type}")
     
     def _set_modulation_function(self, mod_func: int):
         """Set modulation function."""
-        self._send(f"MFNC {mod_func}")
+        param = self._param_to_scpi('modulation_function')
+        self._send(f"{param} {mod_func}")
     
     def _set_pulse_modulation_function(self, pulse_mod_func: int):
         """Set pulse modulation function."""
-        self._send(f"PFNC {pulse_mod_func}")
+        param = self._param_to_scpi('pulse_modulation_function')
+        self._send(f"{param} {pulse_mod_func}")
     
     def _set_dev_width(self, dev_width: float):
         """Set deviation width."""
-        self._send(f"FDEV {dev_width}")
+        param = self._param_to_scpi('dev_width')
+        self._send(f"{param} {dev_width}")
     
     def _set_mod_rate(self, mod_rate: float):
         """Set modulation rate."""
-        self._send(f"RATE {mod_rate}")
+        param = self._param_to_scpi('mod_rate')
+        self._send(f"{param} {mod_rate}")
     
     def _set_sweep_function(self, sweep_func: int):
         """Set sweep function."""
-        self._send(f"SFNC {sweep_func}")
+        param = self._param_to_scpi('sweep_function')
+        self._send(f"{param} {sweep_func}")
     
     def _set_sweep_rate(self, sweep_rate: float):
         """Set sweep rate (must be < 120 Hz)."""
         if sweep_rate >= 120.0:
             raise ValueError(f"Sweep rate {sweep_rate} Hz must be less than 120 Hz")
-        self._send(f"SRAT {sweep_rate}")
+        param = self._param_to_internal('sweep_rate')
+        self._send(f"{param} {sweep_rate}")
     
     def _set_sweep_deviation(self, sweep_deviation: float):
         """Set sweep deviation."""
-        self._send(f"SDEV {sweep_deviation}")
+        param = self._param_to_internal('sweep_deviation')
+        self._send(f"{param} {sweep_deviation}")
 
     def update(self, settings: dict):
         """
