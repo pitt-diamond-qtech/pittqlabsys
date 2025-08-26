@@ -363,12 +363,12 @@ class SG384Generator(MicrowaveGeneratorBase):
         """Set sweep rate (must be < 120 Hz)."""
         if sweep_rate >= 120.0:
             raise ValueError(f"Sweep rate {sweep_rate} Hz must be less than 120 Hz")
-        param = self._param_to_internal('sweep_rate')
+        param = self._param_to_scpi('sweep_rate')
         self._send(f"{param} {sweep_rate}")
     
     def _set_sweep_deviation(self, sweep_deviation: float):
         """Set sweep deviation."""
-        param = self._param_to_internal('sweep_deviation')
+        param = self._param_to_scpi('sweep_deviation')
         self._send(f"{param} {sweep_deviation}")
 
     def update(self, settings: dict):
@@ -436,37 +436,37 @@ class SG384Generator(MicrowaveGeneratorBase):
     
     def _read_boolean_probe(self, key):
         """Read boolean probe values (enable_output, enable_modulation, etc.)."""
-        key_internal = self._param_to_internal(key)
+        key_internal = self._param_to_scpi(key)
         value = int(self._query(key_internal + '?'))
         return bool(value)
     
     def _read_modulation_type_probe(self, key):
         """Read modulation type probe values."""
-        key_internal = self._param_to_internal(key)
+        key_internal = self._param_to_scpi(key)
         value = int(self._query(key_internal + '?'))
         return self._internal_to_mod_type(value)
     
     def _read_modulation_function_probe(self, key):
         """Read modulation function probe values."""
-        key_internal = self._param_to_internal(key)
+        key_internal = self._param_to_scpi(key)
         value = int(self._query(key_internal + '?'))
         return self._internal_to_mod_func(value)
     
     def _read_pulse_modulation_function_probe(self, key):
         """Read pulse modulation function probe values."""
-        key_internal = self._param_to_internal(key)
+        key_internal = self._param_to_scpi(key)
         value = int(self._query(key_internal + '?'))
         return self._internal_to_pulse_mod_func(value)
     
     def _read_sweep_function_probe(self, key):
         """Read sweep function probe values."""
-        key_internal = self._param_to_internal(key)
+        key_internal = self._param_to_scpi(key)
         value = int(self._query(key_internal + '?'))
         return self._internal_to_sweep_func(value)
     
     def _read_float_probe(self, key):
         """Read float probe values (frequency, amplitude, phase, etc.)."""
-        key_internal = self._param_to_internal(key)
+        key_internal = self._param_to_scpi(key)
         return float(self._query(key_internal + '?'))
     
     @property

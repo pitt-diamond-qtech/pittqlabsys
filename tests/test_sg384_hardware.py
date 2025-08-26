@@ -162,8 +162,8 @@ def test_sg384_modulation_settings(sg384_hardware):
 def test_sg384_mapping_functions(sg384_hardware):
     """Test that the mapping dictionary functions work with real hardware."""
     # Test parameter mapping
-    assert sg384_hardware._param_to_internal('frequency') == 'FREQ'
-    assert sg384_hardware._param_to_internal('amplitude') == 'AMPR'
+    assert sg384_hardware._param_to_scpi('frequency') == 'FREQ'
+    assert sg384_hardware._param_to_scpi('amplitude') == 'AMPR'
     print("✓ Parameter mapping works with hardware")
     
     # Test modulation type mapping
@@ -227,7 +227,7 @@ def test_sg384_error_handling(sg384_hardware):
     """Test error handling with invalid parameters."""
     # Test invalid parameter
     with pytest.raises(KeyError):
-        sg384_hardware._param_to_internal('invalid_param')
+        sg384_hardware._param_to_scpi('invalid_param')
     
     # Test invalid modulation type
     with pytest.raises(KeyError):
