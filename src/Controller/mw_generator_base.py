@@ -154,6 +154,14 @@ class MicrowaveGeneratorBase(Device, ABC):
             except:
                 pass
             self._sock = None
+    
+    @property
+    def is_connected(self) -> bool:
+        """Check if the device is connected and reachable."""
+        try:
+            return self.test_connection()
+        except Exception:
+            return False
 
     @abstractmethod
     def set_frequency(self, freq_hz: float):    pass
