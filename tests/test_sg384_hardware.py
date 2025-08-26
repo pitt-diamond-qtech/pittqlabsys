@@ -212,7 +212,7 @@ def test_sg384_update_method(sg384_hardware):
     
     # Verify the updates
     freq = sg384_hardware.read_probes('frequency')
-    power = sg384_hardware.read_probes('amplitude')  # Note: amplitude is the probe name
+    power = sg384_hardware.read_probes('amplitude_rf')  # Read from RF output (AMPR)
     phase = sg384_hardware.read_probes('phase')
     
     assert abs(freq - 3.0e9) < 1e6

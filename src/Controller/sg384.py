@@ -452,7 +452,13 @@ class SG384Generator(MicrowaveGeneratorBase):
         return {
             'enable_output': 'if type-N output is enabled',
             'frequency': 'frequency of output in Hz',
-            'amplitude': 'type-N amplitude in dBm',
+            # Low frequency output (BNC)
+            'amplitude': 'low frequency amplitude in dBm',      # AMPL
+            'amplitude_lo': 'low frequency amplitude in dBm',   # AMPL (alias)
+            'power_lo': 'low frequency power in dBm',           # AMPL (alias)
+            # RF output (Type-N)
+            'amplitude_rf': 'RF amplitude in dBm',              # AMPR
+            'power_rf': 'RF power in dBm',                      # AMPR (alias)
             'phase': 'phase',
             'enable_modulation': 'is modulation enabled',
             'modulation_type': 'Modulation Type: 0= AM, 1=FM, 2= PhaseM, 3= Freq sweep, 4= Pulse, 5 = Blank, 6=IQ',
@@ -485,13 +491,18 @@ class SG384Generator(MicrowaveGeneratorBase):
             
             # Float probes (return numeric values)
             'frequency': self._read_float_probe,
-            'amplitude': self._read_float_probe,
-            'amplitude_rf': self._read_float_probe,
             'phase': self._read_float_probe,
             'dev_width': self._read_float_probe,
             'mod_rate': self._read_float_probe,
             'sweep_rate': self._read_float_probe,
-            'sweep_deviation': self._read_float_probe
+            'sweep_deviation': self._read_float_probe,
+            
+            # Output-specific amplitude probes
+            'amplitude': self._read_amplitude_lo_probe,      # Low freq (AMPL)
+            'amplitude_lo': self._read_amplitude_lo_probe,   # Low freq (AMPL)
+            'power_lo': self._read_amplitude_lo_probe,       # Low freq (AMPL)
+            'amplitude_rf': self._read_amplitude_rf_probe,   # RF (AMPR)
+            'power_rf': self._read_amplitude_rf_probe,       # RF (AMPR)
         }
         
         if key in probe_mapping:
@@ -533,6 +544,14 @@ class SG384Generator(MicrowaveGeneratorBase):
         """Read float probe values (frequency, amplitude, phase, etc.)."""
         key_internal = self._param_to_scpi(key)
         return float(self._query(key_internal + '?'))
+
+    def _read_amplitude_lo_probe(self, key):
+        """Read low frequency amplitude from AMPL? command."""
+        return float(self._query('AMPL?'))
+
+    def _read_amplitude_rf_probe(self, key):
+        """Read RF amplitude from AMPR? command."""
+        return float(self._query('AMPR?'))
     
     @property
     def is_connected(self):
