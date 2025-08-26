@@ -65,12 +65,10 @@ class PulseBlaster(Device):
     @property
     def is_connected(self) -> bool:
         """Check if the PulseBlaster device is connected and accessible."""
-        return self._is_connected
-    
-    def test_connection(self) -> bool:
-        """Test if the PulseBlaster device is actually reachable."""
+        if not self._is_connected:
+            return False
         try:
-            # Try to get the board status - this will fail if device is not connected
+            # Test actual connection by trying to get board status
             status = self._dll.pb_get_status()
             return True
         except Exception:

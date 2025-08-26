@@ -62,16 +62,13 @@ class MUXControlDevice(Device):
     @property
     def is_connected(self) -> bool:
         """Check if the MUX controller is connected and accessible."""
-        return self._is_connected
-    
-    def test_connection(self) -> bool:
-        """Test if the MUX controller is actually reachable."""
         if not self._is_connected or self.arduino is None:
             return False
         try:
-            # Try to read from the device
-            self.arduino.query('STATUS')
-            return True
+            # Test actual connection by sending valid command and checking response
+            response = self.arduino.query('1')
+            # Arduino should respond with "Input is in range" for valid input
+            return 'Input is in range' in response
         except Exception:
             self._is_connected = False
             return False
