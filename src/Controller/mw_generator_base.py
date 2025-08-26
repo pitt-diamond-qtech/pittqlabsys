@@ -62,14 +62,26 @@ class MicrowaveGeneratorBase(Device, ABC):
 
     def _send(self, cmd: str):
         if self.settings['connection_type']=='LAN':
+            # Try to reuse existing socket if available
+            if hasattr(self, '_sock') and self._sock is not None:
+                try:
+                    self._sock.sendall((cmd + "\n").encode())
+                    return
+                except (socket.error, OSError):
+                    # Socket is broken, create new one
+                    try:
+                        self._sock.close()
+                    except:
+                        pass
+                    self._sock = None
+            
+            # Create new socket
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.settimeout(self.settings['socket_timeout'])
             sock.connect(self._addr)
             sock.sendall((cmd + "\n").encode())
-            # Store socket for testing purposes
+            # Store socket for reuse
             self._sock = sock
-            # Don't close immediately for testing
-            # sock.close()
         else:  # GPIB or RS232
             if self._inst is not None:
                 self._inst.write(cmd)
@@ -78,6 +90,25 @@ class MicrowaveGeneratorBase(Device, ABC):
 
     def _query(self, cmd: str) -> str:
         if self.settings['connection_type']=='LAN':
+            # Try to reuse existing socket if available
+            if hasattr(self, '_sock') and self._sock is not None:
+                try:
+                    if not cmd.endswith('?'):
+                        cmd = cmd.strip() + '?'
+                    self._sock.sendall((cmd + "\n").encode())
+                    data = b''
+                    while not data.endswith(b'\n'):
+                        data += self._sock.recv(1024)
+                    return data.decode().strip()
+                except (socket.error, OSError):
+                    # Socket is broken, create new one
+                    try:
+                        self._sock.close()
+                    except:
+                        pass
+                    self._sock = None
+            
+            # Create new socket
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.settimeout(self.settings['socket_timeout'])
             sock.connect(self._addr)
@@ -114,6 +145,15 @@ class MicrowaveGeneratorBase(Device, ABC):
                 return False
             except Exception:
                 return False
+    
+    def close_connection(self):
+        """Close the socket connection if it exists."""
+        if hasattr(self, '_sock') and self._sock is not None:
+            try:
+                self._sock.close()
+            except:
+                pass
+            self._sock = None
 
     @abstractmethod
     def set_frequency(self, freq_hz: float):    pass

@@ -111,7 +111,7 @@ class SG384Generator(MicrowaveGeneratorBase):
         # SG384-specific settings
         Parameter('enable_output', False, bool, 'Enable output'),
         Parameter('enable_modulation', True, bool, 'Enable modulation'),
-        Parameter('modulation_type', 'FM', ['AM','FM','PM','Sweep'], 'Modulation type'),
+        Parameter('modulation_type', 'FM', ['AM','FM','PM','Sweep','Freq sweep'], 'Modulation type'),
         Parameter('modulation_function', 'Sine', ['Sine','Ramp','Triangle','Square','Noise','External'], 'Modulation function'),
         Parameter('pulse_modulation_function', 'Square', ['Square','Noise(PRBS)','External'], 'Pulse modulation function'),
         Parameter('modulation_depth', 1e6, float, 'Deviation in Hz'),
