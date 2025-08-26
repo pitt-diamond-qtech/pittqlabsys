@@ -82,7 +82,30 @@ class SpinCoreDevice(Device):
         self.logger = logging.getLogger(__name__)
         cfg = self.settings
         # Initialize low-level driver
-        self.driver = SpinCoreDriver(board_num=cfg['board_num'])
+        try:
+            self.driver = SpinCoreDriver(board_num=cfg['board_num'])
+            self._is_connected = True
+        except Exception as e:
+            self.logger.error(f"Failed to initialize SpinCore driver: {e}")
+            self._is_connected = False
+            self.driver = None
+    
+    @property
+    def is_connected(self) -> bool:
+        """Check if the SpinCore device is connected and accessible."""
+        return self._is_connected
+    
+    def test_connection(self) -> bool:
+        """Test if the SpinCore device is actually reachable."""
+        if not self._is_connected or self.driver is None:
+            return False
+        try:
+            # Try to get the board status
+            status = self.driver.pb.pb_get_status()
+            return True
+        except Exception:
+            self._is_connected = False
+            return False
 
     def load_sequence(self, seq: Sequence):
         """

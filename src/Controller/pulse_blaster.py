@@ -57,8 +57,25 @@ class PulseBlaster(Device):
         try:
             self._dll = cdll.LoadLibrary(library_file)
             super(PulseBlaster, self).__init__(name, settings)
+            self._is_connected = True  # DLL loaded successfully
         except OSError:
+            self._is_connected = False
             raise
+    
+    @property
+    def is_connected(self) -> bool:
+        """Check if the PulseBlaster device is connected and accessible."""
+        return self._is_connected
+    
+    def test_connection(self) -> bool:
+        """Test if the PulseBlaster device is actually reachable."""
+        try:
+            # Try to get the board status - this will fail if device is not connected
+            status = self._dll.pb_get_status()
+            return True
+        except Exception:
+            self._is_connected = False
+            return False
 
     # Check if the command has given an error. If so, print and return the error's description.
     def chk(self, error):

@@ -59,6 +59,23 @@ class MUXControlDevice(Device):
         if self.settings.get('auto_connect', True):
             self.connect()
     
+    @property
+    def is_connected(self) -> bool:
+        """Check if the MUX controller is connected and accessible."""
+        return self._is_connected
+    
+    def test_connection(self) -> bool:
+        """Test if the MUX controller is actually reachable."""
+        if not self._is_connected or self.arduino is None:
+            return False
+        try:
+            # Try to read from the device
+            self.arduino.query('STATUS')
+            return True
+        except Exception:
+            self._is_connected = False
+            return False
+    
     def connect(self) -> bool:
         """
         Connect to the Arduino MUX controller.
