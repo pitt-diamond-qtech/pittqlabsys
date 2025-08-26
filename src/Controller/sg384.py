@@ -327,8 +327,8 @@ class SG384Generator(MicrowaveGeneratorBase):
         """
         super().update(settings)
         
-        # Only send commands if _inst is available (i.e., not during initialization)
-        if hasattr(self, '_inst') and self._inst is not None:
+        # Send commands if either VISA (_inst) is available OR we're using LAN connection
+        if (hasattr(self, '_inst') and self._inst is not None) or self.settings['connection_type'] == 'LAN':
             self._dispatch_update(settings)
     
     @property
