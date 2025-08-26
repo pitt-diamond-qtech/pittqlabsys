@@ -20,7 +20,7 @@ import time
 # Add the src directory to the path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from Controller.sg384 import SG384Generator
+from src.Controller.sg384 import SG384Generator
 
 
 @pytest.fixture(scope="module")
@@ -32,8 +32,8 @@ def sg384_hardware():
     # Hardware connection settings - modify these for your setup
     settings = {
         'connection_type': 'LAN',  # or 'GPIB' or 'RS232'
-        'ip_address': '169.254.146.198',  # Modify for your SG384 IP
-        'port': 5025,  # Modify for your SG384 port
+        'ip_address': '192.168.2.217',  # Your working SG384 IP
+        'port': 5025,  # Your SG384 port
         # For GPIB: 'visa_resource': 'GPIB0::20::INSTR'
         # For RS232: 'visa_resource': 'ASRL9::INSTR'
     }
