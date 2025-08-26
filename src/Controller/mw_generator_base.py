@@ -17,6 +17,8 @@ class MicrowaveGeneratorBase(Device, ABC):
         # for LAN:
         Parameter('ip_address', '',     str, 'IP for LAN'),
         Parameter('port',       5025,   int, 'Port for LAN'),
+        Parameter('connection_timeout', 10.0, float, 'Connection timeout in seconds for LAN connections'),
+        Parameter('socket_timeout', 5.0, float, 'Socket timeout in seconds for send/receive operations'),
         # for VISA (GPIB or RS232):
         Parameter('visa_resource', '',  str, 'PyVISA resource string, e.g. GPIB0::20::INSTR or ASRL9::INSTR'),
         # optional RS232 baud:
@@ -61,6 +63,7 @@ class MicrowaveGeneratorBase(Device, ABC):
     def _send(self, cmd: str):
         if self.settings['connection_type']=='LAN':
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(self.settings['socket_timeout'])
             sock.connect(self._addr)
             sock.sendall((cmd + "\n").encode())
             # Store socket for testing purposes
@@ -76,6 +79,7 @@ class MicrowaveGeneratorBase(Device, ABC):
     def _query(self, cmd: str) -> str:
         if self.settings['connection_type']=='LAN':
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(self.settings['socket_timeout'])
             sock.connect(self._addr)
             if not cmd.endswith('?'):
                 cmd = cmd.strip() + '?'
@@ -88,6 +92,28 @@ class MicrowaveGeneratorBase(Device, ABC):
         else:
             # GPIB or RS232
             return self._inst.query(cmd)
+
+    def test_connection(self) -> bool:
+        """Test if the device is reachable with timeout."""
+        if self.settings['connection_type'] == 'LAN':
+            try:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.settimeout(self.settings['connection_timeout'])
+                sock.connect(self._addr)
+                sock.close()
+                return True
+            except (socket.timeout, socket.error):
+                return False
+        else:
+            # For VISA connections, try a simple query
+            try:
+                if self._inst is not None:
+                    self._inst.timeout = int(self.settings['connection_timeout'] * 1000)  # VISA uses milliseconds
+                    self._inst.query('*IDN?')
+                    return True
+                return False
+            except Exception:
+                return False
 
     @abstractmethod
     def set_frequency(self, freq_hz: float):    pass

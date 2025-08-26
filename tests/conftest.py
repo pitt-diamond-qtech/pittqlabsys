@@ -15,7 +15,13 @@
 import matplotlib
 matplotlib.use("Agg")  # non-interactive, no window pops up
 import pytest
+import os
+import sys
 from unittest.mock import Mock
+import signal
+from functools import wraps
+import time
+import threading
 
 # Pytest configuration for hardware tests
 def pytest_configure(config):
@@ -24,10 +30,105 @@ def pytest_configure(config):
         "markers", "hardware: marks tests as requiring hardware (deselect with '-m \"not hardware\"')"
     )
 
+# ============================================================================
+# Timeout Utilities for Hardware Tests
+# ============================================================================
+
+def timeout_handler(signum, frame):
+    """Signal handler for timeout."""
+    raise TimeoutError("Operation timed out")
+
+def timeout(seconds=10):
+    """
+    Decorator to add timeout to functions.
+    
+    Args:
+        seconds (int): Timeout in seconds (default: 10)
+    
+    Returns:
+        function: Decorated function with timeout
+    """
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            # Set up signal handler for timeout
+            old_handler = signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(seconds)
+            
+            try:
+                result = func(*args, **kwargs)
+                return result
+            finally:
+                # Restore original signal handler and cancel alarm
+                signal.alarm(0)
+                signal.signal(signal.SIGALRM, old_handler)
+        return wrapper
+    return decorator
+
+def safe_hardware_connection(device_class, settings=None, timeout_seconds=10):
+    """
+    Safely attempt to connect to hardware with timeout.
+    
+    Args:
+        device_class: The device class to instantiate
+        settings (dict, optional): Device settings
+        timeout_seconds (int): Connection timeout in seconds
+    
+    Returns:
+        tuple: (device_instance, success_message) or (None, error_message)
+    """
+    start_time = time.time()
+    
+    try:
+        # Create device with custom timeout settings if it's a microwave generator
+        if settings is None:
+            settings = {}
+        
+        # Add timeout settings for microwave generators
+        if hasattr(device_class, '_DEFAULT_SETTINGS'):
+            # Check if this is a microwave generator by looking for connection_type parameter
+            has_connection_type = any('connection_type' in str(param) for param in device_class._DEFAULT_SETTINGS)
+            if has_connection_type:
+                settings.update({
+                    'connection_timeout': timeout_seconds,
+                    'socket_timeout': min(timeout_seconds / 2, 5.0)  # Socket timeout half of connection timeout
+                })
+        
+        device = device_class(settings=settings)
+        
+        # Test connection if the device has a test_connection method
+        if hasattr(device, 'test_connection'):
+            if not device.test_connection():
+                return None, "Device connection test failed"
+        
+        # Check if device is actually connected
+        if hasattr(device, 'is_connected'):
+            if not device.is_connected:
+                return None, "Device instantiated but not connected"
+        
+        # Test basic communication
+        if hasattr(device, '_query'):
+            try:
+                idn = device._query('*IDN?')
+                success_msg = f"Connected to {device_class.__name__}: {idn}"
+            except Exception as e:
+                return None, f"Device connected but communication failed: {e}"
+        else:
+            success_msg = f"Connected to {device_class.__name__}"
+        
+        return device, success_msg
+        
+    except Exception as e:
+        elapsed = time.time() - start_time
+        return None, f"Connection failed after {elapsed:.1f}s: {e}"
+
+# ============================================================================
+# Hardware Test Configuration
+# ============================================================================
+
 def pytest_collection_modifyitems(config, items):
     """Automatically skip hardware tests if no hardware is available."""
     # You can set this environment variable to force hardware tests
-    import os
     if not os.getenv('RUN_HARDWARE_TESTS'):
         skip_hardware = pytest.mark.skip(reason="Hardware tests disabled by default. Set RUN_HARDWARE_TESTS=1 to enable.")
         for item in items:

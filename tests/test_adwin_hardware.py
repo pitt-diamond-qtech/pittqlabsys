@@ -23,8 +23,8 @@ import os
 from unittest.mock import Mock, patch
 from time import sleep
 
-# Environment variable to control hardware testing
-USE_REAL_HARDWARE = os.getenv('ADWIN_USE_REAL_HARDWARE', 'false').lower() == 'true'
+# Use RUN_HARDWARE_TESTS environment variable for hardware testing
+USE_REAL_HARDWARE = os.getenv('RUN_HARDWARE_TESTS', '0') == '1'
 
 
 @pytest.fixture
@@ -33,15 +33,20 @@ def adwin_instance():
     ADwin fixture that provides either mock or real hardware based on configuration.
     """
     if USE_REAL_HARDWARE:
-        # Use real hardware
-        try:
-            adwin = AdwinGoldDevice()
-            if not adwin.is_connected:
-                pytest.skip("ADwin hardware not connected")
-            yield adwin
-            adwin.close()
-        except Exception as e:
-            pytest.skip(f"ADwin hardware not available: {e}")
+        # Use real hardware with timeout protection
+        from tests.conftest import safe_hardware_connection
+        
+        device, message = safe_hardware_connection(
+            AdwinGoldDevice, 
+            timeout_seconds=15  # ADwin can take longer to connect
+        )
+        
+        if device is None:
+            pytest.skip(f"ADwin hardware not available: {message}")
+        
+        print(f"✓ {message}")
+        yield device
+        device.close()
     else:
         # Use mock hardware
         with patch('src.Controller.adwin_gold.ADwin') as mock_adwin_class:
@@ -299,7 +304,7 @@ if __name__ == "__main__":
     import sys
     
     if "--real-hardware" in sys.argv:
-        os.environ['ADWIN_USE_REAL_HARDWARE'] = 'true'
+        os.environ['RUN_HARDWARE_TESTS'] = '1'
         print("Running tests with real ADwin hardware")
     else:
         print("Running tests with mock ADwin (use --real-hardware for real hardware)")

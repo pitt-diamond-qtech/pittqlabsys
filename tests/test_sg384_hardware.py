@@ -29,25 +29,24 @@ def sg384_hardware():
     Fixture to create a real SG384 connection.
     This will be shared across all hardware tests.
     """
-    # Hardware connection settings - modify these for your setup
-    settings = {
-        'connection_type': 'LAN',  # or 'GPIB' or 'RS232'
-        'ip_address': '192.168.2.217',  # Your working SG384 IP
-        'port': 5025,  # Your SG384 port
-        # For GPIB: 'visa_resource': 'GPIB0::20::INSTR'
-        # For RS232: 'visa_resource': 'ASRL9::INSTR'
-    }
+    # Use the device class defaults - test what you actually use
+    # No custom settings - let the class handle its own configuration
     
-    try:
-        sg384 = SG384Generator(settings=settings)
-        print(f"✓ Connected to SG384: {sg384._query('*IDN?')}")
-        yield sg384
-    except Exception as e:
-        pytest.skip(f"Could not connect to SG384: {e}")
-    finally:
-        # Clean up connection
-        if 'sg384' in locals():
-            sg384.close()
+    from tests.conftest import safe_hardware_connection
+    
+    device, message = safe_hardware_connection(
+        SG384Generator, 
+        timeout_seconds=10  # SG384 should connect quickly
+    )
+    
+    if device is None:
+        pytest.skip(f"Could not connect to SG384: {message}")
+    
+    print(f"✓ {message}")
+    yield device
+    
+    # Clean up connection
+    device.close()
 
 
 @pytest.mark.hardware

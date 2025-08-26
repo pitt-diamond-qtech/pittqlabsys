@@ -178,6 +178,11 @@ Experiments **cannot be completely hardware-agnostic** due to fundamental hardwa
 - **Update device classes** to read config at instantiation
 - **Keep existing device registry** and experiment structure
 - **Minimal code changes** to experiments
+- **Improve test infrastructure** to eliminate environment variable dependencies
+  - Replace `RUN_HARDWARE_TESTS=1` with dynamic hardware detection
+  - Implement pytest fixtures for automatic test skipping
+  - Add command-line options for explicit test control
+  - Support configuration files for test behavior
 
 ### Phase 3: Role-Based Implementation (dutt-role-based)
 - **Implement role-based device specification**
@@ -213,6 +218,24 @@ Experiments **cannot be completely hardware-agnostic** due to fundamental hardwa
 - **Existing experiments** should continue to work
 - **Gradual migration** from class-based to role-based
 - **Fallback mechanisms** for missing roles
+
+### 2. Test Infrastructure Improvements
+- **Replace environment variables** (e.g., `RUN_HARDWARE_TESTS=1`) with better alternatives
+- **Implement dynamic test skipping** based on hardware availability
+- **Use pytest fixtures** for automatic hardware detection
+- **Add command-line options** for explicit test control
+- **Configuration file support** for test behavior customization
+
+**Current Problem:** Tests use environment variables like `RUN_HARDWARE_TESTS=1` which are:
+- **Platform-dependent** (awkward on Windows)
+- **Hard to remember** and maintain
+- **Inflexible** for complex test selection logic
+
+**Proposed Solutions:**
+1. **Dynamic Hardware Detection** - Tests automatically skip if hardware unavailable
+2. **Command Line Arguments** - `pytest --run-hardware --features sg384,awg520`
+3. **Configuration Files** - `test_config.json` for test behavior settings
+4. **Pytest Fixtures** - Automatic hardware availability checking
 
 ### 2. Configuration Management
 - **Environment-specific configs** (lab vs development)

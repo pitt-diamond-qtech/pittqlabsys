@@ -25,10 +25,10 @@ pytest tests/test_adwin_hardware.py::test_adwin_connection -v
 
 ```bash
 # Set environment variable to use real hardware
-ADWIN_USE_REAL_HARDWARE=true pytest tests/test_adwin_hardware.py -v
+RUN_HARDWARE_TESTS=1 pytest tests/test_adwin_hardware.py -v
 
 # Or export the variable first
-export ADWIN_USE_REAL_HARDWARE=true
+export RUN_HARDWARE_TESTS=1
 pytest tests/test_adwin_hardware.py -v
 ```
 
@@ -73,7 +73,7 @@ The test suite includes the following tests:
 
 ### Environment Variables
 
-- `ADWIN_USE_REAL_HARDWARE` - Set to `'true'` to use real hardware, `'false'` (default) for mock
+- `RUN_HARDWARE_TESTS` - Set to `'1'` to enable hardware tests, unset to disable (default)
 
 ### Mock Configuration
 
@@ -110,13 +110,13 @@ pytest --ignore=tests/test_adwin_hardware.py
 
 - Ensure all required mock methods are properly configured
 - Check that mock return values match expected test assertions
-- Verify that the `USE_REAL_HARDWARE` environment variable is not set to `'true'`
+- Verify that the `RUN_HARDWARE_TESTS` environment variable is not set to `'1'`
 
 ### Real Hardware Tests Skipped
 
 - Check that ADwin hardware is properly connected
 - Verify that ADwin drivers are installed and accessible
-- Ensure the `ADWIN_USE_REAL_HARDWARE` environment variable is set to `'true'`
+- Ensure the `RUN_HARDWARE_TESTS` environment variable is set to `'1'`
 
 ### Import Errors
 
@@ -128,7 +128,7 @@ pytest --ignore=tests/test_adwin_hardware.py
 
 This approach follows the same pattern as the SG384 hardware tests (`tests/test_sg384_hardware.py`):
 
-- Both use environment variables to control hardware vs mock mode
+- Both use the `RUN_HARDWARE_TESTS` environment variable to control hardware vs mock mode
 - Both provide comprehensive mock fixtures
 - Both support pytest markers for selective test execution
 - Both include proper cleanup and error handling
@@ -140,10 +140,10 @@ This approach follows the same pattern as the SG384 hardware tests (`tests/test_
 pytest tests/test_adwin_hardware.py -v
 
 # 2. Test with real hardware when available
-ADWIN_USE_REAL_HARDWARE=true pytest tests/test_adwin_hardware.py -v
+RUN_HARDWARE_TESTS=1 pytest tests/test_adwin_hardware.py -v
 
 # 3. Run specific test with real hardware
-ADWIN_USE_REAL_HARDWARE=true pytest tests/test_adwin_hardware.py::test_adwin_process_control -v
+RUN_HARDWARE_TESTS=1 pytest tests/test_adwin_hardware.py::test_adwin_process_control -v
 
 # 4. CI/CD pipeline (mock only)
 pytest tests/test_adwin_hardware.py -m "not hardware" --tb=short
