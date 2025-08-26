@@ -83,8 +83,9 @@ class SG384Generator(MicrowaveGeneratorBase):
     # Update dispatch mapping
     UPDATE_MAPPING = {
         'frequency': 'set_frequency',
-        'power': 'set_power',
-        'amplitude': 'set_power',  # Alias for power
+        'power': 'set_power_rf',  # Use new RF power method
+        'amplitude': 'set_amplitude_lo',  # Use new low freq amplitude method
+        'amplitude_rf': 'set_amplitude_rf',  # Add RF amplitude mapping
         'phase': 'set_phase',
         'enable_output': '_set_output_enable',
         'enable_modulation': '_set_modulation_enable',
@@ -146,6 +147,70 @@ class SG384Generator(MicrowaveGeneratorBase):
         self.settings['amplitude'] = dbm
         param = self._param_to_scpi('power')
         self._send(f"{param} {dbm}DBM")
+
+    def set_amplitude_rf(self, value: float, unit: str = "DBM"):
+        """Set RF amplitude with flexible units.
+        
+        Args:
+            value: Amplitude value
+            unit: Unit type - "DBM" (default) or "V"/"RMS"/"VRMS"
+        """
+        self.settings['amplitude_rf'] = value
+        param = self._param_to_scpi('amplitude_rf')
+        
+        if unit.upper() == "DBM":
+            # Don't send DBM suffix - let SG384 use default
+            self._send(f"{param} {value}")
+        elif unit.upper() in ["V", "VRMS", "RMS"]:
+            # Explicit unit needed for voltage
+            self._send(f"{param} {value}RMS")
+        else:
+            raise ValueError(f"Unsupported unit: {unit}. Use 'DBM', 'V', 'RMS', or 'VRMS'")
+
+    def set_amplitude_lo(self, value: float, unit: str = "DBM"):
+        """Set low frequency amplitude with flexible units.
+        
+        Args:
+            value: Amplitude value
+            unit: Unit type - "DBM" (default) or "V"/"RMS"/"VRMS"
+        """
+        self.settings['amplitude'] = value
+        param = self._param_to_scpi('amplitude')
+        
+        if unit.upper() == "DBM":
+            # Don't send DBM suffix - let SG384 use default
+            self._send(f"{param} {value}")
+        elif unit.upper() in ["V", "VRMS", "RMS"]:
+            # Explicit unit needed for voltage
+            self._send(f"{param} {value}RMS")
+        else:
+            raise ValueError(f"Unsupported unit: {unit}. Use 'DBM', 'V', 'RMS', or 'VRMS'")
+
+    def set_power_rf(self, dbm: float):
+        """Set RF power in dBm (alias for set_amplitude_rf with dBm)."""
+        self.set_amplitude_rf(dbm, "DBM")
+
+    def set_power_lo(self, dbm: float):
+        """Set low frequency power in dBm (alias for set_amplitude_lo with dBm)."""
+        self.set_amplitude_lo(dbm, "DBM")
+
+    def set_voltage_rf(self, voltage: float, unit: str = "RMS"):
+        """Set RF voltage.
+        
+        Args:
+            voltage: Voltage value
+            unit: Unit type - "RMS" (default) or "V"/"VRMS"
+        """
+        self.set_amplitude_rf(voltage, unit)
+
+    def set_voltage_lo(self, voltage: float, unit: str = "RMS"):
+        """Set low frequency voltage.
+        
+        Args:
+            voltage: Voltage value
+            unit: Unit type - "RMS" (default) or "V"/"VRMS"
+        """
+        self.set_amplitude_lo(voltage, unit)
 
     def set_phase(self, deg: float):
         """Set phase using SCPI_MAPPINGS with step validation and stepping."""
