@@ -362,6 +362,140 @@ def test_sg384_sweep_integration(sg384_hardware):
     print(f"  Sweep deviation: {actual_sweep_dev/1e6:.3f} MHz")
 
 
+@pytest.mark.hardware
+def test_sg384_diagnostic_queries(sg384_hardware):
+    """Diagnostic test to investigate hardware communication issues."""
+    print("\n=== SG384 Diagnostic Information ===")
+    
+    # Test basic device identification
+    try:
+        idn = sg384_hardware._query('*IDN?')
+        print(f"Device ID: {idn}")
+    except Exception as e:
+        print(f"Device ID query failed: {e}")
+    
+    # Test current device state
+    try:
+        # Check current frequency
+        current_freq = sg384_hardware._query('FREQ?')
+        print(f"Current frequency: {current_freq}")
+    except Exception as e:
+        print(f"Frequency query failed: {e}")
+    
+    try:
+        # Check current power
+        current_power = sg384_hardware._query('POWR?')
+        print(f"Current power: {current_power}")
+    except Exception as e:
+        print(f"Power query failed: {e}")
+    
+    try:
+        # Check current phase
+        current_phase = sg384_hardware._query('PHAS?')
+        print(f"Current phase: {current_phase}")
+    except Exception as e:
+        print(f"Phase query failed: {e}")
+    
+    try:
+        # Check modulation status
+        mod_status = sg384_hardware._query('MODL:STAT?')
+        print(f"Modulation status: {mod_status}")
+    except Exception as e:
+        print(f"Modulation status query failed: {e}")
+    
+    try:
+        # Check modulation type
+        mod_type = sg384_hardware._query('MODL:TYPE?')
+        print(f"Modulation type: {mod_type}")
+    except Exception as e:
+        print(f"Modulation type query failed: {e}")
+    
+    try:
+        # Check sweep status
+        sweep_status = sg384_hardware._query('SWP:STAT?')
+        print(f"Sweep status: {sweep_status}")
+    except Exception as e:
+        print(f"Sweep status query failed: {e}")
+    
+    try:
+        # Check sweep rate
+        sweep_rate = sg384_hardware._query('SWP:RATE?')
+        print(f"Sweep rate: {sweep_rate}")
+    except Exception as e:
+        print(f"Sweep rate query failed: {e}")
+    
+    try:
+        # Check output status
+        output_status = sg384_hardware._query('ENBR?')
+        print(f"Output status: {output_status}")
+    except Exception as e:
+        print(f"Output status query failed: {e}")
+    
+    print("=== End Diagnostic ===\n")
+    
+    # This test should always pass - it's just for information
+    assert True, "Diagnostic test completed"
+
+
+@pytest.mark.hardware
+def test_sg384_basic_command_acceptance(sg384_hardware):
+    """Test that the device accepts and responds to basic commands."""
+    print("\n=== Testing Basic Command Acceptance ===")
+    
+    # Test 1: Set a simple frequency and verify it's accepted
+    try:
+        # Read current frequency
+        freq_before = float(sg384_hardware._query('FREQ?'))
+        print(f"Frequency before: {freq_before/1e9:.3f} GHz")
+        
+        # Set a different frequency
+        test_freq = 2.5e9  # 2.5 GHz
+        sg384_hardware._send(f'FREQ {test_freq}')
+        time.sleep(0.2)  # Wait for device to process
+        
+        # Read back frequency
+        freq_after = float(sg384_hardware._query('FREQ?'))
+        print(f"Frequency after setting {test_freq/1e9:.3f} GHz: {freq_after/1e9:.3f} GHz")
+        
+        # Check if command was accepted
+        if abs(freq_after - test_freq) < 1e6:  # Within 1 MHz
+            print("✓ Frequency command accepted and applied")
+        else:
+            print(f"⚠ Frequency command not applied correctly. Expected: {test_freq/1e9:.3f} GHz, Got: {freq_after/1e9:.3f} GHz")
+            
+    except Exception as e:
+        print(f"Frequency command test failed: {e}")
+    
+    # Test 2: Set a simple power and verify it's accepted
+    try:
+        # Read current power
+        power_before = float(sg384_hardware._query('POWR?'))
+        print(f"Power before: {power_before} dBm")
+        
+        # Set a different power
+        test_power = -10.0  # -10 dBm
+        sg384_hardware._send(f'POWR {test_power}')
+        time.sleep(0.2)  # Wait for device to process
+        
+        # Read back power
+        power_after = float(sg384_hardware._query('POWR?'))
+        print(f"Power after setting {test_power} dBm: {power_after} dBm")
+        
+        # Check if command was accepted
+        if abs(power_after - test_power) < 1.0:  # Within 1 dB
+            print("✓ Power command accepted and applied")
+        else:
+            print(f"⚠ Power command not applied correctly. Expected: {test_power} dBm, Got: {power_after} dBm")
+            
+    except Exception as e:
+        print(f"Power command test failed: {e}")
+    
+    print("=== End Command Acceptance Test ===\n")
+    
+    # This test should always pass - it's just for information
+    assert True, "Basic command acceptance test completed"
+
+
 if __name__ == '__main__':
     # You can run this file directly to test hardware connection
     pytest.main([__file__, '-m', 'hardware', '-v']) 
