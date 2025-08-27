@@ -491,7 +491,6 @@ class SG384Generator(MicrowaveGeneratorBase):
             
             # Float probes (return numeric values)
             'frequency': self._read_float_probe,
-            'phase': self._read_float_probe,
             'dev_width': self._read_float_probe,
             'mod_rate': self._read_float_probe,
             'sweep_rate': self._read_float_probe,
@@ -503,6 +502,9 @@ class SG384Generator(MicrowaveGeneratorBase):
             'power_lo': self._read_amplitude_lo_probe,       # Low freq (AMPL)
             'amplitude_rf': self._read_amplitude_rf_probe,   # RF (AMPR)
             'power_rf': self._read_amplitude_rf_probe,       # RF (AMPR)
+            
+            # Phase probe (dedicated method)
+            'phase': self._read_phase_probe,
         }
         
         if key in probe_mapping:
@@ -552,6 +554,10 @@ class SG384Generator(MicrowaveGeneratorBase):
     def _read_amplitude_rf_probe(self, key):
         """Read RF amplitude from AMPR? command."""
         return float(self._query('AMPR?'))
+    
+    def _read_phase_probe(self, key):
+        """Read phase from PHAS? command."""
+        return float(self._query('PHAS?'))
     
     @property
     def is_connected(self):
