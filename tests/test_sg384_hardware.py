@@ -163,7 +163,9 @@ def test_sg384_mapping_functions(sg384_hardware):
     """Test that the mapping dictionary functions work with real hardware."""
     # Test parameter mapping
     assert sg384_hardware._param_to_scpi('frequency') == 'FREQ'
-    assert sg384_hardware._param_to_scpi('amplitude') == 'AMPR'
+    # Note: 'amplitude' maps to low frequency output (AMPL), 'amplitude_rf' maps to RF output (AMPR)
+    assert sg384_hardware._param_to_scpi('amplitude') == 'AMPL'  # Low frequency output
+    assert sg384_hardware._param_to_scpi('amplitude_rf') == 'AMPR'  # RF output
     print("✓ Parameter mapping works with hardware")
     
     # Test modulation type mapping
@@ -327,10 +329,10 @@ def test_sg384_sweep_integration(sg384_hardware):
     # Set up a complete sweep configuration
     sweep_config = {
         'frequency': 2.87e9,           # Center frequency
-        'amplitude': -45.0,            # Power
+        'power': -45.0,                # RF power (uses set_power_rf)
         'enable_output': True,         # Enable output
         'enable_modulation': True,     # Enable modulation
-        'modulation_type': 'Sweep',  # Set to frequency sweep
+        'modulation_type': 'Freq sweep',  # Set to frequency sweep (correct string from mapping)
         'sweep_function': 'Triangle',  # Triangle sweep
         'sweep_rate': 1.0,            # 1 Hz sweep rate
         'sweep_deviation': 50e6        # 50 MHz deviation
@@ -342,7 +344,7 @@ def test_sg384_sweep_integration(sg384_hardware):
     
     # Verify configuration
     actual_freq = sg384_hardware.read_probes('frequency')
-    actual_power = sg384_hardware.read_probes('amplitude')
+    actual_power = sg384_hardware.read_probes('power_rf')  # Read RF power
     actual_mod_type = sg384_hardware.read_probes('modulation_type')
     actual_sweep_func = sg384_hardware.read_probes('sweep_function')
     actual_sweep_rate = sg384_hardware.read_probes('sweep_rate')
@@ -350,7 +352,7 @@ def test_sg384_sweep_integration(sg384_hardware):
     
     # Check that configuration was applied
     assert abs(actual_freq - sweep_config['frequency']) < 1e6
-    assert abs(actual_power - sweep_config['amplitude']) < 1.0
+    assert abs(actual_power - sweep_config['power']) < 1.0
     assert actual_mod_type == sweep_config['modulation_type']
     assert actual_sweep_func == sweep_config['sweep_function']
     assert abs(actual_sweep_rate - sweep_config['sweep_rate']) < 0.1
