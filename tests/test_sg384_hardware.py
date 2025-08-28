@@ -201,6 +201,9 @@ def test_sg384_read_probes(sg384_hardware):
 def test_sg384_update_method(sg384_hardware):
     """Test the update method with real hardware."""
     # Test updating multiple parameters
+    # The _dispatch_update method now automatically handles SG384's phase reset behavior
+    # by setting frequency first, then other parameters, then phase last
+    
     update_settings = {
         'frequency': 3.0e9,  # 3 GHz
         'power': -5.0,       # -5 dBm
@@ -217,7 +220,7 @@ def test_sg384_update_method(sg384_hardware):
     
     assert abs(freq - 3.0e9) < 1e6
     assert abs(power - (-5.0)) < 1.0
-    assert abs(phase - 90.0) < 1.0
+    assert abs(phase - 90.0) < 1.0  # 1.0° tolerance for 3 GHz (per SG384 manual)
     
     print(f"✓ Update method works: {freq/1e9:.3f} GHz, {power} dBm, {phase}°")
 

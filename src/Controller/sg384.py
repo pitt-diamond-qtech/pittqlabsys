@@ -215,6 +215,9 @@ class SG384Generator(MicrowaveGeneratorBase):
 
     def set_phase(self, deg: float):
         """Set phase using SCPI_MAPPINGS with step validation and stepping."""
+        # Check device state first
+        self._check_device_state()
+        
         current_phase = float(self._query(self._param_to_scpi('phase') + '?'))  # Get current phase
         print(f"🔍 Current phase: {current_phase}°")
         
@@ -250,18 +253,65 @@ class SG384Generator(MicrowaveGeneratorBase):
         
         self.settings['phase'] = deg
         param = self._param_to_scpi('phase')
-        scpi_cmd = f"{param} {deg}DEG"
-        print(f"📤 Sending SCPI command: {scpi_cmd}")
-        self._send(scpi_cmd)
         
-        # Verify the phase was set
-        time.sleep(0.1)  # Give hardware time to process
-        new_phase = float(self._query(self._param_to_scpi('phase') + '?'))
-        print(f"🔍 Phase after setting: {new_phase}° (target: {deg}°)")
+        # Try different SCPI phase command formats
+        print(f"🔧 Testing different phase command formats...")
         
-        if abs(new_phase - deg) > 0.1:
-            print(f"⚠️  WARNING: Phase setting may have failed! Expected: {deg}°, Got: {new_phase}°")
-            logger.warning(f"Phase setting may have failed! Expected: {deg}°, Got: {new_phase}°")
+        # Format 1: PHAS 90.0DEG (original)
+        scpi_cmd1 = f"{param} {deg}DEG"
+        print(f"📤 Trying format 1: {scpi_cmd1}")
+        self._send(scpi_cmd1)
+        time.sleep(0.1)
+        phase1 = float(self._query(self._param_to_scpi('phase') + '?'))
+        print(f"🔍 Result 1: {phase1}°")
+        
+        if abs(phase1 - deg) > 0.1:
+            # Format 2: PHAS 90.0 (no DEG suffix)
+            scpi_cmd2 = f"{param} {deg}"
+            print(f"📤 Trying format 2: {scpi_cmd2}")
+            self._send(scpi_cmd2)
+            time.sleep(0.1)
+            phase2 = float(self._query(self._param_to_scpi('phase') + '?'))
+            print(f"🔍 Result 2: {phase2}°")
+            
+            if abs(phase2 - deg) > 0.1:
+                # Format 3: PHAS 90 (integer)
+                scpi_cmd3 = f"{param} {int(deg)}"
+                print(f"📤 Trying format 3: {scpi_cmd3}")
+                self._send(scpi_cmd3)
+                time.sleep(0.1)
+                phase3 = float(self._query(self._param_to_scpi('phase') + '?'))
+                print(f"🔍 Result 3: {phase3}°")
+                
+                if abs(phase3 - deg) > 0.1:
+                    # Format 4: PHAS 90.0DEG (with space)
+                    scpi_cmd4 = f"{param} {deg:.1f}DEG"
+                    print(f"📤 Trying format 4: {scpi_cmd4}")
+                    self._send(scpi_cmd4)
+                    time.sleep(0.1)
+                    phase4 = float(self._query(self._param_to_scpi('phase') + '?'))
+                    print(f"🔍 Result 4: {phase4}°")
+                    
+                    if abs(phase4 - deg) > 0.1:
+                        print(f"❌ All phase command formats failed!")
+                        print(f"   Expected: {deg}°, Results: {phase1}°, {phase2}°, {phase3}°, {phase4}°")
+                        logger.error(f"All phase command formats failed for target {deg}°")
+                    else:
+                        print(f"✅ Format 4 worked: {phase4}°")
+                else:
+                    print(f"✅ Format 3 worked: {phase3}°")
+            else:
+                print(f"✅ Format 2 worked: {phase2}°")
+        else:
+            print(f"✅ Format 1 worked: {phase1}°")
+        
+        # Final verification
+        final_phase = float(self._query(self._param_to_scpi('phase') + '?'))
+        print(f"🔍 Final phase: {final_phase}° (target: {deg}°)")
+        
+        if abs(final_phase - deg) > 0.1:
+            print(f"⚠️  WARNING: Phase setting may have failed! Expected: {deg}°, Got: {final_phase}°")
+            logger.warning(f"Phase setting may have failed! Expected: {deg}°, Got: {final_phase}°")
 
     def enable_modulation(self):
         param = self._param_to_scpi('enable_modulation')
@@ -373,8 +423,32 @@ class SG384Generator(MicrowaveGeneratorBase):
         """
         Dispatch update operations using mapping dictionary.
         This replaces long if-elif chains in update methods.
+        
+        Note: SG384 automatically resets phase to 0° when frequency changes,
+        so we must set frequency first, then other parameters, then phase last.
         """
+        # Separate phase from other settings to set it last
+        phase_value = None
+        other_settings = {}
+        
         for key, value in settings.items():
+            if key == 'phase':
+                phase_value = value
+            else:
+                other_settings[key] = value
+        
+        # Step 1: Set frequency first (if present) - this will reset phase to 0°
+        if 'frequency' in other_settings:
+            freq_value = other_settings.pop('frequency')
+            if 'frequency' in self.UPDATE_MAPPING:
+                method_name = self.UPDATE_MAPPING['frequency']
+                method = getattr(self, method_name)
+                method(freq_value)
+                print(f"🔧 Set frequency first: {freq_value/1e9:.3f} GHz (phase reset to 0°)")
+                time.sleep(0.1)  # Allow frequency to stabilize
+        
+        # Step 2: Set all other parameters (except phase)
+        for key, value in other_settings.items():
             if key in self.UPDATE_MAPPING:
                 method_name = self.UPDATE_MAPPING[key]
                 method = getattr(self, method_name)
@@ -393,8 +467,19 @@ class SG384Generator(MicrowaveGeneratorBase):
                 
                 # Call the appropriate method
                 method(value)
+                print(f"🔧 Set {key}: {value}")
             else:
                 logger.warning(f"Unknown parameter for update: {key}")
+        
+        # Step 3: Set phase LAST (after frequency is stable)
+        if phase_value is not None:
+            if 'phase' in self.UPDATE_MAPPING:
+                method_name = self.UPDATE_MAPPING['phase']
+                method = getattr(self, method_name)
+                method(phase_value)
+                print(f"🔧 Set phase last: {phase_value}° (after frequency stabilization)")
+            else:
+                logger.warning(f"Phase parameter not found in UPDATE_MAPPING")
     
     # Setter methods for update dispatch
     def _set_output_enable(self, enable: int):
@@ -575,6 +660,54 @@ class SG384Generator(MicrowaveGeneratorBase):
         phase_value = float(raw_response)
         print(f"🔍 Parsed phase value: {phase_value}°")
         return phase_value
+    
+    def _check_device_state(self):
+        """Check SG384 device state and any error conditions."""
+        print(f"🔍 Checking SG384 device state...")
+        
+        # Check for errors
+        try:
+            errors = self._query('ERR?')
+            print(f"🔍 Device errors: {errors}")
+        except Exception as e:
+            print(f"⚠️  Could not query errors: {e}")
+        
+        # Check output state
+        try:
+            output_state = self._query('ENBR?')
+            print(f"🔍 Output enabled: {output_state}")
+        except Exception as e:
+            print(f"⚠️  Could not query output state: {e}")
+        
+        # Check modulation state
+        try:
+            mod_state = self._query('MODL?')
+            print(f"🔍 Modulation enabled: {mod_state}")
+        except Exception as e:
+            print(f"⚠️  Could not query modulation state: {e}")
+        
+        # Check frequency
+        try:
+            freq = self._query('FREQ?')
+            print(f"🔍 Current frequency: {freq}")
+        except Exception as e:
+            print(f"⚠️  Could not query frequency: {e}")
+        
+        # Check amplitude
+        try:
+            amp = self._query('AMPR?')
+            print(f"🔍 Current amplitude: {amp}")
+        except Exception as e:
+            print(f"⚠️  Could not query amplitude: {e}")
+        
+        # Check phase
+        try:
+            phase = self._query('PHAS?')
+            print(f"🔍 Current phase: {phase}")
+        except Exception as e:
+            print(f"⚠️  Could not query phase: {e}")
+        
+        print(f"🔍 Device state check complete.")
     
     @property
     def is_connected(self):
