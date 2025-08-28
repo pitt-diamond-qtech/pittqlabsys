@@ -16,10 +16,28 @@
 
 from pathlib import Path
 import json
+import sys
 
-# Default base folder under the user’s home
+# Default base folder under the user's home
 HOME = Path.home()
-DEFAULT_BASE = HOME / "Experiments" / "AQuISS_default_save_location"
+
+# Windows-specific path detection for lab PCs
+if sys.platform.startswith('win'):
+    # Check if we're on a lab PC with D: drive
+    if Path("D:/").exists():
+        # Try to use D:\Duttlab\Experiments\ if it exists
+        lab_path = Path("D:/Duttlab/Experiments")
+        if lab_path.exists():
+            DEFAULT_BASE = lab_path / "AQuISS_default_save_location"
+        else:
+            # Fallback to user directory
+            DEFAULT_BASE = HOME / "Experiments" / "AQuISS_default_save_location"
+    else:
+        # No D: drive, use user directory
+        DEFAULT_BASE = HOME / "Experiments" / "AQuISS_default_save_location"
+else:
+    # Unix/Mac - use standard home directory
+    DEFAULT_BASE = HOME / "Experiments" / "AQuISS_default_save_location"
 
 _DEFAULTS = {
     "data_folder":        DEFAULT_BASE / "data",
