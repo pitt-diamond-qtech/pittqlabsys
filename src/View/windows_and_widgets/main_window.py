@@ -785,8 +785,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 export_dialog.source_path.setText(self.gui_settings_hidden['experiments_source_folder'])
                 gui_logger.debug(f"Set source path to: {self.gui_settings_hidden['experiments_source_folder']}")
             else:
-                # Set default source path to src/Model folder
-                default_source_path = Path(__file__).parent.parent.parent / "Model"
+                # Set default source path to src/Controller folder for devices
+                default_source_path = Path(__file__).parent.parent.parent / "Controller"
                 if default_source_path.exists():
                     export_dialog.source_path.setText(str(default_source_path))
                     gui_logger.debug(f"Set default source path to: {default_source_path}")
