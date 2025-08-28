@@ -464,8 +464,16 @@ def python_file_to_aqs(list_of_python_files, target_folder, class_type, raise_er
                         else:
                             module_path = forward_path.replace('.py', '').replace('/', '.')
                         
-                        print(f"Importing module: {module_path}")
-                        module = __import__(module_path, fromlist=['*'])
+                        print(f"🔍 Processing experiment file: {python_file}")
+                        print(f"🔍 Generated module path: {module_path}")
+                        print(f"🔍 Attempting to import module...")
+                        try:
+                            module = __import__(module_path, fromlist=['*'])
+                            print(f"✅ Successfully imported module: {module_path}")
+                        except ImportError as import_error:
+                            print(f"❌ Import failed for {module_path}: {import_error}")
+                            print(f"🔍 Current sys.path: {sys.path[:3]}...")  # Show first 3 paths
+                            raise import_error
                         
                         # Look for experiment classes
                         for attr_name in dir(module):
@@ -525,7 +533,16 @@ def python_file_to_aqs(list_of_python_files, target_folder, class_type, raise_er
                     
                     # Try to import the module
                     module_path = python_file.replace('src/', '').replace('.py', '').replace('/', '.')
-                    module = __import__(module_path, fromlist=['*'])
+                    print(f"🔍 Processing device file: {python_file}")
+                    print(f"🔍 Generated module path: {module_path}")
+                    print(f"🔍 Attempting to import module...")
+                    try:
+                        module = __import__(module_path, fromlist=['*'])
+                        print(f"✅ Successfully imported module: {module_path}")
+                    except ImportError as import_error:
+                        print(f"❌ Import failed for {module_path}: {import_error}")
+                        print(f"🔍 Current sys.path: {sys.path[:3]}...")  # Show first 3 paths
+                        raise import_error
                     
                     # Look for device classes
                     for attr_name in dir(module):
