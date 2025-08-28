@@ -3,6 +3,7 @@
 
 from .mw_generator_base import MicrowaveGeneratorBase, Parameter
 import logging
+import time
 
 logger = logging.getLogger("sg384")
 
@@ -215,6 +216,7 @@ class SG384Generator(MicrowaveGeneratorBase):
     def set_phase(self, deg: float):
         """Set phase using SCPI_MAPPINGS with step validation and stepping."""
         current_phase = float(self._query(self._param_to_scpi('phase') + '?'))  # Get current phase
+        print(f"🔍 Current phase: {current_phase}°")
         
         # Calculate phase step (handle wraparound)
         phase_diff = abs(deg - current_phase)
@@ -248,7 +250,18 @@ class SG384Generator(MicrowaveGeneratorBase):
         
         self.settings['phase'] = deg
         param = self._param_to_scpi('phase')
-        self._send(f"{param} {deg}DEG")
+        scpi_cmd = f"{param} {deg}DEG"
+        print(f"📤 Sending SCPI command: {scpi_cmd}")
+        self._send(scpi_cmd)
+        
+        # Verify the phase was set
+        time.sleep(0.1)  # Give hardware time to process
+        new_phase = float(self._query(self._param_to_scpi('phase') + '?'))
+        print(f"🔍 Phase after setting: {new_phase}° (target: {deg}°)")
+        
+        if abs(new_phase - deg) > 0.1:
+            print(f"⚠️  WARNING: Phase setting may have failed! Expected: {deg}°, Got: {new_phase}°")
+            logger.warning(f"Phase setting may have failed! Expected: {deg}°, Got: {new_phase}°")
 
     def enable_modulation(self):
         param = self._param_to_scpi('enable_modulation')
@@ -557,7 +570,11 @@ class SG384Generator(MicrowaveGeneratorBase):
     
     def _read_phase_probe(self, key):
         """Read phase from PHAS? command."""
-        return float(self._query('PHAS?'))
+        raw_response = self._query('PHAS?')
+        print(f"🔍 Raw phase response: '{raw_response}'")
+        phase_value = float(raw_response)
+        print(f"🔍 Parsed phase value: {phase_value}°")
+        return phase_value
     
     @property
     def is_connected(self):
