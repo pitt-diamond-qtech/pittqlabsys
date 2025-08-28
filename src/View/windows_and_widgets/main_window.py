@@ -773,11 +773,13 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 gui_logger.warning(f"Could not check for mock devices: {e}")
                 # Continue with conversion even if we can't check device status
             
-            if 'experiments_folder' in self.gui_settings:
+            if 'experiments_folder' in self.gui_settings and self.gui_settings['experiments_folder']:
                 export_dialog.target_path.setText(self.gui_settings['experiments_folder'])
                 gui_logger.debug(f"Set target path to: {self.gui_settings['experiments_folder']}")
             else:
-                gui_logger.warning("No experiments_folder in gui_settings")
+                # Use resolved paths instead of empty gui_settings
+                export_dialog.target_path.setText(str(self.paths['experiments_folder']))
+                gui_logger.debug(f"Set target path to resolved path: {self.paths['experiments_folder']}")
                 
             if 'experiments_source_folder' in self.gui_settings_hidden:
                 export_dialog.source_path.setText(self.gui_settings_hidden['experiments_source_folder'])
@@ -1254,7 +1256,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         elif sender is self.actionExport:
             # Pass existing devices to enable real hardware usage during conversion
             export_dialog = ExportDialog(existing_devices=self.devices)
-            export_dialog.target_path.setText(self.gui_settings['experiments_folder'])
+            # Use resolved paths instead of empty gui_settings
+            if 'experiments_folder' in self.gui_settings and self.gui_settings['experiments_folder']:
+                export_dialog.target_path.setText(self.gui_settings['experiments_folder'])
+            else:
+                export_dialog.target_path.setText(str(self.paths['experiments_folder']))
             if self.gui_settings_hidden['experiments_source_folder']:
                 export_dialog.source_path.setText(self.gui_settings_hidden['experiments_source_folder'])
             if export_dialog.source_path.text():
