@@ -1,7 +1,7 @@
 # AWG520 + ADwin Integration Testing Guide
 
 ## Overview
-This document provides practical testing procedures to verify AWG520 external trigger capabilities and ADwin integration for our new approach to pulsed ODMR experiments that aneeds to be tested first. 
+This document provides practical testing procedures to verify AWG520 external trigger capabilities and ADwin integration for our new approach to pulsed ODMR experiments that aneeds to be tested first. The idea here is that we currently have the AWG520 setup to provide a trigger to the Adwin. But this forces us to use the AWG520 in a way that is not suitable for long sequences, because of restrictions on the programming capabilities and its waveform memory limit. The alternate way is to use the Adwin to trigger the AWG520 which I believe would allow us to output long sequences more easily. But first this idea needs to be tested. The test wiring setup and the code are shown below. 
 
 ## Hardware Setup
 
