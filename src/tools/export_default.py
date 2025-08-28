@@ -20,6 +20,9 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
     print(f"🔧 Added project root to Python path: {project_root}")
 
+# SAFEGUARD: Create backup reference to os module to prevent shadowing
+_os_module = os
+
 from src.core import Device,Experiment,ExperimentIterator
 from importlib import import_module
 from src.core.helper_functions import module_name_from_path
@@ -501,7 +504,7 @@ def python_file_to_aqs(list_of_python_files, target_folder, class_type, raise_er
                                     print(f"❌ Failed to create {attr_name}: {e}")
                         
                     except Exception as e:
-                        failed[os.path.basename(python_file)] = f"File processing failed: {e}"
+                        failed[_os_module.path.basename(python_file)] = f"File processing failed: {e}"
                         print(f"❌ Failed to process {python_file}: {e}")
                     
             loaded_devices = {}  # No devices loaded in this approach
@@ -541,7 +544,7 @@ def python_file_to_aqs(list_of_python_files, target_folder, class_type, raise_er
                                 print(f"❌ Failed to create {attr_name}")
                     
                 except Exception as e:
-                    failed[os.path.basename(python_file)] = f"File processing failed: {e}"
+                    failed[_os_module.path.basename(python_file)] = f"File processing failed: {e}"
                     print(f"❌ Failed to process {python_file}: {e}")
                     
     except Exception as e:
