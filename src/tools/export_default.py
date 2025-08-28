@@ -216,20 +216,40 @@ def python_file_to_aqs(list_of_python_files, target_folder, class_type, raise_er
             from src.Controller.adwin_gold import AdwinGoldDevice
             from src.Controller.nanodrive import MCLNanoDrive
             
-            # Attempt to create real device instances
+            # Attempt to create real device instances with proper settings
             real_devices = {}
             device_attempts = [
-                ('sg384', SG384Generator, {}),
-                ('adwin', AdwinGoldDevice, {}),
-                ('nanodrive', MCLNanoDrive, {})
+                ('sg384', SG384Generator, {
+                    'ip_address': '192.168.2.217',  # Use the working lab IP
+                    'connection_timeout': 15,        # 15 second timeout
+                    'socket_timeout': 7.5            # 7.5 second socket timeout
+                }),
+                ('adwin', AdwinGoldDevice, {
+                    'connection_timeout': 15         # ADwin can take longer to connect
+                }),
+                ('nanodrive', MCLNanoDrive, {
+                    'connection_timeout': 10         # 10 second timeout
+                })
             ]
             
             for device_name, device_class, device_settings in device_attempts:
                 try:
                     print(f"  🔧 Attempting to connect to {device_name}...")
                     device_instance = device_class(settings=device_settings)
-                    real_devices[device_name] = device_instance
-                    print(f"  ✅ Successfully connected to {device_name}")
+                    
+                    # Check if device is actually connected
+                    if hasattr(device_instance, 'is_connected'):
+                        if device_instance.is_connected:
+                            real_devices[device_name] = device_instance
+                            print(f"  ✅ Successfully connected to {device_name}")
+                        else:
+                            print(f"  ❌ {device_name} instantiated but not connected")
+                            real_devices[device_name] = None
+                    else:
+                        # Device doesn't have is_connected, assume it's working
+                        real_devices[device_name] = device_instance
+                        print(f"  ✅ Successfully connected to {device_name}")
+                        
                 except Exception as e:
                     print(f"  ❌ Failed to connect to {device_name}: {e}")
                     real_devices[device_name] = None
