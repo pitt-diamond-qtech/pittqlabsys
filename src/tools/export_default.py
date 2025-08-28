@@ -437,6 +437,9 @@ def python_file_to_aqs(list_of_python_files, target_folder, class_type, raise_er
                         
             else:
                 # We have a list of file paths (direct usage)
+                print(f"🔍 DEBUG: list_of_python_files type: {type(list_of_python_files)}")
+                print(f"🔍 DEBUG: list_of_python_files content: {list_of_python_files}")
+                print(f"🔍 DEBUG: list_of_python_files length: {len(list_of_python_files)}")
                 print(f"Processing {len(list_of_python_files)} files directly")
                 for python_file in list_of_python_files:
                     try:
@@ -521,6 +524,10 @@ def python_file_to_aqs(list_of_python_files, target_folder, class_type, raise_er
             # Similar approach for devices
             loaded = {}
             failed = {}
+            
+            print(f"🔍 DEBUG: list_of_python_files type: {type(list_of_python_files)}")
+            print(f"🔍 DEBUG: list_of_python_files content: {list_of_python_files}")
+            print(f"🔍 DEBUG: list_of_python_files length: {len(list_of_python_files)}")
             
             for python_file in list_of_python_files:
                 try:
