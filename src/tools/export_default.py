@@ -529,8 +529,18 @@ def python_file_to_aqs(list_of_python_files, target_folder, class_type, raise_er
             print(f"🔍 DEBUG: list_of_python_files content: {list_of_python_files}")
             print(f"🔍 DEBUG: list_of_python_files length: {len(list_of_python_files)}")
             
-            for python_file in list_of_python_files:
+            for device_name, device_metadata in list_of_python_files.items():
                 try:
+                    # Extract the actual filepath from metadata
+                    if isinstance(device_metadata, dict) and 'filepath' in device_metadata:
+                        python_file = device_metadata['filepath']
+                        print(f"🔍 Processing device: {device_name}")
+                        print(f"🔍 Using filepath: {python_file}")
+                    else:
+                        # Fallback to treating it as a direct file path
+                        python_file = device_name
+                        print(f"🔍 Processing device file directly: {python_file}")
+                    
                     # Extract filename without extension
                     filename = _os_module.path.basename(python_file)
                     name = _os_module.path.splitext(filename)[0]  # Remove .py extension
@@ -539,8 +549,15 @@ def python_file_to_aqs(list_of_python_files, target_folder, class_type, raise_er
                     sys.path.insert(0, 'src')
                     
                     # Try to import the module
-                    module_path = python_file.replace('src/', '').replace('.py', '').replace('/', '.')
-                    print(f"🔍 Processing device file: {python_file}")
+                    # Convert file path to module path
+                    if 'src/' in python_file.replace('\\', '/'):
+                        # Extract the part after 'src/' and before '.py'
+                        forward_path = python_file.replace('\\', '/')
+                        src_index = forward_path.find('src/')
+                        module_path = forward_path[src_index + 4:-3].replace('/', '.')
+                    else:
+                        module_path = python_file.replace('.py', '').replace('/', '.').replace('\\', '.')
+                    
                     print(f"🔍 Generated module path: {module_path}")
                     print(f"🔍 Attempting to import module...")
                     try:
