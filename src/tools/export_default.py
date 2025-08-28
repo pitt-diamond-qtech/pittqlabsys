@@ -48,15 +48,15 @@ def find_exportable_in_python_files(folder_name, class_type, verbose = True):
         }
     """
 
-    # if the module name was passed instead of a filename, figure out the path to the module
-    if not os.path.isdir(folder_name):
+        # if the module name was passed instead of a filename, figure out the path to the module
+    if not _os_module.path.isdir(folder_name):
         try:
-            folder_name = os.path.dirname(inspect.getfile(import_module(folder_name)))
+            folder_name = _os_module.path.dirname(inspect.getfile(import_module(folder_name)))
         except ImportError:
             raise ImportError('could not find module ' + folder_name)
 
-    subdirs = [os.path.join(folder_name, x) for x in os.listdir(folder_name) if
-               os.path.isdir(os.path.join(folder_name, x)) and not x.startswith('.')]
+    subdirs = [_os_module.path.join(folder_name, x) for x in _os_module.listdir(folder_name) if
+               _os_module.path.isdir(_os_module.path.join(folder_name, x)) and not x.startswith('.')]
 
     classes_dict = {}
     # if there are subdirs in the folder recursively check all the subfolders for experiments
@@ -68,7 +68,7 @@ def find_exportable_in_python_files(folder_name, class_type, verbose = True):
     elif class_type.lower() == 'experiment':
         class_type = Experiment
 
-    for python_file in [f for f in glob.glob(os.path.join(folder_name, "*.py"))if '__init__' not in f and 'setup' not in f]:
+    for python_file in [file_path for file_path in glob.glob(_os_module.path.join(folder_name, "*.py"))if '__init__' not in file_path and 'setup' not in file_path]:
         module, path = module_name_from_path(python_file)
 
         #appends path to this module to the python path if it is not present so it can be used
@@ -160,8 +160,8 @@ def detect_mock_devices():
         
         # SECOND PRIORITY: Check for testing environment variables
         test_indicators = [
-            'PYTEST_CURRENT_TEST' in os.environ,
-            'RUN_HARDWARE_TESTS' in os.environ,
+                    'PYTEST_CURRENT_TEST' in _os_module.environ,
+        'RUN_HARDWARE_TESTS' in _os_module.environ,
             # Only check for actual pytest commands, not script execution
             any('pytest' in arg.lower() for arg in sys.argv),
             any('mock' in arg.lower() for arg in sys.argv)
@@ -296,7 +296,7 @@ def python_file_to_aqs(list_of_python_files, target_folder, class_type, raise_er
                             # Handle both absolute and relative paths, normalize for cross-platform
                             import os
                             # Normalize path separators
-                            normalized_path = os.path.normpath(filepath)
+                            normalized_path = _os_module.path.normpath(filepath)
                             
                             # Convert to forward slashes for consistent processing
                             forward_path = normalized_path.replace('\\', '/')
@@ -441,8 +441,8 @@ def python_file_to_aqs(list_of_python_files, target_folder, class_type, raise_er
                 for python_file in list_of_python_files:
                     try:
                         # Extract filename without extension
-                        filename = os.path.basename(python_file)
-                        name = os.path.splitext(filename)[0]  # Remove .py extension
+                        filename = _os_module.path.basename(python_file)
+                        name = _os_module.path.splitext(filename)[0]  # Remove .py extension
                         
                         # Add src to path for import
                         sys.path.insert(0, 'src')
@@ -450,7 +450,7 @@ def python_file_to_aqs(list_of_python_files, target_folder, class_type, raise_er
                         # Try to import the module
                         # Handle both absolute and relative paths, normalize for cross-platform
                         # Normalize path separators
-                        normalized_path = os.path.normpath(python_file)
+                        normalized_path = _os_module.path.normpath(python_file)
                         
                         # Convert to forward slashes for consistent processing
                         forward_path = normalized_path.replace('\\', '/')
@@ -517,8 +517,8 @@ def python_file_to_aqs(list_of_python_files, target_folder, class_type, raise_er
             for python_file in list_of_python_files:
                 try:
                     # Extract filename without extension
-                    filename = os.path.basename(python_file)
-                    name = os.path.splitext(filename)[0]  # Remove .py extension
+                    filename = _os_module.path.basename(python_file)
+                    name = _os_module.path.splitext(filename)[0]  # Remove .py extension
                     
                     # Add src to path for import
                     sys.path.insert(0, 'src')
@@ -562,7 +562,7 @@ def python_file_to_aqs(list_of_python_files, target_folder, class_type, raise_er
     loaded_copy = dict(loaded)
     for name, value in loaded_copy.items():
         try:
-            filename = os.path.join(target_folder, '{:s}.json'.format(name))  # Use .json extension
+            filename = _os_module.path.join(target_folder, '{:s}.json'.format(name))  # Use .json extension
             value.save_aqs(filename)
             print(f"Successfully saved {name} to {filename}")
         except Exception as e:
