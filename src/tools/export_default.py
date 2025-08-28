@@ -1,5 +1,7 @@
 
-import inspect,os,sys
+import inspect
+import os
+import sys
 from pathlib import Path
 
 # CRITICAL: Fix working directory for GUI context
@@ -437,7 +439,7 @@ def python_file_to_aqs(list_of_python_files, target_folder, class_type, raise_er
                     try:
                         # Extract filename without extension
                         filename = os.path.basename(python_file)
-                        name = os.path.splitext(filename)[0]
+                        name = os.path.splitext(filename)[0]  # Remove .py extension
                         
                         # Add src to path for import
                         sys.path.insert(0, 'src')
@@ -513,7 +515,7 @@ def python_file_to_aqs(list_of_python_files, target_folder, class_type, raise_er
                 try:
                     # Extract filename without extension
                     filename = os.path.basename(python_file)
-                    name = os.path.basename(python_file)[0]
+                    name = os.path.splitext(filename)[0]  # Remove .py extension
                     
                     # Add src to path for import
                     sys.path.insert(0, 'src')
