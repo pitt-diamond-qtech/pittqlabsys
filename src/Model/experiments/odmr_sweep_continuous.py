@@ -16,12 +16,12 @@ from scipy.signal import savgol_filter
 from typing import List, Dict, Any, Optional, Tuple
 import time
 
-from ...core.experiment import Experiment
-from ...core.parameter import Parameter
-from ...Controller.sg384 import SG384Generator
-from ...Controller.adwin_gold import AdwinGoldDevice
-from ...Controller.nanodrive import MCLNanoDrive
-from ...core.adwin_helpers import setup_adwin_for_odmr, read_adwin_odmr_data
+from src.core.experiment import Experiment
+from src.core.parameter import Parameter
+from src.Controller.sg384 import SG384Generator
+from src.Controller.adwin_gold import AdwinGoldDevice
+from src.Controller.nanodrive import MCLNanoDrive
+from src.core.adwin_helpers import setup_adwin_for_odmr, read_adwin_odmr_data
 
 
 class ODMRSweepContinuousExperiment(Experiment):

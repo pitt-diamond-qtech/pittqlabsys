@@ -18,17 +18,17 @@ from matplotlib.animation import FuncAnimation
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 
-from ...core.experiment import Experiment
-from ...core import Parameter
-from ..sequence_parser import SequenceTextParser
-from ..sequence_builder import SequenceBuilder
-from ..hardware_calibrator import HardwareCalibrator
-from ..awg520_optimizer import AWG520SequenceOptimizer
-from ..awg_file import AWGFile
-from ..sequence import Sequence
-from ..pulses import Pulse
-from ...Controller.awg520 import AWG520Device
-from ...Controller.adwin_gold import AdwinGoldDevice
+from src.core.experiment import Experiment
+from src.core import Parameter
+from src.Model.sequence_parser import SequenceTextParser
+from src.Model.sequence_builder import SequenceBuilder
+from src.Model.hardware_calibrator import HardwareCalibrator
+from src.Model.awg520_optimizer import AWG520SequenceOptimizer
+from src.Model.awg_file import AWGFile
+from src.Model.sequence import Sequence
+from src.Model.pulses import Pulse
+from src.Controller.awg520 import AWG520Device
+from src.Controller.adwin_gold import AdwinGoldDevice
 
 
 class ODMRPulsedExperiment(Experiment):
