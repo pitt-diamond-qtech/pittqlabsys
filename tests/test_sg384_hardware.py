@@ -92,11 +92,11 @@ def test_sg384_power_setting(sg384_hardware):
     sg384_hardware.set_power(test_power)
     time.sleep(0.1)
     
-    # Read back power
+    # Read back power using the correct SCPI command for RF output
     try:
-        actual_power = float(sg384_hardware._query('POWR?'))
+        actual_power = float(sg384_hardware._query('AMPR?'))  # Use AMPR? for RF power
         assert abs(actual_power - test_power) < 1.0  # Within 1 dB tolerance
-        print(f"Set power: {test_power} dBm, Read: {actual_power} dBm")
+        print(f"✓ Set power: {test_power} dBm, Read: {actual_power} dBm")
     except socket.timeout:
         pytest.skip("Power query timed out - device may be busy")
     except Exception as e:
