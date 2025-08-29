@@ -4,6 +4,16 @@
 
 The new device configuration system allows you to configure all your lab hardware in a single `config.json` file. This eliminates the need for hardcoded device settings and makes your experiments truly cross-lab compatible.
 
+## File Structure
+
+The system uses a simplified, clean structure:
+
+- **`config.sample.json`** - Easy-to-copy sample configuration with all devices (production/lab use)
+- **`src/config.dev.template.json`** - Development machine configuration (mock devices, no hardware)
+- **`src/config.template.json`** - Base template with all device configurations and Windows paths
+
+**No more confusing multiple templates!** Just copy the appropriate file and modify for your environment.
+
 ## Benefits
 
 - **Cross-lab compatibility**: Same experiments work in different labs
@@ -115,7 +125,11 @@ The new device configuration system allows you to configure all your lab hardwar
 ### 1. Copy Sample Config
 
 ```bash
+# For production/lab use:
 cp config.sample.json config.json
+
+# For development use:
+cp src/config.dev.template.json config.json
 ```
 
 ### 2. Modify for Your Lab
@@ -125,6 +139,9 @@ Edit `config.json` and update:
 - COM ports for serial devices
 - Board numbers for ADwin devices
 - Any other device-specific parameters
+
+**Note**: The base template includes Windows-specific paths (`D:/Duttlab/Experiments/...`). 
+For other operating systems, the GUI will automatically detect and adjust paths.
 
 ### 3. Test Device Loading
 

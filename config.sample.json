@@ -67,5 +67,13 @@
         }
     },
     "experiments": {},
-    "probes": {}
+    "probes": {},
+    "paths": {
+        "data_folder": "D:/Duttlab/Experiments/AQuISS_default_save_location/data",
+        "probes_folder": "D:/Duttlab/Experiments/AQuISS_default_save_location/probes_auto_generated",
+        "device_folder": "D:/Duttlab/Experiments/AQuISS_default_save_location/devices_auto_generated",
+        "experiments_folder": "D:/Duttlab/Experiments/AQuISS_default_save_location/experiments_auto_generated",
+        "probes_log_folder": "D:/Duttlab/Experiments/AQuISS_default_save_location/aqs_tmp",
+        "workspace_config_dir": "D:/Duttlab/Experiments/AQuISS_default_save_location/workspace_configs"
+    }
 }
