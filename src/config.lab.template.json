@@ -18,7 +18,31 @@
         "experiment_source_folder": ""
     },
     "experiments_hidden_parameters": {},
-    "devices": {},
+    "devices": {
+        "sg384": {
+            "class": "SG384Generator",
+            "filepath": "src/Controller/sg384.py",
+            "settings": {
+                "ip_address": "192.168.2.217",
+                "port": 5025,
+                "timeout": 5.0
+            }
+        },
+        "adwin": {
+            "class": "AdwinGoldDevice",
+            "filepath": "src/Controller/adwin_gold.py",
+            "settings": {
+                "board_number": 1
+            }
+        },
+        "nanodrive": {
+            "class": "MCLNanoDrive",
+            "filepath": "src/Controller/nanodrive.py",
+            "settings": {
+                "serial_port": "COM3"
+            }
+        }
+    },
     "experiments": {},
     "probes": {},
     "paths": {

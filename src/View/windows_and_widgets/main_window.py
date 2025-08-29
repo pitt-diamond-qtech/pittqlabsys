@@ -380,6 +380,27 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.probes = {}
         self.gui_settings = {'experiments_folder': '', 'data_folder': ''}
         self.gui_settings_hidden = {'experiments_source_folder': ''}
+        
+        # Load devices from config file
+        try:
+            from src.core.device_config import load_devices_from_config
+            gui_logger.info("Loading devices from config file...")
+            loaded_devices, failed_devices = load_devices_from_config(cfg_path)
+            
+            if loaded_devices:
+                self.devices.update(loaded_devices)
+                gui_logger.info(f"Successfully loaded {len(loaded_devices)} devices from config")
+                for device_name in loaded_devices.keys():
+                    gui_logger.info(f"  ✅ Loaded device: {device_name}")
+            
+            if failed_devices:
+                gui_logger.warning(f"Failed to load {len(failed_devices)} devices from config")
+                for device_name, error in failed_devices.items():
+                    gui_logger.warning(f"  ❌ Failed to load {device_name}: {error}")
+                    
+        except Exception as e:
+            gui_logger.warning(f"Could not load devices from config: {e}")
+            gui_logger.info("Starting with empty device list")
 
         #self.load_config(self.config_filepath)
 

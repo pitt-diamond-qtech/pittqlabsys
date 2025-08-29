@@ -1,11 +1,10 @@
 
-import inspect
+# CRITICAL: Fix working directory for GUI context BEFORE any imports
+# When running from GUI, we need to be in the project root for imports to work
 import os
 import sys
 from pathlib import Path
 
-# CRITICAL: Fix working directory for GUI context
-# When running from GUI, we need to be in the project root for imports to work
 current_dir = Path.cwd()
 project_root = Path(__file__).parent.parent.parent
 
@@ -23,6 +22,8 @@ if str(project_root) not in sys.path:
 # SAFEGUARD: Create backup reference to os module to prevent shadowing
 _os_module = os
 
+# Now import after path fix
+import inspect
 from src.core import Device,Experiment,ExperimentIterator
 from importlib import import_module
 from src.core.helper_functions import module_name_from_path
@@ -231,43 +232,9 @@ def python_file_to_aqs(list_of_python_files, target_folder, class_type, raise_er
             print(f"  ✅ {device_name}: {device_type}")
     else:
         print("⚠️  No existing devices provided from GUI")
-        print("🔍 Attempting to load real hardware devices...")
-        
-        # Try to load real devices
-        try:
-            from src.Controller.sg384 import SG384Generator
-            from src.Controller.adwin_gold import AdwinGoldDevice
-            from src.Controller.nanodrive import MCLNanoDrive
-            
-            # Attempt to create real device instances
-            real_devices = {}
-            device_attempts = [
-                ('sg384', SG384Generator, {}),
-                ('adwin', AdwinGoldDevice, {}),
-                ('nanodrive', MCLNanoDrive, {})
-            ]
-            
-            for device_name, device_class, device_settings in device_attempts:
-                try:
-                    print(f"  🔧 Attempting to connect to {device_name}...")
-                    device_instance = device_class(settings=device_settings)
-                    real_devices[device_name] = device_instance
-                    print(f"  ✅ Successfully connected to {device_name}")
-                except Exception as e:
-                    print(f"  ❌ Failed to connect to {device_name}: {e}")
-                    real_devices[device_name] = None
-            
-            if any(real_devices.values()):
-                print(f"🔧 Successfully loaded {sum(1 for d in real_devices.values() if d is not None)} real devices")
-                existing_devices = {k: v for k, v in real_devices.items() if v is not None}
-            else:
-                print("⚠️  No real devices could be loaded - will create mock devices as needed")
-                existing_devices = {}
-                
-        except Exception as e:
-            print(f"⚠️  Error during device loading: {e}")
-            print("⚠️  Will create mock devices as needed")
-            existing_devices = {}
+        print("🔍 No hardcoded device loading - experiments will be created without devices for cross-lab compatibility")
+        print("💡 Tip: Devices should be loaded from config.json at GUI startup")
+        existing_devices = {}
     
     loaded = {}
     failed = {}
@@ -336,82 +303,41 @@ def python_file_to_aqs(list_of_python_files, target_folder, class_type, raise_er
                                                     experiment_devices[device_name] = existing_devices[device_name]
                                                     print(f"  ✅ Using existing device: {device_name}")
                                                 else:
-                                                    # Create mock device for missing one
-                                                    missing_devices.append(device_name)
-                                                    try:
-                                                        # Create a simple mock device
-                                                        mock_device = type(f'Mock{device_name}', (), {
-                                                            '__init__': lambda self: None,
-                                                            'name': device_name,
-                                                            'settings': {},
-                                                            'info': f'Mock {device_name} for conversion'
-                                                        })()
-                                                        # Wrap in the expected {'instance': device} format
-                                                        experiment_devices[device_name] = {'instance': mock_device}
-                                                        print(f"  ⚠️  Created mock device: {device_name} (not available)")
-                                                    except Exception as e:
-                                                        print(f"  ❌ Failed to create mock {device_name}: {e}")
-                                                        failed[name] = f"Mock device creation failed: {e}"
-                                                        continue
+                                                    # No device available - skip this experiment
+                                                    print(f"  ❌ Required device {device_name} not available")
+                                                    failed[name] = f"Required device {device_name} not available"
+                                                    continue
                                             
-                                            if missing_devices:
-                                                print(f"  ⚠️  Missing devices (using mocks): {missing_devices}")
-                                            
-                                            # Try to create experiment with devices
-                                            instance = attr(devices=experiment_devices)
+                                            # Try to create experiment with available devices
+                                            try:
+                                                instance = attr(devices=experiment_devices)
+                                                loaded[name] = instance
+                                                print(f"✅ Successfully loaded {name} with available devices")
+                                            except Exception as e:
+                                                failed[name] = f"Instance creation failed: {e}"
+                                                print(f"❌ Failed to create {name}: {e}")
+                                                continue
                                         else:
                                             # Check if constructor requires 'devices' parameter
                                             sig = inspect.signature(attr.__init__)
                                             if 'devices' in sig.parameters:
                                                 print(f"⚠️  {name} constructor requires 'devices' parameter")
+                                                print(f"  ⚠️  No devices provided - will attempt to create instance without devices")
                                                 
-                                                # Build device dictionary using existing devices when possible
-                                                experiment_devices = {}
-                                                missing_devices = []
-                                                
-                                                # Common device names that experiments might need
-                                                common_devices = ['nanodrive', 'adwin', 'daq', 'microwave', 'awg', 'sg384']
-                                                for device_name in common_devices:
-                                                    if device_name in existing_devices:
-                                                        # Use existing real device
-                                                        experiment_devices[device_name] = existing_devices[device_name]
-                                                        print(f"  ✅ Using existing device: {device_name}")
-                                                    else:
-                                                        # Create mock device for missing one
-                                                        missing_devices.append(device_name)
-                                                        try:
-                                                            # Create simple mock device instance with common methods
-                                                            mock_device = type(f'Mock{device_name}', (), {
-                                                                '__init__': lambda self: None,
-                                                                'name': device_name,
-                                                                'settings': {},
-                                                                'info': f'Mock {device_name} for conversion',
-                                                                'is_connected': True,  # Add common device attributes
-                                                                'connect': lambda self: None,
-                                                                'disconnect': lambda self: None,
-                                                                # Common methods that experiments might call
-                                                                'update': lambda self, settings: None,
-                                                                'read_probes': lambda self, probe_name: 0.0,
-                                                                'stop_process': lambda self, process_id: None,
-                                                                'clear_process': lambda self, process_id: None,
-                                                                'reboot_adwin': lambda self: None,
-                                                                'clock_functions': lambda self, clock_type, reset=False: None,
-                                                                'setup': lambda self, settings, axis: None,
-                                                                'waveform_acquisition': lambda self, axis: 0.0,
-                                                                'empty_waveform': np.zeros(100)  # Default empty waveform
-                                                            })()
-                                                            # Wrap in the expected {'instance': device} format
-                                                            experiment_devices[device_name] = {'instance': mock_device}
-                                                            print(f"  ⚠️  Created mock device: {device_name} (not available)")
-                                                        except Exception as e:
-                                                            print(f"  ❌ Failed to create mock {device_name}: {e}")
-                                                            continue
-                                                
-                                                if missing_devices:
-                                                    print(f"  ⚠️  Missing devices (using mocks): {missing_devices}")
-                                                
-                                                # Try to create experiment with devices
-                                                instance = attr(devices=experiment_devices)
+                                                # Try to create instance without devices (hardware-agnostic approach)
+                                                try:
+                                                    instance = attr()
+                                                    print(f"  ✅ Successfully created {name} without devices")
+                                                except Exception as e:
+                                                    print(f"  ❌ Failed to create {name} without devices: {e}")
+                                                    # Try with empty devices dict as fallback
+                                                    try:
+                                                        instance = attr(devices={})
+                                                        print(f"  ✅ Successfully created {name} with empty devices dict")
+                                                    except Exception as e2:
+                                                        print(f"  ❌ Failed to create {name} with empty devices: {e2}")
+                                                        failed[name] = f"Instance creation failed: {e2}"
+                                                        continue
                                             else:
                                                 # No devices required, create normally
                                                 instance = attr()
@@ -490,21 +416,23 @@ def python_file_to_aqs(list_of_python_files, target_folder, class_type, raise_er
                                     # Check if this experiment requires specific devices
                                     if hasattr(attr, '_DEVICES') and attr._DEVICES:
                                         print(f"⚠️  {attr_name} requires devices: {list(attr._DEVICES.keys())}")
-                                        print(f"  ⚠️  Created mock device: {list(attr._DEVICES.keys())[0]} (not available)")
-                                        # Create mock devices for required devices
-                                        mock_devices = {}
-                                        for device_name in attr._DEVICES.keys():
-                                            mock_devices[device_name] = f"Mock{device_name}"
-                                        print(f"  ⚠️  Missing devices (using mocks): {list(mock_devices.keys())}")
+                                        print(f"  ⚠️  No devices provided - will attempt to create instance without devices")
                                         
-                                        # Try to create instance with mock devices
+                                        # Try to create instance without devices (hardware-agnostic approach)
                                         try:
-                                            instance = attr(devices=mock_devices)
+                                            instance = attr()
                                             loaded[attr_name] = instance
-                                            print(f"✅ Successfully loaded {attr_name} with mock devices")
-                                        except Exception as e2:
-                                            failed[attr_name] = f"Instance creation failed with mock devices: {e2}"
-                                            print(f"❌ Failed to create {attr_name} with mock devices: {e2}")
+                                            print(f"✅ Successfully loaded {attr_name} without devices")
+                                        except Exception as e:
+                                            print(f"  ❌ Failed to create {attr_name} without devices: {e}")
+                                            # Try with empty devices dict as fallback
+                                            try:
+                                                instance = attr(devices={})
+                                                loaded[attr_name] = instance
+                                                print(f"✅ Successfully loaded {attr_name} with empty devices dict")
+                                            except Exception as e2:
+                                                failed[attr_name] = f"Instance creation failed: {e2}"
+                                                print(f"❌ Failed to create {attr_name} with empty devices: {e2}")
                                     else:
                                         # No devices required, create instance normally
                                         instance = attr()
