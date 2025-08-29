@@ -41,6 +41,29 @@
             "settings": {
                 "serial_port": "COM3"
             }
+        },
+        "awg520": {
+            "class": "AWG520Device",
+            "filepath": "src/Controller/awg520.py",
+            "settings": {
+                "ip_address": "172.17.39.2",
+                "scpi_port": 4000,
+                "ftp_port": 21,
+                "ftp_user": "usr",
+                "ftp_pass": "pw",
+                "seq_file": "scan.seq",
+                "enable_iq": false
+            }
+        },
+        "mux_control": {
+            "class": "MUXControlDevice",
+            "filepath": "src/Controller/mux_control.py",
+            "settings": {
+                "port": "COM3",
+                "baudrate": 9600,
+                "timeout": 5000,
+                "auto_connect": true
+            }
         }
     },
     "experiments": {},

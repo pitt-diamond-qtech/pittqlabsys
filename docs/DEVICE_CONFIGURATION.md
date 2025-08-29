@@ -77,6 +77,39 @@ The new device configuration system allows you to configure all your lab hardwar
 }
 ```
 
+#### AWG520 Arbitrary Waveform Generator
+
+```json
+"awg520": {
+    "class": "AWG520Device",
+    "filepath": "src/Controller/awg520.py",
+    "settings": {
+        "ip_address": "172.17.39.2",
+        "scpi_port": 4000,
+        "ftp_port": 21,
+        "ftp_user": "usr",
+        "ftp_pass": "pw",
+        "seq_file": "scan.seq",
+        "enable_iq": false
+    }
+}
+```
+
+#### MUX Control (Arduino-based Trigger Multiplexer)
+
+```json
+"mux_control": {
+    "class": "MUXControlDevice",
+    "filepath": "src/Controller/mux_control.py",
+    "settings": {
+        "port": "COM3",
+        "baudrate": 9600,
+        "timeout": 5000,
+        "auto_connect": true
+    }
+}
+```
+
 ## Setup Instructions
 
 ### 1. Copy Sample Config
@@ -112,8 +145,9 @@ Start the GUI and check the console output:
 ### Common Parameters
 
 - **Network devices**: `ip_address`, `port`, `timeout`
-- **Serial devices**: `serial_port`, `baud_rate`
+- **Serial devices**: `serial_port`, `baudrate`, `timeout`
 - **ADwin devices**: `board_number`
+- **AWG devices**: `scpi_port`, `ftp_port`, `ftp_user`, `ftp_pass`, `seq_file`
 - **All devices**: `name` (optional, defaults to device name in config)
 
 ### Device-Specific Parameters
