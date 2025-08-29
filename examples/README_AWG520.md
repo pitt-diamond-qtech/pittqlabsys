@@ -1,6 +1,6 @@
 # AWG520 Arbitrary Waveform Generator
 
-This directory contains comprehensive tests and examples for the Tektronix AWG520 arbitrary waveform generator, including laser control functionality via CH1 Marker 2.
+This directory contains comprehensive tests and examples for the Tektronix AWG520 arbitrary waveform generator, including laser control functionality via CH1 Marker 2 and integration with the hardware connection system.
 
 ## Overview
 
@@ -10,6 +10,7 @@ The AWG520 is a high-performance arbitrary waveform generator that provides:
 - SCPI command interface over TCP/IP
 - File transfer capabilities via FTP
 - Enhanced sequence mode for complex waveform generation
+- **NEW**: Hardware connection mapping and calibration system
 
 ## Key Features
 
@@ -35,6 +36,13 @@ Comprehensive control over all marker outputs:
 - **CH2 Marker 1**: General purpose marker output
 - **CH2 Marker 2**: General purpose marker output
 
+### Hardware Connection System
+**NEW**: Configurable hardware connection mapping and calibration:
+- **Connection Templates**: Pre-configured connection maps for common setups
+- **Calibration Delays**: Automatic compensation for hardware timing delays
+- **Connection Validation**: Verify required connections for experiment types
+- **Cross-lab Compatibility**: Easy deployment to different lab environments
+
 ## Files
 
 ### Tests
@@ -54,9 +62,78 @@ Comprehensive control over all marker outputs:
   - Laser control demonstration
   - Device status monitoring
 
+### Configuration Files
+- **`src/Controller/awg520_connection.template.json`**: Connection template for hardware mapping
+- **`config.sample.json`**: Device configuration template with AWG520 settings
+
 ## Quick Start
 
-### Running Unit Tests (No Hardware Required)
+### 1. Device Configuration Setup
+
+**Copy the sample configuration:**
+```bash
+cp config.sample.json config.json
+```
+
+**Edit `config.json` for your lab:**
+```json
+{
+  "devices": {
+    "awg520": {
+      "class": "AWG520Device",
+      "filepath": "src/Controller/awg520.py",
+      "settings": {
+        "ip_address": "192.168.1.100",  # Your AWG520 IP
+        "scpi_port": 4000,
+        "ftp_port": 21,
+        "ftp_user": "usr",
+        "ftp_pass": "pw",
+        "seq_file": "scan.seq",
+        "enable_iq": false
+      }
+    }
+  }
+}
+```
+
+### 2. Hardware Connection Setup
+
+**Copy the connection template:**
+```bash
+cp src/Controller/awg520_connection.template.json src/Controller/awg520_connection.json
+```
+
+**Customize for your lab:**
+- Update connection descriptions to match your hardware
+- Measure and set calibration delays
+- Verify physical connections match the map
+
+**Example connection customization:**
+```json
+{
+  "channels": {
+    "1": {
+      "connection": "IQ_modulator_I_input",
+      "calibration_delays": ["iq_delay"],
+      "description": "Microwave I quadrature input to IQ modulator"
+    }
+  },
+  "markers": {
+    "ch1_marker2": {
+      "connection": "laser_switch",
+      "calibration_delays": ["laser_delay"],
+      "description": "Laser on/off control signal"
+    }
+  },
+  "calibration_delays": {
+    "laser_delay": 45.0,  # Your measured value
+    "iq_delay": 28.0,     # Your measured value
+    "units": "ns"
+  }
+}
+```
+
+### 3. Running Unit Tests (No Hardware Required)
 ```bash
 # Run all AWG520 tests
 python -m pytest tests/test_awg520.py -v
@@ -67,7 +144,7 @@ python -m pytest tests/test_awg520.py::TestAWG520LaserControl -v
 python -m pytest tests/test_awg520.py::TestAWG520Device -v
 ```
 
-### Running Hardware Tests (Real Hardware Required)
+### 4. Running Hardware Tests (Real Hardware Required)
 
 **On macOS/Linux:**
 ```bash
@@ -104,37 +181,9 @@ python -m pytest tests/test_awg520.py -v
 
 **Note:** The environment variable only affects the current terminal session. Hardware tests are skipped by default to prevent timeouts when no hardware is connected.
 
-## Hardware Test Configuration
-
-### Environment Variable System
-
-The test suite uses an environment variable `RUN_HARDWARE_TESTS` to control whether hardware tests are executed:
-
-- **Default behavior**: Hardware tests are automatically skipped to prevent timeouts
-- **With hardware**: Set `RUN_HARDWARE_TESTS=1` to enable hardware tests
-- **Cross-platform**: Works on macOS, Linux, and Windows
-
-### Why This System?
-
-- **Prevents timeouts**: No more waiting for hardware that isn't connected
-- **Faster development**: Unit tests run quickly without hardware dependencies
-- **Flexible testing**: Easy to switch between unit tests and hardware tests
-- **CI/CD friendly**: Automated builds can run unit tests without hardware
-
-### Quick Reference Card
-
-| Platform | Command | Description |
-|----------|---------|-------------|
-| **macOS/Linux** | `export RUN_HARDWARE_TESTS=1` | Enable hardware tests |
-| **Windows CMD** | `set RUN_HARDWARE_TESTS=1` | Enable hardware tests |
-| **Windows PowerShell** | `$env:RUN_HARDWARE_TESTS=1` | Enable hardware tests |
-| **All platforms** | `unset RUN_HARDWARE_TESTS` | Disable hardware tests (macOS/Linux) |
-| **Windows CMD** | `set RUN_HARDWARE_TESTS=` | Disable hardware tests |
-| **Windows PowerShell** | `Remove-Item Env:RUN_HARDWARE_TESTS` | Disable hardware tests |
-
-### Running the Example Script
+### 5. Running the Example Script
 ```bash
-# Default connection (172.17.39.2:4000)
+# Default connection (from config.json)
 python examples/awg520_example.py
 
 # Custom IP address
@@ -142,6 +191,133 @@ python examples/awg520_example.py --ip-address 192.168.1.100
 
 # Custom connection settings
 python examples/awg520_example.py --ip-address 192.168.1.100 --scpi-port 4000 --ftp-port 21
+```
+
+## Hardware Connection System
+
+### Overview
+The AWG520 now integrates with a comprehensive hardware connection system that provides:
+- **Configurable connection mapping** for channels and markers
+- **Automatic calibration delay compensation** for accurate timing
+- **Connection validation** for different experiment types
+- **Cross-lab compatibility** through template-based configuration
+
+### Connection File Structure
+
+**Template vs. Active Files:**
+- **`awg520_connection.template.json`** - Template file (tracked in git)
+- **`awg520_connection.json`** - Active connection file (NOT tracked, lab-specific)
+
+**Setup Process:**
+1. **Copy template to active file**
+2. **Customize for your lab** (connections, delays, descriptions)
+3. **Reference in config** (optional, for advanced setups)
+
+### Connection Mapping Examples
+
+**Channel Connections:**
+```json
+"channels": {
+  "1": {
+    "connection": "IQ_modulator_I_input",
+    "type": "analog",
+    "calibration_delays": ["iq_delay"],
+    "description": "Microwave I quadrature input to IQ modulator",
+    "voltage_range": "±1V",
+    "impedance": "50Ω"
+  },
+  "2": {
+    "connection": "IQ_modulator_Q_input",
+    "type": "analog",
+    "calibration_delays": ["iq_delay"],
+    "description": "Microwave Q quadrature input to IQ modulator",
+    "voltage_range": "±1V",
+    "impedance": "50Ω"
+  }
+}
+```
+
+**Marker Connections:**
+```json
+"markers": {
+  "ch1_marker2": {
+    "connection": "laser_switch",
+    "type": "digital",
+    "calibration_delays": ["laser_delay"],
+    "description": "Laser on/off control signal",
+    "voltage": "3.3V",
+    "impedance": "50Ω"
+  },
+  "ch2_marker2": {
+    "connection": "counter_trigger",
+    "type": "digital",
+    "calibration_delays": ["counter_delay"],
+    "description": "Counter/DAQ trigger signal",
+    "voltage": "3.3V",
+    "impedance": "50Ω"
+  }
+}
+```
+
+### Calibration Delays
+
+**Purpose:** Calibration delays compensate for hardware timing differences to ensure pulses arrive at experiments at the intended times.
+
+**Example:**
+```json
+"calibration_delays": {
+  "laser_delay": 50.0,
+  "mw_delay": 25.0,
+  "iq_delay": 30.0,
+  "counter_delay": 15.0,
+  "units": "ns",
+  "notes": "Delays represent time to shift events BACKWARD so they arrive at experiment at intended time"
+}
+```
+
+**How It Works:**
+- **User specifies:** Laser at 300ns
+- **Hardware delay:** 50ns
+- **Calibrated timing:** Laser at 250ns (300ns - 50ns)
+- **Result:** Laser arrives at experiment at 300ns
+
+### Experiment Type Validation
+
+**Define experiment requirements:**
+```json
+"experiment_types": {
+  "odmr": {
+    "description": "ODMR experiment using IQ modulator and laser",
+    "required_connections": ["ch1", "ch2", "ch1_marker2", "ch2_marker2"],
+    "optional_connections": ["ch1_marker1", "ch2_marker1"]
+  },
+  "rabi": {
+    "description": "Rabi oscillation experiment",
+    "required_connections": ["ch1", "ch2", "ch1_marker2", "ch2_marker2"],
+    "optional_connections": ["ch1_marker1", "ch2_marker1"]
+  }
+}
+```
+
+**Validate connections before experiments:**
+```python
+from src.Model.hardware_calibrator import HardwareCalibrator
+
+calibrator = HardwareCalibrator(
+    connection_file="src/Controller/awg520_connection.json",
+    config_file="config.json"
+)
+
+# Validate connections for specific experiment types
+result = calibrator.validate_connections("odmr")
+print(f"Required: {result['required']}")
+print(f"Available: {result['available']}")
+print(f"Missing: {result['missing']}")
+
+if result['missing']:
+    print(f"⚠️  Missing connections: {result['missing']}")
+else:
+    print(f"✅ All required connections available")
 ```
 
 ## Connection Settings
@@ -335,6 +511,50 @@ driver.setup_sequence('sequence.seq', enable_iq=True)
 # - Output configuration
 ```
 
+## Hardware Calibration Integration
+
+### Using HardwareCalibrator with AWG520
+
+**Basic Setup:**
+```python
+from src.Model.hardware_calibrator import HardwareCalibrator
+from src.Model.sequence import Sequence
+from src.Model.pulses import GaussianPulse
+
+# Create calibrator
+calibrator = HardwareCalibrator(
+    connection_file="src/Controller/awg520_connection.json",
+    config_file="config.json"
+)
+
+# Create a sequence
+seq = Sequence(2000)
+pi2_pulse = GaussianPulse("pi_2_pulse", 100, sigma=25, amplitude=1.0)
+laser_pulse = SquarePulse("laser_pulse", 200, amplitude=1.0)
+
+seq.add_pulse(0, pi2_pulse)      # Microwave pulse at 0ns
+seq.add_pulse(300, laser_pulse)   # Laser pulse at 300ns
+
+# Apply hardware calibration
+calibrated_seq = calibrator.calibrate_sequence(seq, sample_rate=1e9)
+
+# Pulses are now shifted backward to compensate for delays
+```
+
+**Connection Validation:**
+```python
+# Validate connections for specific experiment types
+result = calibrator.validate_connections("odmr")
+print(f"Required: {result['required']}")
+print(f"Available: {result['available']}")
+print(f"Missing: {result['missing']}")
+
+if result['missing']:
+    print(f"⚠️  Missing connections: {result['missing']}")
+else:
+    print(f"✅ All required connections available")
+```
+
 ## Safety Features
 
 ### Automatic Cleanup
@@ -400,6 +620,12 @@ The example script includes automatic cleanup to ensure the device is left in a 
 - Ensure commands are sent in correct sequence
 - Verify device supports requested commands
 
+#### Connection Template Issues
+- Verify `awg520_connection.json` exists and is valid JSON
+- Check that connection names match your physical setup
+- Ensure calibration delays are measured and set correctly
+- Validate connections before running experiments
+
 ### Debug Mode
 Enable debug logging for detailed troubleshooting:
 ```python
@@ -437,6 +663,60 @@ time.sleep(1.0)                       # Wait
 driver.set_ch1_marker2_voltage(0.0)  # Laser OFF
 ```
 
+## Complete Setup Workflow
+
+### 1. Initial Setup
+```bash
+# Copy configuration templates
+cp config.sample.json config.json
+cp src/Controller/awg520_connection.template.json src/Controller/awg520_connection.json
+
+# Edit config.json with your AWG520 IP address
+# Edit awg520_connection.json with your lab's connections
+```
+
+### 2. Hardware Calibration
+```bash
+# Measure hardware delays with oscilloscope
+# Update calibration_delays in awg520_connection.json
+# Verify physical connections match connection map
+```
+
+### 3. Validation
+```bash
+# Test connection validation
+python -c "
+from src.Model.hardware_calibrator import HardwareCalibrator
+calibrator = HardwareCalibrator('src/Controller/awg520_connection.json')
+result = calibrator.validate_connections('odmr')
+print(f'Validation result: {result}')
+"
+```
+
+### 4. Testing
+```bash
+# Run unit tests
+python -m pytest tests/test_awg520.py -v
+
+# Run hardware tests (if hardware available)
+export RUN_HARDWARE_TESTS=1
+python -m pytest tests/test_awg520.py::TestAWG520Hardware -v
+
+# Run example script
+python examples/awg520_example.py
+```
+
+### 5. Production Use
+```bash
+# Start GUI (devices will load automatically from config.json)
+python run_gui.py
+
+# Use in experiments with automatic calibration
+from src.Model.hardware_calibrator import HardwareCalibrator
+calibrator = HardwareCalibrator()
+calibrated_seq = calibrator.calibrate_sequence(my_sequence)
+```
+
 ## Future Enhancements
 
 ### Planned Features
@@ -452,6 +732,18 @@ driver.set_ch1_marker2_voltage(0.0)  # Laser OFF
 - Multi-device coordination
 - Data logging and analysis
 - Remote monitoring capabilities
+
+## Related Documentation
+
+### Core Documentation
+- **[Hardware Connection System](../docs/HARDWARE_CONNECTION_SYSTEM.md)** - Complete connection system documentation
+- **[AWG520 + ADwin Testing](../docs/AWG520_ADWIN_TESTING.md)** - Hardware testing procedures
+- **[Device Configuration](../docs/DEVICE_CONFIGURATION.md)** - Device configuration system
+
+### Device Development
+- **[Device Development](../docs/DEVICE_DEVELOPMENT.md)** - General device development guide
+- **[Configuration Files](../docs/CONFIGURATION_FILES.md)** - Configuration file management
+- **[Testing with Mock](../docs/TESTING_WITH_MOCK.md)** - Mock testing strategies
 
 ## Support and Documentation
 

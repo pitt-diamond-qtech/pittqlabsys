@@ -103,99 +103,161 @@ On Windows systems, the setup is typically more straightforward as most dependen
 
 ### Configuration Files
 
-AQuISS uses several configuration files for different purposes:
+AQuISS uses a simplified configuration system with three main files:
 
-#### 1. `src/config.json` - Application Defaults ✅
-- **Purpose**: Contains system-wide default paths, settings, and environment configuration
+#### 1. `src/config.template.json` - Base Template ✅
+- **Purpose**: Contains system-wide default paths, settings, and device configurations
 - **Status**: Tracked in git (shared across all installations)
-- **Content**: Default folder locations, application settings, environment flags
-- **Location**: `src/config.json`
+- **Content**: Default folder locations, application settings, device configurations
+- **Location**: `src/config.template.json`
 
-#### 2. `src/View/gui_config.json` - User Settings ❌
-- **Purpose**: Stores user-specific preferences and paths
-- **Status**: NOT tracked in git (personal to each user)
-- **Content**: Last save paths, personal folder preferences
-- **Location**: `src/View/gui_config.json`
+#### 2. `config.sample.json` - Complete Sample Configuration ✅
+- **Purpose**: Full working configuration example with all devices and Windows-specific paths
+- **Status**: Tracked in git (complete example for lab PCs)
+- **Content**: Complete device configurations, Windows paths (e.g., `D:/Duttlab/Experiments/...`)
+- **Location**: `config.sample.json`
 
-#### 3. `src/View/gui_config.template.json` - Template for New Installations ✅
-- **Purpose**: Template file for new users to create their own `gui_config.json`
-- **Status**: Tracked in git (template for new installations)
-- **Content**: Empty structure with placeholder values
-- **Location**: `src/View/gui_config.template.json`
+#### 3. `src/config.dev.template.json` - Development Template ✅
+- **Purpose**: Template for development machines using mock devices
+- **Status**: Tracked in git (template for development environments)
+- **Content**: Development settings, mock device configurations
+- **Location**: `src/config.dev.template.json`
+
+#### 4. `config.json` - Active Configuration ❌
+- **Purpose**: Your active configuration file (copied from one of the templates)
+- **Status**: NOT tracked in git (machine-specific)
+- **Content**: Your lab's specific device settings, IP addresses, COM ports
+- **Location**: `config.json` (in project root)
 
 ### First-Time Setup
 
 When setting up AQuISS for the first time:
 
-1. **Copy the template**:
+1. **Choose your configuration template**:
    ```bash
-   cp src/View/gui_config.template.json src/View/gui_config.json
+   # For lab PC with real hardware (recommended for most users)
+   cp config.sample.json config.json
+   
+   # For development machine with mock devices
+   cp src/config.dev.template.json config.json
+   
+   # For custom setup
+   cp src/config.template.json config.json
    ```
 
-2. **Customize the paths** for your system:
+2. **Customize the configuration** for your lab:
    ```json
    {
-       "gui_settings": {
-           "experiments_folder": "/path/to/your/experiments",
-           "data_folder": "/path/to/your/data",
-           "probes_folder": "/path/to/your/probes"
+     "devices": {
+       "sg384": {
+         "class": "SG384Device",
+         "filepath": "src/Controller/sg384.py",
+         "settings": {
+           "ip_address": "192.168.1.100",  # Your SG384 IP
+           "scpi_port": 4000
+         }
+       },
+       "awg520": {
+         "class": "AWG520Device",
+         "filepath": "src/Controller/awg520.py",
+         "settings": {
+           "ip_address": "192.168.1.101",  # Your AWG520 IP
+           "scpi_port": 4000
+         }
        }
+     },
+     "paths": {
+       "experiments_folder": "D:/Duttlab/Experiments",  # Windows lab PC
+       "data_folder": "D:/Duttlab/Data",
+       "probes_folder": "D:/Duttlab/Probes"
+     }
    }
    ```
 
-3. **The GUI will automatically** populate these paths when you use the application
+3. **The GUI will automatically** load devices from `config.json` at startup
+
+### Device Configuration System
+
+**NEW**: AQuISS now includes a centralized device configuration system that automatically loads devices at startup:
+
+#### **Automatic Device Loading**
+- **GUI startup**: Devices are automatically loaded from `config.json`
+- **No manual device selection**: All configured devices are available immediately
+- **Cross-lab compatibility**: Easy deployment to different lab environments
+- **Centralized management**: All device settings in one place
+
+#### **Supported Devices**
+The configuration system supports all major AQuISS devices:
+- **SG384**: Microwave generator with SCPI interface
+- **Adwin**: Real-time data acquisition and processing
+- **NanoDrive**: 3D nanopositioning stages
+- **AWG520**: Arbitrary waveform generator
+- **MUX Control**: Arduino-based multiplexer control
+
+#### **Configuration Format**
+```json
+{
+  "devices": {
+    "device_name": {
+      "class": "DeviceClassName",
+      "filepath": "src/Controller/device_file.py",
+      "settings": {
+        "ip_address": "192.168.1.100",
+        "com_port": "COM3",
+        "timeout": 5.0
+      }
+    }
+  }
+}
+```
+
+### GUI Configuration
+
+#### **`src/View/gui_config.json` - User Settings ❌**
+- **Purpose**: Stores user-specific preferences and paths
+- **Status**: NOT tracked in git (personal to each user)
+- **Content**: Last save paths, personal folder preferences
+- **Location**: `src/View/gui_config.json`
+
+#### **`src/View/gui_config.template.json` - Template for New Installations ✅**
+- **Purpose**: Template file for new users to create their own `gui_config.json`
+- **Status**: Tracked in git (template for new installations)
+- **Content**: Empty structure with placeholder values
+- **Location**: `src/View/gui_config.template.json`
 
 ### Environment Configuration
 
-AQuISS uses environment-specific configuration files to avoid git conflicts between different machines:
+AQuISS uses environment-specific configuration to handle different deployment scenarios:
 
 #### **Environment-Specific Config Files:**
 
-- **`src/config.template.json`** - Base template (shared defaults) ✅ Tracked in git
-- **`src/config.lab.template.json`** - Lab PC configuration template (real hardware) ✅ Tracked in git
-- **`src/config.dev.template.json`** - Development machine configuration template (mock devices) ✅ Tracked in git  
-- **`src/config.json`** - Active configuration (copied from template) ❌ NOT tracked in git
+- **`src/config.template.json`** - Base template (minimal defaults) ✅ Tracked in git
+- **`config.sample.json`** - Complete sample configuration (lab PCs) ✅ Tracked in git
+- **`src/config.dev.template.json`** - Development configuration (mock devices) ✅ Tracked in git  
+- **`config.json`** - Active configuration (copied from template) ❌ NOT tracked in git
 
 #### **Setup Instructions:**
 
 **For Lab PC (real hardware):**
 ```bash
-# Copy the lab-specific config template
-cp src/config.lab.template.json src/config.json
-# The lab config already has is_development: false, is_mock: false
+# Copy the complete sample configuration
+cp config.sample.json config.json
+# This includes all device configurations and Windows-specific paths
 ```
 
 **For Development Machine (mock devices):**
 ```bash
-# Copy the development-specific config template
-cp src/config.dev.template.json src/config.json
-# The dev config already has is_development: true, is_mock: false
+# Copy the development template
+cp src/config.dev.template.json config.json
+# This includes development settings and mock device configurations
 ```
 
 **For New Installation (custom setup):**
 ```bash
 # Copy the base template and customize
-cp src/config.template.json src/config.json
-# Edit config.json to set your environment flags:
-# - is_development: true/false
-# - is_mock: true/false
-# - force_mock_devices: true/false
-# - hardware_detection_enabled: true/false
+cp src/config.template.json config.json
+# Edit config.json to add your device configurations and paths
 ```
-
-#### **Environment Flags:**
-
-- **`is_development`**: Set to `true` for development machines using mock devices
-- **`is_mock`**: Set to `true` to force mock device usage
-- **`force_mock_devices`**: Set to `true` to override hardware detection
-- **`hardware_detection_enabled`**: Set to `false` to disable automatic hardware detection
-
-#### **What Each File Contains:**
-
-- **`src/config.template.json`**: Minimal structure, no environment flags set
-- **`src/config.lab.json`**: Pre-configured for lab PC (`is_development: false`, `is_mock: false`)
-- **`src/config.dev.json`**: Pre-configured for development (`is_development: true`, `is_mock: false`)
-- **`src/config.json`**: Your active configuration (copied from one of the above)
 
 #### **Benefits:**
 
@@ -203,20 +265,17 @@ cp src/config.template.json src/config.json
 ✅ **Easy setup** - Just copy the appropriate config file  
 ✅ **Flexible** - Easy to switch between environments  
 ✅ **Maintainable** - Clear separation of concerns  
-✅ **Pre-configured** - Lab and dev configs already have correct environment flags
+✅ **Pre-configured** - Sample config includes complete device setups  
+✅ **Cross-lab compatible** - Easy deployment to different environments
 
 ### Important Notes
 
-- **Never commit** `gui_config.json` - it contains personal settings
-- **Never commit** `config.json` - it contains machine-specific environment settings
-- **Never commit** `config.json` - it contains machine-specific environment settings
-- **Always commit** `config.*.template.json` files - they contain the templates for easy setup
+- **Never commit** `config.json` - it contains machine-specific device settings
+- **Never commit** `src/View/gui_config.json` - it contains personal settings
+- **Always commit** `config.*.template.json` and `config.sample.json` files
 - **Each machine** should have its own `config.json` and `gui_config.json`
 - **Template files** provide starting points for new installations
-
-- Visual Studio Build Tools (if compiling from source)
-- Proper Python environment variables set
-- Git Bash or similar for command-line operations
+- **Device configurations** are now centralized and automatically loaded
 
 ### Linux Setup
 
@@ -388,7 +447,9 @@ pytest --cov=src tests/
 - **Developer Guide**: Architecture and extension guidelines
 - **Hardware Manual**: Device connection and configuration
 - **[Configuration Files](docs/CONFIGURATION_FILES.md)**: Complete guide to configuration file structure and management
+- **[Device Configuration](docs/DEVICE_CONFIGURATION.md)**: Centralized device configuration system and management
 - **[Hardware Connection System](docs/HARDWARE_CONNECTION_SYSTEM.md)**: AWG520 connection mapping and calibration delays
+- **[AWG520 + ADwin Testing](docs/AWG520_ADWIN_TESTING.md)**: Hardware testing procedures and integration
 - **[AWG520 Compression Pipeline](docs/AWG520_COMPRESSION_PIPELINE.md)**: Waveform-level memory optimization and compression algorithms
 
 ## 🤝 Contributing
