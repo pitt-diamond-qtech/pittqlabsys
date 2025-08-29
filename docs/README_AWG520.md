@@ -736,14 +736,14 @@ calibrated_seq = calibrator.calibrate_sequence(my_sequence)
 ## Related Documentation
 
 ### Core Documentation
-- **[Hardware Connection System](../docs/HARDWARE_CONNECTION_SYSTEM.md)** - Complete connection system documentation
-- **[AWG520 + ADwin Testing](../docs/AWG520_ADWIN_TESTING.md)** - Hardware testing procedures
-- **[Device Configuration](../docs/DEVICE_CONFIGURATION.md)** - Device configuration system
+- **[Hardware Connection System](HARDWARE_CONNECTION_SYSTEM.md)** - Complete connection system documentation
+- **[AWG520 + ADwin Testing](AWG520_ADWIN_TESTING.md)** - Hardware testing procedures
+- **[Device Configuration](DEVICE_CONFIGURATION.md)** - Device configuration system
 
 ### Device Development
-- **[Device Development](../docs/DEVICE_DEVELOPMENT.md)** - General device development guide
-- **[Configuration Files](../docs/CONFIGURATION_FILES.md)** - Configuration file management
-- **[Testing with Mock](../docs/TESTING_WITH_MOCK.md)** - Mock testing strategies
+- **[Device Development](DEVICE_DEVELOPMENT.md)** - General device development guide
+- **[Configuration Files](CONFIGURATION_FILES.md)** - Configuration file management
+- **[Testing with Mock](TESTING_WITH_MOCK.md)** - Mock testing strategies
 
 ## Support and Documentation
 

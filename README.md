@@ -452,6 +452,12 @@ pytest --cov=src tests/
 - **[AWG520 + ADwin Testing](docs/AWG520_ADWIN_TESTING.md)**: Hardware testing procedures and integration
 - **[AWG520 Compression Pipeline](docs/AWG520_COMPRESSION_PIPELINE.md)**: Waveform-level memory optimization and compression algorithms
 
+### Device-Specific Documentation
+- **[AWG520 Guide](docs/README_AWG520.md)**: Comprehensive AWG520 setup, usage, and hardware connection system
+- **[SG384 Guide](docs/README_SG384.md)**: SG384 microwave generator testing and examples
+- **[MUX Control Guide](docs/README_MUX_Control.md)**: Arduino-based multiplexer control documentation
+- **[ODMR Pulsed Guide](docs/README_ODMR_PULM.md)**: Pulsed ODMR experiment documentation
+
 ## 🤝 Contributing
 
 1. Fork the repository
