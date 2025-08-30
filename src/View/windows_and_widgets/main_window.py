@@ -81,7 +81,7 @@ gui_logger = setup_gui_logging()
 
 # load the basic old_gui either from .ui file or from precompiled .py file
 # load your global config.json (adjust the filename/path as needed)
-_CONFIG_PATH = Path(__file__).parent.parent.parent / "src" / "config.json"
+_CONFIG_PATH = get_project_root() / "config.json"
 
 # this gives you a dict of real Path objects for data_folder, experiments_folder, etc.
 paths = resolve_paths(_CONFIG_PATH)
@@ -145,9 +145,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         # 1) Resolve your application folders from config_file:
         if config_file is None:
             # default to config.json next to your project root
-            cfg_path = Path(__file__).parent.parent / "config.json"
+            cfg_path = get_project_root() / "config.json"
+            gui_logger.debug(f"🔍 Constructed cfg_path using get_project_root(): {cfg_path}")
         else:
             cfg_path = Path(config_file)
+            gui_logger.debug(f"🔍 Using provided config_file: {config_file}")
         
         gui_logger.debug(f"Resolving paths from config file: {cfg_path}")
         self.paths = resolve_paths(cfg_path)
@@ -161,7 +163,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             gui_cfg_file = Path(gui_config_file)
         else:
             # default to gui_config.json next to your project root
-            gui_cfg_file = Path(__file__).parent.parent / "gui_config.json"
+            gui_cfg_file = get_project_root() / "gui_config.json"
 
         # 3) Load the GUI config (or start fresh if it doesn't exist)
         gui_logger.debug(f"Loading GUI config from: {gui_cfg_file}")
@@ -431,7 +433,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.save_config(self.gui_settings['gui_settings'])
         else:
             # Save to default location
-            default_config_path = Path(__file__).parent.parent / "gui_config.json"
+            default_config_path = get_project_root() / "gui_config.json"
             self.save_config(str(default_config_path))
         
         self.experiment_thread.quit()
@@ -1160,7 +1162,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 self.save_config(self.gui_settings['gui_settings'])
             else:
                 # Save to default location
-                default_config_path = Path(__file__).parent.parent / "gui_config.json"
+                default_config_path = get_project_root() / "gui_config.json"
                 gui_logger.info(f"Saving to default path: {default_config_path}")
                 self.save_config(str(default_config_path))
                 
@@ -1270,7 +1272,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 self.save_config(self.gui_settings['gui_settings'])
             else:
                 # Save to default location
-                default_config_path = Path(__file__).parent.parent / "gui_config.json"
+                default_config_path = get_project_root() / "gui_config.json"
                 self.save_config(str(default_config_path))
         elif sender is self.actionGo_to_AQuISS_GitHub_page:
             webbrowser.open('https://github.com/pitt-diamond-qtech/pittqlabsys')
@@ -2004,7 +2006,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.log(f"Saved workspace configuration to {fp}")
 
             # 5) Also remember last save path
-            last_cfg = Path(__file__).parent.parent / "gui_config.json"
+            last_cfg = get_project_root() / "gui_config.json"
             last = load_config(last_cfg)
             last["last_save_path"] = str(fp)
             save_config(last_cfg, last)

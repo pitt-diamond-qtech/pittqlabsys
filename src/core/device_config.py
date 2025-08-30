@@ -30,8 +30,12 @@ class DeviceConfigManager:
         """
         if config_path is None:
             # Look for config.json in project root
-            project_root = Path(__file__).parent.parent.parent
+            from .helper_functions import get_project_root
+            project_root = get_project_root()
             config_path = project_root / "config.json"
+            print(f"🔧 No config_path provided, using default: {config_path}")
+        else:
+            print(f"🔧 Using provided config_path: {config_path}")
         
         self.config_path = config_path
         self.config = self._load_config()

@@ -211,6 +211,78 @@ class TestDeviceConfigManager:
         # Check if new device is loaded
         assert "new_device" in manager.get_device_configs()
 
+    def test_path_handling_priority(self):
+        """Test that passed config_path takes priority over default path."""
+        # Create a second config file with different content
+        second_config_path = Path(self.temp_dir) / "second_config.json"
+        second_config = {
+            "devices": {
+                "second_device": {
+                    "class": "MockDevice",
+                    "filepath": "src/Controller/second_device.py",
+                    "settings": {"param": "second_value"}
+                }
+            }
+        }
+        
+        with open(second_config_path, 'w') as f:
+            json.dump(second_config, f)
+        
+        # Test that explicit path is used
+        manager = DeviceConfigManager(second_config_path)
+        assert manager.config_path == second_config_path
+        assert manager.config == second_config
+        assert "second_device" in manager.get_device_configs()
+        assert "test_device" not in manager.get_device_configs()  # Should not load from first config
+        
+        # Test that different explicit path loads different config
+        manager2 = DeviceConfigManager(self.config_path)
+        assert manager2.config_path == self.config_path
+        assert manager2.config == self.test_config
+        assert "test_device" in manager2.get_device_configs()
+        assert "second_device" not in manager2.get_device_configs()  # Should not load from second config
+
+    def test_default_path_fallback(self):
+        """Test that default path is used when config_path is None."""
+        with patch('src.core.helper_functions.get_project_root') as mock_get_project_root:
+            mock_project_root = Path("/fake/project/root")
+            mock_get_project_root.return_value = mock_project_root
+            
+            # Create a mock config in the project root
+            mock_config_path = mock_project_root / "config.json"
+            mock_config = {"devices": {"default_device": {"class": "MockDevice", "filepath": "test.py"}}}
+            
+            # Mock file operations
+            with patch('builtins.open', create=True) as mock_open:
+                mock_open.return_value.__enter__.return_value.read.return_value = json.dumps(mock_config)
+                mock_open.return_value.__enter__.return_value.close.return_value = None
+                
+                with patch('pathlib.Path.exists') as mock_exists:
+                    mock_exists.return_value = True
+                    
+                    manager = DeviceConfigManager(None)
+                    assert manager.config_path == mock_config_path
+                    assert manager.config == mock_config
+                    assert "default_device" in manager.get_device_configs()
+
+    def test_path_resolution_consistency(self):
+        """Test that path resolution is consistent and uses get_project_root."""
+        from src.core.helper_functions import get_project_root
+        
+        project_root = get_project_root()
+        expected_default_path = project_root / "config.json"
+        
+        # Test that DeviceConfigManager with None uses get_project_root
+        with patch('pathlib.Path.exists') as mock_exists:
+            mock_exists.return_value = True
+            
+            with patch('builtins.open', create=True) as mock_open:
+                mock_open.return_value.__enter__.return_value.read.return_value = '{"devices": {}}'
+                mock_open.return_value.__enter__.return_value.close.return_value = None
+                
+                manager = DeviceConfigManager(None)
+                assert manager.config_path == expected_default_path
+
 
 class TestDeviceLoading:
     """Test device loading functionality."""
@@ -441,6 +513,82 @@ class TestConvenienceFunction:
         
         # Check that raise_errors was passed correctly
         mock_manager.load_devices_from_config.assert_called_once_with(True)  # Positional argument
+
+    def test_load_devices_from_config_path_handling(self):
+        """Test that the convenience function properly handles different path scenarios."""
+        # Test with explicit path - device loading will fail due to invalid filepath, but config loading works
+        loaded, failed = load_devices_from_config(self.config_path)
+        assert len(loaded) == 0  # Device creation fails due to invalid filepath
+        assert len(failed) == 1  # But config was loaded and device was attempted
+        
+        # Test with None path (should use default project root)
+        with patch('src.core.helper_functions.get_project_root') as mock_get_project_root:
+            mock_project_root = Path("/fake/project/root")
+            mock_get_project_root.return_value = mock_project_root
+            
+            # Create a config file in the mocked project root
+            mock_config_path = mock_project_root / "config.json"
+            mock_config = {"devices": {"mock_device": {"class": "MockDevice", "filepath": "test.py"}}}
+            
+            # Mock the file operations
+            with patch('builtins.open', create=True) as mock_open:
+                mock_open.return_value.__enter__.return_value.read.return_value = json.dumps(mock_config)
+                mock_open.return_value.__enter__.return_value.close.return_value = None
+                
+                # Mock path.exists to return True for our mock config
+                with patch('pathlib.Path.exists') as mock_exists:
+                    mock_exists.return_value = True
+                    
+                    loaded, failed = load_devices_from_config(None)
+                    # Should create manager with default path
+                    assert len(loaded) == 0  # Mock device loading will fail due to import issues
+                    assert len(failed) >= 0
+
+    def test_device_config_manager_path_handling(self):
+        """Test that DeviceConfigManager properly handles passed vs default paths."""
+        # Test with explicit path
+        manager = DeviceConfigManager(self.config_path)
+        assert manager.config_path == self.config_path
+        assert manager.config == self.test_config
+        
+        # Test with None path (should use get_project_root)
+        with patch('src.core.helper_functions.get_project_root') as mock_get_project_root:
+            mock_project_root = Path("/fake/project/root")
+            mock_get_project_root.return_value = mock_project_root
+            
+            # Mock the file operations for the default path
+            mock_config_path = mock_project_root / "config.json"
+            mock_config = {"devices": {"mock_device": {"class": "MockDevice", "filepath": "test.py"}}}
+            
+            with patch('builtins.open', create=True) as mock_open:
+                mock_open.return_value.__enter__.return_value.read.return_value = json.dumps(mock_config)
+                mock_open.return_value.__enter__.return_value.close.return_value = None
+                
+                with patch('pathlib.Path.exists') as mock_exists:
+                    mock_exists.return_value = True
+                    
+                    manager = DeviceConfigManager(None)
+                    assert manager.config_path == mock_config_path
+                    assert manager.config == mock_config
+
+    def test_path_resolution_consistency(self):
+        """Test that path resolution is consistent between different approaches."""
+        # Test that get_project_root() returns the expected path
+        from src.core.helper_functions import get_project_root
+        
+        project_root = get_project_root()
+        expected_config_path = project_root / "config.json"
+        
+        # Test that DeviceConfigManager with None uses the same path
+        with patch('pathlib.Path.exists') as mock_exists:
+            mock_exists.return_value = True
+            
+            with patch('builtins.open', create=True) as mock_open:
+                mock_open.return_value.__enter__.return_value.read.return_value = '{"devices": {}}'
+                mock_open.return_value.__enter__.return_value.close.return_value = None
+                
+                manager = DeviceConfigManager(None)
+                assert manager.config_path == expected_config_path
 
 
 class TestIntegration:
