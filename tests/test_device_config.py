@@ -248,8 +248,8 @@ class TestDeviceConfigManager:
             mock_project_root = Path("/fake/project/root")
             mock_get_project_root.return_value = mock_project_root
             
-            # Create a mock config in the project root
-            mock_config_path = mock_project_root / "config.json"
+            # Create a mock config in the src directory
+            mock_config_path = mock_project_root / "src" / "config.json"
             mock_config = {"devices": {"default_device": {"class": "MockDevice", "filepath": "test.py"}}}
             
             # Mock file operations
@@ -270,7 +270,7 @@ class TestDeviceConfigManager:
         from src.core.helper_functions import get_project_root
         
         project_root = get_project_root()
-        expected_default_path = project_root / "config.json"
+        expected_default_path = project_root / "src" / "config.json"
         
         # Test that DeviceConfigManager with None uses get_project_root
         with patch('pathlib.Path.exists') as mock_exists:
@@ -526,8 +526,8 @@ class TestConvenienceFunction:
             mock_project_root = Path("/fake/project/root")
             mock_get_project_root.return_value = mock_project_root
             
-            # Create a config file in the mocked project root
-            mock_config_path = mock_project_root / "config.json"
+            # Create a config file in the mocked src directory
+            mock_config_path = mock_project_root / "src" / "config.json"
             mock_config = {"devices": {"mock_device": {"class": "MockDevice", "filepath": "test.py"}}}
             
             # Mock the file operations
@@ -557,7 +557,7 @@ class TestConvenienceFunction:
             mock_get_project_root.return_value = mock_project_root
             
             # Mock the file operations for the default path
-            mock_config_path = mock_project_root / "config.json"
+            mock_config_path = mock_project_root / "src" / "config.json"
             mock_config = {"devices": {"mock_device": {"class": "MockDevice", "filepath": "test.py"}}}
             
             with patch('builtins.open', create=True) as mock_open:
@@ -577,7 +577,7 @@ class TestConvenienceFunction:
         from src.core.helper_functions import get_project_root
         
         project_root = get_project_root()
-        expected_config_path = project_root / "config.json"
+        expected_config_path = project_root / "src" / "config.json"
         
         # Test that DeviceConfigManager with None uses the same path
         with patch('pathlib.Path.exists') as mock_exists:
