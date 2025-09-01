@@ -41,7 +41,7 @@
             "class": "MCLNanoDrive",
             "filepath": "src/Controller/nanodrive.py",
             "settings": {
-                "serial": 2850
+                "serial": 2849
             }
         },
         "awg520": {
