@@ -100,17 +100,37 @@ def get_device_name_mapping():
     """
     Create a mapping from experiment device names to config device names.
     This maps the device names that experiments expect to the actual device names in config.
+    
+    ⚠️  ARCHITECTURAL LIMITATION: This function violates the principle of keeping hardware
+    details out of the code. The ideal approach would be:
+    
+    1. Experiments define generic device roles (e.g., 'daq', 'microwave', 'positioner')
+    2. Config.json defines a 'device_roles' section mapping roles to actual devices:
+       {
+         "device_roles": {
+           "microwave": "sg384",
+           "daq": "ni_daq", 
+           "positioner": "nanodrive"
+         }
+       }
+    3. The system reads this mapping from config.json instead of hardcoding it here
+    
+    For now, this provides a fallback mapping for backward compatibility.
+    TODO: Refactor to read device role mappings from config.json
     """
     return {
-        'microwave': 'sg384',      # Experiments expect 'microwave', config has 'sg384'
-        'awg': 'awg520',          # Experiments expect 'awg', config has 'awg520'
-        'awg520': 'awg520',       # Direct mapping for awg520
-        'positioner': 'nanodrive', # Experiments expect 'positioner', config has 'nanodrive'
-        'nanodrive': 'nanodrive',  # Direct mapping
-        'adwin': 'adwin',         # Direct mapping
-        'mux': 'mux_control',     # Experiments expect 'mux', config has 'mux_control'
-        'daq': 'ni_daq',          # Experiments expect 'daq', config has 'ni_daq'
-        'pulse_blaster': 'pulse_blaster',  # Direct mapping
+        # Generic device roles that experiments expect -> actual device names in config
+        'microwave': 'sg384',      # Generic microwave role -> specific SG384 device
+        'awg': 'awg520',          # Generic AWG role -> specific AWG520 device  
+        'positioner': 'nanodrive', # Generic positioner role -> specific nanodrive device
+        'mux': 'mux_control',     # Generic mux role -> specific mux_control device
+        'daq': 'ni_daq',          # Generic DAQ role -> specific NI DAQ device
+        'daq2': 'ni_daq',         # Secondary DAQ role -> specific NI DAQ device
+        # Direct mappings (device name matches config name)
+        'awg520': 'awg520',       
+        'nanodrive': 'nanodrive',  
+        'adwin': 'adwin',         
+        'pulse_blaster': 'pulse_blaster',
     }
 
 def detect_mock_devices():

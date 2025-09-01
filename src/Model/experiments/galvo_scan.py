@@ -63,8 +63,10 @@ class GalvoScan(GalvoScanGeneric):
         Parameter('plot_style', "main", ['main', 'aux', '2D', 'two'])
     ]
 
-    #_DEVICES = {'daq': PXI6733(),'daq2': NI6281()}
-    #_DEVICES = {'daq': PCI6229(), 'daq2': PCI6601()}  # Removed - devices now passed via constructor
+    _DEVICES = {
+        'daq': 'daq',          # Generic DAQ role (maps to config.json)
+        'daq2': 'daq2'         # Secondary DAQ role (maps to config.json)
+    }
 
 
     def __init__(self, devices=None, name=None, settings=None, log_function=None, data_path=None):
