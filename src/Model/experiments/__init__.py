@@ -44,9 +44,9 @@ else:
     NanodriveAdwinConfocalScanSlow = None
     NanodriveAdwinConfocalPoint = None
 
-from .odmr_experiment import ODMRExperiment, ODMRRabiExperiment
-from .odmr_enhanced import EnhancedODMRExperiment
-from .odmr_simple_adwin import SimpleODMRExperiment
+from .deprecated.odmr_experiment import ODMRExperiment, ODMRRabiExperiment
+from .deprecated.odmr_enhanced import EnhancedODMRExperiment
+from .deprecated.odmr_simple_adwin import SimpleODMRExperiment
 
 # New focused ODMR experiments with SG384 integration
 from .odmr_stepped import ODMRSteppedExperiment

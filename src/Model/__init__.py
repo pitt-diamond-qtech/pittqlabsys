@@ -30,6 +30,6 @@ else:
     GalvoScanGeneric = None
     SelectPoints = None
 
-from src.Model.experiments.odmr_experiment import ODMRExperiment, ODMRRabiExperiment
+from src.Model.experiments.deprecated.odmr_experiment import ODMRExperiment, ODMRRabiExperiment
 
 
