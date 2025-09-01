@@ -255,6 +255,12 @@ def python_file_to_aqs(list_of_python_files, target_folder, class_type, raise_er
         raise_errors: Whether to raise errors
         existing_devices: Dictionary of already loaded devices from GUI (optional)
     """
+    # Version check for debugging
+    print(f"🔧 Export tool version: 2025-01-09 (with constructor parameter fixes)")
+    print(f"🔧 Python path: {sys.executable}")
+    print(f"🔧 Working directory: {os.getcwd()}")
+    print(f"🔧 Export tool file: {__file__}")
+    
     # Check for mock devices and display warning
     mock_devices, warning_message = detect_mock_devices()
     print("\n" + "="*80)
@@ -351,6 +357,7 @@ def python_file_to_aqs(list_of_python_files, target_folder, class_type, raise_er
                                             
                                             # Try to create experiment with available devices
                                             try:
+                                                print(f"🔧 Creating {name} with proper constructor parameters (version 2025-01-09)")
                                                 # Create experiment with proper parameters
                                                 instance = attr(
                                                     devices=experiment_devices,
