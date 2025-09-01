@@ -174,7 +174,7 @@ class TestNanodriveAdwinConfocalPoint:
 class TestGetBinaryFilePath:
     """Test suite for get_binary_file_path function."""
     
-    @pytest.mark.xfail(reason="Simplified path mocking – function correctness covered elsewhere")
+    @pytest.mark.xfail(reason="Simplified path mocking - function correctness covered elsewhere")
     @patch('src.Model.experiments.nanodrive_adwin_confocal_point.get_project_root')
     def test_get_binary_file_path_success(self, mock_get_project_root):
         """Test successful binary file path retrieval."""
@@ -193,7 +193,7 @@ class TestGetBinaryFilePath:
         result = get_binary_file_path('test.bas')
         assert result == mock_path
     
-    @pytest.mark.xfail(reason="Simplified path mocking – function correctness covered elsewhere")
+    @pytest.mark.xfail(reason="Simplified path mocking - function correctness covered elsewhere")
     @patch('src.Model.experiments.nanodrive_adwin_confocal_point.get_project_root')
     def test_get_binary_file_path_not_found(self, mock_get_project_root):
         """Test binary file path when file doesn't exist."""

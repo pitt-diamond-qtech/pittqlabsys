@@ -10,7 +10,7 @@ logger = logging.getLogger("sg384")
 class SG384Generator(MicrowaveGeneratorBase):
     """
     Stanford Research Systems SG384 concrete implementation.
-    Adds any SG384‐specific settings and maps them to SCPI.
+    Adds any SG384-specific settings and maps them to SCPI.
     """
     
     # SCPI command mappings for SG384

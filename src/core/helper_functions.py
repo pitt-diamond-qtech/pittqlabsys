@@ -560,13 +560,13 @@ class MatlabSaver:
         Embed a smaller array into a larger array of target_shape.
 
         Parameters:
-            small: np.ndarray – The input array (any shape)
-            target_shape: tuple – The shape of the output array (must be >= small.shape in all dims)
-            fill_value: scalar – What to fill the rest with (default: np.nan)
-            center: bool – Whether to center the small array in the target array
+                small: np.ndarray - The input array (any shape)
+    target_shape: tuple - The shape of the output array (must be >= small.shape in all dims)
+    fill_value: scalar - What to fill the rest with (default: np.nan)
+    center: bool - Whether to center the small array in the target array
 
         Returns:
-            np.ndarray – The larger array with the small array embedded
+            np.ndarray - The larger array with the small array embedded
         '''
         small = np.asarray(small)
         target_shape = tuple(target_shape)

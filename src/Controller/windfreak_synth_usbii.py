@@ -24,7 +24,7 @@ class WindfreakSynthUSBII(MicrowaveGeneratorBase):
         Parameter('frequency', 1000.0, float, 'frequency in MHz (0 to stop)'),
         Parameter('power',    -4,   [-4, -1, 2, 5], 'output power in dBm'),
         Parameter('reference','internal',['internal','external'], 'reference: internal/external'),
-        Parameter('phase_lock','lock',['lock','unlock'],    'phase–lock: lock/unlock'),
+        Parameter('phase_lock','lock',['lock','unlock'],    'phase-lock: lock/unlock'),
         Parameter('sweep', {
             'freq_lower':        1000.0,
             'freq_upper':        2000.0,
@@ -50,7 +50,7 @@ class WindfreakSynthUSBII(MicrowaveGeneratorBase):
         self._send(f"f{mhz}")
 
     def set_power(self, dbm: float):
-        """SCPI: a<code> sets power; map dBm→0–3."""
+        """SCPI: a<code> sets power; map dBm->0-3."""
         code = { -4:0, -1:1, 2:2, 5:3 }[dbm]
         self.settings['power'] = dbm
         self._send(f"a{code}")
