@@ -33,9 +33,9 @@ class DeviceConfigManager:
             from .helper_functions import get_project_root
             project_root = get_project_root()
             config_path = project_root / "src" / "config.json"
-            print(f"🔧 No config_path provided, using default: {config_path}")
+            print(f"[INFO] No config_path provided, using default: {config_path}")
         else:
-            print(f"🔧 Using provided config_path: {config_path}")
+            print(f"[INFO] Using provided config_path: {config_path}")
         
         self.config_path = config_path
         self.config = self._load_config()
@@ -49,17 +49,17 @@ class DeviceConfigManager:
         """
         try:
             if not self.config_path.exists():
-                print(f"⚠️  Config file not found: {self.config_path}")
+                print(f"[WARNING] Config file not found: {self.config_path}")
                 return {}
             
             with open(self.config_path, 'r') as f:
                 config = json.load(f)
             
-            print(f"✅ Loaded config from: {self.config_path}")
+            print(f"[SUCCESS] Loaded config from: {self.config_path}")
             return config
             
         except Exception as e:
-            print(f"❌ Failed to load config from {self.config_path}: {e}")
+            print(f"[ERROR] Failed to load config from {self.config_path}: {e}")
             return {}
     
     def get_device_configs(self) -> Dict[str, Dict[str, Any]]:
@@ -83,35 +83,35 @@ class DeviceConfigManager:
         """
         device_configs = self.get_device_configs()
         if not device_configs:
-            print("ℹ️  No device configurations found in config file")
+            print("[INFO] No device configurations found in config file")
             return {}, {}
         
-        print(f"🔧 Loading {len(device_configs)} devices from config...")
+        print(f"[INFO] Loading {len(device_configs)} devices from config...")
         
         loaded_devices = {}
         failed_devices = {}
         
         for device_name, device_config in device_configs.items():
             try:
-                print(f"  🔧 Loading device: {device_name}")
+                print(f"  [INFO] Loading device: {device_name}")
                 device_instance = self._create_device_instance(device_name, device_config)
                 
                 if device_instance is not None:
                     loaded_devices[device_name] = device_instance
-                    print(f"  ✅ Successfully loaded: {device_name}")
+                    print(f"  [SUCCESS] Successfully loaded: {device_name}")
                 else:
                     failed_devices[device_name] = "Device creation returned None"
-                    print(f"  ❌ Failed to load: {device_name}")
+                    print(f"  [ERROR] Failed to load: {device_name}")
                     
             except Exception as e:
                 error_msg = f"Device loading failed: {e}"
                 failed_devices[device_name] = error_msg
-                print(f"  ❌ Failed to load {device_name}: {e}")
+                print(f"  [ERROR] Failed to load {device_name}: {e}")
                 
                 if raise_errors:
                     raise e
         
-        print(f"✅ Device loading complete. Loaded: {len(loaded_devices)}, Failed: {len(failed_devices)}")
+        print(f"[SUCCESS] Device loading complete. Loaded: {len(loaded_devices)}, Failed: {len(failed_devices)}")
         return loaded_devices, failed_devices
     
     def _create_device_instance(self, device_name: str, device_config: Dict[str, Any]) -> Optional[Device]:
@@ -138,7 +138,15 @@ class DeviceConfigManager:
                 raise ValueError("Device filepath not specified in config")
             
             # Import the module
-            module_path, _ = module_name_from_path(device_filepath, verbose=False)
+            # Resolve relative filepath to absolute path relative to project root
+            if not Path(device_filepath).is_absolute():
+                from .helper_functions import get_project_root
+                project_root = get_project_root()
+                absolute_filepath = project_root / device_filepath
+            else:
+                absolute_filepath = Path(device_filepath)
+            
+            module_path, _ = module_name_from_path(str(absolute_filepath), verbose=False)
             module = import_module(module_path)
             
             # Get the device class
@@ -153,7 +161,7 @@ class DeviceConfigManager:
             return device_instance
             
         except Exception as e:
-            print(f"  ❌ Failed to create {device_name}: {e}")
+            print(f"  [ERROR] Failed to create {device_name}: {e}")
             traceback.print_exc()
             return None
     
@@ -196,11 +204,11 @@ class DeviceConfigManager:
             with open(self.config_path, 'w') as f:
                 json.dump(self.config, f, indent=4)
             
-            print(f"✅ Updated device config for: {device_name}")
+            print(f"[SUCCESS] Updated device config for: {device_name}")
             return True
             
         except Exception as e:
-            print(f"❌ Failed to update device config for {device_name}: {e}")
+            print(f"[ERROR] Failed to update device config for {device_name}: {e}")
             return False
 
 

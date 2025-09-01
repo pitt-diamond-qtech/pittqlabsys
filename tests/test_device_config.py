@@ -283,6 +283,45 @@ class TestDeviceConfigManager:
                 manager = DeviceConfigManager(None)
                 assert manager.config_path == expected_default_path
 
+    def test_relative_filepath_resolution(self):
+        """Test that relative filepaths in device configs are resolved correctly."""
+        # Create a test config with relative filepath
+        test_config = {
+            "devices": {
+                "test_device": {
+                    "class": "MockDevice",
+                    "filepath": "src/Controller/test_device.py",  # Relative path
+                    "settings": {"test_param": "test_value"}
+                }
+            }
+        }
+        
+        config_path = Path(self.temp_dir) / "test_config.json"
+        with open(config_path, 'w') as f:
+            json.dump(test_config, f)
+        
+        # Mock the module import to avoid actual import issues
+        with patch('src.core.device_config.import_module') as mock_import:
+            mock_module = Mock()
+            mock_module.MockDevice = MockDevice
+            mock_import.return_value = mock_module
+            
+            # Mock module_name_from_path to return expected values
+            with patch('src.core.device_config.module_name_from_path') as mock_module_name:
+                mock_module_name.return_value = ("mock_module", None)
+                
+                manager = DeviceConfigManager(config_path)
+                device_config = manager.get_device_config("test_device")
+                
+                # Test that the filepath is resolved to absolute path
+                device_instance = manager._create_device_instance("test_device", device_config)
+                
+                # Verify that module_name_from_path was called with absolute path
+                mock_module_name.assert_called_once()
+                called_path = mock_module_name.call_args[0][0]
+                assert Path(called_path).is_absolute()
+                assert "src/Controller/test_device.py" in called_path
+
 
 class TestDeviceLoading:
     """Test device loading functionality."""

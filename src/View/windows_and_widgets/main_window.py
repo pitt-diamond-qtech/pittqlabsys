@@ -393,12 +393,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 self.devices.update(loaded_devices)
                 gui_logger.info(f"Successfully loaded {len(loaded_devices)} devices from config")
                 for device_name in loaded_devices.keys():
-                    gui_logger.info(f"  ✅ Loaded device: {device_name}")
+                    gui_logger.info(f"  [SUCCESS] Loaded device: {device_name}")
             
             if failed_devices:
                 gui_logger.warning(f"Failed to load {len(failed_devices)} devices from config")
                 for device_name, error in failed_devices.items():
-                    gui_logger.warning(f"  ❌ Failed to load {device_name}: {error}")
+                    gui_logger.warning(f"  [ERROR] Failed to load {device_name}: {error}")
                     
         except Exception as e:
             gui_logger.warning(f"Could not load devices from config: {e}")
