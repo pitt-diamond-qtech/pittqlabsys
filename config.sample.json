@@ -33,9 +33,7 @@
         "adwin": {
             "class": "AdwinGoldDevice",
             "filepath": "src/Controller/adwin_gold.py",
-            "settings": {
-                "board_number": 1
-            }
+            "settings": {}
         },
         "nanodrive": {
             "class": "MCLNanoDrive",
