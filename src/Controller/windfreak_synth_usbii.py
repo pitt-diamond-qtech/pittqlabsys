@@ -82,7 +82,7 @@ class WindfreakSynthUSBII(MicrowaveGeneratorBase):
     def run_sweep(self):
         """SCPI: g1 triggers a sweep run once."""
         self._send("g1")
-        # auto‐reset flag in settings
+        # auto-reset flag in settings
         self.settings['sweep']['run_sweep'] = False
 
     def set_sweep_params(self,

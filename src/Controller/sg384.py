@@ -128,7 +128,7 @@ class SG384Generator(MicrowaveGeneratorBase):
         Parameter('sweep_center_frequency', 2.87e9, float, 'Sweep center frequency in Hz'),
         Parameter('sweep_max_frequency', 4.1e9, float, 'Sweep maximum frequency in Hz'),
         Parameter('sweep_min_frequency', 1.9e9, float, 'Sweep minimum frequency in Hz'),
-        # add more SG384‐only knobs here…
+        # add more SG384-only knobs here...
     ])
 
     def __init__(self, name=None, settings=None):
