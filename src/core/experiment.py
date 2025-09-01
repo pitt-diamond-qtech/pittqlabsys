@@ -567,7 +567,7 @@ class Experiment(QObject):
 
             dictator[self.name].update({'devices': {
                 device_name: {'class': device['instance'].__class__.__name__,
-                                  'settings': device['settings']}
+                                  'settings': device['instance'].settings}
                 for device_name, device in self.devices.items()
             }})
 
