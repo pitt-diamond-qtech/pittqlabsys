@@ -704,15 +704,40 @@ class Experiment(QObject):
         saves the experiment settings to a file: filename is filename is not provided, it is created from internal function
         Now saves as .json by default, but maintains backward compatibility for .aqs files
         """
+        print(f"🔧 save_aqs() called for {self.name}")
+        print(f"   - Input filename: {filename}")
+        
         if filename is None:
             filename = self.filename('.json')  # Default to .json extension
+            print(f"   - Generated filename: {filename}")
+        
         filename = self.check_filename(filename)
+        print(f"   - After check_filename: {filename}")
         
         # Ensure the file has a proper extension
         if not filename.endswith(('.json', '.aqs')):
             filename = str(filename) + '.json'  # Default to .json if no extension
+            print(f"   - After extension check: {filename}")
         
-        save_aqs_file(filename, experiments=self.to_dict(), overwrite=True)
+        print(f"   - Final filename: {filename}")
+        print(f"   - File directory exists: {os.path.exists(os.path.dirname(filename))}")
+        print(f"   - File already exists: {os.path.exists(filename)}")
+        
+        try:
+            print(f"   - Calling to_dict()...")
+            experiment_dict = self.to_dict()
+            print(f"   - to_dict() succeeded, keys: {list(experiment_dict.keys())}")
+            
+            print(f"   - Calling save_aqs_file()...")
+            save_aqs_file(filename, experiments=experiment_dict, overwrite=True)
+            print(f"   - save_aqs_file() succeeded")
+            
+        except Exception as e:
+            print(f"   ❌ Error in save_aqs(): {e}")
+            print(f"   - Error type: {type(e)}")
+            import traceback
+            print(f"   - Traceback: {traceback.format_exc()}")
+            raise
 
     def save_image_to_disk(self, filename_1=None, filename_2=None):
         """
