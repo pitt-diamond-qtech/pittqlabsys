@@ -96,6 +96,20 @@ def find_experiments_in_python_files(folder_name, verbose = False):
 def find_devices_in_python_files(folder_name, verbose = False):
     return find_exportable_in_python_files(folder_name, 'Device', verbose)
 
+def get_device_name_mapping():
+    """
+    Create a mapping from experiment device names to config device names.
+    This maps the device names that experiments expect to the actual device names in config.
+    """
+    return {
+        'microwave': 'sg384',      # Experiments expect 'microwave', config has 'sg384'
+        'awg': 'awg520',          # Experiments expect 'awg', config has 'awg520'
+        'positioner': 'nanodrive', # Experiments expect 'positioner', config has 'nanodrive'
+        'nanodrive': 'nanodrive',  # Direct mapping
+        'adwin': 'adwin',         # Direct mapping
+        'mux': 'mux_control',     # Experiments expect 'mux', config has 'mux_control'
+    }
+
 def detect_mock_devices():
     """
     Detect if any devices are using mock implementations.
@@ -296,15 +310,19 @@ def python_file_to_aqs(list_of_python_files, target_folder, class_type, raise_er
                                             # Build device dictionary using existing devices when possible
                                             experiment_devices = {}
                                             missing_devices = []
+                                            device_mapping = get_device_name_mapping()
                                             
                                             for device_name, device_class in attr._DEVICES.items():
-                                                if device_name in existing_devices:
+                                                # Map experiment device name to config device name
+                                                config_device_name = device_mapping.get(device_name, device_name)
+                                                
+                                                if config_device_name in existing_devices:
                                                     # Use existing real device
-                                                    experiment_devices[device_name] = existing_devices[device_name]
-                                                    print(f"  ✅ Using existing device: {device_name}")
+                                                    experiment_devices[device_name] = existing_devices[config_device_name]
+                                                    print(f"  ✅ Using existing device: {device_name} (mapped from {config_device_name})")
                                                 else:
                                                     # No device available - skip this experiment
-                                                    print(f"  ❌ Required device {device_name} not available")
+                                                    print(f"  ❌ Required device {device_name} (config: {config_device_name}) not available")
                                                     failed[name] = f"Required device {device_name} not available"
                                                     continue
                                             
