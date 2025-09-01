@@ -335,13 +335,13 @@ def python_file_to_aqs(list_of_python_files, target_folder, class_type, raise_er
                                             missing_devices = []
                                             device_mapping = get_device_name_mapping()
                                             
-                                            for device_name, device_class in attr._DEVICES.items():
+                                            for device_name, device_role in attr._DEVICES.items():
                                                 # Map experiment device name to config device name
                                                 config_device_name = device_mapping.get(device_name, device_name)
                                                 
                                                 if config_device_name in existing_devices:
-                                                    # Use existing real device
-                                                    experiment_devices[device_name] = existing_devices[config_device_name]
+                                                    # Use existing real device - wrap in expected structure
+                                                    experiment_devices[device_name] = {'instance': existing_devices[config_device_name]}
                                                     print(f"  ✅ Using existing device: {device_name} (mapped from {config_device_name})")
                                                 else:
                                                     # No device available - skip this experiment
@@ -351,7 +351,12 @@ def python_file_to_aqs(list_of_python_files, target_folder, class_type, raise_er
                                             
                                             # Try to create experiment with available devices
                                             try:
-                                                instance = attr(devices=experiment_devices)
+                                                # Try positional argument first (for experiments that expect devices as first param)
+                                                try:
+                                                    instance = attr(experiment_devices)
+                                                except TypeError:
+                                                    # Fall back to keyword argument
+                                                    instance = attr(devices=experiment_devices)
                                                 loaded[name] = instance
                                                 print(f"✅ Successfully loaded {name} with available devices")
                                             except Exception as e:

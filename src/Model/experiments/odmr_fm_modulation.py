@@ -106,7 +106,7 @@ class ODMRFMModulationExperiment(Experiment):
             log_function: Logging function
             data_path: Path for data storage
         """
-        super().__init__(devices, experiments, name, settings, log_function, data_path)
+        super().__init__(name, settings, devices, experiments, log_function, data_path)
         
         # Initialize data storage
         self.frequencies = None
