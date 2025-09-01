@@ -258,7 +258,7 @@ def python_file_to_aqs(list_of_python_files, target_folder, class_type, raise_er
     # Version check for debugging
     print(f"🔧 Export tool version: 2025-01-09 (with constructor parameter fixes)")
     print(f"🔧 Python path: {sys.executable}")
-    print(f"🔧 Working directory: {os.getcwd()}")
+    print(f"🔧 Working directory: {_os_module.getcwd()}")
     print(f"🔧 Export tool file: {__file__}")
     
     # Check for mock devices and display warning
