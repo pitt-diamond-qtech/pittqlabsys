@@ -68,7 +68,6 @@ class GalvoScan(GalvoScanGeneric):
         'daq2': 'daq2'         # Secondary DAQ role (maps to config.json)
     }
 
-
     def __init__(self, devices=None, name=None, settings=None, log_function=None, data_path=None):
         '''
         Initializes GalvoScan experiment for use in gui
