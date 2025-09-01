@@ -95,7 +95,10 @@ class NanodriveAdwinConfocalScanSlow(Experiment):
 
     #For actual experiment use LP100 [MCL_NanoDrive({'serial':2849})]. For testing using HS3 ['serial':2850]
     #_DEVICES = {'nanodrive': MCLNanoDrive(settings={'serial':2849}), 'adwin':AdwinGoldDevice()}  # Removed - devices now passed via constructor
-    _DEVICES = {}
+    _DEVICES = {
+        'nanodrive': 'nanodrive',
+        'adwin': 'adwin'
+    }
     _EXPERIMENTS = {}
 
     def __init__(self, devices, experiments=None, name=None, settings=None, log_function=None, data_path=None):

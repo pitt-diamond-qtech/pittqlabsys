@@ -81,8 +81,8 @@ class EnhancedODMRSweepExperiment(Experiment):
     ]
     
     _DEVICES = {
-        'microwave': SG384Generator,
-        'adwin': AdwinGoldDevice
+        'microwave': 'sg384',
+        'adwin': 'adwin'
     }
     
     _EXPERIMENTS = {}
