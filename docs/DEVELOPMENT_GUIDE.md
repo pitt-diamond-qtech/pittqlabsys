@@ -314,7 +314,10 @@ class TestMyDevice:
    
    class MyExperiment(Experiment):
        _DEFAULT_SETTINGS = [...]
-       _DEVICES = {...}
+       _DEVICES = {
+           'microwave': 'sg384',  # Device name strings
+           'adwin': 'adwin'
+       }
        
        def _function(self):
            # Experiment logic
@@ -338,6 +341,8 @@ class TestMyDevice:
        # Comprehensive test suite
        pass
    ```
+
+**For detailed experiment development guidance, see [Experiment Development Guide](EXPERIMENT_DEVELOPMENT.md).**
 
 ## 📊 Data Management
 
@@ -471,6 +476,12 @@ pip install -e ".[hardware]"
 - **Hardware Manuals**: Device-specific documentation
 - **Community**: User community and collaboration opportunities
 - **Training**: Workshops and tutorials for new users
+
+## Related Guides
+
+- [Experiment Development Guide](EXPERIMENT_DEVELOPMENT.md) - Detailed guide for creating new experiments
+- [Device Development Guide](DEVICE_DEVELOPMENT.md) - Guide for creating new hardware devices
+- [Configuration Files Guide](CONFIGURATION_FILES.md) - How to configure the system
 
 ---
 

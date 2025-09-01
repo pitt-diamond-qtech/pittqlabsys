@@ -43,9 +43,9 @@ class MyExperiment(Experiment):
     ]
     
     _DEVICES = {
-        'daq': 'NIDAQ',  # Device type string
-        'microwave': 'sg384',  # Device type string
-        'positioner': 'MCLNanoDrive'  # Device type string
+        'daq': 'ni_daq',      # Device name string (maps to config.json)
+        'microwave': 'sg384',  # Device name string (maps to config.json)
+        'positioner': 'nanodrive'  # Device name string (maps to config.json)
     }
     
     _EXPERIMENTS = {}  # Sub-experiments if needed
@@ -264,15 +264,33 @@ Parameter('scan_settings', [
 
 ### Device Requirements
 
-Define required devices in `_DEVICES`:
+Define required devices in `_DEVICES` using device name strings:
 
 ```python
 _DEVICES = {
-    'daq': 'NIDAQ',  # Device type string
-    'microwave': 'sg384',
-    'positioner': 'MCLNanoDrive'
+    'daq': 'ni_daq',      # Device name string (maps to config.json)
+    'microwave': 'sg384',  # Device name string (maps to config.json)
+    'positioner': 'nanodrive'  # Device name string (maps to config.json)
 }
 ```
+
+**Important**: Use device name strings (not device classes) for maximum flexibility and cross-lab compatibility.
+
+### How Device Mapping Works
+
+The system automatically maps experiment device names to actual device instances:
+
+1. **Experiment specifies**: `'microwave': 'sg384'`
+2. **Export tool maps**: `'sg384'` → actual SG384Generator instance
+3. **Device available**: Experiment gets the real device instance
+4. **Device missing**: Clear error message about what's needed
+
+This approach allows:
+- **Cross-lab compatibility**: Same experiment works with different hardware
+- **Easy maintenance**: Change device types in config, not experiment code
+- **Clear dependencies**: Experiments clearly state what devices they need
+
+For more details on device development, see [Device Development Guide](DEVICE_DEVELOPMENT.md).
 
 ### Device Access
 
@@ -657,4 +675,10 @@ def run_2d_scan(self):
 - [Parameter Class Documentation](../src/core/parameter.py)
 - [Example Experiment Implementation](../src/Model/experiments/example_experiment.py)
 - [PyQtGraph Documentation](https://pyqtgraph.readthedocs.io/)
-- [Testing Framework Documentation](../tests/) 
+- [Testing Framework Documentation](../tests/)
+
+## Related Guides
+
+- [Device Development Guide](DEVICE_DEVELOPMENT.md) - How to create new hardware devices
+- [Development Guide](DEVELOPMENT_GUIDE.md) - General development practices and standards
+- [Configuration Files Guide](CONFIGURATION_FILES.md) - How to configure devices and experiments 
