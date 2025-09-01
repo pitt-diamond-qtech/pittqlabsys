@@ -351,12 +351,14 @@ def python_file_to_aqs(list_of_python_files, target_folder, class_type, raise_er
                                             
                                             # Try to create experiment with available devices
                                             try:
-                                                # Try positional argument first (for experiments that expect devices as first param)
-                                                try:
-                                                    instance = attr(experiment_devices)
-                                                except TypeError:
-                                                    # Fall back to keyword argument
-                                                    instance = attr(devices=experiment_devices)
+                                                # Create experiment with proper parameters
+                                                instance = attr(
+                                                    devices=experiment_devices,
+                                                    name=name,
+                                                    settings=None,  # Use default settings
+                                                    log_function=None,
+                                                    data_path=None
+                                                )
                                                 loaded[name] = instance
                                                 print(f"✅ Successfully loaded {name} with available devices")
                                             except Exception as e:
@@ -372,21 +374,26 @@ def python_file_to_aqs(list_of_python_files, target_folder, class_type, raise_er
                                                 
                                                 # Try to create instance without devices (hardware-agnostic approach)
                                                 try:
-                                                    instance = attr()
+                                                    instance = attr(
+                                                        devices={},
+                                                        name=name,
+                                                        settings=None,
+                                                        log_function=None,
+                                                        data_path=None
+                                                    )
                                                     print(f"  ✅ Successfully created {name} without devices")
                                                 except Exception as e:
                                                     print(f"  ❌ Failed to create {name} without devices: {e}")
-                                                    # Try with empty devices dict as fallback
-                                                    try:
-                                                        instance = attr(devices={})
-                                                        print(f"  ✅ Successfully created {name} with empty devices dict")
-                                                    except Exception as e2:
-                                                        print(f"  ❌ Failed to create {name} with empty devices: {e2}")
-                                                        failed[name] = f"Instance creation failed: {e2}"
-                                                        continue
+                                                    failed[name] = f"Instance creation failed: {e}"
+                                                    continue
                                             else:
                                                 # No devices required, create normally
-                                                instance = attr()
+                                                instance = attr(
+                                                    name=name,
+                                                    settings=None,
+                                                    log_function=None,
+                                                    data_path=None
+                                                )
                                         
                                         loaded[name] = instance
                                         print(f"✅ Successfully loaded {name}")
