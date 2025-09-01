@@ -26,7 +26,8 @@ def launch_gui(filepath=None):
 
     try:
         # Pass config_file as filepath (can be None for default), and gui_config.json as the second parameter
-        gui_config_path = os.path.join(os.path.dirname(__file__), 'View', 'gui_config.json')
+        from src.core.helper_functions import get_project_root
+        gui_config_path = get_project_root() / "src" / "gui_config.json"
         ex = MainWindow(filepath, gui_config_path)
         ex.show()
         ex.raise_()
