@@ -32,7 +32,11 @@ class MinimalExperiment(Experiment):
         Parameter('p1', 0.1, float, 'dummy param')
     ]
 
-    _DEVICES = {}
+    _DEVICES = {
+        'daq': 'ni_daq',      # Device name string (maps to config)
+        'microwave': 'sg384',  # Device name string (maps to config)
+        'positioner': 'nanodrive'  # Device name string (maps to config)
+    }
     _EXPERIMENTS = {}
 
     def __init__(self, name=None, settings=None, log_function = None, data_path = None):
@@ -102,7 +106,11 @@ Example Experiment that has all different types of parameters (integer, str, flo
         Parameter('plot_style', 'main', ['main', 'aux', '2D', 'two'])
     ]
 
-    _DEVICES = {}
+    _DEVICES = {
+        'daq': 'ni_daq',      # Device name string (maps to config)
+        'microwave': 'sg384',  # Device name string (maps to config)
+        'positioner': 'nanodrive'  # Device name string (maps to config)
+    }
     _EXPERIMENTS = {}
 
     def __init__(self, name=None, settings=None, log_function=None, data_path=None):
@@ -236,7 +244,10 @@ Example Experiment that has all different types of parameters (integer, str, flo
 
     _DEFAULT_SETTINGS = [Parameter('plot_style', 'main', ['main', 'aux', '2D', 'two'])]
 
-    _DEVICES = {}
+    _DEVICES = {
+        'daq': 'ni_daq',      # Device name string (maps to config)
+        'microwave': 'sg384',  # Device name string (maps to config)
+    }
     _EXPERIMENTS = {'ExptDummy':ExampleExperiment}
     #_EXPERIMENTS = {}
 

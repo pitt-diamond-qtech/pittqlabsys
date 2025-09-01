@@ -83,8 +83,8 @@ class ODMRPulsedExperiment(Experiment):
     ]
     
     _DEVICES = {
-        'awg520': AWG520Device,
-        'adwin': AdwinGoldDevice
+        'awg520': 'awg520',
+        'adwin': 'adwin'
     }
     
     _EXPERIMENTS = {}

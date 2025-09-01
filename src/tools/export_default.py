@@ -104,10 +104,13 @@ def get_device_name_mapping():
     return {
         'microwave': 'sg384',      # Experiments expect 'microwave', config has 'sg384'
         'awg': 'awg520',          # Experiments expect 'awg', config has 'awg520'
+        'awg520': 'awg520',       # Direct mapping for awg520
         'positioner': 'nanodrive', # Experiments expect 'positioner', config has 'nanodrive'
         'nanodrive': 'nanodrive',  # Direct mapping
         'adwin': 'adwin',         # Direct mapping
         'mux': 'mux_control',     # Experiments expect 'mux', config has 'mux_control'
+        'daq': 'ni_daq',          # Experiments expect 'daq', config has 'ni_daq'
+        'pulse_blaster': 'pulse_blaster',  # Direct mapping
     }
 
 def detect_mock_devices():

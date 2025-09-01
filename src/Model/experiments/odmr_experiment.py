@@ -108,9 +108,9 @@ class ODMRExperiment(Experiment):
     ]
     
     _DEVICES = {
-        'microwave': SG384Generator,
-        'adwin': AdwinGoldDevice,
-        'nanodrive': MCLNanoDrive
+        'microwave': 'sg384',
+        'adwin': 'adwin',
+        'nanodrive': 'nanodrive'
     }
     
     _EXPERIMENTS = {}
@@ -629,9 +629,9 @@ class ODMRRabiExperiment(Experiment):
     ]
     
     _DEVICES = {
-        'microwave': SG384Generator,
-        'adwin': AdwinGoldDevice,
-        'pulse_blaster': 'PulseBlaster'  # Would need to be implemented
+        'microwave': 'sg384',
+        'adwin': 'adwin',
+        'pulse_blaster': 'pulse_blaster'
     }
     
     _EXPERIMENTS = {}
