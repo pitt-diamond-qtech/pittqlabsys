@@ -571,7 +571,7 @@ class Experiment(QObject):
                 for device_name, device in self.devices.items()
             }})
 
-        dictator[self.name]['settings'] = self.settings
+        dictator[self.name]['settings'] = self._settings
 
         return dictator
 
