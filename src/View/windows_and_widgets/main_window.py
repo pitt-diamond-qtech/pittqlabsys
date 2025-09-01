@@ -146,10 +146,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         if config_file is None:
             # default to config.json in src directory
             cfg_path = get_project_root() / "src" / "config.json"
-            gui_logger.debug(f"🔍 Constructed cfg_path using get_project_root()/src: {cfg_path}")
+            gui_logger.debug(f"[DEBUG] Constructed cfg_path using get_project_root()/src: {cfg_path}")
         else:
             cfg_path = Path(config_file)
-            gui_logger.debug(f"🔍 Using provided config_file: {config_file}")
+            gui_logger.debug(f"[DEBUG] Using provided config_file: {config_file}")
         
         gui_logger.debug(f"Resolving paths from config file: {cfg_path}")
         self.paths = resolve_paths(cfg_path)

@@ -25,7 +25,9 @@
             "settings": {
                 "ip_address": "192.168.2.217",
                 "port": 5025,
-                "timeout": 5.0
+                "connection_type": "LAN",
+                "connection_timeout": 10.0,
+                "socket_timeout": 5.0
             }
         },
         "adwin": {
@@ -39,7 +41,7 @@
             "class": "MCLNanoDrive",
             "filepath": "src/Controller/nanodrive.py",
             "settings": {
-                "serial_port": "COM3"
+                "serial": 2850
             }
         },
         "awg520": {
