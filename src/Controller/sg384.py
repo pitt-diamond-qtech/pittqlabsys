@@ -105,6 +105,8 @@ class SG384Generator(MicrowaveGeneratorBase):
         Parameter('connection_type', 'LAN', ['LAN','GPIB','RS232'], 'Transport type'),
         Parameter('ip_address', '192.168.2.217', str, 'IP for LAN'),
         Parameter('port',       5025,   int, 'Port for LAN'),
+        Parameter('connection_timeout', 10.0, float, 'Connection timeout in seconds for LAN connections'),
+        Parameter('socket_timeout', 5.0, float, 'Socket timeout in seconds for send/receive operations'),
         Parameter('visa_resource', '',  str, 'PyVISA resource string, e.g. GPIB0::20::INSTR or ASRL9::INSTR'),
         Parameter('baud_rate',   115200,int, 'Baud for RS232'),
         # Common parameters
