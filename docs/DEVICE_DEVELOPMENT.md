@@ -11,9 +11,32 @@ Device drivers in AQuISS provide a standardized interface for controlling hardwa
 ### Required Components
 
 1. **Class Definition**: Inherit from `Device`
-2. **Default Settings**: Define `_DEFAULT_SETTINGS`
+2. **Default Settings**: Define `_DEFAULT_SETTINGS` (see inheritance patterns below)
 3. **Probes**: Define `_PROBES` for readable values
 4. **Required Methods**: Implement `update()`, `read_probes()`, `is_connected`
+
+### Parameter Inheritance Patterns
+
+When creating device subclasses, especially those that inherit from intermediate base classes (like `MicrowaveGeneratorBase`), you should use the inheritance pattern to ensure all parent parameters are included:
+
+```python
+class MyDevice(MicrowaveGeneratorBase):
+    _DEFAULT_SETTINGS = Parameter(
+        # Inherit all base class settings and add device-specific ones
+        MicrowaveGeneratorBase._get_base_settings() + [
+        # Device-specific overrides (these will override base class defaults)
+        Parameter('ip_address', '192.168.1.100', str, 'IP for LAN'),
+        # Device-specific settings
+        Parameter('my_specific_param', 42, int, 'My device-specific parameter'),
+        # ... more device-specific parameters
+    ])
+```
+
+**Why use this pattern?**
+- **Prevents KeyError**: Ensures all parent class parameters are inherited
+- **Maintains compatibility**: GUI and other components expect all base parameters
+- **Future-proof**: Automatically includes new parameters added to base classes
+- **Self-documenting**: Makes inheritance explicit and clear
 
 ### Example Template
 

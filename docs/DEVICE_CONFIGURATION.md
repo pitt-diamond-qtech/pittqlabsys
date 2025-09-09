@@ -20,6 +20,7 @@ The system uses a simplified, clean structure:
 - **Easy maintenance**: Change IP addresses, COM ports, etc. in config, not code
 - **Centralized configuration**: All device settings in one place
 - **No more hardcoded settings**: Devices automatically load with correct parameters
+- **Configurable data paths**: Experiments use configured data folders instead of hardcoded paths
 
 ## How It Works
 
@@ -214,6 +215,63 @@ class SG384Generator(Device):
         super().__init__(name, settings)
         # Settings from config.json override defaults
 ```
+
+## Path Configuration
+
+### Data Folder Configuration
+
+Experiments now use configurable data paths instead of hardcoded paths. This ensures cross-platform compatibility and allows different labs to use different drive letters or folder structures.
+
+#### Configuration Structure
+
+Add a `paths` section to your `config.json`:
+
+```json
+{
+    "paths": {
+        "data_folder": "D:/Duttlab/Experiments/AQuISS_default_save_location/data",
+        "probes_folder": "D:/Duttlab/Experiments/AQuISS_default_save_location/probes_auto_generated",
+        "device_folder": "D:/Duttlab/Experiments/AQuISS_default_save_location/devices_auto_generated",
+        "experiments_folder": "D:/Duttlab/Experiments/AQuISS_default_save_location/experiments_auto_generated",
+        "probes_log_folder": "D:/Duttlab/Experiments/AQuISS_default_save_location/aqs_tmp",
+        "workspace_config_dir": "D:/Duttlab/Experiments/AQuISS_default_save_location/workspace_configs"
+    }
+}
+```
+
+#### Helper Functions
+
+The system provides helper functions to access configured paths:
+
+```python
+from src.core.helper_functions import get_configured_data_folder, get_configured_confocal_scans_folder
+
+# Get the configured data folder
+data_folder = get_configured_data_folder()
+# Returns: Path("D:/Duttlab/Experiments/AQuISS_default_save_location/data")
+
+# Get confocal scans subfolder
+confocal_folder = get_configured_confocal_scans_folder()
+# Returns: Path("D:/Duttlab/Experiments/AQuISS_default_save_location/data/confocal_scans")
+```
+
+#### Experiment Integration
+
+Experiments automatically use configured paths:
+
+```python
+# In experiment classes
+Parameter('3D_scan',
+    [Parameter('enable', False, bool, 'T/F to enable 3D scan'),
+     Parameter('folderpath', str(get_configured_confocal_scans_folder()), str, 
+               'folder location to save images at each z-value')])
+```
+
+#### Fallback Behavior
+
+If `config.json` is missing or doesn't contain the `paths` section, the system falls back to:
+- **Default data folder**: `~/Experiments/AQuISS_default_save_location/data`
+- **Default confocal folder**: `~/Experiments/AQuISS_default_save_location/data/confocal_scans`
 
 ## Advanced Features
 

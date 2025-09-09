@@ -12,6 +12,37 @@ The SG384 is a high-performance microwave generator capable of:
 - **Modulation**: AM, FM, Phase, and Pulse modulation
 - **Connections**: LAN, GPIB, and RS232
 
+## Recent Updates
+
+### Parameter Inheritance (v1.1.0)
+
+The SG384 device now properly inherits all parameters from its base class `MicrowaveGeneratorBase`, including:
+- `connection_timeout`: Connection timeout for LAN connections (default: 10.0 seconds)
+- `socket_timeout`: Socket timeout for send/receive operations (default: 5.0 seconds)
+
+This fixes GUI display issues and ensures all device parameters are available for configuration.
+
+### Configuration
+
+The SG384 device can be configured in `config.json`:
+
+```json
+{
+    "devices": {
+        "sg384": {
+            "class": "SG384Generator",
+            "filepath": "src/Controller/sg384.py",
+            "settings": {
+                "ip_address": "192.168.2.217",
+                "port": 5025,
+                "connection_timeout": 10.0,
+                "socket_timeout": 5.0
+            }
+        }
+    }
+}
+```
+
 ## Files
 
 ### Test Files
