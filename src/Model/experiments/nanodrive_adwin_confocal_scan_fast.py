@@ -113,7 +113,7 @@ class NanodriveAdwinConfocalScanFast(Experiment):
             name (optional): name of experiment, if empty same as class name
             settings (optional): settings for this experiment, if empty same as default settings
         """
-        super().__init__(name, settings=settings, sub_experiments=experiments, devices=devices, log_function=log_function, data_path=data_path)
+        super().__init__(name, settings=settings, sub_experiments=sub_experiments, devices=devices, log_function=log_function, data_path=data_path)
         #get instances of devices
         self.nd = self.devices['nanodrive']['instance']
         self.adw = self.devices['adwin']['instance']

@@ -1305,11 +1305,20 @@ class Experiment(QObject):
                     continue
 
                 #  ========= create the experiment if devices and subexperiments have been loaded successfully =========
+                # Detect which parameter name the experiment class expects for sub-experiments
+                import inspect
+                init_signature = inspect.signature(class_of_experiment.__init__)
+                sub_experiments_param_name = 'sub_experiments'  # default
+                if 'experiments' in init_signature.parameters:
+                    sub_experiments_param_name = 'experiments'
+                elif 'sub_experiments' in init_signature.parameters:
+                    sub_experiments_param_name = 'sub_experiments'
+                
                 class_creation_string = ''
                 if experiment_devices is not None:
                     class_creation_string += ', devices = experiment_devices'
                 if sub_experiments is not None:
-                    class_creation_string += ', sub_experiments = sub_experiments'
+                    class_creation_string += f', {sub_experiments_param_name} = sub_experiments'
                 if experiment_settings is not None:
                     class_creation_string += ', settings = experiment_settings'
                 if log_function is not None:
