@@ -70,6 +70,34 @@ def get_configured_confocal_scans_folder() -> Path:
     return confocal_scans_folder
 
 
+def get_configured_experiments_folder() -> Path:
+    """
+    Get the configured experiments folder path from the config file.
+    
+    Returns:
+        Path object pointing to the configured experiments folder
+    """
+    try:
+        from src.config_paths import resolve_paths
+        from pathlib import Path
+        
+        # Get the config file path
+        project_root = get_project_root()
+        config_path = project_root / "src" / "config.json"
+        
+        # Resolve paths from config
+        paths = resolve_paths(config_path)
+        
+        # Return the experiments folder path
+        experiments_folder = paths.get('experiments_folder', Path.home() / 'Experiments' / 'AQuISS_default_save_location' / 'experiments_auto_generated')
+        return Path(experiments_folder)
+        
+    except Exception as e:
+        # Fallback to default path if config loading fails
+        print(f"Warning: Could not load config, using default experiments folder: {e}")
+        return Path.home() / 'Experiments' / 'AQuISS_default_save_location' / 'experiments_auto_generated'
+
+
 def module_name_from_path(folder_name, verbose=False):
     """
     takes in a path to a folder or file and return the module path and the path to the module

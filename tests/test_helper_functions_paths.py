@@ -14,7 +14,8 @@ from unittest.mock import patch
 
 from src.core.helper_functions import (
     get_configured_data_folder,
-    get_configured_confocal_scans_folder
+    get_configured_confocal_scans_folder,
+    get_configured_experiments_folder
 )
 
 
@@ -24,18 +25,23 @@ class TestPathHelperFunctionsSimple:
     def test_get_configured_data_folder_current_config(self):
         """Test that get_configured_data_folder reads from current config.json."""
         result = get_configured_data_folder()
-        # Should return the D: drive path we set in config.json
-        assert "D:" in str(result) or "Experiments" in str(result)
-        assert "AQuISS_default_save_location" in str(result)
+        # Should return the configured path from config.json (now using macOS temp paths)
+        assert "AQuISS_test_data" in str(result)
         assert "data" in str(result)
     
     def test_get_configured_confocal_scans_folder_current_config(self):
         """Test that get_configured_confocal_scans_folder uses configured data folder."""
         result = get_configured_confocal_scans_folder()
-        # Should return the D: drive path with confocal_scans subfolder
-        assert "D:" in str(result) or "Experiments" in str(result)
-        assert "AQuISS_default_save_location" in str(result)
+        # Should return the configured path with confocal_scans subfolder
+        assert "AQuISS_test_data" in str(result)
         assert "confocal_scans" in str(result)
+    
+    def test_get_configured_experiments_folder_current_config(self):
+        """Test that get_configured_experiments_folder reads from current config.json."""
+        result = get_configured_experiments_folder()
+        # Should return the configured path from config.json
+        assert "AQuISS_test_experiments" in str(result)
+        assert "experiments" in str(result)
     
     def test_confocal_scans_folder_construction(self):
         """Test that confocal scans folder is correctly constructed from data folder."""

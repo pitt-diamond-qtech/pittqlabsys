@@ -169,9 +169,10 @@ class TestExperimentDeviceLoading:
         
         # Test that the experiment can be loaded with string device references
         experiments, failed, devices_updated = Experiment.load_and_append(
-            {'test_exp': TestExperimentWithDevices}, 
+            {'test_exp': TestExperimentWithDevices},
             experiments=None,
-            devices=devices
+            devices=devices,
+            verbose=True
         )
         
         # Should successfully load the experiment

@@ -166,8 +166,18 @@ Returns:
         """
         dialog = QtWidgets.QFileDialog
         
-        # Default to experiments folder if path is empty
-        default_dir = self.txt_probe_log_path.text() if self.txt_probe_log_path.text() else str(Path.home() / "Experiments" / "AQuISS_default_save_location" / "experiments_auto_generated")
+        # Use the configured path from the dialog's filename parameter
+        # If empty, fall back to a reasonable default
+        if self.txt_probe_log_path.text():
+            default_dir = self.txt_probe_log_path.text()
+        else:
+            # Try to get the configured experiments folder from config
+            try:
+                from src.core.helper_functions import get_configured_experiments_folder
+                default_dir = str(get_configured_experiments_folder())
+            except:
+                # Fallback to home directory if config is not available
+                default_dir = str(Path.home() / "Experiments" / "AQuISS_default_save_location" / "experiments_auto_generated")
         
         filename, _ = dialog.getOpenFileName(self, 'Select a file:', default_dir)
         if str(filename) != '':
