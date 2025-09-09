@@ -12,43 +12,12 @@ from pathlib import Path
 import warnings
 
 from src.core import Parameter, Experiment
-from src.core.helper_functions import get_project_root, get_configured_confocal_scans_folder
+from src.core.helper_functions import get_configured_confocal_scans_folder
+from src.core.adwin_helpers import get_adwin_binary_path
 from time import sleep
 import pyqtgraph as pg
 
 
-def get_binary_file_path(filename: str) -> Path:
-    """
-    Get the path to a binary file in the Controller/binary_files/ADbasic directory.
-    
-    Args:
-        filename: Name of the binary file (e.g., 'One_D_Scan.TB2')
-        
-    Returns:
-        Path object pointing to the binary file
-        
-    Raises:
-        FileNotFoundError: If the binary file doesn't exist
-    """
-    project_root = get_project_root()
-    binary_path = project_root / 'src' / 'Controller' / 'binary_files' / 'ADbasic' / filename
-    
-    if not binary_path.exists():
-        # Try to provide helpful error message
-        print(f"Warning: Binary file not found: {binary_path}")
-        print(f"Project root: {project_root}")
-        print(f"Expected location: {binary_path}")
-        print(f"Available files in ADbasic directory:")
-        adbasic_dir = project_root / 'src' / 'Controller' / 'binary_files' / 'ADbasic'
-        if adbasic_dir.exists():
-            for file in adbasic_dir.iterdir():
-                if file.is_file():
-                    print(f"  - {file.name}")
-        else:
-            print(f"  ADbasic directory does not exist: {adbasic_dir}")
-        raise FileNotFoundError(f"Binary file not found: {binary_path}")
-    
-    return binary_path
 
 
 class ConfocalScan_Fast(Experiment):
@@ -132,7 +101,7 @@ class ConfocalScan_Fast(Experiment):
         self.adw.clear_process(2)
         
         # Use the helper function to find the binary file
-        one_d_scan_path = get_binary_file_path('One_D_Scan.TB2')
+        one_d_scan_path = get_adwin_binary_path('One_D_Scan.TB2')
         self.adw.update({'process_2': {'load': str(one_d_scan_path)}})
         # one_d_scan script increments an index then adds count values to an array in a constant time interval
         self.nd.clock_functions('Frame', reset=True)  # reset ALL clocks to default settings
@@ -517,7 +486,7 @@ class ConfocalScan_Slow(Experiment):
         self.adw.clear_process(1)
         
         # Use the helper function to find the binary file
-        trial_counter_path = get_binary_file_path('Trial_Counter.TB1')
+        trial_counter_path = get_adwin_binary_path('Trial_Counter.TB1')
         self.adw.update({'process_1': {'load': str(trial_counter_path)}})
         #trial counter simply reads the counter value
         self.nd.clock_functions('Frame', reset=True)  # reset ALL clocks to default settings
@@ -830,7 +799,7 @@ class Confocal_Point(Experiment):
         self.adw.clear_process(1)
         
         # Use the helper function to find the binary file
-        trial_counter_path = get_binary_file_path('Averagable_Trial_Counter.TB1')
+        trial_counter_path = get_adwin_binary_path('Averagable_Trial_Counter.TB1')
         self.adw.update({'process_1': {'load': str(trial_counter_path)}})
         self.nd.clock_functions('Frame', reset=True)  # reset ALL clocks to default settings
 
