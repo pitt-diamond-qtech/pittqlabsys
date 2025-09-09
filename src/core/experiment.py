@@ -20,7 +20,7 @@ import traceback
 from src.core.device import Device
 from src.core.parameter import Parameter
 from src.core.read_write_functions import save_aqs_file, load_aqs_file
-from src.core.helper_functions import module_name_from_path, MatlabSaver
+from src.core.helper_functions import module_name_from_path, MatlabSaver, get_configured_data_folder, get_project_root
 
 from collections import deque
 import os
@@ -150,6 +150,68 @@ class Experiment(QObject):
         #         os.makedirs(path)
 
         self._data_path = path
+
+    def get_output_dir(self, subfolder=None):
+        """
+        Get the configured output directory for this experiment.
+        
+        Args:
+            subfolder (str, optional): Subfolder name within the data directory
+            
+        Returns:
+            Path: Path to the output directory
+        """
+        from pathlib import Path
+        import re
+        
+        # Use configured data folder as base
+        base_dir = get_configured_data_folder()
+        
+        # Handle empty or invalid names by using class name
+        experiment_name = self.name
+        if not experiment_name or experiment_name.strip() == '':
+            experiment_name = self.__class__.__name__
+        
+        # Normalize the experiment name for filesystem safety
+        # Replace special characters with underscores and convert to lowercase
+        experiment_name = re.sub(r'[<>:"/\\|?*]', '_', experiment_name.lower())
+        experiment_name = experiment_name.strip('_')  # Remove leading/trailing underscores
+        
+        # Create experiment-specific subfolder
+        experiment_dir = base_dir / experiment_name
+        
+        if subfolder:
+            output_dir = experiment_dir / subfolder
+        else:
+            output_dir = experiment_dir
+            
+        # Create directory if it doesn't exist
+        output_dir.mkdir(parents=True, exist_ok=True)
+        
+        return output_dir
+
+    def get_config_path(self, config_name="config.json"):
+        """
+        Get the path to a configuration file.
+        
+        Args:
+            config_name (str): Name of the config file
+            
+        Returns:
+            Path: Path to the config file
+        """
+        from pathlib import Path
+        
+        # First try in the experiment's output directory
+        experiment_dir = self.get_output_dir()
+        config_path = experiment_dir / config_name
+        
+        if config_path.exists():
+            return config_path
+            
+        # Fallback to project root
+        project_root = get_project_root()
+        return project_root / config_name
 
     @pyqtSlot(bool)
     def _set_current_subexperiment(self, active):
@@ -1114,27 +1176,30 @@ class Experiment(QObject):
             devices_updated.update(devices)
 
             # check if devices needed by experiment already exist, if not create an instance
-            for device_name, device_instance in default_devices.items():
-                # check if devices needed by experiment already exist
-                # device = [instance for name, instance in devices_updated.items() if
-                #               isinstance(instance, device_instance) and name == device_name]
-                device = [instance for name,instance in devices_updated.items() if name == device_name and type(instance) == type(device_instance)]
-
-                if len(device) == 0:
-                    # create new instance of device
-                    devices_updated, __ = Device.load_and_append({device_name: device_instance},
-                                                                         devices_updated, raise_errors)
-                    # MODIFIED to see if I can get rid of the errors in loading galvoscan from the main app
-                    # has not worked so far.
-                    # GD : 20230828
-                    #devices_updated,__ = Device.load_and_append({device_name:device_instance.__class__},devices_updated,raise_errors)
+            for device_name, device_reference in default_devices.items():
+                # Check if device already exists in the loaded devices
+                if device_name in devices_updated:
+                    # Device already exists, use it
+                    device_instance = devices_updated[device_name]
+                else:
+                    # Device doesn't exist, need to create it
+                    if isinstance(device_reference, str):
+                        # device_reference is a string (device name), look it up in the loaded devices
+                        if device_reference in devices_updated:
+                            device_instance = devices_updated[device_reference]
+                        else:
+                            # Device not found, this is an error
+                            raise ValueError(f"Required device '{device_reference}' (referenced as '{device_name}') not found in loaded devices. Available devices: {list(devices_updated.keys())}")
+                    else:
+                        # device_reference is a device class instance (legacy behavior)
+                        devices_updated, __ = Device.load_and_append({device_name: device_reference},
+                                                                             devices_updated, raise_errors)
+                        device_instance = devices_updated[device_name]
 
                 if experiment_devices is not None and device_name in experiment_devices:
                     device_settings_dict = experiment_devices[device_name]['settings']
                 else:
-                    device_settings_dict = devices_updated[device_name].settings
-
-                device_instance = devices_updated[device_name]
+                    device_settings_dict = device_instance.settings
 
                 # make a deepcopy of _DEFAULT_SETTINGS to get a parameter object
                 device_settings = deepcopy(device_instance._DEFAULT_SETTINGS)
