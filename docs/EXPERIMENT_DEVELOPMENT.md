@@ -6,6 +6,8 @@ This guide explains how to create new experiments for AQuISS.
 
 Experiments in AQuISS are modular classes that define scientific procedures. They inherit from the base `Experiment` class and provide a standardized interface for data acquisition, processing, and visualization.
 
+**Recent Updates**: The base `Experiment` class has been enhanced with robust path management capabilities. See [Recent Updates](RECENT_UPDATES.md) for details on the latest improvements.
+
 ## Experiment Class Structure
 
 ### Required Components
@@ -123,6 +125,14 @@ class MyExperiment(Experiment):
             # Setup phase
             self.setup()
             
+            # Get output directories using enhanced path management
+            output_dir = self.get_output_dir()
+            raw_data_dir = self.get_output_dir("raw_data")
+            config_path = self.get_config_path()
+            
+            self.log(f"Output directory: {output_dir}")
+            self.log(f"Raw data directory: {raw_data_dir}")
+            
             # Main experiment loop
             for i in range(self.settings['advanced_settings']['averaging']):
                 self.log(f"Running iteration {i+1}/{self.settings['advanced_settings']['averaging']}")
@@ -141,6 +151,10 @@ class MyExperiment(Experiment):
                 # Read data
                 raw_data = self.daq.read_data()
                 
+                # Save raw data to configured directory
+                raw_data_file = raw_data_dir / f"iteration_{i+1}.npy"
+                np.save(raw_data_file, raw_data)
+                
                 # Process data
                 if i == 0:
                     self.data = raw_data
@@ -158,6 +172,10 @@ class MyExperiment(Experiment):
             # Finalize data
             if self.settings['advanced_settings']['averaging'] > 1:
                 self.data /= self.settings['advanced_settings']['averaging']
+            
+            # Save final results to configured output directory
+            results_file = output_dir / "final_results.npy"
+            np.save(results_file, self.data)
             
             # Cleanup
             self.cleanup()
@@ -324,6 +342,70 @@ def setup(self):
         'power': -10.0,
         'output_enabled': False
     })
+```
+
+## Path Management
+
+The base `Experiment` class provides robust path management with sensible defaults:
+
+### Automatic Path Management
+
+```python
+def _function(self):
+    """Main experiment logic with automatic path management."""
+    
+    # Get configured output directory for this experiment
+    output_dir = self.get_output_dir()  # Uses configured data folder + experiment name
+    
+    # Get output directory with subfolder
+    data_dir = self.get_output_dir("raw_data")  # data_folder/experiment_name/raw_data
+    
+    # Get config file path (tries experiment dir first, then project root)
+    config_path = self.get_config_path("my_config.json")
+    
+    # Use paths in your experiment
+    self.save_data_to_file(output_dir / "results.csv")
+```
+
+### Key Features
+
+- **Automatic**: All experiments get configurable paths by default
+- **Safe**: Handles special characters, empty names, and filesystem issues
+- **Consistent**: Same path structure across all experiments
+- **Flexible**: Can still customize per experiment if needed
+- **Future-proof**: New experiments automatically get proper path handling
+
+### Path Normalization
+
+- Special characters (`/`, `\`, `*`, `?`, etc.) are replaced with underscores
+- Empty experiment names fall back to class name
+- All paths are created automatically if they don't exist
+- Cross-platform compatible (handles Windows/macOS/Linux differences)
+
+### Customization Examples
+
+```python
+class MyCustomExperiment(Experiment):
+    def get_output_dir(self, subfolder=None):
+        """Override to add custom logic."""
+        # Call parent method for basic functionality
+        base_dir = super().get_output_dir(subfolder)
+        
+        # Add custom logic
+        if self.settings.get('use_timestamp', False):
+            from datetime import datetime
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            return base_dir / f"run_{timestamp}"
+        
+        return base_dir
+    
+    def get_special_data_path(self):
+        """Custom method for experiment-specific needs."""
+        # Use base method as foundation
+        base_dir = self.get_output_dir()
+        
+        # Add experiment-specific logic
+        return base_dir / "special_data" / f"version_{self.settings.get('version', '1.0')}"
 ```
 
 ## Data Management
@@ -530,6 +612,57 @@ class TestMyExperiment:
         assert len(self.experiment.data) == 100
 ```
 
+## Design Philosophy: Foundation + Flexibility
+
+The enhanced base experiment class follows a **foundation + flexibility** approach:
+
+**Base Class Provides:**
+- **Sensible defaults** for common use cases
+- **Robust path handling** (special characters, empty names, etc.)
+- **Configurable paths** that respect the system configuration
+- **Consistent behavior** across all experiments
+
+**Individual Experiments Can:**
+- **Override** the path methods if they need custom logic
+- **Extend** the base functionality for specific needs
+- **Use their own** path handling entirely if required
+- **Mix and match** - use base methods for some paths, custom for others
+
+**Benefits:**
+- **Consistency**: Most experiments get good defaults
+- **Flexibility**: Can customize when needed
+- **Maintainability**: Common logic centralized
+- **Gradual adoption**: No forced changes
+- **Future-proof**: Easy to enhance base class
+
+## Migration Strategy
+
+### For New Experiments
+- **Get benefits automatically** - just inherit from base class
+- **Use path methods** - `get_output_dir()` and `get_config_path()`
+- **Customize as needed** - override methods when required
+
+### For Existing Experiments
+- **No changes required** - continue working as before
+- **Gradual migration** - can adopt base class methods over time
+- **Backward compatible** - existing path handling still works
+
+### Migration Example
+```python
+# Before: Manual path management
+class MyExperiment(Experiment):
+    def _function(self):
+        output_dir = Path("my_experiment_output")
+        output_dir.mkdir(exist_ok=True)
+        # ... use output_dir
+
+# After: Using enhanced base class
+class MyExperiment(Experiment):
+    def _function(self):
+        output_dir = self.get_output_dir("my_experiment_output")  # Automatic!
+        # ... use output_dir
+```
+
 ## Best Practices
 
 ### 1. Modular Design
@@ -681,4 +814,17 @@ def run_2d_scan(self):
 
 - [Device Development Guide](DEVICE_DEVELOPMENT.md) - How to create new hardware devices
 - [Development Guide](DEVELOPMENT_GUIDE.md) - General development practices and standards
-- [Configuration Files Guide](CONFIGURATION_FILES.md) - How to configure devices and experiments 
+- [Configuration Files Guide](CONFIGURATION_FILES.md) - How to configure devices and experiments
+- [Recent Updates](RECENT_UPDATES.md) - Latest bug fixes and new features
+
+## Recent Enhancements
+
+The base experiment class has been significantly enhanced with robust path management capabilities. Key improvements include:
+
+- **Automatic path management** with configurable data folders
+- **Safe file operations** handling special characters and edge cases
+- **Consistent path structure** across all experiments
+- **Flexible customization** allowing per-experiment overrides
+- **Comprehensive testing** with 26 tests covering all functionality
+
+For detailed information about these enhancements, see [Recent Updates](RECENT_UPDATES.md). 
