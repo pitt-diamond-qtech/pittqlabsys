@@ -63,7 +63,8 @@ Comprehensive control over all marker outputs:
   - Device status monitoring
 
 ### Configuration Files
-- **`src/Controller/awg520_connection.template.json`**: Connection template for hardware mapping
+- **`src/Controller/awg520_connection.template.json`**: Default connection template for hardware mapping
+- **`src/Model/experiments/{experiment}_connection.json`**: Experiment-specific connection files
 - **`config.sample.json`**: Device configuration template with AWG520 settings
 
 ## Quick Start
@@ -98,10 +99,19 @@ cp config.sample.json config.json
 
 ### 2. Hardware Connection Setup
 
-**Copy the connection template:**
+**For general AWG520 usage:**
 ```bash
+# Use the setup script
+python src/Controller/setup_awg520_connections.py
+
+# Or manually copy the template
 cp src/Controller/awg520_connection.template.json src/Controller/awg520_connection.json
 ```
+
+**For experiment-specific setups:**
+- Each experiment can have its own connection file
+- Example: `src/Model/experiments/odmr_pulsed_connection.json`
+- Experiments automatically use their specific connection files
 
 **Customize for your lab:**
 - Update connection descriptions to match your hardware

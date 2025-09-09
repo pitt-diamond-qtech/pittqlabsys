@@ -18,7 +18,9 @@ def setup_awg520_connections():
     print("=" * 50)
     
     # Define paths
-    project_root = Path(__file__).parent
+    # __file__ is src/Controller/setup_awg520_connections.py
+    # When run from project root, we need to go up two levels to get to project root
+    project_root = Path(__file__).parent.parent.parent
     template_path = project_root / "src" / "Controller" / "awg520_connection.template.json"
     connection_path = project_root / "src" / "Controller" / "awg520_connection.json"
     
@@ -57,8 +59,14 @@ def setup_awg520_connections():
         print("3. Measure and set calibration delays")
         print("4. Verify physical connections match")
         
+        print("\n📖 For experiment-specific connections:")
+        print("   - Copy this file to your experiment directory")
+        print("   - Rename to {experiment}_connection.json")
+        print("   - Customize for your specific experiment needs")
+        print("   - Example: src/Model/experiments/odmr_pulsed_connection.json")
+        
         print("\n📖 For detailed instructions, see:")
-        print("   docs/HARDWARE_CONNECTION_SYSTEM.md")
+        print("   docs/README_AWG520.md")
         
         # Show example of what to customize
         print("\n💡 Example Customizations:")
@@ -79,7 +87,8 @@ def validate_connection_file():
     print("\n🔍 Validating Connection File")
     print("-" * 30)
     
-    connection_path = Path("src/Controller/awg520_connection.json")
+    project_root = Path(__file__).parent.parent.parent
+    connection_path = project_root / "src" / "Controller" / "awg520_connection.json"
     
     if not connection_path.exists():
         print("❌ Connection file not found. Run setup first.")

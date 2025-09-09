@@ -12,6 +12,7 @@ from typing import List, Dict, Any, Optional, Tuple, Union
 from pathlib import Path
 import json
 import logging
+import time
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
@@ -83,15 +84,16 @@ class ODMRPulsedExperiment(Experiment):
     ]
     
     _DEVICES = {
-        'awg520': AWG520Device,
-        'adwin': AdwinGoldDevice
+        'awg520': 'awg520',
+        'adwin': 'adwin',
+        'sg384': 'sg384'  # String reference to device loaded from config
     }
     
     _EXPERIMENTS = {}
     
-    def __init__(self, config_path: Optional[Path] = None):
+    def __init__(self, devices=None, experiments=None, name=None, settings=None, log_function=None, data_path=None, config_path: Optional[Path] = None):
         """Initialize the ODMR Pulsed experiment."""
-        super().__init__()
+        super().__init__(name=name, settings=settings, devices=devices, sub_experiments=experiments, log_function=log_function, data_path=data_path)
         
         # Setup logging
         self.logger = logging.getLogger(__name__)
@@ -103,7 +105,14 @@ class ODMRPulsedExperiment(Experiment):
         # Sequence components
         self.sequence_parser = SequenceTextParser()
         self.sequence_builder = SequenceBuilder()
-        self.hardware_calibrator = HardwareCalibrator()
+        
+        # Initialize hardware calibrator with experiment-specific connection file
+        connection_file = Path(__file__).parent / "odmr_pulsed_connection.json"
+        self.hardware_calibrator = HardwareCalibrator(
+            connection_file=str(connection_file),
+            config_file=str(self.config_path)
+        )
+        
         self.awg_optimizer = AWG520SequenceOptimizer()
         
         # Experiment parameters (will be set from _DEFAULT_SETTINGS)
@@ -145,6 +154,33 @@ class ODMRPulsedExperiment(Experiment):
         except Exception as e:
             self.logger.error(f"Error loading configuration: {e}")
             return {}
+    
+    def load_sequence_from_text(self, sequence_text: str) -> bool:
+        """
+        Load sequence definition from text using the sequence language.
+        
+        Args:
+            sequence_text: Sequence definition in the sequence language format
+            
+        Returns:
+            True if sequence loaded successfully
+        """
+        try:
+            # Parse sequence text using the sequence language parser
+            self.sequence_description = self.sequence_parser.parse_text(sequence_text)
+            
+            if self.sequence_description:
+                self.logger.info(f"Sequence loaded: {self.sequence_description.name}")
+                self.logger.info(f"Variables: {len(self.sequence_description.variables)}")
+                self.logger.info(f"Pulses: {len(self.sequence_description.pulses)}")
+                return True
+            else:
+                self.logger.error("Failed to parse sequence text")
+                return False
+                
+        except Exception as e:
+            self.logger.error(f"Error loading sequence: {e}")
+            return False
     
     def load_sequence_from_file(self, sequence_file: Path) -> bool:
         """
@@ -215,7 +251,7 @@ class ODMRPulsedExperiment(Experiment):
     
     def generate_awg_files(self) -> bool:
         """
-        Generate AWG520 waveform and sequence files.
+        Generate AWG520 waveform and sequence files using the proper pipeline.
         
         Returns:
             True if files generated successfully
@@ -228,41 +264,66 @@ class ODMRPulsedExperiment(Experiment):
             # Create AWG file handler
             awg_file = AWGFile(out_dir=self.output_dir)
             
-            # Generate waveforms for each sequence
+            # Generate waveforms for each sequence using the proper pipeline
             waveform_files = []
             for i, sequence in enumerate(self.scan_sequences):
-                # Optimize sequence for AWG520
+                # Use AWG520SequenceOptimizer to properly optimize the sequence
                 optimized_sequence = self.awg_optimizer.optimize_sequence_for_awg520(sequence)
                 
-                # Generate waveform file
-                wfm_path = awg_file.write_waveform(
-                    optimized_sequence, 
-                    f"scan_point_{i:03d}"
+                # Get waveform data from the optimized sequence
+                waveform_data = optimized_sequence.get_waveform_data()
+                
+                # Generate waveform files for each channel
+                for channel in [1, 2]:  # AWG520 has 2 channels
+                    # Get the appropriate waveform data for this channel
+                    if f"channel_{channel}" in waveform_data:
+                        iq_data = waveform_data[f"channel_{channel}"]
+                    else:
+                        # Fallback: use the first available waveform
+                        iq_data = list(waveform_data.values())[0] if waveform_data else np.zeros(1000)
+                    
+                    # Generate marker data (this would come from the sequence markers)
+                    marker_data = np.zeros(len(iq_data), dtype=int)
+                    
+                    # Generate waveform file
+                    wfm_path = awg_file.write_waveform(
+                        iq_data, 
+                        marker_data,
+                        f"scan_point_{i:03d}",
+                        channel=channel
+                    )
+                    waveform_files.append(wfm_path)
+                    self.logger.info(f"Generated waveform: {wfm_path}")
+            
+            # Generate sequence file using the optimized sequence entries
+            if self.scan_sequences:
+                # Use the first sequence to get the optimized sequence entries
+                first_sequence = self.scan_sequences[0]
+                optimized_sequence = self.awg_optimizer.optimize_sequence_for_awg520(first_sequence)
+                sequence_entries = optimized_sequence.get_sequence_entries()
+                
+                # Convert to the format expected by AWGFile.write_sequence
+                seq_entries = []
+                for i, entry in enumerate(sequence_entries):
+                    # Format: ch1_wfm, ch2_wfm, repeat, wait, goto, logic
+                    seq_entry = (
+                        f"scan_point_{i:03d}_1.wfm",  # ch1_wfm
+                        f"scan_point_{i:03d}_2.wfm",  # ch2_wfm
+                        self.repetitions_per_point,    # repeat count
+                        0,                             # wait (no wait)
+                        (i + 1) % len(sequence_entries) + 1,  # goto next
+                        0                              # logic (no logic)
+                    )
+                    seq_entries.append(seq_entry)
+                
+                # Create sequence file
+                seq_path = awg_file.write_sequence(
+                    seq_entries,
+                    "odmr_pulsed_scan"
                 )
-                waveform_files.append(wfm_path)
-                self.logger.info(f"Generated waveform: {wfm_path}")
+                
+                self.logger.info(f"Generated sequence file: {seq_path}")
             
-            # Generate sequence file
-            sequence_entries = []
-            for i, wfm_path in enumerate(waveform_files):
-                # Format: ch1_wfm, ch2_wfm, repeat, wait, goto, logic
-                entry = (
-                    wfm_path.name,           # ch1_wfm
-                    wfm_path.name,           # ch2_wfm (same for now)
-                    self.repetitions_per_point,  # repeat count
-                    0,                       # wait (no wait)
-                    (i + 1) % len(waveform_files) + 1,  # goto next
-                    0                        # logic (no logic)
-                )
-                sequence_entries.append(entry)
-            
-            # Create sequence file
-            seq_path = awg_file.write_sequence(
-                sequence_entries,
-                "odmr_pulsed_scan"
-            )
-            
-            self.logger.info(f"Generated sequence file: {seq_path}")
             return True
             
         except Exception as e:
@@ -344,12 +405,20 @@ class ODMRPulsedExperiment(Experiment):
             'laser_wavelength': self.laser_wavelength
         }
     
-    def run_experiment(self) -> bool:
+    def run_experiment(self, frequency_range: Optional[List[float]] = None) -> Dict[str, Any]:
         """
         Run the complete ODMR pulsed experiment.
         
+        Args:
+            frequency_range: List of frequencies in Hz to scan. If None, uses single frequency.
+            
         Returns:
-            True if experiment completed successfully
+            Dictionary containing:
+            - 'success': bool - Whether experiment completed successfully
+            - 'frequencies': List[float] - Frequencies scanned
+            - 'signal_counts': List[List[float]] - Signal counts for each frequency and sequence point
+            - 'reference_counts': List[List[float]] - Reference counts for each frequency and sequence point
+            - 'total_counts': List[List[float]] - Total counts for each frequency and sequence point
         """
         try:
             self.logger.info("Starting ODMR Pulsed Experiment")
@@ -357,28 +426,231 @@ class ODMRPulsedExperiment(Experiment):
             # Step 1: Load sequence
             if not self.sequence_description:
                 self.logger.error("No sequence loaded")
-                return False
+                return {'success': False, 'error': 'No sequence loaded'}
             
             # Step 2: Build scan sequences
             if not self.build_scan_sequences():
-                return False
+                return {'success': False, 'error': 'Failed to build scan sequences'}
             
             # Step 3: Generate AWG files
             if not self.generate_awg_files():
-                return False
+                return {'success': False, 'error': 'Failed to generate AWG files'}
             
-            # Step 4: Show preview (optional)
-            # self.show_sequence_preview()
+            # Step 4: Setup ADwin for photon counting
+            if not self._setup_adwin_counting():
+                return {'success': False, 'error': 'Failed to setup ADwin counting'}
             
-            # Step 5: Start AWG520 (this would integrate with AWG520 driver)
-            self.logger.info("AWG files generated successfully")
-            self.logger.info("Ready to start AWG520 sequence")
+            # Step 5: Determine frequency range
+            if frequency_range is None:
+                frequency_range = [self.microwave_frequency]
             
-            return True
+            # Step 6: Run experiment for each frequency
+            results = {
+                'success': True,
+                'frequencies': frequency_range,
+                'signal_counts': [],
+                'reference_counts': [],
+                'total_counts': []
+            }
+            
+            for freq in frequency_range:
+                self.logger.info(f"Running experiment at {freq/1e9:.3f} GHz")
+                
+                # Set SG384 frequency
+                if 'sg384' in self.devices:
+                    self.devices['sg384'].set_frequency(freq)
+                    self.devices['sg384'].set_power(self.microwave_power)
+                    self.logger.info(f"Set SG384 to {freq/1e9:.3f} GHz, {self.microwave_power} dBm")
+                
+                # Run sequence and collect data
+                freq_results = self._run_sequence_and_collect_data()
+                if not freq_results['success']:
+                    return {'success': False, 'error': f'Failed at frequency {freq/1e9:.3f} GHz: {freq_results["error"]}'}
+                
+                results['signal_counts'].append(freq_results['signal_counts'])
+                results['reference_counts'].append(freq_results['reference_counts'])
+                results['total_counts'].append(freq_results['total_counts'])
+            
+            self.logger.info("ODMR Pulsed Experiment completed successfully")
+            return results
             
         except Exception as e:
             self.logger.error(f"Experiment failed: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    def _setup_adwin_counting(self) -> bool:
+        """
+        Setup ADwin for photon counting using the measure_protocol.bas process.
+        
+        Returns:
+            True if setup successful
+        """
+        try:
+            if 'adwin' not in self.devices:
+                self.logger.error("ADwin device not available")
+                return False
+            
+            adwin = self.devices['adwin']
+            
+            # Load the measure_protocol.bas process (Process 2)
+            # This process handles dual-gate counting triggered by AWG520
+            process_file = "measure_protocol.__2"
+            adwin.load_process(process_file)
+            
+            # Set ADwin parameters for counting
+            # Par_3: count_time (with calibration offset)
+            # Par_4: reset_time (with calibration offset) 
+            # Par_5: repetitions_per_point
+            count_time_calibrated = self.count_time + 10  # Add calibration offset
+            reset_time_calibrated = self.reset_time + 30  # Add calibration offset
+            
+            adwin.set_parameter(3, count_time_calibrated)
+            adwin.set_parameter(4, reset_time_calibrated)
+            adwin.set_parameter(5, self.repetitions_per_point)
+            
+            # Start the counting process
+            adwin.start_process(process_file)
+            
+            self.logger.info(f"ADwin counting setup: count_time={self.count_time}ns, reset_time={self.reset_time}ns, reps={self.repetitions_per_point}")
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Failed to setup ADwin counting: {e}")
             return False
+    
+    def _run_sequence_and_collect_data(self) -> Dict[str, Any]:
+        """
+        Run a single sequence and collect photon counting data from ADwin.
+        
+        Returns:
+            Dictionary with signal_counts, reference_counts, total_counts
+        """
+        try:
+            if 'awg520' not in self.devices:
+                return {'success': False, 'error': 'AWG520 device not available'}
+            
+            if 'adwin' not in self.devices:
+                return {'success': False, 'error': 'ADwin device not available'}
+            
+            awg = self.devices['awg520']
+            adwin = self.devices['adwin']
+            
+            # Start AWG520 sequence (this will trigger ADwin via markers)
+            # The AWG520 should be configured to use external triggering
+            # and the sequence should include proper marker outputs for ADwin triggering
+            awg.start_sequence()
+            
+            # Wait for sequence to complete and collect data
+            # The ADwin measure_protocol.bas process accumulates counts
+            # and stores them in Par_1 (signal) and Par_2 (reference) after each scan point
+            
+            signal_counts = []
+            reference_counts = []
+            total_counts = []
+            
+            # Collect data for each sequence point
+            for i in range(len(self.scan_sequences)):
+                # Wait for ADwin to complete counting for this sequence point
+                # The measure_protocol.bas process will increment Par_10 when done
+                max_wait_time = 10.0  # seconds
+                wait_time = 0.0
+                while wait_time < max_wait_time:
+                    scan_point = adwin.get_parameter(10)  # Current scan point
+                    if scan_point > i:
+                        break
+                    time.sleep(0.1)
+                    wait_time += 0.1
+                
+                if wait_time >= max_wait_time:
+                    self.logger.warning(f"Timeout waiting for scan point {i}")
+                
+                # Read accumulated counts from ADwin
+                signal_count = adwin.get_parameter(1)  # Par_1: signal counts
+                reference_count = adwin.get_parameter(2)  # Par_2: reference counts
+                total_count = signal_count + reference_count
+                
+                signal_counts.append(signal_count)
+                reference_counts.append(reference_count)
+                total_counts.append(total_count)
+                
+                self.logger.info(f"Scan point {i}: signal={signal_count}, reference={reference_count}, total={total_count}")
+            
+            # Stop AWG520
+            awg.stop_sequence()
+            
+            return {
+                'success': True,
+                'signal_counts': signal_counts,
+                'reference_counts': reference_counts,
+                'total_counts': total_counts
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Failed to run sequence and collect data: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    def create_example_odmr_sequence(self) -> str:
+        """
+        Create an example ODMR sequence using the sequence language.
+        
+        Returns:
+            Sequence text in the sequence language format
+        """
+        sequence_text = """
+sequence: name=odmr_pulsed, type=odmr, duration=2μs, sample_rate=1GHz, repeat=50000
+
+# Define scan variables (single variable for simplicity)
+variable pulse_duration, start=50ns, stop=500ns, steps=20
+
+# Define the ODMR pulse sequence
+# pi/2 pulse for initialization (duration will be varied by the scanner)
+# Channel 1: IQ modulator I input (microwave pulses)
+pi/2 pulse on channel 1 at 0ns, gaussian, 100ns, 1.0
+
+# pi pulse for refocusing (duration will be varied by the scanner)
+pi pulse on channel 1 at 200ns, gaussian, 100ns, 1.0
+
+# Channel 2: IQ modulator Q input (for complex microwave pulses)
+# For simple ODMR, we can use channel 2 for additional microwave control
+# or leave it empty if not needed
+
+# Laser control via AWG520 markers:
+# ch1_marker2: laser_switch (triggers laser on/off)
+# ch2_marker2: counter_trigger (triggers ADwin counting)
+# Note: Marker control is handled automatically by the AWG520SequenceOptimizer
+# based on the connection template and pulse types
+"""
+        return sequence_text.strip()
+    
+    def create_example_rabi_sequence(self) -> str:
+        """
+        Create an example Rabi sequence using the sequence language.
+        
+        Returns:
+            Sequence text in the sequence language format
+        """
+        sequence_text = """
+sequence: name=rabi_pulsed, type=rabi, duration=1μs, sample_rate=1GHz, repeat=50000
+
+# Define scan variables
+variable pulse_duration, start=10ns, stop=200ns, steps=20
+
+# Define the Rabi pulse sequence
+# Single microwave pulse with variable duration (will be varied by the scanner)
+# Channel 1: IQ modulator I input (microwave pulses)
+pi/2 pulse on channel 1 at 0ns, gaussian, 50ns, 1.0
+
+# Channel 2: IQ modulator Q input (for complex microwave pulses)
+# For simple Rabi, we can use channel 2 for additional microwave control
+# or leave it empty if not needed
+
+# Laser control via AWG520 markers:
+# ch1_marker2: laser_switch (triggers laser on/off)
+# ch2_marker2: counter_trigger (triggers ADwin counting)
+# Note: Marker control is handled automatically by the AWG520SequenceOptimizer
+# based on the connection template and pulse types
+"""
+        return sequence_text.strip()
     
     def get_experiment_summary(self) -> Dict[str, Any]:
         """
@@ -501,25 +773,54 @@ class SequencePreviewWindow:
 
 # Example usage and testing
 if __name__ == "__main__":
-    # Create experiment
-    experiment = ODMRPulsedExperiment()
+    # Create experiment with mock devices for testing
+    from unittest.mock import MagicMock
+    
+    mock_devices = {
+        'awg520': MagicMock(),
+        'adwin': MagicMock(),
+        'sg384': MagicMock()
+    }
+    
+    experiment = ODMRPulsedExperiment(devices=mock_devices, name="test_odmr")
     
     # Set parameters
     experiment.set_microwave_parameters(2.87e9, -10.0, 25.0)
     experiment.set_laser_parameters(1.0, 532)
     experiment.set_delay_parameters(25.0, 50.0, 15.0)
     
-    # Load sequence from file (example)
-    sequence_file = experiment.get_output_dir() / "example_sequence.txt"
-    if sequence_file.exists():
-        experiment.load_sequence_from_file(sequence_file)
+    # Create and load example sequence
+    sequence_text = experiment.create_example_odmr_sequence()
+    print("Example ODMR Sequence:")
+    print(sequence_text)
+    print("\n" + "="*50 + "\n")
+    
+    if experiment.load_sequence_from_text(sequence_text):
+        print("✅ Sequence loaded successfully")
         
         # Build sequences
         if experiment.build_scan_sequences():
-            # Show preview
-            experiment.show_sequence_preview()
+            print("✅ Scan sequences built successfully")
             
             # Generate AWG files
-            experiment.generate_awg_files()
+            if experiment.generate_awg_files():
+                print("✅ AWG files generated successfully")
+                
+                # Run experiment (with mock devices)
+                print("Running experiment with mock devices...")
+                results = experiment.run_experiment(frequency_range=[2.87e9, 2.88e9, 2.89e9])
+                
+                if results['success']:
+                    print("✅ Experiment completed successfully!")
+                    print(f"Frequencies scanned: {[f/1e9 for f in results['frequencies']]} GHz")
+                    print(f"Signal counts shape: {len(results['signal_counts'])} frequencies x {len(results['signal_counts'][0])} points")
+                else:
+                    print(f"❌ Experiment failed: {results['error']}")
+            else:
+                print("❌ Failed to generate AWG files")
+        else:
+            print("❌ Failed to build scan sequences")
+    else:
+        print("❌ Failed to load sequence")
     
-    print("ODMR Pulsed Experiment ready!")
+    print("\nODMR Pulsed Experiment ready!")

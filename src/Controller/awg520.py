@@ -17,6 +17,7 @@ import socket
 import time
 import numpy as np
 import logging
+from pathlib import Path
 from ftplib import FTP
 from src.core import Parameter, Device
 from PyQt5.QtCore import QThread, pyqtSignal, QObject
@@ -736,6 +737,15 @@ class AWG520Device(Device):
         self._ftp_worker = None
         # Test connection and set connection status
         self._test_connection()
+    
+    def get_connection_template_path(self) -> Path:
+        """
+        Get the path to the default AWG520 connection template.
+        
+        Returns:
+            Path to the connection template file
+        """
+        return Path(__file__).parent / "awg520_connection.template.json"
 
     def _test_connection(self):
         """Test if the device is reachable and set connection status."""
