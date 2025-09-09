@@ -173,6 +173,28 @@ python -c "from src.core.helper_functions import get_configured_data_folder; pri
 pytest tests/test_device_inheritance.py tests/test_helper_functions_paths.py -v
 ```
 
+## Parameter List Concatenation Pattern Documentation
+
+**Issue**: The powerful Parameter list concatenation pattern was not well documented, leading to confusion about its behavior and historical context.
+
+**Solution**: Added comprehensive documentation to `DEVICE_DEVELOPMENT.md` explaining:
+- How the pattern works (flattening behavior)
+- Why it's powerful (composability, maintainability)
+- Historical context (original 2020 implementation, 3-phase improvements)
+- Internal mechanics and examples
+
+**Key insight**: The `Parameter` class constructor flattens lists of `Parameter` objects into a single `Parameter` object, making it perfect for device parameter inheritance patterns like:
+
+```python
+_DEFAULT_SETTINGS = Parameter(
+    MicrowaveGeneratorBase._get_base_settings() + [
+        # Device-specific parameters...
+    ]
+)
+```
+
+This pattern was always supported but had issues that were fixed through the 3-phase Parameter class improvements documented in `PARAMETER_CLASS_SUMMARY.md` and `PARAMETER_CLASS_ANALYSIS.md`.
+
 ---
 
 *Last updated: September 2025*
