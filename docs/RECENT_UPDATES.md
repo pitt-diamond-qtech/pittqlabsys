@@ -83,6 +83,33 @@ Parameter('folderpath', str(Path.home() / 'Experiments' / 'AQuISS_default_save_l
 Parameter('folderpath', str(get_configured_confocal_scans_folder()), str, 'folder location')
 ```
 
+#### 4. Enhanced Base Experiment Class
+```python
+# Before: Manual path management in each experiment
+self.output_dir = Path("odmr_pulsed_output")
+self.output_dir.mkdir(exist_ok=True)
+
+# After: Automatic path management via base class
+self.output_dir = self.get_output_dir("odmr_pulsed_output")  # Uses configured data folder
+```
+
+**New Methods Added:**
+- `get_output_dir(subfolder=None)` - Creates configurable output directories
+- `get_config_path(config_name="config.json")` - Finds config files with fallback logic
+
+**Key Features:**
+- **Automatic**: All experiments get configurable paths by default
+- **Safe**: Handles special characters, empty names, and filesystem issues
+- **Flexible**: Can still customize per experiment if needed
+- **Consistent**: Same path structure across all experiments
+
+**Comprehensive Testing:**
+- **26 tests** covering all functionality and edge cases
+- **Path management** tests with mocking and real filesystem
+- **Error handling** tests for invalid inputs
+- **Integration tests** for real-world scenarios
+- **All tests passing** ✅
+
 ### 📋 Updated Experiments
 
 The following experiments now use configurable data paths:

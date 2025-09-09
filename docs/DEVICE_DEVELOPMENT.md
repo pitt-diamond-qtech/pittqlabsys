@@ -38,6 +38,137 @@ class MyDevice(MicrowaveGeneratorBase):
 - **Future-proof**: Automatically includes new parameters added to base classes
 - **Self-documenting**: Makes inheritance explicit and clear
 
+### Path Management
+
+The base `Experiment` class provides robust path management with sensible defaults:
+
+```python
+# Get configured output directory for this experiment
+output_dir = self.get_output_dir()  # Uses configured data folder + experiment name
+
+# Get output directory with subfolder
+output_dir = self.get_output_dir("subfolder")  # data_folder/experiment_name/subfolder
+
+# Get config file path (tries experiment dir first, then project root)
+config_path = self.get_config_path("my_config.json")
+```
+
+**Key Features:**
+- **Automatic**: All experiments get configurable paths by default
+- **Safe**: Handles special characters, empty names, and filesystem issues
+- **Consistent**: Same path structure across all experiments
+- **Flexible**: Can still customize per experiment if needed
+- **Future-proof**: New experiments automatically get proper path handling
+
+**Path Normalization:**
+- Special characters (`/`, `\`, `*`, `?`, etc.) are replaced with underscores
+- Empty experiment names fall back to class name
+- All paths are created automatically if they don't exist
+- Cross-platform compatible (handles Windows/macOS/Linux differences)
+
+**Customization Examples:**
+```python
+class MyCustomExperiment(Experiment):
+    def get_output_dir(self, subfolder=None):
+        """Override to add custom logic."""
+        # Call parent method for basic functionality
+        base_dir = super().get_output_dir(subfolder)
+        
+        # Add custom logic
+        if self.settings.get('use_timestamp', False):
+            from datetime import datetime
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            return base_dir / f"run_{timestamp}"
+        
+        return base_dir
+    
+    def get_special_data_path(self):
+        """Custom method for experiment-specific needs."""
+        # Use base method as foundation
+        base_dir = self.get_output_dir()
+        
+        # Add experiment-specific logic
+        return base_dir / "special_data" / f"version_{self.settings.get('version', '1.0')}"
+```
+
+**Migration Strategy:**
+- **Existing experiments**: No changes required - continue working as before
+- **New experiments**: Get benefits automatically by inheriting from base class
+- **Gradual adoption**: Can migrate existing experiments over time
+- **Backward compatible**: Existing path handling still works
+
+### Design Philosophy: Foundation + Flexibility
+
+The enhanced base experiment class follows a **foundation + flexibility** approach:
+
+**Base Class Provides:**
+- **Sensible defaults** for common use cases
+- **Robust path handling** (special characters, empty names, etc.)
+- **Configurable paths** that respect the system configuration
+- **Consistent behavior** across all experiments
+
+**Individual Experiments Can:**
+- **Override** the path methods if they need custom logic
+- **Extend** the base functionality for specific needs
+- **Use their own** path handling entirely if required
+- **Mix and match** - use base methods for some paths, custom for others
+
+**Benefits:**
+- **Consistency**: Most experiments get good defaults
+- **Flexibility**: Can customize when needed
+- **Maintainability**: Common logic centralized
+- **Gradual adoption**: No forced changes
+- **Future-proof**: Easy to enhance base class
+
+### Experiment Development
+
+When creating new experiments, inherit from the base `Experiment` class to get automatic path management:
+
+```python
+from src.core import Experiment, Parameter
+
+class MyNewExperiment(Experiment):
+    """
+    Description of what this experiment does.
+    """
+    
+    _DEFAULT_SETTINGS = [
+        Parameter('param1', 42, int, 'Description of parameter 1'),
+        Parameter('param2', 'hello', str, 'Description of parameter 2'),
+        # ... more parameters
+    ]
+    
+    _DEVICES = {
+        'device1': 'device1',  # Required devices
+        'device2': 'device2',
+    }
+    
+    _EXPERIMENTS = {}  # Sub-experiments if any
+    
+    def __init__(self, devices, experiments=None, name=None, settings=None, log_function=None, data_path=None):
+        super().__init__(name, settings=settings, sub_experiments=experiments, 
+                        devices=devices, log_function=log_function, data_path=data_path)
+        
+        # Get device instances
+        self.device1 = self.devices['device1']['instance']
+        self.device2 = self.devices['device2']['instance']
+    
+    def _function(self):
+        """Main experiment logic."""
+        # Use automatic path management
+        output_dir = self.get_output_dir()
+        config_path = self.get_config_path()
+        
+        # Your experiment logic here
+        pass
+```
+
+**Key Benefits:**
+- **Automatic path handling**: No need to manually manage output directories
+- **Configurable paths**: Respects system configuration automatically
+- **Safe file operations**: Handles edge cases and special characters
+- **Consistent structure**: All experiments follow the same path patterns
+
 ### Example Template
 
 ```python
