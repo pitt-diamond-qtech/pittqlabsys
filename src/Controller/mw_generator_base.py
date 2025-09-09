@@ -30,6 +30,27 @@ class MicrowaveGeneratorBase(Device, ABC):
         Parameter('amplitude', -10, float, 'Amplitude in dBm'),
     ])
 
+    @classmethod
+    def _get_base_settings(cls):
+        """
+        Get the base class settings as a list of Parameter objects.
+        This can be used by subclasses to ensure they inherit all base parameters.
+        
+        Returns:
+            List of Parameter objects from the base class
+        """
+        base_settings = []
+        for key in cls._DEFAULT_SETTINGS.keys():
+            base_settings.append(Parameter(
+                key, 
+                cls._DEFAULT_SETTINGS[key], 
+                cls._DEFAULT_SETTINGS.valid_values[key],
+                cls._DEFAULT_SETTINGS.info[key],
+                cls._DEFAULT_SETTINGS.visible[key],
+                cls._DEFAULT_SETTINGS.units[key] if hasattr(cls._DEFAULT_SETTINGS, 'units') else None
+            ))
+        return base_settings
+
     def __init__(self, name=None, settings=None):
         # Initialize _inst to None first to avoid AttributeError
         self._inst = None

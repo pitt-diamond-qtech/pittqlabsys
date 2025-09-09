@@ -83,8 +83,8 @@ class ODMRPulsedExperiment(Experiment):
     ]
     
     _DEVICES = {
-        'awg520': 'awg520',
-        'adwin': 'adwin'
+        'awg520': AWG520Device,
+        'adwin': AdwinGoldDevice
     }
     
     _EXPERIMENTS = {}
@@ -97,7 +97,7 @@ class ODMRPulsedExperiment(Experiment):
         self.logger = logging.getLogger(__name__)
         
         # Configuration
-        self.config_path = config_path or Path("config.json")
+        self.config_path = config_path or self.get_config_path("config.json")
         self.config = self._load_config()
         
         # Sequence components
@@ -127,8 +127,7 @@ class ODMRPulsedExperiment(Experiment):
         self.repetitions_per_point = 50000  # 50K reps for statistics
         
         # Output paths
-        self.output_dir = Path("odmr_pulsed_output")
-        self.output_dir.mkdir(exist_ok=True)
+        self.output_dir = self.get_output_dir("odmr_pulsed_output")
         
         self.logger.info("ODMR Pulsed Experiment initialized")
     
@@ -511,7 +510,7 @@ if __name__ == "__main__":
     experiment.set_delay_parameters(25.0, 50.0, 15.0)
     
     # Load sequence from file (example)
-    sequence_file = Path("example_sequence.txt")
+    sequence_file = experiment.get_output_dir() / "example_sequence.txt"
     if sequence_file.exists():
         experiment.load_sequence_from_file(sequence_file)
         

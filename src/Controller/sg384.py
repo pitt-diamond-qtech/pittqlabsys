@@ -100,20 +100,11 @@ class SG384Generator(MicrowaveGeneratorBase):
         'sweep_deviation': '_set_sweep_deviation'
     }
 
-    _DEFAULT_SETTINGS = Parameter([
-        # Base settings from MicrowaveGeneratorBase
-        Parameter('connection_type', 'LAN', ['LAN','GPIB','RS232'], 'Transport type'),
+    _DEFAULT_SETTINGS = Parameter(
+        # Inherit all base class settings and add SG384-specific ones
+        MicrowaveGeneratorBase._get_base_settings() + [
+        # SG384-specific overrides (these will override base class defaults)
         Parameter('ip_address', '192.168.2.217', str, 'IP for LAN'),
-        Parameter('port',       5025,   int, 'Port for LAN'),
-        Parameter('connection_timeout', 10.0, float, 'Connection timeout in seconds for LAN connections'),
-        Parameter('socket_timeout', 5.0, float, 'Socket timeout in seconds for send/receive operations'),
-        Parameter('visa_resource', '',  str, 'PyVISA resource string, e.g. GPIB0::20::INSTR or ASRL9::INSTR'),
-        Parameter('baud_rate',   115200,int, 'Baud for RS232'),
-        # Common parameters
-        Parameter('frequency', 1e9, float, 'Frequency in Hz'),
-        Parameter('power', -10, float, 'Power in dBm'),
-        Parameter('phase', 0, float, 'Phase in degrees'),
-        Parameter('amplitude', -10, float, 'Amplitude in dBm'),
         # SG384-specific settings
         Parameter('enable_output', False, bool, 'Enable output'),
         Parameter('enable_modulation', True, bool, 'Enable modulation'),
