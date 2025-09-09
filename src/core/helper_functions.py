@@ -30,6 +30,46 @@ def get_project_root() -> Path:  # new feature in Python 3.x i.e. annotations
     return Path(__file__).parent.parent.parent
 
 
+def get_configured_data_folder() -> Path:
+    """
+    Get the configured data folder path from the config file.
+    
+    Returns:
+        Path object pointing to the configured data folder
+    """
+    try:
+        from src.config_paths import resolve_paths
+        from pathlib import Path
+        
+        # Get the config file path
+        project_root = get_project_root()
+        config_path = project_root / "src" / "config.json"
+        
+        # Resolve paths from config
+        paths = resolve_paths(config_path)
+        
+        # Return the data folder path
+        data_folder = paths.get('data_folder', Path.home() / 'Experiments' / 'AQuISS_default_save_location' / 'data')
+        return Path(data_folder)
+        
+    except Exception as e:
+        # Fallback to default path if config loading fails
+        print(f"Warning: Could not load config, using default data folder: {e}")
+        return Path.home() / 'Experiments' / 'AQuISS_default_save_location' / 'data'
+
+
+def get_configured_confocal_scans_folder() -> Path:
+    """
+    Get the configured confocal scans folder path.
+    
+    Returns:
+        Path object pointing to the confocal scans folder within the data folder
+    """
+    data_folder = get_configured_data_folder()
+    confocal_scans_folder = data_folder / 'confocal_scans'
+    return confocal_scans_folder
+
+
 def module_name_from_path(folder_name, verbose=False):
     """
     takes in a path to a folder or file and return the module path and the path to the module
@@ -52,6 +92,7 @@ def module_name_from_path(folder_name, verbose=False):
     folder_name = folder_name.split('.pyc')[0]
     folder_name = folder_name.split('.py')[0]
 
+    # Normalize the path to handle both Windows and Unix separators
     folder_name = os.path.normpath(folder_name)
 
     path = folder_name + '/'
@@ -87,6 +128,83 @@ def module_name_from_path(folder_name, verbose=False):
 
     # occurs if module not found in this path
     if (not module):
+        # Try to resolve the module path more robustly
+        # Look for common patterns in the file path
+        if 'src' in folder_name:
+            # Try to find the src directory and build module path from there
+            # Use os.path.split to handle both Windows and Unix paths properly
+            parts = folder_name.split(os.sep)
+            try:
+                src_index = parts.index('src')
+                if src_index < len(parts) - 1:
+                    # Build module path from src onwards
+                    module_parts = parts[src_index + 1:]
+                    # Remove the filename (last part)
+                    if module_parts and module_parts[-1].endswith('.py'):
+                        module_parts = module_parts[:-1]
+                    elif module_parts and '.' in module_parts[-1]:
+                        # Remove file extension
+                        module_parts[-1] = module_parts[-1].split('.')[0]
+                    
+                    if module_parts:
+                        module = '.'.join(module_parts)
+                        # Find the project root (parent of src)
+                        project_root = os.sep.join(parts[:src_index])
+                        path = project_root
+                        if verbose:
+                            print(f"Resolved module path: {module} from project root: {path}")
+                        return module, path
+            except ValueError:
+                pass
+        
+        # If all else fails, try to use the current working directory approach
+        try:
+            # Get the current working directory and try to resolve relative to it
+            cwd = os.getcwd()
+            if folder_name.startswith(cwd):
+                # Make path relative to current working directory
+                rel_path = os.path.relpath(folder_name, cwd)
+                parts = rel_path.split(os.sep)
+                # Remove file extension
+                if parts and '.' in parts[-1]:
+                    parts[-1] = parts[-1].split('.')[0]
+                
+                # Look for src directory
+                if 'src' in parts:
+                    src_index = parts.index('src')
+                    module_parts = parts[src_index + 1:]
+                    if module_parts:
+                        module = '.'.join(module_parts)
+                        path = cwd
+                        if verbose:
+                            print(f"Resolved module path relative to CWD: {module} from: {path}")
+                        return module, path
+        except Exception as e:
+            if verbose:
+                print(f"Failed to resolve relative to CWD: {e}")
+        
+        # Final fallback - try to extract module name from filename
+        filename = os.path.basename(folder_name)
+        if '.' in filename:
+            filename = filename.split('.')[0]
+        
+        # Try to find this module in the current Python path
+        for sys_path in sys.path:
+            if os.path.exists(sys_path):
+                for root, dirs, files in os.walk(sys_path):
+                    if filename + '.py' in files:
+                        # Found the file, try to build module path
+                        rel_path = os.path.relpath(root, sys_path)
+                        if rel_path != '.':
+                            module_parts = rel_path.split(os.sep) + [filename]
+                        else:
+                            module_parts = [filename]
+                        module = '.'.join(module_parts)
+                        path = sys_path
+                        if verbose:
+                            print(f"Found module in sys.path: {module} from: {path}")
+                        return module, path
+        
         raise ModuleNotFoundError('The path in the .aq file to this package is not valid')
 
     # module = module[:-1]

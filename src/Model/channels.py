@@ -13,9 +13,9 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 from __future__ import annotations
-from sequence import Sequence
-from pulses import GaussianPulse, MarkerEvent
-from data_processing.utils import (
+from .sequence import Sequence
+from .pulses import GaussianPulse, MarkerEvent
+from .data_processing.utils import (
     generate_comp_sequences,
     random_pauli_list,
     find_R_and_final_state,

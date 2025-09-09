@@ -12,7 +12,7 @@ from pathlib import Path
 import warnings
 
 from src.core import Parameter, Experiment
-from src.core.helper_functions import get_project_root
+from src.core.helper_functions import get_project_root, get_configured_confocal_scans_folder
 from time import sleep
 import pyqtgraph as pg
 
@@ -92,7 +92,7 @@ class ConfocalScan_Fast(Experiment):
         Parameter('ending_behavior', 'return_to_origin', ['return_to_inital_pos', 'return_to_origin', 'leave_at_corner'],'Nanodrive position after scan'),
         Parameter('3D_scan',#using experiment iterator to sweep z-position can give an effective 3D scan as successive images. Useful for finding where NVs are in focal plane
                   [Parameter('enable',False,bool,'T/F to enable 3D scan'),
-                         Parameter('folderpath',str(Path.home() / 'Experiments' / 'AQuISS_default_save_location' / 'confocal_scans'),str,'folder location to save images at each z-value')]),
+                         Parameter('folderpath',str(get_configured_confocal_scans_folder()),str,'folder location to save images at each z-value')]),
         #!!! If you see horizontial lines in the confocal image, the adwin arrays likely are corrupted. The fix is to reboot the adwin. You will nuke all
         #other process, variables, and arrays in the adwin. This parameter is added to make that easy to do in the GUI.
         Parameter('reboot_adwin',False,bool,'Will reboot adwin when experiment is executed. Useful is data looks fishy'),
@@ -480,7 +480,7 @@ class ConfocalScan_Slow(Experiment):
         Parameter('ending_behavior', 'return_to_origin', ['return_to_inital_pos', 'return_to_origin', 'leave_at_corner'],'Nanodrive position after scan'),
         Parameter('3D_scan',# using experiment iterator to sweep z-position can give an effective 3D scan as successive images. Useful for finding where NVs are in focal plane
                   [Parameter('enable', False, bool, 'T/F to enable 3D scan'),
-                   Parameter('folderpath', str(Path.home() / 'Experiments' / 'AQuISS_default_save_location' / 'confocal_scans'), str,'folder location to save images at each z-value')]),
+                   Parameter('folderpath', str(get_configured_confocal_scans_folder()), str,'folder location to save images at each z-value')]),
         # !!! If you see horizontial lines in the confocal image, the adwin arrays likely are corrupted. The fix is to reboot the adwin. You will nuke all
         # other process, variables, and arrays in the adwin. This parameter is added to make that easy to do in the GUI.
         Parameter('reboot_adwin', False, bool,'Will reboot adwin when experiment is executed. Useful is data looks fishy'),
