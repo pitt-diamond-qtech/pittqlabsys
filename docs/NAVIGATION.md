@@ -13,6 +13,7 @@ it l r # Documentation Navigation
 - **[🔌 Device Development Guide](DEVICE_DEVELOPMENT.md)** - Creating hardware device drivers
 - **[🧪 Experiment Development Guide](EXPERIMENT_DEVELOPMENT.md)** - Creating scientific experiments
 - **[📋 API Reference](API_REFERENCE.md)** - Detailed class and method documentation
+- **[🗂️ Project Root Detection](PROJECT_ROOT_DETECTION.md)** - Robust Python path resolution system
 
 ## 📋 Specialized Documentation
 

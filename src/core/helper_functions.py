@@ -25,9 +25,105 @@ import h5py
 from pyparsing import empty
 
 
-def get_project_root() -> Path:  # new feature in Python 3.x i.e. annotations
-    """Returns project root folder."""
-    return Path(__file__).parent.parent.parent
+def get_project_root() -> Path:
+    """
+    Returns project root folder.
+    
+    This function uses multiple strategies to find the project root:
+    1. Look for common project markers (setup.py, pyproject.toml, .git, etc.)
+    2. Walk up from current working directory
+    3. Walk up from calling script location
+    4. Fallback to helper_functions.py location
+    
+    Returns:
+        Path object pointing to the project root
+    """
+    # Strategy 1: Look for project markers from current working directory
+    current_dir = Path.cwd()
+    project_markers = ['setup.py', 'pyproject.toml', '.git', 'src', 'requirements.txt']
+    
+    for path in [current_dir] + list(current_dir.parents):
+        if any((path / marker).exists() for marker in project_markers):
+            # Additional check: if we found 'src', make sure it's the right project
+            if (path / 'src').exists():
+                # Check if this looks like our project structure
+                if (path / 'src' / 'core').exists() and (path / 'src' / 'Model').exists():
+                    return path
+    
+    # Strategy 2: Walk up from the calling script location
+    try:
+        # Get the frame of the calling function
+        frame = inspect.currentframe()
+        if frame and frame.f_back:
+            calling_file = frame.f_back.f_code.co_filename
+            calling_path = Path(calling_file).parent
+            
+            for path in [calling_path] + list(calling_path.parents):
+                if any((path / marker).exists() for marker in project_markers):
+                    if (path / 'src').exists() and (path / 'src' / 'core').exists():
+                        return path
+    except Exception:
+        pass
+    
+    # Strategy 3: Fallback to helper_functions.py location (original behavior)
+    fallback_root = Path(__file__).parent.parent.parent
+    if (fallback_root / 'src' / 'core').exists():
+        return fallback_root
+    
+    # Strategy 4: Last resort - try to find any directory with 'src' folder
+    for path in [Path.cwd()] + list(Path.cwd().parents):
+        if (path / 'src').exists() and (path / 'src' / 'core').exists():
+            return path
+    
+    # If all else fails, return the fallback
+    return fallback_root
+
+
+def find_project_root_from_file(file_path: str) -> Path:
+    """
+    Find project root starting from a specific file path.
+    
+    This is useful when you know the location of a specific file and want to
+    find the project root relative to that file.
+    
+    Args:
+        file_path: Path to any file in the project (can be relative or absolute)
+        
+    Returns:
+        Path object pointing to the project root
+    """
+    file_path = Path(file_path).resolve()
+    project_markers = ['setup.py', 'pyproject.toml', '.git', 'src', 'requirements.txt']
+    
+    # Start from the file's directory and walk up
+    for path in [file_path.parent] + list(file_path.parents):
+        if any((path / marker).exists() for marker in project_markers):
+            if (path / 'src').exists() and (path / 'src' / 'core').exists():
+                return path
+    
+    # Fallback to the original method
+    return get_project_root()
+
+
+def get_project_root_simple() -> Path:
+    """
+    Simple project root finder that just looks for the 'src' directory.
+    
+    This is a lightweight alternative that assumes you're running from
+    somewhere within the project structure.
+    
+    Returns:
+        Path object pointing to the project root
+    """
+    current = Path.cwd()
+    
+    # Walk up until we find a directory containing 'src'
+    for path in [current] + list(current.parents):
+        if (path / 'src').exists():
+            return path
+    
+    # If not found, fall back to the comprehensive method
+    return get_project_root()
 
 
 def get_configured_data_folder() -> Path:
