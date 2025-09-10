@@ -51,11 +51,11 @@ class ExperimentIterator(Experiment):
 
     ITER_TYPES = ['loop', 'sweep']
 
-    def __init__(self, experiments, name=None, settings=None, log_function=None, data_path=None):
+    def __init__(self, experiments, name=None, settings=None, devices=None, log_function=None, data_path=None):
         """
         Default experiment initialization
         """
-        Experiment.__init__(self, name, sub_experiments=experiments, settings=settings, log_function=log_function, data_path=data_path)
+        Experiment.__init__(self, name, sub_experiments=experiments, settings=settings, devices=devices, log_function=log_function, data_path=data_path)
         self.iterator_type = self.get_iterator_type(self.settings, experiments)
 
         # Initialize the missing data structure properly
@@ -97,7 +97,8 @@ class ExperimentIterator(Experiment):
             elif 'num_loops' in experiment_settings:
                 iterator_type = 'loop'
             else:
-                raise TypeError('unknown iterator type')
+                # Default to 'loop' if no specific iterator type can be determined
+                iterator_type = 'loop'
 
         return iterator_type
 

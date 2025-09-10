@@ -974,17 +974,28 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             """
             gui_logger.info("Store experiment data button clicked")
             item = self.tree_experiments.currentItem()
+            gui_logger.debug(f"Selected item: {item}")
+            
             if item is not None:
                 experiment, path_to_experiment, _ = item.get_experiment()
-                experiment_copy = experiment.duplicate()
-                time_tag = experiment.start_time.strftime('%y%m%d-%H_%M_%S')
+                gui_logger.debug(f"Experiment from item: {experiment}")
+                gui_logger.debug(f"Path to experiment: {path_to_experiment}")
                 
-                gui_logger.info(f"Storing experiment {experiment.name} with time tag {time_tag}")
-                self.data_sets.update({time_tag : experiment_copy})
-                self.fill_dataset_tree(self.tree_dataset, self.data_sets)
-                gui_logger.info(f"Experiment data stored successfully. Total datasets: {len(self.data_sets)}")
+                if experiment is not None:
+                    try:
+                        experiment_copy = experiment.duplicate()
+                        time_tag = experiment.start_time.strftime('%y%m%d-%H_%M_%S')
+                        
+                        gui_logger.info(f"Storing experiment {experiment.name} with time tag {time_tag}")
+                        self.data_sets.update({time_tag : experiment_copy})
+                        self.fill_dataset_tree(self.tree_dataset, self.data_sets)
+                        gui_logger.info(f"Experiment data stored successfully. Total datasets: {len(self.data_sets)}")
+                    except Exception as e:
+                        gui_logger.error(f"Error storing experiment: {e}")
+                else:
+                    gui_logger.warning("Store button clicked but selected item does not contain an experiment")
             else:
-                gui_logger.warning("Store button clicked but no experiment selected")
+                gui_logger.warning("Store button clicked but no item selected in experiments tree")
 
         def save_data():
             """"
@@ -1704,22 +1715,34 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         Returns:
 
         """
-
+        gui_logger.info(f"Filling dataset tree with {len(data_sets)} datasets")
+        
         tree.model().removeRows(0, tree.model().rowCount())
         for index, (time, experiment) in enumerate(data_sets.items()):
-            name = experiment.settings['tag']
-            type = experiment.name
+            try:
+                # Get experiment name/tag safely
+                if hasattr(experiment, 'settings') and 'tag' in experiment.settings:
+                    name = experiment.settings['tag']
+                else:
+                    name = getattr(experiment, 'name', 'Unknown')
+                
+                type_name = getattr(experiment, 'name', 'Unknown')
 
-            item_time = QtGui.QStandardItem(str(time))
-            item_name = QtGui.QStandardItem(str(name))
-            item_type = QtGui.QStandardItem(str(type))
+                item_time = QtGui.QStandardItem(str(time))
+                item_name = QtGui.QStandardItem(str(name))
+                item_type = QtGui.QStandardItem(str(type_name))
 
-            item_time.setSelectable(False)
-            item_time.setEditable(False)
-            item_type.setSelectable(False)
-            item_type.setEditable(False)
+                item_time.setSelectable(False)
+                item_time.setEditable(False)
+                item_type.setSelectable(False)
+                item_type.setEditable(False)
 
-            tree.model().appendRow([item_time, item_name, item_type])
+                tree.model().appendRow([item_time, item_name, item_type])
+                gui_logger.debug(f"Added dataset: {time} - {name} ({type_name})")
+                
+            except Exception as e:
+                gui_logger.error(f"Error adding dataset {time} to tree: {e}")
+                continue
 
     def load_config(self, filepath=None):
         """

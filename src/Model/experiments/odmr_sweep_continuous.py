@@ -31,7 +31,7 @@ class ODMRSweepContinuousExperiment(Experiment):
     This experiment performs ODMR measurements by:
     1. Configuring SG384 for phase continuous frequency sweep
     2. Using Adwin ODMR_Sweep_Counter for synchronized counting
-    3. Collecting data during the sweep for high-speed acquisition
+    3. Collecting data during the sweep for high-speed acquisitionhey 
     
     This approach provides:
     - Fast frequency sweeps with phase continuity
@@ -59,7 +59,7 @@ class ODMRSweepContinuousExperiment(Experiment):
         ]),
         Parameter('microwave', [
             Parameter('power', -10.0, float, 'Microwave power in dBm', units='dBm'),
-            Parameter('sweep_rate', 1e6, float, 'Sweep rate in Hz/s', units='Hz/s'),
+            Parameter('step_freq', 1e6, float, 'Frequency step size in Hz', units='Hz'),
             Parameter('sweep_function', 'Triangle', ['Sine', 'Ramp', 'Triangle', 'Square', 'Noise'], 'Sweep waveform')
         ]),
         Parameter('acquisition', [
@@ -150,7 +150,7 @@ class ODMRSweepContinuousExperiment(Experiment):
         # Initialize data arrays
         self._initialize_data_arrays()
         
-        self.logger.info("ODMR Phase Continuous Sweep Experiment setup complete")
+        self.log("ODMR Phase Continuous Sweep Experiment setup complete")
     
     def _setup_microwave_sweep(self):
         """Setup the SG384 for frequency sweep."""
@@ -160,7 +160,7 @@ class ODMRSweepContinuousExperiment(Experiment):
         # Set power
         self.microwave.set_power(self.settings['microwave']['power'])
         
-        # Configure sweep parameters
+        # Configure sweep parameters using calculated values
         start_freq = self.settings['frequency_range']['start']
         stop_freq = self.settings['frequency_range']['stop']
         center_freq = (start_freq + stop_freq) / 2
@@ -176,10 +176,8 @@ class ODMRSweepContinuousExperiment(Experiment):
         sweep_func = self.settings['microwave']['sweep_function']
         self.microwave.set_sweep_function(sweep_func)
         
-        # Calculate and set sweep rate
-        sweep_time = (stop_freq - start_freq) / self.settings['microwave']['sweep_rate']
-        sweep_rate = 1.0 / sweep_time  # Hz/s
-        self.microwave.set_sweep_rate(sweep_rate)
+        # Set sweep rate using calculated value
+        self.microwave.set_sweep_rate(self.sweep_rate)
         
         # Enable sweep mode
         self.microwave.set_modulation_type('Freq sweep')
@@ -188,8 +186,8 @@ class ODMRSweepContinuousExperiment(Experiment):
         # Enable output
         self.microwave.enable_output()
         
-        self.logger.info(f"Microwave sweep setup: {center_freq/1e9:.3f} GHz ± {deviation/1e6:.1f} MHz")
-        self.logger.info(f"Sweep function: {sweep_func}, Rate: {sweep_rate/1e6:.2f} MHz/s")
+        self.log(f"Microwave sweep setup: {center_freq/1e9:.3f} GHz ± {deviation/1e6:.1f} MHz")
+        self.log(f"Sweep function: {sweep_func}, Rate: {self.sweep_rate/1e6:.2f} MHz/s")
     
     def _setup_adwin_sweep(self):
         """Setup Adwin for sweep-synchronized counting."""
@@ -199,28 +197,27 @@ class ODMRSweepContinuousExperiment(Experiment):
         # Use existing helper function for sweep ODMR setup
         from src.core.adwin_helpers import setup_adwin_for_sweep_odmr
         
-        # Calculate number of steps based on integration time and sweep time
-        sweep_time = (self.settings['frequency_range']['stop'] - self.settings['frequency_range']['start']) / self.settings['microwave']['sweep_rate']
+        # Use calculated parameters
         integration_time = self.settings['acquisition']['integration_time']
-        num_steps = int(sweep_time / integration_time)
+        settle_time = self.settings['acquisition']['settle_time']
         
         # Setup using helper function
         integration_time_ms = integration_time * 1000
-        settle_time_ms = 0.001  # 1 ms settle time
+        settle_time_ms = settle_time * 1000
         bidirectional = True  # Enable bidirectional sweeps
         
         setup_adwin_for_sweep_odmr(
             self.adwin, 
             integration_time_ms, 
             settle_time_ms, 
-            num_steps, 
+            self.num_steps, 
             bidirectional
         )
         
         # Start the process
         self.adwin.start_process("Process_1")
         
-        self.logger.info(f"Adwin sweep setup: {num_steps} steps, {integration_time*1e3:.1f} ms per step")
+        self.log(f"Adwin sweep setup: {self.num_steps} steps, {integration_time*1e3:.1f} ms per step")
     
     def _setup_nanodrive(self):
         """Setup MCL nanodrive if available."""
@@ -229,26 +226,36 @@ class ODMRSweepContinuousExperiment(Experiment):
         
         # Set to current position (no movement)
         current_pos = self.nanodrive.get_position()
-        self.logger.info(f"Nanodrive position: {current_pos}")
+        self.log(f"Nanodrive position: {current_pos}")
     
     def _calculate_sweep_parameters(self):
         """Calculate sweep timing and frequency parameters."""
         start_freq = self.settings['frequency_range']['start']
         stop_freq = self.settings['frequency_range']['stop']
-        sweep_rate = self.settings['microwave']['sweep_rate']
-        
-        # Calculate sweep time
-        self.sweep_time = abs(stop_freq - start_freq) / sweep_rate
-        
-        # Calculate number of frequency points
+        step_freq = self.settings['microwave']['step_freq']
         integration_time = self.settings['acquisition']['integration_time']
-        self.num_steps = int(self.sweep_time / integration_time)
+        settle_time = self.settings['acquisition']['settle_time']
+        
+        # Calculate number of steps based on frequency range and step size
+        self.num_steps = int(abs(stop_freq - start_freq) / step_freq)
+        
+        # Calculate sweep time based on integration time and settle time per step
+        time_per_step = integration_time + settle_time
+        self.sweep_time = self.num_steps * time_per_step
+        
+        # Calculate actual sweep rate (Hz/s)
+        self.sweep_rate = abs(stop_freq - start_freq) / self.sweep_time
         
         # Generate frequency array
         self.frequencies = np.linspace(start_freq, stop_freq, self.num_steps)
         
-        self.logger.info(f"Sweep time: {self.sweep_time:.3f} s, Steps: {self.num_steps}")
-        self.logger.info(f"Frequency range: {start_freq/1e9:.3f} - {stop_freq/1e9:.3f} GHz")
+        # Log calculation results
+        self.log(f"Step frequency: {step_freq/1e6:.2f} MHz")
+        self.log(f"Number of steps: {self.num_steps}")
+        self.log(f"Time per step: {time_per_step*1e3:.1f} ms")
+        self.log(f"Sweep time: {self.sweep_time:.3f} s")
+        self.log(f"Calculated sweep rate: {self.sweep_rate/1e6:.2f} MHz/s")
+        self.log(f"Frequency range: {start_freq/1e9:.3f} - {stop_freq/1e9:.3f} GHz")
     
     def _initialize_data_arrays(self):
         """Initialize data storage arrays."""
@@ -278,12 +285,12 @@ class ODMRSweepContinuousExperiment(Experiment):
             self.microwave.disable_output()
         
         super().cleanup()
-        self.logger.info("ODMR Phase Continuous Sweep Experiment cleanup complete")
+        self.log("ODMR Phase Continuous Sweep Experiment cleanup complete")
     
     def _function(self):
         """Main experiment function."""
         try:
-            self.logger.info("Starting ODMR Phase Continuous Sweep Experiment")
+            self.log("Starting ODMR Phase Continuous Sweep Experiment")
             
             # Run multiple sweep averages
             self._run_sweep_averages()
@@ -294,10 +301,10 @@ class ODMRSweepContinuousExperiment(Experiment):
             # Store results
             self._store_results_in_data()
             
-            self.logger.info("ODMR Phase Continuous Sweep Experiment completed successfully")
+            self.log("ODMR Phase Continuous Sweep Experiment completed successfully")
             
         except Exception as e:
-            self.logger.error(f"Error in ODMR sweep experiment: {e}")
+            self.log(f"Error in ODMR sweep experiment: {e}")
             raise
     
     def _run_sweep_averages(self):
@@ -305,7 +312,7 @@ class ODMRSweepContinuousExperiment(Experiment):
         averages = self.settings['acquisition']['averages']
         settle_time = self.settings['acquisition']['settle_time']
         
-        self.logger.info(f"Starting sweep averages: {averages} sweeps")
+        self.log(f"Starting sweep averages: {averages} sweeps")
         
         # Arrays to store individual sweep data
         all_forward = np.zeros((averages, self.num_steps))
@@ -313,7 +320,7 @@ class ODMRSweepContinuousExperiment(Experiment):
         all_voltages = np.zeros((averages, self.num_steps))
         
         for avg in range(averages):
-            self.logger.info(f"Running sweep {avg + 1}/{averages}")
+            self.log(f"Running sweep {avg + 1}/{averages}")
             
             # Run single sweep
             forward, reverse, voltages = self._run_single_sweep()
@@ -333,7 +340,7 @@ class ODMRSweepContinuousExperiment(Experiment):
         self.counts_averaged = (self.counts_forward + self.counts_reverse) / 2
         self.voltages = np.mean(all_voltages, axis=0)
         
-        self.logger.info("Sweep averages completed")
+        self.log("Sweep averages completed")
     
     def _run_single_sweep(self):
         """Run a single frequency sweep."""
@@ -344,9 +351,8 @@ class ODMRSweepContinuousExperiment(Experiment):
         # Start microwave sweep
         # The SG384 will automatically sweep when modulation is enabled
         
-        # Wait for sweep to complete
-        sweep_time = self.sweep_time
-        time.sleep(sweep_time + 0.1)  # Add small buffer
+        # Wait for sweep to complete using calculated sweep time
+        time.sleep(self.sweep_time + 0.1)  # Add small buffer
         
         # Stop the sweep
         self.adwin.stop_process("Process_1")
@@ -372,7 +378,7 @@ class ODMRSweepContinuousExperiment(Experiment):
     
     def _analyze_data(self):
         """Analyze the ODMR sweep data."""
-        self.logger.info("Analyzing ODMR sweep data...")
+        self.log("Analyzing ODMR sweep data...")
         
         # Use averaged data for analysis
         data = self.counts_averaged
@@ -389,7 +395,7 @@ class ODMRSweepContinuousExperiment(Experiment):
         if self.settings['analysis']['auto_fit']:
             self._fit_resonances()
         
-        self.logger.info("Data analysis completed")
+        self.log("Data analysis completed")
     
     def _smooth_data(self, data: np.ndarray) -> np.ndarray:
         """Apply Savitzky-Golay smoothing to the data."""
@@ -411,7 +417,7 @@ class ODMRSweepContinuousExperiment(Experiment):
             peaks = self._find_peaks()
             
             if len(peaks) == 0:
-                self.logger.warning("No peaks found for fitting")
+                self.log("No peaks found for fitting")
                 return
             
             # Fit each peak with Lorentzian
@@ -445,13 +451,13 @@ class ODMRSweepContinuousExperiment(Experiment):
                     self.resonance_frequencies.append(popt[1])
                     
                 except Exception as e:
-                    self.logger.warning(f"Failed to fit peak at {center/1e9:.3f} GHz: {e}")
+                    self.log(f"Failed to fit peak at {center/1e9:.3f} GHz: {e}")
             
             self.fit_parameters = fit_params
-            self.logger.info(f"Fitted {len(fit_params)} resonances")
+            self.log(f"Fitted {len(fit_params)} resonances")
             
         except Exception as e:
-            self.logger.error(f"Error in resonance fitting: {e}")
+            self.log(f"Error in resonance fitting: {e}")
     
     def _find_peaks(self) -> List[int]:
         """Find peaks in the ODMR spectrum."""
@@ -536,8 +542,10 @@ class ODMRSweepContinuousExperiment(Experiment):
             'description': 'ODMR with phase continuous frequency sweep using SG384 and synchronized Adwin counting',
             'devices': list(self._DEVICES.keys()),
             'frequency_range': f"{self.settings['frequency_range']['start']/1e9:.3f} - {self.settings['frequency_range']['stop']/1e9:.3f} GHz",
-            'sweep_rate': f"{self.settings['microwave']['sweep_rate']/1e6:.2f} MHz/s",
+            'step_frequency': f"{self.settings['microwave']['step_freq']/1e6:.2f} MHz",
+            'calculated_sweep_rate': f"{self.sweep_rate/1e6:.2f} MHz/s",
             'sweep_time': f"{self.sweep_time:.3f} s",
+            'num_steps': self.num_steps,
             'averages': self.settings['acquisition']['averages'],
             'integration_time': f"{self.settings['acquisition']['integration_time']*1e3:.1f} ms"
         } 
