@@ -269,13 +269,38 @@ class Parameter(dict):
             valid = True
         elif isinstance(value, dict) and isinstance(valid_values, dict):
             # check that all values actually exist in valid_values
-            # assert value.keys() & valid_values.keys() == value.keys() # python 3 syntax
-            assert set(value.keys()) & set(valid_values.keys()) == set(value.keys())  # python 2
-            # valid = True
-            for k, v in value.items():
-                valid = Parameter.is_valid(v, valid_values[k])
-                if not valid:
-                    break
+            # Check that all keys in value exist in valid_values and vice versa
+            if set(value.keys()) != set(valid_values.keys()):
+                valid = False
+            else:
+                # valid = True
+                for k, v in value.items():
+                    valid = Parameter.is_valid(v, valid_values[k])
+                    if not valid:
+                        break
+        elif isinstance(value, dict) and isinstance(valid_values, list):
+            # Handle case where valid_values is a list of Parameter objects but value is a dict
+            # This happens when loading experiments from files where nested parameters are stored as dicts
+            if not valid_values:
+                # Empty list means no validation rules - allow any dict
+                valid = True
+            else:
+                valid = True
+                
+                # Check that all required parameters are present and no extra parameters
+                required_params = [param.name for param in valid_values if isinstance(param, Parameter)]
+                if set(required_params) != set(value.keys()):
+                    valid = False
+                else:
+                    # Validate each parameter value
+                    for param in valid_values:
+                        if isinstance(param, Parameter) and param.name in value:
+                            # Get the valid_values for this specific parameter
+                            param_valid_values = param.valid_values.get(param.name, type(value[param.name]))
+                            param_valid = Parameter.is_valid(value[param.name], param_valid_values)
+                            if not param_valid:
+                                valid = False
+                                break
 
         elif isinstance(value, dict) and valid_values == Parameter:
             valid = True
