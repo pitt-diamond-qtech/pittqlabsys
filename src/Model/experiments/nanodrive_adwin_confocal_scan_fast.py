@@ -57,7 +57,7 @@ class NanodriveAdwinConfocalScanFast(Experiment):
         Parameter('ending_behavior', 'return_to_origin', ['return_to_inital_pos', 'return_to_origin', 'leave_at_corner'],'Nanodrive position after scan'),
         Parameter('3D_scan',#using experiment iterator to sweep z-position can give an effective 3D scan as successive images. Useful for finding where NVs are in focal plane
                   [Parameter('enable',False,bool,'T/F to enable 3D scan'),
-                         Parameter('folderpath',str(get_configured_confocal_scans_folder()),str,'folder location to save images at each z-value')]),
+                         Parameter('folderpath','',str,'folder location to save images at each z-value')]),
         #!!! If you see horizontial lines in the confocal image, the adwin arrays likely are corrupted. The fix is to reboot the adwin. You will nuke all
         #other process, variables, and arrays in the adwin. This parameter is added to make that easy to do in the GUI.
         Parameter('reboot_adwin',False,bool,'Will reboot adwin when experiment is executed. Useful is data looks fishy'),
@@ -131,6 +131,10 @@ class NanodriveAdwinConfocalScanFast(Experiment):
         This is the actual function that will be executed. It uses only information that is provided in the settings property
         will be overwritten in the __init__
         """
+        # Set the 3D scan folder path at runtime to ensure correct path resolution
+        if not self.settings['3D_scan']['folderpath']:
+            self.settings['3D_scan']['folderpath'] = str(get_configured_confocal_scans_folder())
+        
         if self.settings['reboot_adwin'] == True:
             self.adw.reboot_adwin()
         self.setup_scan()
