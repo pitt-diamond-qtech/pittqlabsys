@@ -132,6 +132,9 @@ class ODMRSweepContinuousExperiment(Experiment):
     
     def setup(self):
         """Setup the experiment and devices."""
+        # Calculate sweep parameters first (needed by other setup methods)
+        self._calculate_sweep_parameters()
+        
         # Setup microwave generator for sweep
         self._setup_microwave_sweep()
         
@@ -141,9 +144,6 @@ class ODMRSweepContinuousExperiment(Experiment):
         # Setup nanodrive if available
         if self.nanodrive:
             self._setup_nanodrive()
-        
-        # Calculate sweep parameters
-        self._calculate_sweep_parameters()
         
         # Initialize data arrays
         self._initialize_data_arrays()
