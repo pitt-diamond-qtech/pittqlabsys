@@ -292,6 +292,9 @@ class ODMRSweepContinuousExperiment(Experiment):
         try:
             self.log("Starting ODMR Phase Continuous Sweep Experiment")
             
+            # Calculate sweep parameters first
+            self._calculate_sweep_parameters()
+            
             # Run multiple sweep averages
             self._run_sweep_averages()
             
