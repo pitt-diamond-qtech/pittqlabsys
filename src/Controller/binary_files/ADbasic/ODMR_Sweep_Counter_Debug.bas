@@ -12,34 +12,25 @@
 ' Info_Last_Save                 = DUTTLAB8  Duttlab8\Duttlab
 '<Header End>
 '
-' ODMR Sweep Counter Script for Enhanced ODMR Experiments
-' This script generates a voltage ramp on DAC1 for SG384 modulation input
-' and counts photons synchronously during the sweep.
-'
-' IMPORTANT: Voltage is constrained to ±1V for SG384 compatibility
-' DAC operates at ±10V range for precision, but output is clamped to ±1V
+' ODMR Sweep Counter Script - DEBUG VERSION
+' This script helps diagnose counting issues by providing detailed diagnostics
 '
 ' Parameters:
-' Par_1  - Counter value (read)
+' Par_1  - Raw counter value (read every cycle)
 ' Par_2  - Integration time per step in microseconds (set by experiment)
 ' Par_3  - Number of steps in sweep (set by experiment)
 ' Par_4  - Current step index (0 to num_steps-1)
 ' Par_5  - Sweep direction (0=forward, 1=reverse)
-' Par_6  - Current voltage output (-1.0 to +1.0, clamped for SG384)
+' Par_6  - Current voltage output (-1.0 to +1.0)
 ' Par_7  - Sweep complete flag (0=in progress, 1=complete)
 ' Par_8  - Total counts for current step
 ' Par_9  - Sweep cycle counter (0=forward, 1=reverse, 2=complete)
 ' Par_10 - Data ready flag (0=collecting, 1=ready to read)
-' Par_11 - Settle time after voltage step in microseconds (set by experiment)
-'
-' Data Arrays:
-' Data_1 - Forward sweep counts (index 0 to num_steps-1)
-' Data_2 - Reverse sweep counts (index 0 to num_steps-1)
-' Data_3 - Forward sweep voltages (index 0 to num_steps-1)
-' Data_4 - Reverse sweep voltages (index 0 to num_steps-1)
-'
-' DAC Outputs:
-' DAC1 - Voltage ramp for SG384 FM input (-1V to +1V, clamped for safety)
+' Par_11 - Settle time after voltage step in microseconds
+' Par_12 - DEBUG: Event cycle counter
+' Par_13 - DEBUG: Integration cycle counter
+' Par_14 - DEBUG: Raw counter before clear
+' Par_15 - DEBUG: Counter mode (0=rising, 8=falling)
 
 #Include ADwinGoldII.inc
 
@@ -53,6 +44,8 @@ DIM sweep_direction AS LONG
 DIM sweep_cycle AS LONG
 DIM data_ready AS LONG
 DIM dac_value AS LONG
+DIM event_cycle AS LONG
+DIM raw_counter AS LONG
 
 ' Declare data arrays for storing sweep data
 DIM Data_1[10000] AS LONG  ' Forward sweep counts
@@ -64,11 +57,10 @@ init:
   ' Initialize counter
   Cnt_Enable(0)   ' Disable counter
   Cnt_Clear(1)    ' Clear counter 1
-  Cnt_Mode(1,0)   ' Set counter 1 to increment on rising edge
+  Cnt_Mode(1,0)   ' DEBUG: Try rising edge first (mode 0)
   Cnt_Enable(1)   ' Enable counter 1
   
   ' Initialize DAC for ±10V range (but we'll clamp output to ±1V for SG384)
-  ' DAC values: 0 = -10V, 32768 = 0V, 65535 = +9.999695V
   DAC(1, 1)       ' Enable DAC1
   Start_DAC(1)    ' Start DAC1 output
   
@@ -80,6 +72,7 @@ init:
   sweep_direction = 0  ' Start with forward sweep
   sweep_cycle = 0
   data_ready = 0
+  event_cycle = 0
   
   ' Calculate voltage step size for ±1V range (SG384 safe)
   IF (Par_3 > 0) THEN
@@ -105,6 +98,10 @@ init:
   Par_8 = 0
   Par_9 = 0  ' Forward sweep cycle
   Par_10 = 0 ' Data not ready
+  Par_12 = 0 ' Event cycle counter
+  Par_13 = 0 ' Integration cycle counter
+  Par_14 = 0 ' Raw counter before clear
+  Par_15 = 0 ' Counter mode (0=rising)
   
   ' Clear data arrays by setting all elements to 0
   FOR step_index = 0 TO Par_3 - 1
@@ -115,8 +112,14 @@ init:
   NEXT step_index
 
 Event:
-  ' Read counter value
-  Par_1 = Cnt_Read(1)
+  ' Increment event cycle counter
+  event_cycle = event_cycle + 1
+  Par_12 = event_cycle
+  
+  ' Read raw counter value
+  raw_counter = Cnt_Read(1)
+  Par_1 = raw_counter
+  Par_14 = raw_counter  ' Store raw counter before any clearing
   
   ' Check if we're in settle time or integration time
   IF (settle_cycles > 0) THEN
@@ -124,15 +127,21 @@ Event:
     settle_cycles = settle_cycles - 1
   ELSE
     ' In integration time - accumulate counts
-    total_counts = total_counts + Par_1
+    total_counts = total_counts + raw_counter
     Par_8 = total_counts
+    
+    ' DEBUG: Only clear counter at the END of integration period
+    ' (This is the key fix - don't clear every cycle!)
     
     ' Check if we've completed the integration time for this step
     integration_cycles = integration_cycles + 1
+    Par_13 = integration_cycles
+    
     IF (integration_cycles >= Par_2) THEN
       ' Integration time complete for this step
       ' NOW clear the counter for next step
       Cnt_Clear(1)
+      
       ' Store data in appropriate array based on sweep direction
       IF (sweep_direction = 0) THEN
         ' Forward sweep: store in Data_1 (counts) and Data_3 (voltages)
@@ -220,4 +229,4 @@ Finish:
   ' Cleanup
   Cnt_Enable(0)  ' Disable counter
   ' Set DAC output to 0V (center of range, SG384 safe)
-  Write_DAC(1, 32768) 
+  Write_DAC(1, 32768)
