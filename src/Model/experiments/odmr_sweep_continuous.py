@@ -223,8 +223,24 @@ class ODMRSweepContinuousExperiment(Experiment):
             self.nanodrive.connect()
         
         # Set to current position (no movement)
-        current_pos = self.nanodrive.get_position()
-        self.log(f"Nanodrive position: {current_pos}")
+        # Get position for all axes (X, Y, Z)
+        try:
+            current_pos = self.nanodrive.get_position('X')
+            self.log(f"Nanodrive X position: {current_pos}")
+        except Exception as e:
+            self.log(f"Could not get nanodrive X position: {e}")
+        
+        try:
+            current_pos = self.nanodrive.get_position('Y')
+            self.log(f"Nanodrive Y position: {current_pos}")
+        except Exception as e:
+            self.log(f"Could not get nanodrive Y position: {e}")
+        
+        try:
+            current_pos = self.nanodrive.get_position('Z')
+            self.log(f"Nanodrive Z position: {current_pos}")
+        except Exception as e:
+            self.log(f"Could not get nanodrive Z position: {e}")
     
     def _calculate_sweep_parameters(self):
         """Calculate sweep timing and frequency parameters."""
