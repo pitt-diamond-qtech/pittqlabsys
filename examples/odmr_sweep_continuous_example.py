@@ -319,7 +319,12 @@ def test_experiment_creation():
                 'microwave': {'power': -10.0, 'step_freq': 1e6, 'sweep_function': 'Triangle'},
                 'acquisition': {'integration_time': 0.001, 'averages': 5, 'settle_time': 0.01},
                 'laser': {'power': 1.0, 'wavelength': 532.0},
-                'analysis': {'auto_fit': True, 'smoothing': True}
+                'analysis': {
+                    'auto_fit': True, 
+                    'smoothing': True,
+                    'smooth_window': 5,
+                    'background_subtraction': True
+                }
             }
         )
         

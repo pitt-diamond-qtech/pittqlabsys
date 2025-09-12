@@ -295,10 +295,18 @@ class Parameter(dict):
                     # Validate each parameter value
                     for param in valid_values:
                         if isinstance(param, Parameter) and param.name in value:
-                            # Get the valid_values for this specific parameter
-                            param_valid_values = param.valid_values.get(param.name, type(value[param.name]))
-                            param_valid = Parameter.is_valid(value[param.name], param_valid_values)
-                            if not param_valid:
+                            # For nested parameters, we need to validate against the parameter's type and valid_values
+                            param_value = value[param.name]
+                            param_type = param.param_type
+                            param_valid_values = param.valid_values
+                            
+                            # Check type first
+                            if not isinstance(param_value, param_type):
+                                valid = False
+                                break
+                            
+                            # Then check valid_values if they exist
+                            if param_valid_values and not Parameter.is_valid(param_value, param_valid_values):
                                 valid = False
                                 break
 
