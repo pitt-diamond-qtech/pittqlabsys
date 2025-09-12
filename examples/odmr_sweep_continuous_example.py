@@ -42,7 +42,7 @@ def create_devices(use_real_hardware=False, config_path=None, debug=False):
         print("Using real hardware from config...")
         try:
             from src.core.device_config import load_devices_from_config
-            from pathlib import Path
+            from pathlib import Path purpose 
             
             # Use provided config path or default
             if config_path is None:
@@ -158,9 +158,9 @@ def run_odmr_sweep_scan(use_real_hardware=False, save_data=True, config_path=Non
                 'sweep_function': 'Triangle'  # Triangle sweep waveform
             },
             'acquisition': {
-                'integration_time': 0.001,  # 1 ms per point
+                'integration_time': 0.005,  # 1 ms per point
                 'averages': 10,             # 10 sweep averages
-                'settle_time': 0.01         # 10 ms between sweeps
+                'settle_time': 0.001         # 10 ms between sweeps
             },
             'laser': {
                 'power': 1.0,        # 1 mW
