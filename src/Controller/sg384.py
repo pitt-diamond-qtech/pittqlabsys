@@ -314,11 +314,6 @@ class SG384Generator(MicrowaveGeneratorBase):
         param = self._param_to_scpi('enable_modulation')
         self._send(f"{param}:STAT OFF")
 
-    def set_modulation_type(self, mtype: str):
-        self.settings['modulation_type'] = mtype
-        param = self._param_to_scpi('modulation_type')
-        self._send(f"{param} {mtype}")
-
     def set_modulation_depth(self, depth_hz: float):
         self.settings['modulation_depth'] = depth_hz
         param = self._param_to_scpi('modulation_depth')
@@ -526,6 +521,49 @@ class SG384Generator(MicrowaveGeneratorBase):
         """Set sweep deviation."""
         param = self._param_to_scpi('sweep_deviation')
         self._send(f"{param} {sweep_deviation}")
+
+    # Public methods for experiment interface
+    def set_sweep_deviation(self, deviation: float):
+        """Set sweep deviation (public interface)."""
+        self.settings['sweep_deviation'] = deviation
+        self._set_sweep_deviation(deviation)
+
+    def set_sweep_function(self, function: str):
+        """Set sweep function (public interface)."""
+        self.settings['sweep_function'] = function
+        func_int = self._sweep_func_to_internal(function)
+        self._set_sweep_function(func_int)
+
+    def set_sweep_rate(self, rate: float):
+        """Set sweep rate (public interface)."""
+        self.settings['sweep_rate'] = rate
+        self._set_sweep_rate(rate)
+
+    def enable_output(self):
+        """Enable output (public interface)."""
+        self.settings['enable_output'] = True
+        self._set_output_enable(1)
+
+    def disable_output(self):
+        """Disable output (public interface)."""
+        self.settings['enable_output'] = False
+        self._set_output_enable(0)
+
+    def set_modulation_type(self, mtype: str):
+        """Set modulation type (public interface)."""
+        self.settings['modulation_type'] = mtype
+        mod_int = self._mod_type_to_internal(mtype)
+        self._set_modulation_type(mod_int)
+
+    def enable_modulation(self):
+        """Enable modulation (public interface)."""
+        self.settings['enable_modulation'] = True
+        self._set_modulation_enable(1)
+
+    def disable_modulation(self):
+        """Disable modulation (public interface)."""
+        self.settings['enable_modulation'] = False
+        self._set_modulation_enable(0)
 
     def update(self, settings: dict):
         """
