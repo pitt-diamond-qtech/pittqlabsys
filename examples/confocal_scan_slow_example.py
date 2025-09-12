@@ -1,22 +1,23 @@
 #!/usr/bin/env python3
 """
-Confocal Scan Example
+Confocal Scan Slow Example
 
-This script demonstrates how to run a confocal microscope scan using the existing
-ConfocalScan_Fast experiment class. It can run with either real hardware or mock hardware.
+This script demonstrates how to run a slow, high-precision confocal microscope scan 
+using the NanodriveAdwinConfocalScanSlow experiment class. It can run with either 
+real hardware or mock hardware.
 
 Usage:
-    python confocal_scan_example.py [--real-hardware] [--no-plot]
+    python confocal_scan_slow_example.py [--real-hardware] [--no-plot]
 
 Examples:
     # Run with mock hardware (default)
-    python confocal_scan_example.py
+    python confocal_scan_slow_example.py
     
     # Run with real hardware (if available)
-    python confocal_scan_example.py --real-hardware
+    python confocal_scan_slow_example.py --real-hardware
     
     # Run without plotting
-    python confocal_scan_example.py --no-plot
+    python confocal_scan_slow_example.py --no-plot
 """
 
 import sys
@@ -94,9 +95,9 @@ def create_mock_devices():
         raise
 
 
-def run_confocal_scan(use_real_hardware=False, save_data=True, show_plot=True, config_path=None):
+def run_confocal_scan_slow(use_real_hardware=False, save_data=True, show_plot=True, config_path=None):
     """
-    Run a confocal scan experiment using ConfocalScan_Fast.
+    Run a slow confocal scan experiment using NanodriveAdwinConfocalScanSlow.
     
     Args:
         use_real_hardware (bool): Whether to use real hardware
@@ -108,16 +109,16 @@ def run_confocal_scan(use_real_hardware=False, save_data=True, show_plot=True, c
         dict: Scan results or None if failed
     """
     print("\n" + "="*60)
-    print("CONFOCAL SCAN FAST EXAMPLE")
+    print("CONFOCAL SCAN SLOW EXAMPLE")
     print("="*60)
     
-    print("\nInitializing ConfocalScan_Fast experiment...")
+    print("\nInitializing NanodriveAdwinConfocalScanSlow experiment...")
     
     # Check if we can import the experiment class
     try:
-        from src.Model.experiments.nanodrive_adwin_confocal_scan_fast import NanodriveAdwinConfocalScanFast
+        from src.Model.experiments.nanodrive_adwin_confocal_scan_slow import NanodriveAdwinConfocalScanSlow
     except Exception as e:
-        print(f"❌ Cannot import NanodriveAdwinConfocalScanFast: {e}")
+        print(f"❌ Cannot import NanodriveAdwinConfocalScanSlow: {e}")
         print("This usually means required hardware devices are not available on this platform.")
         return None
     
@@ -127,34 +128,32 @@ def run_confocal_scan(use_real_hardware=False, save_data=True, show_plot=True, c
     # Define scan parameters - using smaller area for faster testing
     scan_settings = {
         'point_a': {
-            'x': 5.0,  # Start X position (microns)
-            'y': 5.0   # Start Y position (microns)
+            'x': 35.0,  # Start X position (microns)
+            'y': 35.0   # Start Y position (microns)
         },
         'point_b': {
-            'x': 15.0,  # End X position (microns) - much smaller area
-            'y': 15.0   # End Y position (microns) - much smaller area
+            'x': 45.0,  # End X position (microns) - small area for testing
+            'y': 45.0   # End Y position (microns) - small area for testing
         },
         'z_pos': 50.0,  # Z position (microns)
         'resolution': 2.0,  # Resolution in microns - lower resolution for speed
-        'time_per_pt': 2.0,  # Time per point in ms - must be 2.0 or 5.0
+        'time_per_pt': 5.0,  # Time per point in ms
+        'settle_time': 0.1,  # Settle time in seconds - reduced for testing
         'ending_behavior': 'return_to_origin',
         '3D_scan': {
             'enable': False,
             'folderpath': str(Path.home() / 'Experiments' / 'confocal_scans')
         },
         'reboot_adwin': False,
-        'cropping': {
-            'crop_data': True
-        },
         'laser_clock': 'Pixel'
     }
     
     print("Setting up scan...")
     
     try:
-        experiment = NanodriveAdwinConfocalScanFast(
+        experiment = NanodriveAdwinConfocalScanSlow(
             devices=devices,
-            name="ConfocalScan_Fast_Example",
+            name="ConfocalScan_Slow_Example",
             settings=scan_settings,
             log_function=print
         )
@@ -197,7 +196,7 @@ def run_confocal_scan(use_real_hardware=False, save_data=True, show_plot=True, c
             return None
             
     except Exception as e:
-        print(f"❌ Failed to create ConfocalScan_Fast experiment: {e}")
+        print(f"❌ Failed to create NanodriveAdwinConfocalScanSlow experiment: {e}")
         print("This usually means required hardware devices are not available on this platform.")
         return None
 
@@ -214,14 +213,11 @@ def save_confocal_csv_data(experiment, scan_settings, use_real_hardware):
         
         # Get experiment data
         if hasattr(experiment, 'data') and experiment.data:
-            # Extract image data if available - try count_img first, then raw_img
+            # Extract image data if available - try count_img first
             image_data = None
             if 'count_img' in experiment.data:
                 image_data = experiment.data['count_img']
                 print(f"📊 Using count_img data with shape: {image_data.shape}")
-            elif 'raw_img' in experiment.data:
-                image_data = experiment.data['raw_img']
-                print(f"📊 Using raw_img data with shape: {image_data.shape}")
             
             if image_data is not None:
                 
@@ -245,15 +241,15 @@ def save_confocal_csv_data(experiment, scan_settings, use_real_hardware):
                 
                 # Save as CSV
                 import pandas as pd
-                csv_filename = output_dir / f"confocal_scan_{timestamp}.csv"
+                csv_filename = output_dir / f"confocal_scan_slow_{timestamp}.csv"
                 df = pd.DataFrame(csv_data, columns=['X_Position_um', 'Y_Position_um', 'Counts'])
                 df.to_csv(csv_filename, index=False)
                 print(f"📊 CSV data saved to: {csv_filename}")
                 
                 # Save summary statistics
-                summary_filename = output_dir / f"confocal_scan_{timestamp}_summary.csv"
+                summary_filename = output_dir / f"confocal_scan_slow_{timestamp}_summary.csv"
                 summary_data = {
-                    'Scan_Type': ['confocal_scan'],
+                    'Scan_Type': ['confocal_scan_slow'],
                     'Hardware_Type': ['real' if use_real_hardware else 'mock'],
                     'X_Start_um': [scan_settings['point_a']['x']],
                     'X_End_um': [scan_settings['point_b']['x']],
@@ -262,6 +258,7 @@ def save_confocal_csv_data(experiment, scan_settings, use_real_hardware):
                     'Z_Position_um': [scan_settings['z_pos']],
                     'Resolution_um': [scan_settings['resolution']],
                     'Time_Per_Point_ms': [scan_settings['time_per_pt']],
+                    'Settle_Time_s': [scan_settings['settle_time']],
                     'Total_Counts': [np.sum(image_data)],
                     'Mean_Counts': [np.mean(image_data)],
                     'Max_Counts': [np.max(image_data)],
@@ -287,8 +284,6 @@ def generate_confocal_plot(experiment, scan_settings, use_real_hardware):
             image_data = None
             if 'count_img' in experiment.data:
                 image_data = experiment.data['count_img']
-            elif 'raw_img' in experiment.data:
-                image_data = experiment.data['raw_img']
             
             if image_data is not None:
             
@@ -298,7 +293,7 @@ def generate_confocal_plot(experiment, scan_settings, use_real_hardware):
                 plt.subplot(2, 2, 1)
                 plt.imshow(image_data, cmap='hot', origin='lower')
                 plt.colorbar(label='Counts')
-                plt.title(f'Confocal Scan Results ({("real" if use_real_hardware else "mock")} hardware)')
+                plt.title(f'Confocal Scan Slow Results ({("real" if use_real_hardware else "mock")} hardware)')
                 plt.xlabel('X Position (μm)')
                 plt.ylabel('Y Position (μm)')
                 
@@ -333,7 +328,7 @@ def generate_confocal_plot(experiment, scan_settings, use_real_hardware):
                 output_dir = Path(__file__).parent / "scan_data"
                 output_dir.mkdir(exist_ok=True)
                 timestamp = time.strftime("%Y%m%d_%H%M%S")
-                plot_filename = output_dir / f"confocal_scan_plot_{timestamp}.png"
+                plot_filename = output_dir / f"confocal_scan_slow_plot_{timestamp}.png"
                 plt.savefig(plot_filename, dpi=150, bbox_inches='tight')
                 print(f"📊 Plot saved to: {plot_filename}")
                 
@@ -349,7 +344,7 @@ def generate_confocal_plot(experiment, scan_settings, use_real_hardware):
 
 def main():
     """Main function to parse arguments and run the scan."""
-    parser = argparse.ArgumentParser(description="Run a confocal scan fast example")
+    parser = argparse.ArgumentParser(description="Run a confocal scan slow example")
     parser.add_argument("--real-hardware", action="store_true", 
                        help="Use real hardware instead of mock hardware")
     parser.add_argument("--no-plot", action="store_true",
@@ -362,7 +357,7 @@ def main():
     args = parser.parse_args()
     
     # Run the scan
-    results = run_confocal_scan(
+    results = run_confocal_scan_slow(
         use_real_hardware=args.real_hardware,
         save_data=not args.no_save,
         show_plot=not args.no_plot,
@@ -373,8 +368,8 @@ def main():
         print("\n❌ Scan failed - hardware not available")
         sys.exit(1)
     
-    print("\n✅ Confocal scan example completed successfully!")
+    print("\n✅ Confocal scan slow example completed successfully!")
 
 
 if __name__ == "__main__":
-    main() 
+    main()
