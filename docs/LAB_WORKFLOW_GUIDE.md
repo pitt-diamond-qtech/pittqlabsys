@@ -265,6 +265,272 @@ We maintain a wishlist of features that would benefit the entire lab. Add your r
 - **Experiment development**: Look at existing examples in `examples/`
 - **Code review**: Tag @gurudevdutt for lab-wide contributions
 
+## 👨‍🎓 **Student Example: Developing a Cryo Device Controller**
+
+Let's follow Sarah, a new graduate student, as she develops a new cryostat temperature controller for the lab's cryo setup.
+
+### **Step 1: Initial Setup**
+```bash
+# Sarah forks the main repository on GitHub
+# Repository name: pittqlabsys-cryo
+# Uses duttlab-sys account (gets password from @Jonathan Beaumariage)
+
+# Clone her fork locally
+git clone https://github.com/duttlab-sys/pittqlabsys-cryo.git
+cd pittqlabsys-cryo
+
+# Add upstream remote
+git remote add upstream https://github.com/pitt-diamond-qtech/pittqlabsys.git
+
+# Verify setup
+git remote -v
+# Should show:
+# origin    https://github.com/duttlab-sys/pittqlabsys-cryo.git (fetch)
+# origin    https://github.com/duttlab-sys/pittqlabsys-cryo.git (push)
+# upstream  https://github.com/pitt-diamond-qtech/pittqlabsys.git (fetch)
+# upstream  https://github.com/pitt-diamond-qtech/pittqlabsys.git (push)
+```
+
+### **Step 2: Daily Development (Maximum Freedom)**
+```bash
+# Sarah works directly on main branch - no restrictions!
+git checkout main
+
+# She creates a new device controller
+# File: src/Controller/cryostat_controller.py
+class CryostatController(Device):
+    """
+    Temperature controller for cryostat setup.
+    
+    Hardware: Lakeshore 336 temperature controller
+    Communication: RS232 serial connection
+    """
+    
+    def __init__(self, settings):
+        super().__init__(settings)
+        self.serial_port = settings.get('serial_port', 'COM3')
+        self.baud_rate = settings.get('baud_rate', 9600)
+        # ... implementation details
+    
+    def set_temperature(self, temp_kelvin):
+        """Set target temperature in Kelvin."""
+        # ... implementation
+    
+    def read_temperature(self):
+        """Read current temperature."""
+        # ... implementation
+
+# She commits her work with descriptive messages
+git add src/Controller/cryostat_controller.py
+git commit -m "[cryo] Add Lakeshore 336 cryostat temperature controller
+
+- Implements RS232 communication protocol
+- Adds temperature setpoint and readback functions
+- Includes safety interlocks for temperature limits
+- Tested with mock hardware"
+
+git push origin main
+```
+
+### **Step 3: Creating an Experiment**
+```bash
+# Sarah creates a new experiment that uses her cryostat
+# File: src/Model/experiments/cryo_odmr.py
+class CryoODMRExperiment(Experiment):
+    """
+    ODMR experiment with temperature control.
+    
+    Hardware Dependencies:
+    - cryostat: For temperature control
+    - microwave: For frequency sweeps
+    - adwin: For data acquisition
+    """
+    
+    _DEFAULT_SETTINGS = [
+        Parameter('temperature', 4.2, float, 'Temperature in Kelvin'),
+        Parameter('start_freq', 2.87e9, float, 'Start frequency (Hz)'),
+        Parameter('stop_freq', 2.88e9, float, 'Stop frequency (Hz)'),
+        # ... more parameters
+    ]
+    
+    _DEVICES = {
+        'cryostat': 'cryostat',
+        'microwave': 'microwave', 
+        'adwin': 'adwin'
+    }
+    
+    def __init__(self, devices, **kwargs):
+        super().__init__(devices=devices, **kwargs)
+        self.cryostat = self.devices['cryostat']['instance']
+        self.microwave = self.devices['microwave']['instance']
+        self.adwin = self.devices['adwin']['instance']
+    
+    def _function(self):
+        """Run ODMR experiment at specified temperature."""
+        # Set temperature
+        self.cryostat.set_temperature(self.settings['temperature'])
+        
+        # Wait for temperature to stabilize
+        time.sleep(30)
+        
+        # Run ODMR sweep
+        # ... experiment logic
+        
+        # Return to room temperature
+        self.cryostat.set_temperature(300)
+
+# She commits this too
+git add src/Model/experiments/cryo_odmr.py
+git commit -m "[cryo] Add temperature-controlled ODMR experiment
+
+- Integrates cryostat controller with ODMR measurements
+- Adds temperature stabilization and safety checks
+- Includes example usage and documentation
+- Tested with mock hardware"
+
+git push origin main
+```
+
+### **Step 4: Creating an Example Script**
+```bash
+# Sarah creates an example script for others to use
+# File: examples/cryo_odmr_example.py
+#!/usr/bin/env python3
+"""
+Cryo ODMR Example
+
+This script demonstrates how to run temperature-controlled ODMR measurements.
+"""
+
+def create_devices(use_real_hardware=False, config_path=None):
+    """Create device instances using device config manager."""
+    if use_real_hardware:
+        from src.core.device_config import load_devices_from_config
+        loaded_devices, failed_devices = load_devices_from_config(config_path)
+        devices = {}
+        for device_name, device_instance in loaded_devices.items():
+            devices[device_name] = {'instance': device_instance}
+        return devices
+    else:
+        # Mock devices for testing
+        from src.Controller import MockCryostatController, MockSG384Generator, MockAdwinGoldDevice
+        return {
+            'cryostat': {'instance': MockCryostatController()},
+            'microwave': {'instance': MockSG384Generator()},
+            'adwin': {'instance': MockAdwinGoldDevice()}
+        }
+
+def run_cryo_odmr(use_real_hardware=False):
+    """Run cryo ODMR experiment."""
+    devices = create_devices(use_real_hardware)
+    
+    experiment = CryoODMRExperiment(
+        devices=devices,
+        name="CryoODMR_Example",
+        settings={
+            'temperature': 4.2,
+            'start_freq': 2.87e9,
+            'stop_freq': 2.88e9,
+            'step_freq': 1e6
+        }
+    )
+    
+    print("Starting cryo ODMR experiment...")
+    experiment.run()
+    print("Experiment completed!")
+
+if __name__ == "__main__":
+    run_cryo_odmr(use_real_hardware=False)  # Test with mock hardware
+
+# She commits this
+git add examples/cryo_odmr_example.py
+git commit -m "[cryo] Add example script for cryo ODMR experiment
+
+- Demonstrates temperature-controlled ODMR measurements
+- Includes both mock and real hardware support
+- Shows proper device initialization and configuration
+- Ready for lab members to use and modify"
+
+git push origin main
+```
+
+### **Step 5: Testing Her Work**
+```bash
+# Sarah tests her new device controller
+python examples/cryo_odmr_example.py
+# Output: "Starting cryo ODMR experiment..."
+#         "Experiment completed!"
+
+# She tests with mock hardware first (always safe!)
+python examples/cryo_odmr_example.py --real-hardware
+# Tests with real hardware when available
+
+# She runs the existing test suite to make sure she didn't break anything
+python -m pytest tests/
+# All tests pass - great!
+```
+
+### **Step 6: Sharing with Lab Members**
+```bash
+# Sarah announces her work in lab chat
+# "Hey everyone! I've added a cryostat controller and cryo ODMR experiment 
+#  to the pittqlabsys-cryo repo. Check it out if you're doing low-T measurements!"
+
+# Other lab members can now:
+# 1. Clone her fork: git clone https://github.com/duttlab-sys/pittqlabsys-cryo.git
+# 2. Use her cryostat controller in their experiments
+# 3. Modify and improve her code for their needs
+# 4. Share their improvements back with her
+```
+
+### **Step 7: Contributing to Lab-wide Code (When Ready)**
+After several weeks of testing and refinement, Sarah decides her cryostat controller would benefit the entire lab:
+
+```bash
+# She syncs with upstream to get latest changes
+git fetch upstream
+git merge upstream/main
+git push origin main
+
+# She creates a comprehensive PR to the main repository
+# PR Title: "Add Lakeshore 336 cryostat temperature controller and cryo ODMR experiment"
+# 
+# PR Description:
+# "This PR adds temperature control capabilities to the lab's experiment suite.
+# 
+# ## Changes
+# - New CryostatController device for Lakeshore 336 temperature controller
+# - CryoODMRExperiment for temperature-controlled ODMR measurements  
+# - Example script demonstrating usage
+# - Comprehensive documentation and error handling
+# 
+# ## Testing
+# - [x] Tested with mock hardware
+# - [x] Tested with real Lakeshore 336 controller
+# - [x] All existing tests pass
+# - [x] New functionality tested
+# 
+# ## Benefits
+# - Enables low-temperature measurements for entire lab
+# - Standardizes cryostat control across different experiments
+# - Provides safety interlocks and error handling
+# - Easy to use with existing experiment framework"
+
+# She waits for review from @gurudevdutt
+# After approval, her code becomes part of the lab-wide codebase!
+```
+
+### **Key Takeaways from Sarah's Experience:**
+1. **Started with her own fork** - maximum freedom to experiment
+2. **Worked directly on main branch** - no bureaucracy, just coding
+3. **Used descriptive commit messages** - easy to track changes
+4. **Tested thoroughly** - mock hardware first, then real hardware
+5. **Created example scripts** - made her work easy for others to use
+6. **Shared early and often** - got feedback from lab members
+7. **Contributed back when ready** - only after extensive testing and refinement
+
+This is exactly how the lab workflow is designed to work - **freedom to innovate, quality when sharing!**
+
 ## 🔄 **Workflow Summary**
 
 1. **Fork main repo** with descriptive name
