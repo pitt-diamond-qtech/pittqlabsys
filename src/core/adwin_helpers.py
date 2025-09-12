@@ -307,68 +307,87 @@ def read_adwin_sweep_odmr_data(adwin_instance) -> Dict[str, Any]:
         - 'reverse_voltages': Array of reverse sweep voltages (Data_4)
         - 'sweep_direction': Current sweep direction (Par_5)
     """
-    # Read parameters from ADwin
-    # Par_1: Current counter value
-    counts = adwin_instance.read_probes('int_var', 1)
-    
-    # Par_4: Current step index
-    step_index = adwin_instance.read_probes('int_var', 4)
-    
-    # Par_5: Current sweep direction
-    sweep_direction = adwin_instance.read_probes('int_var', 5)
-    
-    # Par_6: Current voltage output (as integer, needs conversion)
-    voltage_raw = adwin_instance.read_probes('int_var', 6)
-    voltage = float(voltage_raw) / 1000.0  # Convert from millivolts to volts
-    
-    # Par_7: Sweep complete flag
-    sweep_complete = adwin_instance.read_probes('int_var', 7)
-    
-    # Par_8: Total counts for current step
-    total_counts = adwin_instance.read_probes('int_var', 8)
-    
-    # Par_9: Sweep cycle counter
-    sweep_cycle = adwin_instance.read_probes('int_var', 9)
-    
-    # Par_10: Data ready flag
-    data_ready = adwin_instance.read_probes('int_var', 10)
-    
-    # Read data arrays if sweep is complete
-    forward_counts = None
-    reverse_counts = None
-    forward_voltages = None
-    reverse_voltages = None
-    
-    if sweep_complete and data_ready:
-        # Get number of steps from Par_3
-        num_steps = adwin_instance.read_probes('int_var', 3)
+    try:
+        # Read parameters from ADwin using the correct method
+        # Par_1: Current counter value
+        counts = adwin_instance.get_int_var(1)
         
-        # Read forward sweep data
-        forward_counts = adwin_instance.read_probes('data', 1, num_steps)
-        forward_voltages = adwin_instance.read_probes('data', 3, num_steps)
+        # Par_4: Current step index
+        step_index = adwin_instance.get_int_var(4)
         
-        # Read reverse sweep data
-        reverse_counts = adwin_instance.read_probes('data', 2, num_steps)
-        reverse_voltages = adwin_instance.read_probes('data', 4, num_steps)
+        # Par_5: Current sweep direction
+        sweep_direction = adwin_instance.get_int_var(5)
         
-        # Convert voltages from millivolts to volts
-        forward_voltages = [float(v) / 1000.0 for v in forward_voltages]
-        reverse_voltages = [float(v) / 1000.0 for v in reverse_voltages]
-    
-    return {
-        'counts': counts,
-        'step_index': step_index,
-        'voltage': voltage,
-        'sweep_complete': bool(sweep_complete),
-        'total_counts': total_counts,
-        'sweep_cycle': sweep_cycle,
-        'data_ready': bool(data_ready),
-        'forward_counts': forward_counts,
-        'reverse_counts': reverse_counts,
-        'forward_voltages': forward_voltages,
-        'reverse_voltages': reverse_voltages,
-        'sweep_direction': sweep_direction
-    }
+        # Par_6: Current voltage output (as integer, needs conversion)
+        voltage_raw = adwin_instance.get_int_var(6)
+        voltage = float(voltage_raw) / 1000.0  # Convert from millivolts to volts
+        
+        # Par_7: Sweep complete flag
+        sweep_complete = adwin_instance.get_int_var(7)
+        
+        # Par_8: Total counts for current step
+        total_counts = adwin_instance.get_int_var(8)
+        
+        # Par_9: Sweep cycle counter
+        sweep_cycle = adwin_instance.get_int_var(9)
+        
+        # Par_10: Data ready flag
+        data_ready = adwin_instance.get_int_var(10)
+        
+        # Read data arrays if sweep is complete
+        forward_counts = None
+        reverse_counts = None
+        forward_voltages = None
+        reverse_voltages = None
+        
+        if sweep_complete and data_ready:
+            # Get number of steps from Par_3
+            num_steps = adwin_instance.get_int_var(3)
+            
+            # Read forward sweep data
+            forward_counts = adwin_instance.read_probes('int_array', 1, num_steps)
+            forward_voltages = adwin_instance.read_probes('int_array', 3, num_steps)
+            
+            # Read reverse sweep data
+            reverse_counts = adwin_instance.read_probes('int_array', 2, num_steps)
+            reverse_voltages = adwin_instance.read_probes('int_array', 4, num_steps)
+            
+            # Convert voltages from millivolts to volts
+            forward_voltages = [float(v) / 1000.0 for v in forward_voltages]
+            reverse_voltages = [float(v) / 1000.0 for v in reverse_voltages]
+        
+        return {
+            'counts': counts,
+            'step_index': step_index,
+            'voltage': voltage,
+            'sweep_complete': bool(sweep_complete),
+            'total_counts': total_counts,
+            'sweep_cycle': sweep_cycle,
+            'data_ready': bool(data_ready),
+            'forward_counts': forward_counts,
+            'reverse_counts': reverse_counts,
+            'forward_voltages': forward_voltages,
+            'reverse_voltages': reverse_voltages,
+            'sweep_direction': sweep_direction
+        }
+        
+    except Exception as e:
+        # Return default values if reading fails
+        print(f"Warning: Failed to read Adwin data: {e}")
+        return {
+            'counts': 0,
+            'step_index': 0,
+            'voltage': 0.0,
+            'sweep_complete': False,
+            'total_counts': 0,
+            'sweep_cycle': 0,
+            'data_ready': False,
+            'forward_counts': None,
+            'reverse_counts': None,
+            'forward_voltages': None,
+            'reverse_voltages': None,
+            'sweep_direction': 1
+        }
 
 
 def setup_adwin_for_fm_odmr(adwin_instance, integration_time_ms: float = 1.0, 
