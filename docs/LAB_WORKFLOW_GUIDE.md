@@ -288,11 +288,11 @@ We maintain a wishlist of features that would benefit the entire lab. Add your r
 
 ## 👨‍🎓 **Student Example: Developing a Cryo Device Controller**
 
-Let's follow Sarah, a new graduate student, as she develops a new cryostat temperature controller for the lab's cryo setup.
+Let's follow Jannet, a new graduate student, as she develops a new cryostat temperature controller for the lab's cryo setup.
 
 ### **Step 1: Initial Setup**
 ```bash
-# Sarah forks the main repository on GitHub
+# Jannet forks the main repository on GitHub
 # Repository name: pittqlabsys-cryo
 # Uses duttlab-sys account (gets password from @Jonathan Beaumariage)
 
@@ -314,9 +314,9 @@ git remote -v
 
 ### **Step 2: Daily Development (Maximum Freedom)**
 ```bash
-# Sarah creates a feature branch for her work
-git checkout -b sarah-features
-git push origin sarah-features
+# Jannet creates a feature branch for her work
+git checkout -b jannet-features
+git push origin jannet-features
 
 # She creates a new device controller
 # File: src/Controller/cryostat_controller.py
@@ -351,7 +351,7 @@ git commit -m "[cryo] Add Lakeshore 336 cryostat temperature controller
 - Includes safety interlocks for temperature limits
 - Tested with mock hardware"
 
-git push origin sarah-features
+git push origin jannet-features
 ```
 
 ### **Step 3: Creating an Experiment**
@@ -410,7 +410,7 @@ git commit -m "[cryo] Add temperature-controlled ODMR experiment
 - Includes example usage and documentation
 - Tested with mock hardware"
 
-git push origin sarah-features
+git push origin jannet-features
 ```
 
 ### **Step 4: Creating an Example Script**
@@ -473,7 +473,7 @@ git commit -m "[cryo] Add example script for cryo ODMR experiment
 - Shows proper device initialization and configuration
 - Ready for lab members to use and modify"
 
-git push origin sarah-features
+git push origin jannet-features
 ```
 
 ### **Step 5: Testing Her Work**
@@ -498,41 +498,41 @@ python scripts/assess_quality.py --commits 5
 
 ### **Step 6: Collaborative Development in Cryo Setup**
 ```bash
-# Sarah announces her work in lab chat
+# Jannet announces her work in lab chat
 # "Hey cryo team! I've added a cryostat controller and cryo ODMR experiment 
-#  in the sarah-features branch. Check it out and let me know what you think!"
+#  in the jannet-features branch. Check it out and let me know what you think!"
 
 # Other cryo team members can now:
 # 1. Clone the shared cryo repo: git clone https://github.com/duttlab-sys/pittqlabsys-cryo.git
-# 2. Check out her branch: git checkout sarah-features
+# 2. Check out her branch: git checkout jannet-features
 # 3. Test her cryostat controller with their experiments
 # 4. Provide feedback and suggestions
 # 5. Create their own branches for improvements
 
 # Example: Tristan wants to add confocal scanning at low temperature
 git checkout -b feature/cryo-confocal-scan
-# He develops his confocal experiment using Sarah's cryostat controller
+# He develops his confocal experiment using Jannet's cryostat controller
 # He commits and pushes his work
 git add src/Model/experiments/cryo_confocal_scan.py
 git commit -m "[cryo] Add confocal scanning at low temperature
 
-- Uses Sarah's cryostat controller for temperature control
+- Uses Jannet's cryostat controller for temperature control
 - Implements 2D scanning with temperature stabilization
 - Adds safety checks for cryogenic conditions
 - Tested with mock hardware"
 
 git push origin feature/cryo-confocal-scan
 
-# Sarah reviews Tristan's work and provides feedback
+# Jannet reviews Tristan's work and provides feedback
 # They collaborate to integrate their experiments
 # Eventually, when both features are working well, they merge to main
 ```
 
 ### **Step 7: Merging to Cryo Setup Main Branch**
 ```bash
-# After testing and collaboration, Sarah merges her cryostat controller to main
+# After testing and collaboration, Jannet merges her cryostat controller to main
 git checkout main
-git merge sarah-features
+git merge jannet-features
 git push origin main
 
 # Tristan also merges his confocal work
@@ -541,8 +541,8 @@ git merge feature/cryo-confocal-scan
 git push origin main
 
 # Now the pittqlabsys-cryo main branch contains:
-# - Sarah's cryostat controller
-# - Sarah's cryo ODMR experiment
+# - Jannet's cryostat controller
+# - Jannet's cryo ODMR experiment
 # - Tristan's cryo confocal scan experiment
 # - Any other cryo table experiments from the team
 
@@ -554,7 +554,7 @@ git push origin main
 After several months of testing and refinement in the cryo setup, the team decides their cryostat controller would benefit the entire lab:
 
 ```bash
-# She syncs with upstream to get latest changes
+# Jannet syncs with upstream to get latest changes
 git fetch upstream
 git merge upstream/main
 git push origin main
@@ -591,9 +591,9 @@ python scripts/assess_quality.py --commits 10
 # After approval, her code becomes part of the lab-wide codebase!
 ```
 
-### **Key Takeaways from Sarah's Experience:**
+### **Key Takeaways from Jannet's Experience:**
 1. **Started with her own fork** - maximum freedom to experiment
-2. **Used feature branches** - `sarah-features` for organized development and collaboration
+2. **Used feature branches** - `jannet-features` for organized development and collaboration
 3. **Used descriptive commit messages** - easy to track changes
 4. **Tested thoroughly** - mock hardware first, then real hardware
 5. **Created example scripts** - made her work easy for others to use
