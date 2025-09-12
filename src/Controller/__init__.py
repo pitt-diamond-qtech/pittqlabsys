@@ -139,6 +139,10 @@ class MockSG384Generator(Device):
         """Disable modulation."""
         print("Mock SG384Generator: Modulation disabled")
     
+    def disable_output(self):
+        """Disable output."""
+        print("Mock SG384Generator: Output disabled")
+    
     def set_modulation_type(self, mtype: str):
         """Set modulation type."""
         print(f"Mock SG384Generator: Set modulation type to {mtype}")

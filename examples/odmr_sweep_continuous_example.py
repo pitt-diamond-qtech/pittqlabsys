@@ -41,7 +41,7 @@ def create_devices(use_real_hardware=False, config_path=None):
         print("Using real hardware from config...")
         try:
             from src.core.device_config import load_devices_from_config
-            from pathlib import Pathyte
+            from pathlib import Path
             
             # Use provided config path or default
             if config_path is None:

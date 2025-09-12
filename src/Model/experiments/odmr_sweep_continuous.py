@@ -132,8 +132,6 @@ class ODMRSweepContinuousExperiment(Experiment):
     
     def setup(self):
         """Setup the experiment and devices."""
-        super().setup()
-        
         # Setup microwave generator for sweep
         self._setup_microwave_sweep()
         
@@ -284,7 +282,6 @@ class ODMRSweepContinuousExperiment(Experiment):
             self.microwave.disable_modulation()
             self.microwave.disable_output()
         
-        super().cleanup()
         self.log("ODMR Phase Continuous Sweep Experiment cleanup complete")
     
     def _function(self):
