@@ -257,21 +257,20 @@ class ODMRSweepContinuousExperiment(Experiment):
         time_per_step = integration_time + settle_time
         self.sweep_time = self.num_steps * time_per_step
         
-        # For SG384 continuous sweep, the sweep rate is the frequency of the triangle/ramp waveform
-        # that modulates the frequency. This should be much slower than 120 Hz for good resolution.
-        # We'll use a reasonable sweep rate based on the desired integration time
-        # Typical values: 0.1-10 Hz for good resolution
-        desired_sweep_rate = 1.0  # Hz - frequency of the triangle waveform
+        # For SG384 continuous sweep, we need to match the sweep rate to our desired timing
+        # The SG384 sweep rate should be calculated to match our integration requirements
+        # We want the SG384 to complete one full cycle in our calculated sweep_time
+        self.sweep_rate = 1.0 / self.sweep_time  # Hz - frequency of the triangle waveform
         
         # Ensure we don't exceed SG384 maximum of 120 Hz
         max_sg384_rate = 120.0  # Hz
-        self.sweep_rate = min(desired_sweep_rate, max_sg384_rate)
-        
-        # The actual sweep time will be determined by the SG384 sweep rate
-        # For a triangle waveform, one complete cycle takes 1/sweep_rate seconds
-        # But we need to account for the fact that we want to sweep from start to stop
-        # The SG384 will sweep at the specified rate, and we'll collect data during that time
-        self.sweep_time = 1.0 / self.sweep_rate  # Time for one complete triangle cycle
+        if self.sweep_rate > max_sg384_rate:
+            self.log(f"⚠️  Calculated sweep rate {self.sweep_rate:.2f} Hz exceeds SG384 maximum {max_sg384_rate} Hz")
+            self.log(f"   Using SG384 maximum rate: {max_sg384_rate} Hz")
+            self.sweep_rate = max_sg384_rate
+            # Recalculate sweep time based on SG384 rate limit
+            self.sweep_time = 1.0 / self.sweep_rate
+            self.log(f"   New sweep time: {self.sweep_time:.3f} s")
         
         # Generate frequency array for data collection
         self.frequencies = np.linspace(start_freq, stop_freq, self.num_steps)
@@ -391,6 +390,9 @@ class ODMRSweepContinuousExperiment(Experiment):
         from src.core.adwin_helpers import read_adwin_sweep_odmr_data
         sweep_data = read_adwin_sweep_odmr_data(self.adwin)
         
+        # Debug: Log what we received from Adwin
+        self.log(f"🔍 Adwin data received: {sweep_data}")
+        
         # Check if data was successfully read
         if sweep_data is None:
             self.log("⚠️  No data received from Adwin, using mock data for testing")
@@ -400,10 +402,33 @@ class ODMRSweepContinuousExperiment(Experiment):
             forward_voltages = np.linspace(-1, 1, self.num_steps)
             reverse_voltages = np.linspace(1, -1, self.num_steps)
         else:
-            forward_counts = sweep_data.get('forward_counts', np.zeros(self.num_steps))
-            reverse_counts = sweep_data.get('reverse_counts', np.zeros(self.num_steps))
-            forward_voltages = sweep_data.get('forward_voltages', np.linspace(-1, 1, self.num_steps))
-            reverse_voltages = sweep_data.get('reverse_voltages', np.linspace(1, -1, self.num_steps))
+            # Extract data with better error handling
+            forward_counts = sweep_data.get('forward_counts')
+            reverse_counts = sweep_data.get('reverse_counts')
+            forward_voltages = sweep_data.get('forward_voltages')
+            reverse_voltages = sweep_data.get('reverse_voltages')
+            
+            # Check if counts are None or empty
+            if forward_counts is None or len(forward_counts) == 0:
+                self.log("⚠️  No forward counts from Adwin, using zeros")
+                forward_counts = np.zeros(self.num_steps)
+            if reverse_counts is None or len(reverse_counts) == 0:
+                self.log("⚠️  No reverse counts from Adwin, using zeros")
+                reverse_counts = np.zeros(self.num_steps)
+            
+            # Check if voltages are None or empty
+            if forward_voltages is None or len(forward_voltages) == 0:
+                self.log("⚠️  No forward voltages from Adwin, using linear ramp")
+                forward_voltages = np.linspace(-1, 1, self.num_steps)
+            if reverse_voltages is None or len(reverse_voltages) == 0:
+                self.log("⚠️  No reverse voltages from Adwin, using reverse ramp")
+                reverse_voltages = np.linspace(1, -1, self.num_steps)
+            
+            # Log the actual data received
+            self.log(f"📊 Forward counts: {len(forward_counts)} points, range: {np.min(forward_counts):.1f} - {np.max(forward_counts):.1f}")
+            self.log(f"📊 Reverse counts: {len(reverse_counts)} points, range: {np.min(reverse_counts):.1f} - {np.max(reverse_counts):.1f}")
+            self.log(f"📊 Forward voltages: {len(forward_voltages)} points, range: {np.min(forward_voltages):.3f} - {np.max(forward_voltages):.3f} V")
+            self.log(f"📊 Reverse voltages: {len(reverse_voltages)} points, range: {np.min(reverse_voltages):.3f} - {np.max(reverse_voltages):.3f} V")
         
         # Convert voltages to frequencies
         # Voltage range is -1V to +1V, corresponding to frequency deviation
