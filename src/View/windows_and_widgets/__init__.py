@@ -12,8 +12,28 @@
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
-from .widgets import AQuISSQTreeItem,MatplotlibWidget
+from .widgets import AQuISSQTreeItem,MatplotlibWidget,PyQtgraphWidget,PyQtCoordinatesBar
 from .load_dialog import LoadDialog
 from .load_dialog_probes import LoadDialogProbes
 from .export_dialog import ExportDialog
-from .main_window import MainWindow
+
+# Import parameter widget components (optional)
+try:
+    from .parameter_widget import (
+        ParameterWidget, 
+        ParameterDisplay, 
+        ParameterDialog,
+        create_parameter_widget,
+        create_parameter_display,
+        edit_parameters_dialog
+    )
+except ImportError:
+    # Parameter widget not available
+    pass
+
+# Import main window (optional due to potential import issues)
+try:
+    from .main_window import MainWindow
+except ImportError:
+    # Main window not available
+    pass

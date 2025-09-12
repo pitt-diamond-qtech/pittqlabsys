@@ -90,7 +90,8 @@ class Probe(object):
 
     def save(self, filename):
         """
-        save the device to path as a .aqs file
+        save the device to path as a .json file (default) or .aqs file
+        Now saves as JSON by default, but maintains backward compatibility for .aqs files
 
         Args:
             filename: path of file

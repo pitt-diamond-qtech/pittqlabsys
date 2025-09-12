@@ -16,9 +16,9 @@
     <verstretch>0</verstretch>
    </sizepolicy>
   </property>
-  <property name="windowTitle">
-   <string>CNM AQuISS GUI</string>
-  </property>
+     <property name="windowTitle">
+    <string>Pitt AQuISS GUI</string>
+   </property>
   <widget class="QWidget" name="centralwidget">
    <layout class="QHBoxLayout" name="horizontalLayout_8">
     <item>
@@ -96,6 +96,21 @@
                   </property>
                   <property name="text">
                    <string>import experiment</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QPushButton" name="btn_convert_python_files">
+                  <property name="font">
+                   <font>
+                    <pointsize>10</pointsize>
+                   </font>
+                  </property>
+                  <property name="text">
+                   <string>Convert Python Files</string>
+                  </property>
+                  <property name="toolTip">
+                   <string>Convert Python experiment/device files to AQS format</string>
                   </property>
                  </widget>
                 </item>
@@ -706,7 +721,6 @@
      </layout>
     </item>
    </layout>
-  </widget>
   <widget class="QMenuBar" name="menubar">
    <property name="geometry">
     <rect>
@@ -715,6 +729,9 @@
      <width>1733</width>
      <height>21</height>
     </rect>
+   </property>
+   <property name="nativeMenuBar">
+    <bool>false</bool>
    </property>
    <widget class="QMenu" name="menuFile">
     <property name="enabled">
@@ -731,6 +748,9 @@
     <addaction name="btn_save_gui"/>
     <addaction name="btn_load_gui"/>
     <addaction name="separator"/>
+    <addaction name="actionSaveWorkspace"/>
+    <addaction name="actionLoadWorkspace"/>
+    <addaction name="separator"/>
     <addaction name="btn_exit"/>
    </widget>
    <widget class="QMenu" name="menuHelp">
@@ -742,6 +762,7 @@
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuHelp"/>
+  </widget>
   </widget>
   <action name="btn_exit">
    <property name="text">
@@ -780,7 +801,17 @@
   </action>
   <action name="actionGo_to_AQuISS_GitHub_page">
    <property name="text">
-    <string>Go to AQuISS GitHub page</string>
+    <string>Go to Pitt AQuISS GitHub page</string>
+   </property>
+  </action>
+  <action name="actionSaveWorkspace">
+   <property name="text">
+    <string>Save Workspace As...</string>
+   </property>
+  </action>
+  <action name="actionLoadWorkspace">
+   <property name="text">
+    <string>Load Workspace...</string>
    </property>
   </action>
  </widget>

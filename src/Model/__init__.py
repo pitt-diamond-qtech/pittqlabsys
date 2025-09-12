@@ -13,9 +13,23 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #from .experiments.example_experiment import ExampleExperiment
+import sys
+
 from src.Model.experiments.example_experiment import ExampleExperimentWrapper,ExampleExperiment,MinimalExperiment
-from src.Model.experiments.daq_read_counter import Pxi6733ReadCounter
-from src.Model.experiments.galvo_scan import GalvoScan
-from src.Model.experiments.galvo_scan_generic import GalvoScanGeneric
-from src.Model.experiments.select_points import SelectPoints
+
+# Only import NI-DAQ dependent modules on Windows
+if sys.platform.startswith('win'):
+    from src.Model.experiments.daq_read_counter import Pxi6733ReadCounter
+    from src.Model.experiments.galvo_scan import GalvoScan
+    from src.Model.experiments.galvo_scan_generic import GalvoScanGeneric
+    from src.Model.experiments.select_points import SelectPoints
+else:
+    # On non-Windows platforms, create placeholder imports to avoid import errors
+    Pxi6733ReadCounter = None
+    GalvoScan = None
+    GalvoScanGeneric = None
+    SelectPoints = None
+
+from src.Model.experiments.deprecated.odmr_experiment import ODMRExperiment, ODMRRabiExperiment
+
 

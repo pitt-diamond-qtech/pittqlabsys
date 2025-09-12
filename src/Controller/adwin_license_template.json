@@ -1,0 +1,12 @@
+{
+  "license_key": "CASCHUSM5028463C",
+  "device_type": "ADwin Gold II",
+  "device_id": "B32G35",
+  "expiration_date": "2045-01-01",
+  "features": [
+    "ADbasic_compiler",
+    "TiCO_compiler",
+    "real_time_processing"
+  ],
+  "notes": "Replace the placeholder values with your actual license information"
+}

@@ -20,7 +20,7 @@ import traceback
 from src.core.device import Device
 from src.core.parameter import Parameter
 from src.core.read_write_functions import save_aqs_file, load_aqs_file
-from src.core.helper_functions import module_name_from_path
+from src.core.helper_functions import module_name_from_path, MatlabSaver, get_configured_data_folder, get_project_root
 
 from collections import deque
 import os
@@ -31,6 +31,7 @@ import inspect
 import warnings
 import platform
 from PyQt5.QtCore import pyqtSignal, QObject, pyqtSlot
+from scipy.io import savemat
 
 import numpy as np
 from builtins import len as builtin_len
@@ -38,6 +39,9 @@ from matplotlib.backends.backend_pdf import \
     FigureCanvasPdf as FigureCanvas  # use this to avoid error that plotting should only be done on main thread
 from matplotlib.figure import Figure
 from importlib import import_module
+
+import pyqtgraph as pg
+from pyqtgraph.exporters import ImageExporter
 
 # cPickle module implements the same algorithm as pickle, in C instead of Python.
 # It is many times faster than the Python implementation, but does not allow the user to subclass from Pickle.
@@ -132,6 +136,7 @@ class Experiment(QObject):
             'subexperiment_exec_duration': {}
         }
 
+
     @property
     def data_path(self):
         return self._data_path
@@ -145,6 +150,68 @@ class Experiment(QObject):
         #         os.makedirs(path)
 
         self._data_path = path
+
+    def get_output_dir(self, subfolder=None):
+        """
+        Get the configured output directory for this experiment.
+        
+        Args:
+            subfolder (str, optional): Subfolder name within the data directory
+            
+        Returns:
+            Path: Path to the output directory
+        """
+        from pathlib import Path
+        import re
+        
+        # Use configured data folder as base
+        base_dir = get_configured_data_folder()
+        
+        # Handle empty or invalid names by using class name
+        experiment_name = self.name
+        if not experiment_name or experiment_name.strip() == '':
+            experiment_name = self.__class__.__name__
+        
+        # Normalize the experiment name for filesystem safety
+        # Replace special characters with underscores and convert to lowercase
+        experiment_name = re.sub(r'[<>:"/\\|?*]', '_', experiment_name.lower())
+        experiment_name = experiment_name.strip('_')  # Remove leading/trailing underscores
+        
+        # Create experiment-specific subfolder
+        experiment_dir = base_dir / experiment_name
+        
+        if subfolder:
+            output_dir = experiment_dir / subfolder
+        else:
+            output_dir = experiment_dir
+            
+        # Create directory if it doesn't exist
+        output_dir.mkdir(parents=True, exist_ok=True)
+        
+        return output_dir
+
+    def get_config_path(self, config_name="config.json"):
+        """
+        Get the path to a configuration file.
+        
+        Args:
+            config_name (str): Name of the config file
+            
+        Returns:
+            Path: Path to the config file
+        """
+        from pathlib import Path
+        
+        # First try in the experiment's output directory
+        experiment_dir = self.get_output_dir()
+        config_path = experiment_dir / config_name
+        
+        if config_path.exists():
+            return config_path
+            
+        # Fallback to project root
+        project_root = get_project_root()
+        return project_root / config_name
 
     @pyqtSlot(bool)
     def _set_current_subexperiment(self, active):
@@ -437,6 +504,7 @@ class Experiment(QObject):
             self.save_data()
             self.save_log()
             self.save_image_to_disk()
+            self.save_data_to_matlab()
 
         success = not self._abort
 
@@ -545,7 +613,7 @@ class Experiment(QObject):
         }}
 
 
-        # if isinstance(self, experimentIterator):
+        # if isinstance(self, ExperimentIterator):
         #     dictator['filepath'] = inspect.getfile(self.__class__),
 
         if self.experiments != {}:
@@ -561,11 +629,11 @@ class Experiment(QObject):
 
             dictator[self.name].update({'devices': {
                 device_name: {'class': device['instance'].__class__.__name__,
-                                  'settings': device['settings']}
+                                  'settings': device['instance'].settings}
                 for device_name, device in self.devices.items()
             }})
 
-        dictator[self.name]['settings'] = self.settings
+        dictator[self.name]['settings'] = self._settings
 
         return dictator
 
@@ -696,15 +764,42 @@ class Experiment(QObject):
     def save_aqs(self, filename=None):
         """
         saves the experiment settings to a file: filename is filename is not provided, it is created from internal function
+        Now saves as .json by default, but maintains backward compatibility for .aqs files
         """
+        print(f"🔧 save_aqs() called for {self.name}")
+        print(f"   - Input filename: {filename}")
+        
         if filename is None:
-            filename = self.filename('.aqs')
+            filename = self.filename('.json')  # Default to .json extension
+            print(f"   - Generated filename: {filename}")
+        
         filename = self.check_filename(filename)
-        # if platform.system() == 'Windows':
-        #     # windows can't deal with long filenames so we have to use the prefix '\\\\?\\'
-        #     if len(filename.split('\\\\?\\')) == 1:
-        #         filename = '\\\\?\\' + filename
-        save_aqs_file(filename, experiments=self.to_dict(), overwrite=True)
+        print(f"   - After check_filename: {filename}")
+        
+        # Ensure the file has a proper extension
+        if not filename.endswith(('.json', '.aqs')):
+            filename = str(filename) + '.json'  # Default to .json if no extension
+            print(f"   - After extension check: {filename}")
+        
+        print(f"   - Final filename: {filename}")
+        print(f"   - File directory exists: {os.path.exists(os.path.dirname(filename))}")
+        print(f"   - File already exists: {os.path.exists(filename)}")
+        
+        try:
+            print(f"   - Calling to_dict()...")
+            experiment_dict = self.to_dict()
+            print(f"   - to_dict() succeeded, keys: {list(experiment_dict.keys())}")
+            
+            print(f"   - Calling save_aqs_file()...")
+            save_aqs_file(filename, experiments=experiment_dict, overwrite=True)
+            print(f"   - save_aqs_file() succeeded")
+            
+        except Exception as e:
+            print(f"   ❌ Error in save_aqs(): {e}")
+            print(f"   - Error type: {type(e)}")
+            import traceback
+            print(f"   - Traceback: {traceback.format_exc()}")
+            raise
 
     def save_image_to_disk(self, filename_1=None, filename_2=None):
         """
@@ -722,25 +817,29 @@ class Experiment(QObject):
 
         """
 
-        def axes_empty(ax):
+        def check_nonempty(graph):
             """
-            takes an axes object and checks if it is empty
-            the axes object is considered empty it doesn't contain any of the following:
-                - lines
-                - images
-                - patches
-            Returns:
+            takes a GrachicsLayoutWidget (a graph) and checks if the plots it contains have data
+            the graph is considered non-empty if it has
+                -a PlotItem with data
+                -any ImageItem ie. it could be blank
 
+            a picture will be saved of the entire graph if ANY PlotItems are none empty
             """
-
-            is_empty = True
-
-            if ax is not None and len(ax) > 0:
-                for a in ax:
-                    if len(a.lines) + len(a.images) + len(a.patches) != 0:
-                        is_empty = False
-
-            return is_empty
+            if graph is not None:
+                rows = graph.ci.rows
+                for row_index in rows:
+                    for item in rows[row_index].values():
+                        #item is any plot, image, label, etc item added to GraphicsLayoutWidget
+                        if isinstance(item, pg.PlotItem):
+                            for curve in item.listDataItems():
+                                #curve is any data that has been plotted on a PlotItem
+                                if curve.xData is not None and len(curve.xData) > 0:
+                                    return False
+                            for subitem in item.items:
+                                if isinstance(subitem, pg.ImageItem) and subitem.image is not None:
+                                    return False
+            return True
 
         # create and save images
         if (filename_1 is None):
@@ -763,20 +862,21 @@ class Experiment(QObject):
         if os.path.exists(os.path.dirname(filename_2)) is False:
             os.makedirs(os.path.dirname(filename_2))
 
-        fig_1 = Figure()
-        canvas_1 = FigureCanvas(fig_1)
+        graph_1 = pg.GraphicsLayoutWidget()  #graph is the space/object you add plots to
+        scene_1 = graph_1.scene()            #scene houses all the plots; we want to save all plots if nonempty
 
-        fig_2 = Figure()
-        canvas_2 = FigureCanvas(fig_2)
+        graph_2 = pg.GraphicsLayoutWidget()
+        scene_2 = graph_2.scene()
 
         self.force_update()
+        self.plot([graph_1, graph_2])
 
-        self.plot([fig_1, fig_2])
-
-        if filename_1 is not None and not axes_empty(fig_1.axes):
-            fig_1.savefig(filename_1)
-        if filename_2 is not None and not axes_empty(fig_2.axes):
-            fig_2.savefig(filename_2)
+        if filename_1 is not None and not check_nonempty(graph_1):
+            exporter = ImageExporter(scene_1)
+            exporter.export(filename_1)
+        if filename_2 is not None and not check_nonempty(graph_2):
+            exporter = ImageExporter(scene_2)
+            exporter.export(filename_2)
 
     def save(self, filename):
         """
@@ -793,6 +893,26 @@ class Experiment(QObject):
         filename = self.check_filename(filename)
         with open(filename, 'w') as outfile:
             outfile.write(pickle.dumps(self.__dict__))
+
+    def save_data_to_matlab(self, filename=None):
+        if filename is None:
+            filename = self.filename('.mat')
+        filename = self.check_filename(filename)
+
+        tag = self.settings['tag']
+        if ' ' in tag or '.' in tag or '+' in tag or '-' in tag:
+            good_tag = tag.replace(' ', '_').replace('.', '_').replace('+', 'P').replace('-', 'M')
+            #matlab structs cant include spaces, dots, or plus/minus so replace with other characters
+            #other disallowed characters but not used in our naming schemes so checks as of now
+        else:
+            good_tag = tag
+        # add 'data_' to ensure field name does not start with a number
+        good_tag = 'data_' + good_tag
+
+        mat_saver = MatlabSaver(tag=good_tag)
+        mat_saver.add_experiment_data(self.data,self.settings)
+        structured_data = mat_saver.get_structured_data()
+        savemat(filename, structured_data)
 
     @staticmethod
     def load(filename, devices=None):
@@ -1056,27 +1176,30 @@ class Experiment(QObject):
             devices_updated.update(devices)
 
             # check if devices needed by experiment already exist, if not create an instance
-            for device_name, device_instance in default_devices.items():
-                # check if devices needed by experiment already exist
-                # device = [instance for name, instance in devices_updated.items() if
-                #               isinstance(instance, device_instance) and name == device_name]
-                device = [instance for name,instance in devices_updated.items() if name == device_name and type(instance) == type(device_instance)]
-
-                if len(device) == 0:
-                    # create new instance of device
-                    devices_updated, __ = Device.load_and_append({device_name: device_instance},
-                                                                         devices_updated, raise_errors)
-                    # MODIFIED to see if I can get rid of the errors in loading galvoscan from the main app
-                    # has not worked so far.
-                    # GD : 20230828
-                    #devices_updated,__ = Device.load_and_append({device_name:device_instance.__class__},devices_updated,raise_errors)
+            for device_name, device_reference in default_devices.items():
+                # Check if device already exists in the loaded devices
+                if device_name in devices_updated:
+                    # Device already exists, use it
+                    device_instance = devices_updated[device_name]
+                else:
+                    # Device doesn't exist, need to create it
+                    if isinstance(device_reference, str):
+                        # device_reference is a string (device name), look it up in the loaded devices
+                        if device_reference in devices_updated:
+                            device_instance = devices_updated[device_reference]
+                        else:
+                            # Device not found, this is an error
+                            raise ValueError(f"Required device '{device_reference}' (referenced as '{device_name}') not found in loaded devices. Available devices: {list(devices_updated.keys())}")
+                    else:
+                        # device_reference is a device class instance (legacy behavior)
+                        devices_updated, __ = Device.load_and_append({device_name: device_reference},
+                                                                             devices_updated, raise_errors)
+                        device_instance = devices_updated[device_name]
 
                 if experiment_devices is not None and device_name in experiment_devices:
                     device_settings_dict = experiment_devices[device_name]['settings']
                 else:
-                    device_settings_dict = devices_updated[device_name].settings
-
-                device_instance = devices_updated[device_name]
+                    device_settings_dict = device_instance.settings
 
                 # make a deepcopy of _DEFAULT_SETTINGS to get a parameter object
                 device_settings = deepcopy(device_instance._DEFAULT_SETTINGS)
@@ -1130,7 +1253,6 @@ class Experiment(QObject):
             return sub_experiments, devices_updated
 
         for experiment_name, experiment_info in experiment_dict.items():
-
             # check if experiment already exists
             if experiment_name in list(experiments.keys()):
                 print(('WARNING: experiment {:s} already exists. Did not load!'.format(experiment_name)))
@@ -1139,12 +1261,12 @@ class Experiment(QObject):
                 module, experiment_class_name, experiment_settings, experiment_devices, experiment_sub_experiments, experiment_doc, package = Experiment.get_experiment_information(
                     experiment_info, package=package)
                 # creates all dynamic experiments so they can be imported following the if statement
-                # if experiment_class_name == 'experimentIterator':
-                if 'experimentIterator' in experiment_class_name:
+                # if experiment_class_name == 'ExperimentIterator':
+                if 'ExperimentIterator' in experiment_class_name:
                     # creates all the dynamic classes in the experiment and the class of the experiment itself
                     # and updates the experiment info with these new classes
                     from src.core.experiment_iterator import \
-                        ExperimentIterator  # CAUTION: imports experimentIterator, which inherits from experiment. Local scope should avoid circular imports.
+                        ExperimentIterator  # CAUTION: imports ExperimentIterator, which inherits from experiment. Local scope should avoid circular imports.
 
                     experiment_info, _ = ExperimentIterator.create_dynamic_experiment_class(experiment_info)
 
@@ -1183,16 +1305,25 @@ class Experiment(QObject):
                     continue
 
                 #  ========= create the experiment if devices and subexperiments have been loaded successfully =========
+                # Detect which parameter name the experiment class expects for sub-experiments
+                import inspect
+                init_signature = inspect.signature(class_of_experiment.__init__)
+                sub_experiments_param_name = 'sub_experiments'  # default
+                if 'experiments' in init_signature.parameters:
+                    sub_experiments_param_name = 'experiments'
+                elif 'sub_experiments' in init_signature.parameters:
+                    sub_experiments_param_name = 'sub_experiments'
+                
                 class_creation_string = ''
-                if experiment_devices:
+                if experiment_devices is not None:
                     class_creation_string += ', devices = experiment_devices'
-                if sub_experiments:
-                    class_creation_string += ', experiments = sub_experiments'
-                if experiment_settings:
+                if sub_experiments is not None:
+                    class_creation_string += f', {sub_experiments_param_name} = sub_experiments'
+                if experiment_settings is not None:
                     class_creation_string += ', settings = experiment_settings'
-                if log_function:
+                if log_function is not None:
                     class_creation_string += ', log_function = log_function'
-                if data_path:
+                if data_path is not None:
                     class_creation_string += ', data_path = data_path'
                 class_creation_string = 'class_of_experiment(name=experiment_name{:s})'.format(class_creation_string)
                 #print("Will create instance of",class_creation_string)
@@ -1204,7 +1335,6 @@ class Experiment(QObject):
                     print(('experiments', sub_experiments))
 
                 try:
-
                     experiment_instance = eval(class_creation_string)
                 except Exception as err:
                     #print('loading ' + experiment_name + ' failed:')
@@ -1268,7 +1398,7 @@ class Experiment(QObject):
                     package = module_path.split('.')[0]
 
             experiment_class_name = str(experiment_information['class'])
-            if 'experimentIterator' in experiment_class_name:
+            if 'ExperimentIterator' in experiment_class_name:
                 module_path = package + '.core.experiment_iterator'
             if 'devices' in experiment_information:
                 experiment_devices = experiment_information['devices']
@@ -1290,7 +1420,7 @@ class Experiment(QObject):
 
         assert isinstance(package, str)
 
-        # if the experiment has not been created yet, i.e. experiment_class_name: experimentIteratorAQ or experimentIterator
+        # if the experiment has not been created yet, i.e. experiment_class_name: ExperimentIteratorAQ or ExperimentIterator
         if verbose:
             print(('experiment_filepath', experiment_filepath))
             print(('path_to_module', module_path))
@@ -1382,11 +1512,11 @@ class Experiment(QObject):
 
         # create a new instance of same experiment type
         class_creation_string = ''
-        if experiment_devices != {}:
+        if experiment_devices is not None:
             class_creation_string += ', devices = experiment_devices'
-        if sub_experiments != {}:
-            class_creation_string += ', experiments = sub_experiments'
-        if experiment_settings != {}:
+        if sub_experiments is not None:
+                            class_creation_string += ', sub_experiments = sub_experiments'
+        if experiment_settings is not None:
             class_creation_string += ', settings = experiment_settings'
         if log_function is not None:
             class_creation_string += ', log_function = log_function'
@@ -1406,6 +1536,7 @@ class Experiment(QObject):
 
         return experiment_instance
 
+
     def _plot(self, axes_list):
         """
         plots the data only the axes objects that are provided in axes_list
@@ -1413,7 +1544,6 @@ class Experiment(QObject):
             axes_list: a list of axes objects, this should be implemented in each subexperiment
 
         Returns: None
-
         """
         pass
         # not sure if to raise a not implemented error or just give a warning. For now just warning
@@ -1426,7 +1556,6 @@ class Experiment(QObject):
             axes_list: a list of axes objects, this should be implemented in each subexperiment
 
         Returns: None
-
         """
 
         # default behaviour just calls the standard plot function that creates a new image everytime it is called
@@ -1438,7 +1567,6 @@ class Experiment(QObject):
         """
         forces the plot to refresh
         Returns:
-
         """
         self._plot_refresh = True
 
@@ -1461,12 +1589,10 @@ class Experiment(QObject):
         if self._plot_refresh is True:
             self._plot(axes_list)
             self._plot_refresh = False
-            for figure in figure_list:
-                if figure.axes:
-                    figure.set_tight_layout(True)
         else:
             self._update_plot(axes_list)
 
+    #changed this method
     def get_axes_layout(self, figure_list):
         """
         returns the axes objects the experiment needs to plot its data
@@ -1476,19 +1602,15 @@ class Experiment(QObject):
             figure_list: a list of figure objects
         Returns:
             axes_list: a list of axes objects
-
         """
         axes_list = []
         if self._plot_refresh is True:
-            for fig in figure_list:
-                fig.clf()
-                # expecting an axis object here not a figure object
-                #ax.cla()
-                axes_list.append(fig.add_subplot(111))
-
+            for graph in figure_list:
+                graph.clear()
+                axes_list.append(graph.addPlot(row=0,col=0))
         else:
-            for fig in figure_list:
-                axes_list.append(fig.axes[0])
+            for graph in figure_list:
+                axes_list.append(graph.getItem(row=0,col=0))
 
         return axes_list
 
@@ -1496,7 +1618,6 @@ class Experiment(QObject):
         """
         plots the data contained in self.data, which should be a dictionary or a deque of dictionaries
         for the latter use the last entry
-
         """
         axes_list = self.get_axes_layout_validate(figure_list)
         self._plot_validate(axes_list)

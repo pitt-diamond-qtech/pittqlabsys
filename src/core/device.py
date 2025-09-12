@@ -34,6 +34,27 @@ class Device:
     """
     _DEFAULT_SETTINGS = Parameter("default", 0, int, "some int parameter")
 
+    @classmethod
+    def _get_base_settings(cls):
+        """
+        Get the base class settings as a list of Parameter objects.
+        This can be used by subclasses to ensure they inherit all base parameters.
+        
+        Returns:
+            List of Parameter objects from the base class
+        """
+        base_settings = []
+        for key in cls._DEFAULT_SETTINGS.keys():
+            base_settings.append(Parameter(
+                key, 
+                cls._DEFAULT_SETTINGS[key], 
+                cls._DEFAULT_SETTINGS.valid_values[key],
+                cls._DEFAULT_SETTINGS.info[key],
+                cls._DEFAULT_SETTINGS.visible[key],
+                cls._DEFAULT_SETTINGS.units[key] if hasattr(cls._DEFAULT_SETTINGS, 'units') else None
+            ))
+        return base_settings
+
     def __init__(self, name=None, settings=None):
         self._initialized = True
         self._settings_initialized = False
@@ -133,15 +154,17 @@ class Device:
         Returns: value of input channel
         """
 
-        if not str(name) in ['_initialized', '_settings']:
+        # Only intercept probe-related attributes, not normal attributes
+        if hasattr(self, '_PROBES') and name in self._PROBES:
             try:
-                xx = self.read_probes(name)
-                return xx
-                # return self.read_probes(name)
+                return self.read_probes(name)
             except:
-                # restores standard behavior for missing keys
-                print(('class ' + type(self).__name__ + ' has no attribute ' + str(name)))
-                raise AttributeError('class ' + type(self).__name__ + ' has no attribute ' + str(name))
+                # If probe reading fails, still raise AttributeError
+                raise AttributeError(f'class {type(self).__name__} has no attribute {str(name)}')
+        
+        # For non-probe attributes, raise AttributeError normally
+        # This allows normal attribute access to work without interference
+        raise AttributeError(f'class {type(self).__name__} has no attribute {str(name)}')
 
     def __setattr__(self, key, value):
         """
@@ -152,8 +175,13 @@ class Device:
                 # fall back to regular behaviour of the parent class
                 object.__setattr__(self, key, value)
             else:
-                # call internal update function that updates the device and keeps track of the settings
-                self.update({key: value})
+                # Check if this is a settings parameter or an internal attribute
+                if hasattr(self, '_settings') and key in self._settings:
+                    # This is a settings parameter, update it
+                    self.update({key: value})
+                else:
+                    # This is an internal attribute, set it directly
+                    object.__setattr__(self, key, value)
         except (AttributeError, KeyError):
             object.__setattr__(self, key, value)
 
@@ -215,7 +243,8 @@ class Device:
 
     def save_aqs(self, filename):
         """
-        saves the device to path as a .aqs file
+        saves the device to path as a .json file (default) or .aqs file
+        Now saves as JSON by default, but maintains backward compatibility for .aqs files
 
         Args:
             filename: path of file

@@ -13,10 +13,11 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
-from PyQt5 import QtCore, QtWidgets
+from PyQt5 import QtCore, QtWidgets, QtGui
 from src.core import Parameter, Device, Experiment
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as Canvas
 from matplotlib.figure import Figure
+import pyqtgraph as pg
 
 
 # ======== AQuISSQTreeItem ==========
@@ -416,4 +417,96 @@ class MatplotlibWidget(Canvas):
         """
         return QtCore.QSize(10, 10)
 
+class PyQtgraphWidget(QtWidgets.QWidget):
+    '''
+    GraphicsView is parent class of GraphicsLayoutWidget
+    '''
 
+    def __init__(self,parent=None):
+        super().__init__()
+
+        self.layout = QtWidgets.QVBoxLayout(self)
+        self.graph = pg.GraphicsLayoutWidget(parent=parent)
+        #self.graph.setBackground('lightgray')
+        self.layout.addWidget(self.graph)
+
+        self.plot_item = self.graph.addPlot()   #adds a plot item to next available cell
+
+        self.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
+        self.updateGeometry()
+
+    def sizeHint(self):
+        """
+        gives qt a starting point for widget size during window resizing
+        """
+        w = self.width()
+        h = self.height()
+        return QtCore.QSize(w, h)
+
+    def minimumSizeHint(self):
+        """
+        minimum widget size during window resizing
+        Returns: QSize object that specifies the size of widget
+        """
+        return QtCore.QSize(10, 10)
+
+    @property
+    def get_graph(self):
+        return self.graph
+
+class PyQtCoordinatesBar(QtWidgets.QWidget):
+
+    def __init__(self,connected_graph,parent=None):
+        super().__init__()
+
+        self.layout = QtWidgets.QVBoxLayout(self)
+        self.graph = pg.GraphicsLayoutWidget(parent=parent)
+        self.graph.setBackground((255, 255, 255))
+        self.layout.addWidget(self.graph)
+
+        self.label = pg.LabelItem(justify='right')
+        self.graph.addItem(self.label, row=0,col=0)
+
+        self.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
+        self.updateGeometry()
+
+        self.connected_graph = connected_graph   #gets graphics layoutwidget of connected PyQtgraphWidget
+        self.update()
+
+    def update(self):
+        '''
+        Fucntion is called initally to set up default mouse positioning. Should be called again whenever an experiment finishes to interacte with new plot/data
+        '''
+        item = self.connected_graph.getItem(row=0, col=0)  # gets a plot item
+        #!!!Only work if graphicslayout has 1 plot item!!!
+        if isinstance(item, (pg.PlotItem, pg.ImageItem)):
+            #only if the item is a PlotItem or ImageItem will it have a viewbox (and coordinates) that your cursor hovers over
+            self.viewbox = item.vb
+            self.mouse_movement = pg.SignalProxy(self.connected_graph.scene().sigMouseMoved, rateLimit=10, slot=self.mouseMoved)
+        else:
+            self.viewbox = None
+
+    def mouseMoved(self,event):
+        '''
+        Funtion gets the cursor coordinate and displays them in a label above graph
+        '''
+        self.update()
+        scene_pos = event[0]
+        if self.viewbox != None:
+            mousePoint = self.viewbox.mapSceneToView(scene_pos)
+            self.label.setText("<span style='font-size: 10pt; color: black'> (x,y) = (%0.2f, %0.2f)</span>" % (mousePoint.x(), mousePoint.y()))
+
+    def sizeHint(self):
+        """
+        gives qt a starting point for widget size during window resizing
+        """
+        w = self.width()
+        h = self.height()
+        return QtCore.QSize(w, h)
+
+    def minimumSizeHint(self):
+        """
+        minimum widget size during window resizing
+        Returns: QSize object that specifies the size of widget
+        """
+        return QtCore.QSize(10, 10)

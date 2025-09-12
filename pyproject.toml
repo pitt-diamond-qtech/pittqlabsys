@@ -1,0 +1,199 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pittqlabsys"
+version = "1.0.0"
+description = "Advanced Quantum Information Science System - Laboratory automation and data acquisition for quantum physics research"
+readme = "README.md"
+license = {text = "GPL-2.0"}
+authors = [
+    {name = "Gurudev Dutt", email = "gdutt@pitt.edu"}
+]
+maintainers = [
+    {name = "Gurudev Dutt", email = "gdutt@pitt.edu"}
+]
+keywords = ["quantum", "physics", "laboratory", "automation", "nv-centers", "odmr", "confocal"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: GNU General Public License v2 (GPLv2)",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Topic :: Scientific/Engineering :: Visualization",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+requires-python = ">=3.8"
+dependencies = [
+    "numpy>=1.22.4",
+    "pyqtgraph>=0.12.4",
+    "PyQt5>=5.15.0",
+    "matplotlib>=3.3.3",
+    "PyYAML>=6.0.1",
+    "scipy>=1.7.0",
+    "pandas>=1.3.0",
+    "pytest>=6.0.0",
+    "pytest-cov>=2.0.0",
+    "black>=22.0.0",
+    "flake8>=4.0.0",
+    "mypy>=0.950",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=6.0.0",
+    "pytest-cov>=2.0.0",
+    "pytest-mock>=3.6.0",
+    "black>=22.0.0",
+    "flake8>=4.0.0",
+    "mypy>=0.950",
+    "pre-commit>=2.15.0",
+    "sphinx>=4.0.0",
+    "sphinx-rtd-theme>=1.0.0",
+]
+hardware = [
+    "ADwin>=0.17.0",
+    "nidaqmx>=0.9.0",
+    "PyVISA>=1.14.0",
+    "Pint>=0.23.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/your-org/pittqlabsys"
+Documentation = "https://pittqlabsys.readthedocs.io/"
+Repository = "https://github.com/your-org/pittqlabsys.git"
+"Bug Tracker" = "https://github.com/your-org/pittqlabsys/issues"
+"Research Paper" = "https://doi.org/your-paper-doi"
+
+[project.scripts]
+aquiss = "src.app:launch_gui"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"*" = ["*.ui", "*.json", "*.bas", "*.TB*", "*.dll"]
+
+[tool.black]
+line-length = 88
+target-version = ['py38']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+[tool.flake8]
+max-line-length = 88
+extend-ignore = ["E203", "W503"]
+exclude = [
+    ".git",
+    "__pycache__",
+    "build",
+    "dist",
+    "*.egg-info",
+    ".venv",
+    "venv",
+]
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+
+[[tool.mypy.overrides]]
+module = [
+    "PyQt5.*",
+    "pyqtgraph.*",
+    "ADwin.*",
+    "nidaqmx.*",
+    "pyvisa.*",
+]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q --strict-markers --strict-config"
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+markers = [
+    "run_this: mark a test to be run",
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "hardware: marks tests that require hardware",
+    "gui: marks tests that require GUI",
+    "safemove: marks tests that involve safe movement operations (use with caution)",
+]
+filterwarnings = [
+    "ignore:.*U.*mode is deprecated:DeprecationWarning",
+]
+
+[tool.coverage.run]
+source = ["src"]
+omit = [
+    "*/tests/*",
+    "*/test_*",
+    "*/__pycache__/*",
+    "*/venv/*",
+    "*/build/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == \\.__main__\\.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+
+[tool.sphinx]
+project = "AQuISS"
+copyright = "2024, Gurudev Dutt"
+version = "1.0.0"
+release = "1.0.0"
+extensions = [
+    "sphinx.ext.autodoc",
+    "sphinx.ext.napoleon",
+    "sphinx.ext.viewcode",
+    "sphinx.ext.intersphinx",
+    "sphinx_rtd_theme",
+]
+html_theme = "sphinx_rtd_theme"
+html_theme_options = { navigation_depth = 4, collapse_navigation = false }
+autodoc_member_order = "bysource"
+autodoc_typehints = "description"
+# Note: intersphinx_mapping is complex and should be configured in conf.py
+# This is a simplified version for pyproject.toml
+intersphinx_mapping = {} 

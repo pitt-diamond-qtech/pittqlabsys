@@ -1,0 +1,22 @@
+# Confocal Scan Sequence Template
+# This file defines the sequence for confocal microscopy scanning
+# Format: [Waveform Name] [Duration] [Channel] [Marker Settings]
+
+# Galvanometer scanning patterns
+ramp_100kHz.wfm   5000    1    M1:ON M2:OFF    # X-axis fast scan
+ramp_100kHz.wfm   100     2    M1:OFF M2:ON   # Y-axis step
+
+# Laser power control
+gaussian_pulse.wfm 100     1    M1:OFF M2:ON    # Laser pulse
+gaussian_pulse.wfm 100     1    M1:OFF M2:OFF   # Laser off
+
+# Data acquisition timing
+square_1MHz.wfm   50      1    M1:ON M2:OFF    # Start acquisition
+square_1MHz.wfm   50      1    M1:OFF M2:OFF   # Stop acquisition
+
+# Scanning synchronization
+ramp_100kHz.wfm   100     2    M1:ON M2:OFF    # Sync signal
+ramp_100kHz.wfm   100     2    M1:OFF M2:OFF   # Reset
+
+# End sequence
+END

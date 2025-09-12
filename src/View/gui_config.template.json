@@ -1,0 +1,14 @@
+{
+    "last_save_path": "",
+    "gui_settings": {
+        "experiments_folder": "",
+        "data_folder": "",
+        "probes_folder": "",
+        "device_folder": "",
+        "probes_log_folder": ""
+    },
+    "experiments_hidden_parameters": {},
+    "devices": {},
+    "experiments": {},
+    "probes": {}
+}

@@ -15,109 +15,193 @@
 
 from src import ur
 
+
+class ValidationError(Exception):
+    """Exception raised when parameter validation fails."""
+    pass
+
+
 class Parameter(dict):
-    def __init__(self, name, value=None, valid_values=None, info=None, visible=False,units=None):
+    def __init__(self, name, value=None, valid_values=None, info=None, visible=False, units=None,
+                 min_value=None, max_value=None, pattern=None, validator=None):
         """
+        Parameter class for managing experiment parameters with validation and units.
 
-        Parameter(name, value, valid_values, info)
-        Parameter(name, value, valid_values)
-        Parameter(name, value)
-        Parameter({name: value})
-
-        Future updates:
-        Parameter({name1: value1, name2: value2})
-        Parameter([p1, p2]), where p1 and p2 are parameter objects
+        Supported initialization patterns:
+        - Parameter(name, value, valid_values, info, units)
+        - Parameter({name: value})
+        - Parameter([Parameter(...), Parameter(...)])
 
         Args:
-            :param name: name of parameter
-            :param value: value of parameter can be any basic type or a list
-            :param valid_values: defines which values are accepted for value can be a type or a list if not provided => type(value)
-            :param info: description of parameter, if not provided => empty string
-            :param visible: boolean if true always show parameter if false hide it
-            :param units: units for the parameter
+            name: Parameter name (str) or dict/list for multiple parameters
+            value: Parameter value (any type)
+            valid_values: Type or list of valid values
+            info: Description string
+            visible: Boolean for GUI visibility
+            units: Units string
+            min_value: Minimum allowed value (for numeric parameters)
+            max_value: Maximum allowed value (for numeric parameters)
+            pattern: Regex pattern for string validation
+            validator: Custom validation function
         """
-        # inherit from dict class all methods
         super().__init__()
 
+        # Initialize caches for Phase 3 performance improvements
+        self._conversion_cache = {}
+        self._validation_cache = {}
+        self._cache_max_size = 100
+
         if isinstance(name, str):
+            self._init_single_parameter(name, value, valid_values, info, visible, units,
+                                      min_value, max_value, pattern, validator)
+        elif isinstance(name, (list, dict)):
+            self._init_multiple_parameters(name, visible)
+        else:
+            raise TypeError(f"Invalid name type: {type(name)}")
+
+    def _init_single_parameter(self, name, value, valid_values, info, visible, units,
+                              min_value=None, max_value=None, pattern=None, validator=None):
+        """Initialize a single parameter."""
+        if valid_values is None:
+            valid_values = type(value)
+
+        assert isinstance(valid_values, (type, list))
+        if info is None:
+            info = ''
+        assert isinstance(info, str)
+        if units is None:
+            units = ""
+        assert isinstance(units, str)
+
+        # Initialize validation rules for Phase 3
+        self._validation_rules = {}
+        if min_value is not None or max_value is not None:
+            self._validation_rules[name] = {'range': {'min': min_value, 'max': max_value}}
+        if pattern is not None:
+            if name not in self._validation_rules:
+                self._validation_rules[name] = {}
+            self._validation_rules[name]['pattern'] = pattern
+        if validator is not None:
+            if name not in self._validation_rules:
+                self._validation_rules[name] = {}
+            self._validation_rules[name]['custom'] = validator
+
+        # Validate value using enhanced validation
+        self._validate_value(name, value, valid_values)
+
+        # Handle nested Parameter objects in value
+        if isinstance(value, list) and value and isinstance(value[0], Parameter):
+            # Create nested Parameter structure
+            nested_param = Parameter(value)
             self.name = name
-            if valid_values is None:
-                valid_values = type(value)
+            self._valid_values = {name: nested_param.valid_values}
+            self._info = {name: nested_param.info}
+            self._visible = {name: nested_param.visible}
+            self._units = {name: nested_param.units}
+            self.update({name: nested_param})
+        else:
+            self.name = name
+            self._valid_values = {name: valid_values}
+            self._info = {name: info}
+            self._visible = {name: visible}
+            self._units = {name: units}
+            self.update({name: value})
+            
+            # Handle pint Quantity objects
+            self._pint_quantity = {name: False}
+            self._original_units = {name: None}
+            self._original_magnitude = {name: None}
+            
+            if hasattr(value, 'magnitude') and hasattr(value, 'units'):
+                # Value is a pint Quantity
+                self._pint_quantity[name] = True
+                self._original_units[name] = value.units
+                self._original_magnitude[name] = value.magnitude
 
-            assert isinstance(valid_values, (type, list))
+    def _init_multiple_parameters(self, name, visible):
+        """Initialize multiple parameters."""
+        self.name = {}
+        self._valid_values = {}
+        self._info = {}
+        self._visible = {}
+        self._units = {}
+        self._pint_quantity = {}
+        self._original_units = {}
+        self._original_magnitude = {}
 
-            if info is None:
-                info = ''
-            assert isinstance(info, str)
+        if isinstance(name, dict):
+            for k, v in name.items():
+                if isinstance(v, dict):
+                    v = Parameter(v)
+                self._add_parameter(k, v, visible)
+        elif isinstance(name, list):
+            for param in name:
+                if isinstance(param, Parameter):
+                    self._add_parameter_from_param(param)
+                else:
+                    raise TypeError(f"List must contain Parameter objects, got {type(param)}")
 
-            assert self.is_valid(value, valid_values)
+    def _add_parameter(self, name, value, visible):
+        """Add a single parameter to the collection."""
+        self.name[name] = name
+        self._valid_values[name] = type(value)
+        self._info[name] = ''
+        self._visible[name] = visible
+        self._units[name] = ''
+        self.update({name: value})
+        
+        # Handle pint Quantity objects
+        self._pint_quantity[name] = False
+        self._original_units[name] = None
+        self._original_magnitude[name] = None
+        
+        if hasattr(value, 'magnitude') and hasattr(value, 'units'):
+            # Value is a pint Quantity
+            self._pint_quantity[name] = True
+            self._original_units[name] = value.units
+            self._original_magnitude[name] = value.magnitude
 
-            if units is None:
-                units = ""
-            assert isinstance(units,str)
-
-            if isinstance(value, list) and isinstance(value[0], Parameter):
-                self._valid_values = {name: {k: v for d in value for k, v in d.valid_values.items()}}
-                self.update({name: {k: v for d in value for k, v in d.items()}})
-                self._info = {name: {k: v for d in value for k, v in d.info.items()}}
-                self._visible = {name: {k: v for d in value for k, v in d.visible.items()}}
-                self._units = {name: {k: v for d in value for k,v in d.units.items()}}
-
+    def _add_parameter_from_param(self, param):
+        """Add parameters from an existing Parameter object."""
+        for k, v in param.items():
+            self.name[k] = k
+            self._valid_values[k] = param.valid_values[k]
+            self._info[k] = param.info[k]
+            self._visible[k] = param.visible[k]
+            self._units[k] = param.units[k]
+            self.update({k: v})
+            
+            # Handle pint Quantity objects from nested parameters
+            if hasattr(param, '_pint_quantity') and k in param._pint_quantity:
+                self._pint_quantity[k] = param._pint_quantity[k]
+                self._original_units[k] = param._original_units.get(k)
+                self._original_magnitude[k] = param._original_magnitude.get(k)
             else:
-                self._valid_values = {name: valid_values}
-                self.update({name: value})
-                self._info = {name: info}
-                self._visible = {name: visible}
-                self._units = {name: units}
-
-        elif isinstance(name, (list, dict)) and value is None:
-
-            self._valid_values = {}
-            self._info = {}
-            self._visible = {}
-            self._units = {}
-            self.name = {}
-            if isinstance(name, dict):
-
-                for k, v in name.items():
-                    # convert to Parameter if value is a dict
-                    if isinstance(v, dict):
-                        v = Parameter(v)
-                    self.name.update({k:k})
-                    self._valid_values.update({k: type(v)})
-                    self.update({k: v})
-                    self._info.update({k: ''})
-                    self._visible.update({k: visible})
-                    self._units.update({k: ''})
-            elif isinstance(name, list) and isinstance(name[0], Parameter):
-                for p in name:
-                    for k, v in p.items():
-                        self.name.update({k:k})
-                        self._valid_values.update({k: p.valid_values[k]})
-                        self.update({k: v})
-                        self._info.update({k: p.info[k]})
-                        self._visible.update({k: p.visible[k]})
-                        self._units.update({k: p.units[k]})
-            else:
-                raise TypeError('unknown input: ', name)
+                self._pint_quantity[k] = False
+                self._original_units[k] = None
+                self._original_magnitude[k] = None
 
     def __setitem__(self, key, value):
         """
-        overwrites the standard dictionary and checks if value is valid
+        Set item with validation for nested Parameter objects.
+        
         Args:
-            key: dictionary key
-            value: dictionary value
-
+            key: Dictionary key
+            value: Dictionary value
         """
+        # Use enhanced validation if available
+        if hasattr(self, '_validation_rules') and key in self._validation_rules:
+            self._validate_value(key, value, self.valid_values.get(key, type(value)))
+        elif key in self.valid_values:
+            message = f"{value} (of type {type(value)}) is not valid for {key}"
+            assert self.is_valid(value, self.valid_values[key]), message
 
-        message = "{0} (of type {1}) is not in {2}".format(str(value), type(value), str(self.valid_values[key]))
-        assert self.is_valid(value, self.valid_values[key]), message
-
-        if isinstance(value, dict) and len(self) > 0 and len(self) == len(self.valid_values):
-            for k, v in value.items():
-                self[key].update({k: v})
+        # Handle nested Parameter objects
+        if isinstance(value, dict) and key in self and isinstance(self[key], Parameter):
+            # Update nested Parameter object
+            self[key].update(value)
         else:
-            super(Parameter, self).__setitem__(key, value)
+            super().__setitem__(key, value)
 
     def update(self, *args):
         """
@@ -174,18 +258,49 @@ class Parameter(dict):
 
         if isinstance(valid_values, type) and type(value) is valid_values:
             valid = True
+        elif isinstance(valid_values, type) and value is None:
+            # Allow None values for any type (useful for optional parameters)
+            valid = True
         elif isinstance(valid_values, type) and valid_values == float and type(value) == int:
             # special case to allow ints as float inputs
             valid = True
+        elif isinstance(valid_values, type) and valid_values == float and hasattr(value, 'magnitude'):
+            # special case to allow pint Quantity objects as float inputs
+            valid = True
         elif isinstance(value, dict) and isinstance(valid_values, dict):
             # check that all values actually exist in valid_values
-            # assert value.keys() & valid_values.keys() == value.keys() # python 3 syntax
-            assert set(value.keys()) & set(valid_values.keys()) == set(value.keys())  # python 2
-            # valid = True
-            for k, v in value.items():
-                valid = Parameter.is_valid(v, valid_values[k])
-                if not valid:
-                    break
+            # Check that all keys in value exist in valid_values and vice versa
+            if set(value.keys()) != set(valid_values.keys()):
+                valid = False
+            else:
+                # valid = True
+                for k, v in value.items():
+                    valid = Parameter.is_valid(v, valid_values[k])
+                    if not valid:
+                        break
+        elif isinstance(value, dict) and isinstance(valid_values, list):
+            # Handle case where valid_values is a list of Parameter objects but value is a dict
+            # This happens when loading experiments from files where nested parameters are stored as dicts
+            if not valid_values:
+                # Empty list means no validation rules - allow any dict
+                valid = True
+            else:
+                valid = True
+                
+                # Check that all required parameters are present and no extra parameters
+                required_params = [param.name for param in valid_values if isinstance(param, Parameter)]
+                if set(required_params) != set(value.keys()):
+                    valid = False
+                else:
+                    # Validate each parameter value
+                    for param in valid_values:
+                        if isinstance(param, Parameter) and param.name in value:
+                            # Get the valid_values for this specific parameter
+                            param_valid_values = param.valid_values.get(param.name, type(value[param.name]))
+                            param_valid = Parameter.is_valid(value[param.name], param_valid_values)
+                            if not param_valid:
+                                valid = False
+                                break
 
         elif isinstance(value, dict) and valid_values == Parameter:
             valid = True
@@ -194,6 +309,403 @@ class Parameter(dict):
             valid = True
 
         return valid
+
+    # Pint Integration Methods
+    
+    def is_pint_quantity(self, key=None):
+        """
+        Check if parameter value is a pint Quantity.
+        
+        Args:
+            key: Parameter key (if None, checks first parameter)
+            
+        Returns:
+            bool: True if parameter value is a pint Quantity
+        """
+        if key is None:
+            # For single parameters, use the parameter name
+            key = list(self.keys())[0] if self else None
+            
+        if key is None or key not in self._pint_quantity:
+            return False
+            
+        return self._pint_quantity[key]
+    
+    def get_value_in_units(self, target_units, key=None):
+        """
+        Get parameter value converted to target units (with caching).
+        
+        Args:
+            target_units: Target units (string or pint unit)
+            key: Parameter key (if None, uses first parameter)
+            
+        Returns:
+            pint.Quantity: Value in target units
+        """
+        if key is None:
+            key = list(self.keys())[0] if self else None
+            
+        if key is None or not self.is_pint_quantity(key):
+            return self[key]
+        
+        # Check cache first
+        cache_key = f"{key}_{target_units}"
+        if cache_key in self._conversion_cache:
+            return self._conversion_cache[cache_key]
+            
+        from src import ur
+        
+        # Convert string to pint unit if needed
+        if isinstance(target_units, str):
+            try:
+                target_units = getattr(ur, target_units)
+            except AttributeError:
+                raise ValueError(f"Unknown unit: {target_units}")
+        
+        # Perform conversion
+        result = self[key].to(target_units)
+        
+        # Cache result
+        if len(self._conversion_cache) >= self._cache_max_size:
+            # Remove oldest entry (simple LRU)
+            oldest_key = next(iter(self._conversion_cache))
+            del self._conversion_cache[oldest_key]
+        
+        self._conversion_cache[cache_key] = result
+        return result
+    
+    def set_value_with_units(self, value, units=None, key=None):
+        """
+        Set parameter value with units.
+        
+        Args:
+            value: Parameter value
+            units: Units (string or pint unit)
+            key: Parameter key (if None, uses first parameter)
+        """
+        if key is None:
+            key = list(self.keys())[0] if self else None
+            
+        if key is None:
+            raise ValueError("No parameter key specified")
+            
+        from src import ur
+        
+        # Convert to pint Quantity if units provided
+        if units is not None:
+            if isinstance(units, str):
+                units = getattr(ur, units)
+            value = value * units
+            
+        self[key] = value
+    
+    def convert_units(self, target_units, key=None):
+        """
+        Convert parameter value to target units in place.
+        
+        Args:
+            target_units: Target units (string or pint unit)
+            key: Parameter key (if None, uses first parameter)
+        """
+        if key is None:
+            key = list(self.keys())[0] if self else None
+            
+        if key is None or not self.is_pint_quantity(key):
+            return
+            
+        converted_value = self.get_value_in_units(target_units, key)
+        self[key] = converted_value
+        
+        # Update stored unit information
+        self._original_units[key] = converted_value.units
+        self._original_magnitude[key] = converted_value.magnitude
+    
+    def get_unit_info(self, key=None):
+        """
+        Get detailed unit information.
+        
+        Args:
+            key: Parameter key (if None, uses first parameter)
+            
+        Returns:
+            dict: Unit information including magnitude, units, etc.
+        """
+        if key is None:
+            key = list(self.keys())[0] if self else None
+            
+        if key is None:
+            return {}
+            
+        if not self.is_pint_quantity(key):
+            return {
+                'is_pint_quantity': False,
+                'value': self[key],
+                'units_string': self._units.get(key, '')
+            }
+            
+        value = self[key]
+        return {
+            'is_pint_quantity': True,
+            'magnitude': value.magnitude,
+            'units': value.units,
+            'units_string': str(value.units),
+            'dimensionality': str(value.dimensionality),
+            'value': value
+        }
+    
+    def validate_units(self, unit1, unit2):
+        """
+        Validate that two units are compatible.
+        
+        Args:
+            unit1: First unit (string or pint unit)
+            unit2: Second unit (string or pint unit)
+            
+        Returns:
+            bool: True if units are compatible
+            
+        Raises:
+            ValueError: If units are incompatible
+        """
+        from src import ur
+        
+        # Convert strings to pint units if needed
+        if isinstance(unit1, str):
+            unit1 = getattr(ur, unit1)
+        if isinstance(unit2, str):
+            unit2 = getattr(ur, unit2)
+            
+        try:
+            # Try to convert between units
+            test_value = 1.0 * unit1
+            converted = test_value.to(unit2)
+            return True
+        except Exception as e:
+            raise ValueError(f"Units {unit1} and {unit2} are incompatible: {e}")
+    
+    def get_compatible_units(self, key=None):
+        """
+        Get list of compatible units for this parameter.
+        
+        Args:
+            key: Parameter key (if None, uses first parameter)
+            
+        Returns:
+            list: List of compatible unit strings
+        """
+        if key is None:
+            key = list(self.keys())[0] if self else None
+            
+        if key is None or not self.is_pint_quantity(key):
+            return []
+            
+        from src import ur
+        
+        # Get the base dimensionality
+        value = self[key]
+        dimensionality = value.dimensionality
+        
+        # Find all units with the same dimensionality
+        compatible_units = []
+        for unit_name in dir(ur):
+            try:
+                unit = getattr(ur, unit_name)
+                if hasattr(unit, 'dimensionality') and unit.dimensionality == dimensionality:
+                    compatible_units.append(unit_name)
+            except:
+                continue
+        
+        # Add common units for this dimensionality
+        from src.core.unit_utils import get_common_units_for_dimensionality
+        common_units = get_common_units_for_dimensionality(dimensionality)
+        for unit in common_units:
+            if unit not in compatible_units:
+                compatible_units.append(unit)
+                
+        return compatible_units
+
+    # Phase 3: Enhanced Validation and Caching Methods
+    
+    def _validate_value(self, key, value, valid_values):
+        """
+        Enhanced validation with multiple rule types.
+        
+        Args:
+            key: Parameter key
+            value: Value to validate
+            valid_values: Type or list of valid values
+            
+        Raises:
+            ValidationError: If validation fails
+        """
+        # Check cache first
+        cache_key = f"{key}_{value}_{type(value)}"
+        if cache_key in self._validation_cache:
+            if not self._validation_cache[cache_key]:
+                raise ValidationError(f"Value {value} failed cached validation for {key}")
+            return
+        
+        # Perform validation
+        is_valid = True
+        error_messages = []
+        
+        # Get validation rules for this key
+        rules = getattr(self, '_validation_rules', {}).get(key, {})
+        
+        # Range validation
+        if 'range' in rules:
+            range_rule = rules['range']
+            if range_rule.get('min') is not None and value < range_rule['min']:
+                is_valid = False
+                error_messages.append(f"Value {value} is below minimum {range_rule['min']}")
+            if range_rule.get('max') is not None and value > range_rule['max']:
+                is_valid = False
+                error_messages.append(f"Value {value} is above maximum {range_rule['max']}")
+        
+        # Pattern validation
+        if 'pattern' in rules and isinstance(value, str):
+            import re
+            if not re.match(rules['pattern'], value):
+                is_valid = False
+                error_messages.append(f"Value '{value}' does not match pattern '{rules['pattern']}'")
+        
+        # Custom validation
+        if 'custom' in rules:
+            validator = rules['custom']
+            if not validator(value):
+                is_valid = False
+                error_messages.append(f"Value {value} failed custom validation")
+        
+        # Existing type validation
+        if not self.is_valid(value, valid_values):
+            is_valid = False
+            error_messages.append(f"Value {value} (of type {type(value)}) is not valid for {key}")
+        
+        # Cache result
+        if len(self._validation_cache) >= self._cache_max_size:
+            # Remove oldest entry (simple LRU)
+            oldest_key = next(iter(self._validation_cache))
+            del self._validation_cache[oldest_key]
+        
+        self._validation_cache[cache_key] = is_valid
+        
+        # Raise error if validation failed
+        if not is_valid:
+            raise ValidationError(f"Validation failed for {key}: {'; '.join(error_messages)}")
+    
+    def clear_cache(self):
+        """Clear all caches."""
+        self._conversion_cache.clear()
+        self._validation_cache.clear()
+    
+    def get_cache_stats(self):
+        """Get cache statistics for monitoring."""
+        return {
+            'conversion_cache_size': len(self._conversion_cache),
+            'validation_cache_size': len(self._validation_cache),
+            'max_cache_size': self._cache_max_size
+        }
+    
+    def to_json(self):
+        """
+        Serialize Parameter to JSON with unit preservation.
+        
+        Returns:
+            dict: JSON-serializable dictionary with unit information
+        """
+        import json
+        
+        data = {}
+        
+        for key, value in self.items():
+            if isinstance(value, Parameter):
+                # Handle nested Parameter objects
+                data[key] = value.to_json()
+            elif self.is_pint_quantity(key):
+                data[key] = {
+                    'value': value.magnitude,
+                    'units': str(value.units),
+                    'pint_quantity': True
+                }
+            else:
+                data[key] = {
+                    'value': value,
+                    'units': self._units.get(key, ''),
+                    'pint_quantity': False
+                }
+        
+        # Add metadata
+        data['_metadata'] = {
+            'valid_values': self._valid_values,
+            'info': self._info,
+            'visible': self._visible,
+            'validation_rules': getattr(self, '_validation_rules', {})
+        }
+        
+        return data
+    
+    @classmethod
+    def from_json(cls, json_data):
+        """
+        Create Parameter from JSON with unit restoration.
+        
+        Args:
+            json_data: JSON data from to_json() method
+            
+        Returns:
+            Parameter: Restored Parameter object
+        """
+        from src import ur
+        
+        # Extract metadata
+        metadata = json_data.pop('_metadata', {})
+        valid_values = metadata.get('valid_values', {})
+        info = metadata.get('info', {})
+        visible = metadata.get('visible', {})
+        validation_rules = metadata.get('validation_rules', {})
+        
+        # Create parameter
+        param = cls({})
+        
+        for key, value_data in json_data.items():
+            if key == '_metadata':
+                continue  # Skip metadata, handled separately
+            elif isinstance(value_data, dict) and '_metadata' in value_data:
+                # This is a nested Parameter object
+                param[key] = Parameter.from_json(value_data)
+                continue
+            elif value_data.get('pint_quantity', False):
+                # Restore pint Quantity
+                magnitude = value_data['value']
+                units_str = value_data['units']
+                try:
+                    units = getattr(ur, units_str)
+                    value = magnitude * units
+                    param._pint_quantity[key] = True
+                except AttributeError:
+                    # Fallback to string units if pint unit not found
+                    value = magnitude
+                    param._units[key] = units_str
+                    param._pint_quantity[key] = False
+            else:
+                # Regular value
+                value = value_data['value']
+                param._pint_quantity[key] = False
+                # Restore string units if present
+                if 'units' in value_data and value_data['units']:
+                    param._units[key] = value_data['units']
+            
+            param[key] = value
+        
+        # Restore metadata
+        param._valid_values = valid_values
+        param._info = info
+        param._visible = visible
+        param._validation_rules = validation_rules
+        
+        return param
+    
+
 
 if __name__ == '__main__':
     # Parameter is working with units.

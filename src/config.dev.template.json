@@ -1,0 +1,24 @@
+{
+    "environment": {
+        "is_development": true,
+        "is_mock": true,
+        "force_mock_devices": true,
+        "hardware_detection_enabled": false
+    },
+    "gui_settings": {
+        "data_folder": "",
+        "probes_folder": "",
+        "device_folder": "",
+        "experiments_folder": "",
+        "probes_log_folder": "",
+        "gui_settings": ""
+    },
+    "gui_settings_hidden": {
+        "experiments_source_folder": "",
+        "experiment_source_folder": ""
+    },
+    "experiments_hidden_parameters": {},
+    "devices": {},
+    "experiments": {},
+    "probes": {}
+}

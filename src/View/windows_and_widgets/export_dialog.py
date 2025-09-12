@@ -15,6 +15,7 @@
 
 
 import traceback, os
+from pathlib import Path
 
 from PyQt5 import QtGui, QtWidgets
 from PyQt5.uic import loadUiType
@@ -27,7 +28,7 @@ try:
     ui_file_path = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir, 'ui_files', 'import_window.ui'))
     Ui_Dialog, QDialog = loadUiType(ui_file_path) # with this we don't have to convert the .ui file into a python file!
 except (ImportError, IOError):
-    from src.View.compiled_ui_files import Ui_Dialog
+    from src.View.compiled_ui_files.gui_compiled_import_window import Ui_Dialog
     from PyQt5.QtWidgets import QMainWindow
     from PyQt5.QtWidgets import QDialog
     print('Warning: on the fly conversion of load_dialog.ui file failed, loaded .py file instead!!\n')
@@ -39,9 +40,12 @@ class ExportDialog(QDialog, Ui_Dialog):
     QDialog, Ui_Dialog: Define the UI and PyQt files to be used to define the dialog box
     """
 
-    def __init__(self):
+    def __init__(self, existing_devices=None):
         super(ExportDialog, self).__init__()
         self.setupUi(self)
+        
+        # Store existing devices for use during conversion
+        self.existing_devices = existing_devices or {}
 
         # create models for tree structures, the models reflect the data
         self.list_experiment_model = QtGui.QStandardItemModel()
@@ -73,9 +77,13 @@ class ExportDialog(QDialog, Ui_Dialog):
         sender = self.sender()
         if sender == self.btn_open_source:
             textbox = self.source_path
+            # Default to src/Model folder if source path is empty
+            default_dir = textbox.text() if textbox.text() else str(Path(__file__).parent.parent.parent / "Model")
         elif sender == self.btn_open_target:
             textbox = self.target_path
-        folder = dialog.getExistingDirectory(self, 'Select a file:', textbox.text(), options = QtWidgets.QFileDialog.ShowDirsOnly)
+            default_dir = textbox.text() if textbox.text() else str(Path.home() / "Experiments" / "AQuISS_default_save_location" / "experiments_auto_generated")
+        
+        folder = dialog.getExistingDirectory(self, 'Select a file:', default_dir, options = QtWidgets.QFileDialog.ShowDirsOnly)
         if str(folder) != '':
             textbox.setText(folder)
             # load elements from file and display in tree
@@ -141,18 +149,23 @@ class ExportDialog(QDialog, Ui_Dialog):
         Exports the selected devices or experiments to .aqs files. If successful, experiment is highlighted in green. If
         failed, experiment is highlighted in red and error is printed to the error box.
         """
-        if not self.source_path.text() or not self.target_path.text():
-            msg = QtWidgets.QMessageBox()
-            msg.setText("Please set a target path for this export.")
-            msg.exec_()
+        selected_index = self.list_experiment.selectionModel().selectedIndexes()
+        if not selected_index:
             return
-        selected_index = self.list_experiment.selectedIndexes()
+
         for index in selected_index:
             item = self.list_experiment.model().itemFromIndex(index)
             name = str(item.text())
             target_path = self.target_path.text()
             try:
-                loaded,failed = python_file_to_aqs({name: self.available[name]}, target_path, str(self.cmb_select_type.currentText()), raise_errors = True)
+                # Pass existing devices to enable real hardware usage during conversion
+                loaded,failed = python_file_to_aqs(
+                    {name: self.available[name]}, 
+                    target_path, 
+                    str(self.cmb_select_type.currentText()), 
+                    raise_errors=True,
+                    existing_devices=self.existing_devices
+                )
                 # Due to the windows exceptions being thrown, I have to change this code to ignore them
                 # TODO: figure out what is causing the windows exceptions and fix them instead of ignoring
                 if failed == {}:

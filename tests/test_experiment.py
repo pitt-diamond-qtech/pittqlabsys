@@ -1,4 +1,4 @@
-# Created by Gurudev Dutt <gdutt@pitt.edu> on 2023-08-03
+this iskippedur # Created by Gurudev Dutt <gdutt@pitt.edu> on 2023-08-03
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation; either version 2 of the License, or
@@ -37,15 +37,17 @@ Minimal Example Experiment that has only a single parameter (execution time)
     _DEVICES = {}
     _EXPERIMENTS = {}
 
-    def __init__(self, name=None, settings=None, log_function = None, data_path = None):
+    def __init__(self, name=None, settings=None, devices=None, sub_experiments=None, log_function = None, data_path = None):
         """
         Example of a experiment
         Args:
             name (optional): name of experiment, if empty same as class name
             settings (optional): settings for this experiment, if empty same as default settings
+            devices (optional): devices required for this experiment
+            sub_experiments (optional): sub-experiments for this experiment
         """
         #Experiment.__init__(self, name, settings, log_function= log_function, data_path = data_path)
-        super().__init__(name, settings, log_function= log_function, data_path = data_path)
+        super().__init__(name, settings, devices, sub_experiments, log_function= log_function, data_path = data_path)
 
 
     def _function(self):
@@ -77,15 +79,18 @@ Example Experiment that has all different types of parameters (integer, str, flo
     _DEVICES = {}
     _EXPERIMENTS = {}
 
-    def __init__(self, name=None, settings=None, log_function=None, data_path=None):
+    def __init__(self, name=None, settings=None, devices=None, sub_experiments=None, log_function=None, data_path=None):
         """
         Example of a experiment
+        parameter name
         Args:
             name (optional): name of experiment, if empty same as class name
             settings (optional): settings for this experiment, if empty same as default settings
+            devices (optional): devices required for this experiment
+            sub_experiments (optional): sub-experiments for this experiment
         """
         #Experiment.__init__(self, name, settings, log_function=log_function, data_path=data_path)
-        super().__init__(name,settings,log_function= log_function, data_path = data_path)
+        super().__init__(name, settings, devices, sub_experiments, log_function= log_function, data_path = data_path)
 
     def _function(self):
         """

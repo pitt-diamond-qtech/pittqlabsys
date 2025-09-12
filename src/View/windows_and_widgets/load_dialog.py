@@ -15,6 +15,7 @@
 
 
 import os
+from pathlib import Path
 
 from PyQt5 import QtGui, QtWidgets
 from PyQt5.uic import loadUiType
@@ -28,7 +29,7 @@ try:
     ui_file_path = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir, 'ui_files', 'load_dialog.ui'))
     Ui_Dialog, QDialog = loadUiType(ui_file_path) # with this we don't have to convert the .ui file into a python file!
 except (ImportError, IOError):
-    from src.View.compiled_ui_files import Ui_Dialog
+    from src.View.compiled_ui_files.gui_compiled_import_window import Ui_Dialog
     from PyQt5.QtWidgets import QMainWindow
     from PyQt5.QtWidgets import QDialog
     print('Warning!: on the fly conversion of load_dialog.ui file failed, loaded .py file instead!!\n')
@@ -164,7 +165,21 @@ Returns:
         opens a file dialog to get the path to a file and
         """
         dialog = QtWidgets.QFileDialog
-        filename, _ = dialog.getOpenFileName(self, 'Select a file:', self.txt_probe_log_path.text())
+        
+        # Use the configured path from the dialog's filename parameter
+        # If empty, fall back to a reasonable default
+        if self.txt_probe_log_path.text():
+            default_dir = self.txt_probe_log_path.text()
+        else:
+            # Try to get the configured experiments folder from config
+            try:
+                from src.core.helper_functions import get_configured_experiments_folder
+                default_dir = str(get_configured_experiments_folder())
+            except:
+                # Fallback to home directory if config is not available
+                default_dir = str(Path.home() / "Experiments" / "AQuISS_default_save_location" / "experiments_auto_generated")
+        
+        filename, _ = dialog.getOpenFileName(self, 'Select a file:', default_dir)
         if str(filename) != '':
             self.txt_probe_log_path.setText(filename)
             # load elements from file and display in tree

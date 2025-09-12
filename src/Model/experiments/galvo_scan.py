@@ -16,7 +16,6 @@
 import numpy as np
 import time
 from src.core import Parameter, Experiment
-from src.Controller import PXI6733, NI6281, MicrowaveGenerator, NIDAQ
 from src.Model.experiments.galvo_scan_generic import GalvoScanGeneric
 
 
@@ -37,7 +36,7 @@ class GalvoScan(GalvoScanGeneric):
                    ]),
         Parameter('RoI_mode', 'center', ['corner', 'center'], 'mode to calculate region of interest.\n \
                                                                corner: pta and ptb are diagonal corners of rectangle.\n \
-                                                               center: pta is center and pta is extend or rectangle'),
+                                                               center: pta is center and ptb is extend or rectangle'),
         Parameter('num_points',
                   [Parameter('x', 64, int, 'number of x points to scan'),
                    Parameter('y', 64, int, 'number of y points to scan')
@@ -64,7 +63,10 @@ class GalvoScan(GalvoScanGeneric):
         Parameter('plot_style', "main", ['main', 'aux', '2D', 'two'])
     ]
 
-    _DEVICES = {'daq': PXI6733(),'daq2': NI6281()}
+    _DEVICES = {
+        'daq': 'daq',          # Generic DAQ role (maps to config.json)
+        'daq2': 'daq2'         # Secondary DAQ role (maps to config.json)
+    }
 
     def __init__(self, devices=None, name=None, settings=None, log_function=None, data_path=None):
         '''
@@ -88,8 +90,10 @@ class GalvoScan(GalvoScanGeneric):
         #     self.devices = {'daq': NI6281()}
         # I should probably add the instances to a dictionary and keep track of them, but would have to re-implement
         # that in the Experiment class first. doing it by hand for now
+        from src.Controller import PXI6733, NI6281, PCI6229, PCI6601, SG384Generator, NIDAQ
         self.dev_instance = self.devices['daq']['instance']
         self.dev_instance2 = self.devices['daq2']['instance']
+            
         self.setup_scan()
 
     def setup_scan(self):
@@ -114,7 +118,7 @@ class GalvoScan(GalvoScanGeneric):
             self.settings['DAQ_channels']['x_ao_channel']]['sample_rate'] = sample_rate
         self.dev_instance.settings['analog_output'][
             self.settings['DAQ_channels']['y_ao_channel']]['sample_rate'] = sample_rate
-        self.dev_instance.settings['digital_input'][
+        self.dev_instance2.settings['digital_input'][
             self.settings['DAQ_channels']['counter_channel']]['sample_rate'] = sample_rate
 
     def get_galvo_location(self):
@@ -150,7 +154,7 @@ class GalvoScan(GalvoScanGeneric):
         ao_task = self.dev_instance.setup_AO(
             [self.settings['DAQ_channels']['x_ao_channel'], self.settings['DAQ_channels']['y_ao_channel']], pt)
         self.dev_instance.run(ao_task)
-        # self.dev_instance.AO_waitToFinish()
+        self.dev_instance.AO_waitToFinish()
         self.dev_instance.stop(ao_task)
 
     def read_line(self, y_pos):
@@ -159,14 +163,14 @@ class GalvoScan(GalvoScanGeneric):
         Args:
             y_pos: y position of the scan
 
-        Returns:
+        Returns: an array of the data collected during a single line scan of the galvo
 
         """
         # initialize APD thread
-        # ctr_task = self.dev_instance.setup_counter(self.settings['DAQ_channels']['counter_channel'],
-        #                                            len(self.x_array) + 1,use_external_clock=False)
-        ctr_task = self.dev_instance.setup_counter(self.settings['DAQ_channels']['counter_channel'],
-                                                   len(self.x_array) + 1)
+        ctr_task = self.dev_instance2.setup_counter(self.settings['DAQ_channels']['counter_channel'],
+                                                    len(self.x_array) + 1,use_external_clock=True)
+        #ctr_task = self.dev_instance2.setup_counter(self.settings['DAQ_channels']['counter_channel'],
+        #                                           len(self.x_array) + 1)
         self.init_pt = np.transpose(np.column_stack((self.x_array[0], y_pos)))
         self.init_pt = (np.repeat(self.init_pt, 2, axis=1))
 
@@ -183,11 +187,11 @@ class GalvoScan(GalvoScanGeneric):
                                              clk_source=ctr_task)
         # start counter and scanning sequence
         self.dev_instance.run(ao_task)
-        self.dev_instance.run(ctr_task)
+        self.dev_instance2.run(ctr_task)
 
         self.dev_instance.stop(ao_task)
-        x_line_data, _ = self.dev_instance.read(ctr_task)
-        self.dev_instance.stop(ctr_task)
+        x_line_data, _ = self.dev_instance2.read(ctr_task)
+        self.dev_instance2.stop(ctr_task)
         diff_data = np.diff(x_line_data)
 
         summed_data = np.zeros(int(len(self.x_array) / self.clock_adjust))

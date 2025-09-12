@@ -14,36 +14,88 @@
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 from PyQt5 import QtGui, QtCore, QtWidgets
 from PyQt5.uic import loadUiType
-from PyQt5.QtCore import QThread, pyqtSlot
+from PyQt5.QtCore import QThread, pyqtSlot, Qt
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
+import pyqtgraph as pg
 
 from src.core import Parameter, Device, Experiment, Probe
 from src.core.experiment_iterator import ExperimentIterator
 from src.core.read_probes import ReadProbes
-from src.View.windows_and_widgets import AQuISSQTreeItem, MatplotlibWidget, LoadDialog, LoadDialogProbes, ExportDialog
+from src.View.windows_and_widgets import AQuISSQTreeItem, LoadDialog, LoadDialogProbes, ExportDialog, PyQtgraphWidget, PyQtCoordinatesBar
 from src.Model.experiments.select_points import SelectPoints
 from src.core.read_write_functions import load_aqs_file
 from src.core.helper_functions import get_project_root
-
+from src.config_store import load_config, merge_config, save_config
+from pathlib import Path
+from src.config_paths import resolve_paths
 import os, io, json, webbrowser, datetime, operator
 import numpy as np
 from collections import deque
 from functools import reduce
-from pathlib import Path
+import logging
+import traceback
+import sys
 
+# Set up logging for GUI operations
+def setup_gui_logging():
+    """Set up comprehensive logging for GUI operations"""
+    logger = logging.getLogger('AQuISS_GUI')
+    logger.setLevel(logging.DEBUG)
+    
+    # Remove existing handlers to avoid duplicates
+    for handler in logger.handlers[:]:
+        logger.removeHandler(handler)
+    
+    # Create handlers
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(logging.INFO)
+    
+    # Create logs directory if it doesn't exist
+    log_dir = Path('logs')
+    log_dir.mkdir(exist_ok=True)
+    
+    # Create timestamped log file
+    timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+    log_file = log_dir / f'gui_debug_{timestamp}.log'
+    
+    file_handler = logging.FileHandler(log_file)
+    file_handler.setLevel(logging.DEBUG)
+    
+    # Create formatters and add it to handlers
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s')
+    console_handler.setFormatter(formatter)
+    file_handler.setFormatter(formatter)
+    
+    # Add handlers to the logger
+    logger.addHandler(console_handler)
+    logger.addHandler(file_handler)
+    
+    # Log initial setup
+    logger.info(f"GUI logging initialized. Debug log: {log_file}")
+    
+    return logger
 
+# Initialize GUI logger
+gui_logger = setup_gui_logging()
 
 
 # load the basic old_gui either from .ui file or from precompiled .py file
-print(os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir)))
+# load your global config.json (adjust the filename/path as needed)
+_CONFIG_PATH = get_project_root() / "src" / "config.json"
+
+# this gives you a dict of real Path objects for data_folder, experiments_folder, etc.
+paths = resolve_paths(_CONFIG_PATH)
+
+# now you can inspect any one, for example:
+print(f"Experiments folder: {paths['experiments_folder']}")
 try:
     thisdir = get_project_root()
     #qtdesignerfile = thisdir / 'View/ui_files/main_window.ui'  # this is the .ui file created in QtCreator
-    ui_file_path = thisdir / 'View/ui_files/main_window.ui'
+    ui_file_path = thisdir / 'src/View/ui_files/main_window.ui'
     Ui_MainWindow, QMainWindow = loadUiType(ui_file_path) # with this we don't have to convert the .ui file into a python file!
 except (ImportError, IOError):
-    # load precompiled old_gui, to complite run pyqt_uic main_window.ui -o main_window.py
-    from src.View.compiled_ui_files.main_window import Ui_MainWindow
+    # load precompiled old_gui, to compile run pyuic5 main_window.ui -o gui_compiled_main_window.py
+    from ..compiled_ui_files.gui_compiled_main_window import Ui_MainWindow
     from PyQt5.QtWidgets import QMainWindow
     print('Warning: on-the-fly conversion of main_window.ui file failed, loaded .py file instead.\n')
 
@@ -58,24 +110,24 @@ class CustomEventFilter(QtCore.QObject):
 
 
 class MainWindow(QMainWindow, Ui_MainWindow):
-    application_path = os.path.abspath(os.path.join(os.path.expanduser("~"), 'Experiments\\AQuISS_default_save_location'))
+    # application_path = os.path.abspath(os.path.join(os.path.expanduser("~"), 'Experiments\\AQuISS_default_save_location'))
+    #
+    # _DEFAULT_CONFIG = {
+    #     "data_folder": os.path.join(application_path, "data"),
+    #     "probes_folder": os.path.join(application_path,"probes_auto_generated"),
+    #     "device_folder": os.path.join(application_path, "devices_auto_generated"),
+    #     "experiments_folder": os.path.join(application_path, "experiments_auto_generated"),
+    #     "probes_log_folder": os.path.join(application_path, "aqs_tmp"),
+    #     "gui_settings": os.path.join(application_path, "workspace_config.json")
+    # }
+    #
+    #
+    # startup_msg = '\n\n\
+    # ======================================================\n\
+    # =============== Starting AQuISS Python LAB  =============\n\
+    # ======================================================\n\n'
 
-    _DEFAULT_CONFIG = {
-        "data_folder": os.path.join(application_path, "data"),
-        "probes_folder": os.path.join(application_path,"probes_auto_generated"),
-        "device_folder": os.path.join(application_path, "devices_auto_generated"),
-        "experiments_folder": os.path.join(application_path, "experiments_auto_generated"),
-        "probes_log_folder": os.path.join(application_path, "aqs_tmp"),
-        "gui_settings": os.path.join(application_path, "src_config.aqs")
-    }
-
-
-    startup_msg = '\n\n\
-    ======================================================\n\
-    =============== Starting AQuISS Python LAB  =============\n\
-    ======================================================\n\n'
-
-    def __init__(self, filepath=None):
+    def __init__(self, config_file: str, gui_config_file: str, *args, **kwargs):
         """
         MainWindow(intruments, experiments, probes)
             - intruments: depth 1 dictionary where keys are device names and keys are device classes
@@ -88,17 +140,98 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         Returns:
 
         """
+        super().__init__(*args, **kwargs)
 
+        # 1) Resolve your application folders from config_file:
+        if config_file is None:
+            # default to config.json in src directory
+            cfg_path = get_project_root() / "src" / "config.json"
+            gui_logger.debug(f"[DEBUG] Constructed cfg_path using get_project_root()/src: {cfg_path}")
+        else:
+            cfg_path = Path(config_file)
+            gui_logger.debug(f"[DEBUG] Using provided config_file: {config_file}")
+        
+        gui_logger.debug(f"Resolving paths from config file: {cfg_path}")
+        self.paths = resolve_paths(cfg_path)
+        gui_logger.debug(f"Resolved paths: {self.paths}")
+        # now self.paths["data_folder"], self.paths["experiments_folder"], etc.
+
+        # 2) Load any other globals you need:
+        self.global_cfg = load_config(cfg_path)
+
+        if gui_config_file:
+            gui_cfg_file = Path(gui_config_file)
+        else:
+            # default to gui_config.json in src directory
+            gui_cfg_file = get_project_root() / "src" / "gui_config.json"
+
+        # 3) Load the GUI config (or start fresh if it doesn't exist)
+        gui_logger.debug(f"Loading GUI config from: {gui_cfg_file}")
+        gui_cfg = load_config(gui_cfg_file)
+        gui_logger.debug(f"Loaded GUI config: {gui_cfg}")
+        self.config_filepath = gui_cfg_file
+        self.gui_settings = gui_cfg.get("gui_settings", {})
+        gui_logger.debug(f"GUI settings: {self.gui_settings}")
+        self.gui_settings_hidden = gui_cfg.get("experiments_hidden_parameters", {})
+        
+        # 4) Automatically load default workspace if no specific workspace is loaded
+        if not hasattr(self, 'experiments') or not self.experiments:
+            gui_logger.info("No experiments loaded, attempting to load default workspace")
+            try:
+                self.load_config("default_workspace")
+                gui_logger.info("Default workspace loaded successfully")
+            except Exception as e:
+                gui_logger.warning(f"Could not load default workspace: {e}")
+                gui_logger.info("Starting with empty workspace")
+        
+        # Initialize history before any log calls
+        self.history = deque(maxlen=500)  # history of executed commands
+        self.history_model = None  # Will be initialized in setup_trees()
+        
+        # 4) Log what we loaded
+        if gui_cfg:
+            self.log(f"Loaded GUI configuration from {gui_cfg_file}")
+        else:
+            self.log(f"No GUI config found; will save new settings to {gui_cfg_file}")
+        # 5) Build your startup message now that you have real paths:
+        self.startup_msg = (
+            "\n\n"
+            "======================================================\n"
+            "=============== Starting AQuISS Python LAB  =============\n"
+            "======================================================\n\n"
+            f"Data folder:        {self.paths['data_folder']}\n"
+            f"Experiments folder: {self.paths['experiments_folder']}\n"
+            f"Workspace configs:  {self.paths['workspace_config_dir']}\n"
+        )
+        
+        self.log(self.startup_msg)
         print(self.startup_msg)
-        self.config_filepath = None
+        #self.config_filepath = None
+        gui_logger.debug("Calling super().__init__()")
         super(MainWindow, self).__init__()
+        gui_logger.debug("Calling setupUi()")
         self.setupUi(self)
+        gui_logger.debug("setupUi() completed successfully")
+        
+        # Fix for macOS menu bar issue - ensure menu bar is properly attached to main window
+        if hasattr(self, 'menubar'):
+            gui_logger.debug("Fixing menu bar attachment for macOS compatibility")
+            # Remove the menu bar from centralwidget and attach it to the main window
+            if self.menubar.parent() == self.centralwidget:
+                self.menubar.setParent(None)
+                self.setMenuBar(self.menubar)
+                gui_logger.debug("Menu bar reattached to main window")
+            else:
+                gui_logger.debug(f"Menu bar parent is: {self.menubar.parent()}")
+        else:
+            gui_logger.warning("No menu bar found to fix!")
 
         def setup_trees():
+            gui_logger.debug("Setting up trees")
             # COMMENT_ME
 
             # define data container
-            self.history = deque(maxlen=500)  # history of executed commands
+            # self.history already initialized above
             self.history_model = QtGui.QStandardItemModel(self.list_history)
             self.list_history.setModel(self.history_model)
             self.list_history.show()
@@ -111,6 +244,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.tree_gui_settings.doubleClicked.connect(self.edit_tree_item)
 
             self.current_experiment = None
+            self.previous_data = None
             self.probe_to_plot = None
 
             # create models for tree structures, the models reflect the data
@@ -125,6 +259,22 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
             self.tree_experiments.header().setStretchLastSection(True)
         def connect_controls():
+            gui_logger.debug("Connecting controls")
+            
+            # Debug: Check if menu actions exist
+            gui_logger.debug(f"actionExport exists: {hasattr(self, 'actionExport')}")
+            if hasattr(self, 'actionExport'):
+                gui_logger.debug(f"actionExport type: {type(self.actionExport)}")
+                gui_logger.debug(f"actionExport text: {self.actionExport.text() if hasattr(self.actionExport, 'text') else 'No text'}")
+            else:
+                gui_logger.warning("actionExport does not exist!")
+            
+            gui_logger.debug(f"menuFile exists: {hasattr(self, 'menuFile')}")
+            if hasattr(self, 'menuFile'):
+                gui_logger.debug(f"menuFile type: {type(self.menuFile)}")
+                gui_logger.debug(f"menuFile actions: {[action.text() for action in self.menuFile.actions()] if hasattr(self.menuFile, 'actions') else 'No actions'}")
+            else:
+                gui_logger.warning("menuFile does not exist!")
             # COMMENT_ME
             # =============================================================
             # ===== LINK WIDGETS TO FUNCTIONS =============================
@@ -141,6 +291,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             # self.btn_plot_data.clicked.connect(self.btn_clicked)
             self.btn_save_data.clicked.connect(self.btn_clicked)
             self.btn_delete_data.clicked.connect(self.btn_clicked)
+            
+            # Connect the new convert button
+            if hasattr(self, 'btn_convert_python_files'):
+                self.btn_convert_python_files.clicked.connect(self.btn_clicked)
 
 
             self.btn_save_gui.triggered.connect(self.btn_clicked)
@@ -151,6 +305,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.actionSave.triggered.connect(self.btn_clicked)
             self.actionExport.triggered.connect(self.btn_clicked)
             self.actionGo_to_AQuISS_GitHub_page.triggered.connect(self.btn_clicked)
+            self.actionSaveWorkspace.triggered.connect(self.btn_clicked)
+            self.actionLoadWorkspace.triggered.connect(self.btn_clicked)
 
             self.btn_load_devices.clicked.connect(self.btn_clicked)
             self.btn_load_experiments.clicked.connect(self.btn_clicked)
@@ -159,7 +315,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             # Helper function to make only column 1 editable
             def onExperimentParamClick(item, column):
                 tree = item.treeWidget()
-                if column == 1 and not isinstance(item.value, (Experiment, Device)) and not item.is_point():
+                if column == 1 and not isinstance(item.value, (Experiment, Device)) and (hasattr(item, 'is_point') and not item.is_point()):
                     # self.tree_experiments.editItem(item, column)
                     tree.editItem(item, column)
 
@@ -197,35 +353,58 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         new_factory = CustomEditorFactory()
         delegate.setItemEditorFactory(new_factory)
         self.tree_experiments.setItemDelegate(delegate)
+        gui_logger.debug("About to call setup_trees()")
         setup_trees()
-
+        gui_logger.debug("setup_trees() completed, about to call connect_controls()")
         connect_controls()
+        gui_logger.debug("connect_controls() completed")
 
-        if filepath is None:
-            path_to_config = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir, 'save_config.json'))
-            if os.path.isfile(path_to_config) and os.access(path_to_config, os.R_OK):
-                print('path_to_config', path_to_config)
-                with open(path_to_config) as f:
-                    config_data = json.load(f)
-                if 'last_save_path' in config_data.keys():
-                    self.config_filepath = config_data['last_save_path']
-                    self.log('Checking for previous save of GUI here: {0}'.format(self.config_filepath))
-            else:
-                self.log('Starting with blank GUI; configuration files will be saved here: {0}'.format(self._DEFAULT_CONFIG["gui_settings"]))
+        # if filepath is None:
+        #     path_to_config = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir, 'save_config.json'))
+        #     if os.path.isfile(path_to_config) and os.access(path_to_config, os.R_OK):
+        #         print('path_to_config', path_to_config)
+        #         with open(path_to_config) as f:
+        #             config_data = json.load(f)
+        #         if 'last_save_path' in config_data.keys():
+        #             self.config_filepath = config_data['last_save_path']
+        #             self.log('Checking for previous save of GUI here: {0}'.format(self.config_filepath))
+        #     else:
+        #         self.log('Starting with blank GUI; configuration files will be saved here: {0}'.format(self._DEFAULT_CONFIG["gui_settings"]))
 
-        elif os.path.isfile(filepath) and os.access(filepath, os.R_OK):
-            self.config_filepath = filepath
+        # elif os.path.isfile(filepath) and os.access(filepath, os.R_OK):
+        #     self.config_filepath = filepath
 
-        elif not os.path.isfile(filepath):
-            self.log('Could not find file given to open --- starting with a blank GUI')
+        # elif not os.path.isfile(filepath):
+        #     self.log('Could not find file given to open --- starting with a blank GUI')
 
         self.devices = {}
         self.experiments = {}
         self.probes = {}
         self.gui_settings = {'experiments_folder': '', 'data_folder': ''}
         self.gui_settings_hidden = {'experiments_source_folder': ''}
+        
+        # Load devices from config file
+        try:
+            from src.core.device_config import load_devices_from_config
+            gui_logger.info("Loading devices from config file...")
+            loaded_devices, failed_devices = load_devices_from_config(cfg_path)
+            
+            if loaded_devices:
+                self.devices.update(loaded_devices)
+                gui_logger.info(f"Successfully loaded {len(loaded_devices)} devices from config")
+                for device_name in loaded_devices.keys():
+                    gui_logger.info(f"  [SUCCESS] Loaded device: {device_name}")
+            
+            if failed_devices:
+                gui_logger.warning(f"Failed to load {len(failed_devices)} devices from config")
+                for device_name, error in failed_devices.items():
+                    gui_logger.warning(f"  [ERROR] Failed to load {device_name}: {error}")
+                    
+        except Exception as e:
+            gui_logger.warning(f"Could not load devices from config: {e}")
+            gui_logger.info("Starting with empty device list")
 
-        self.load_config(self.config_filepath)
+        #self.load_config(self.config_filepath)
 
         self.data_sets = {}  # todo: load datasets from tmp folder
         self.read_probes = ReadProbes(self.probes)
@@ -240,15 +419,23 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.actionExport.setShortcut(self.tr('Ctrl+E'))
         self.list_history.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
 
-        if self.config_filepath is None:
-            self.config_filepath = os.path.join(self._DEFAULT_CONFIG["gui_settings"], 'gui.aqs')
+        gui_logger.debug("__init__ method completed successfully")
+        # if self.config_filepath is None:
+        #     self.config_filepath = os.path.join(self._DEFAULT_CONFIG["gui_settings"], 'gui.aqs')
 
     def closeEvent(self, event):
         """
         things to be done when gui closes, like save the settings
         """
 
-        self.save_config(self.gui_settings['gui_settings'])
+        # Save config if gui_settings key exists, otherwise save to default location
+        if 'gui_settings' in self.gui_settings:
+            self.save_config(self.gui_settings['gui_settings'])
+        else:
+            # Save to default location
+            default_config_path = get_project_root() / "src" / "gui_config.json"
+            self.save_config(str(default_config_path))
+        
         self.experiment_thread.quit()
         self.read_probes.quit()
         event.accept()
@@ -387,49 +574,59 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         self.tree_settings.blockSignals(False)
 
-
     def plot_clicked(self, mouse_event):
         """
         gets activated when the user clicks on a plot
         Args:
             mouse_event:
         """
-        if isinstance(self.current_experiment, SelectPoints) and self.current_experiment.is_running:
-            if (not (mouse_event.xdata == None)):
-                if (mouse_event.button == 1):
-                    pt = np.array([mouse_event.xdata, mouse_event.ydata])
-                    self.current_experiment.toggle_NV(pt)
-                    self.current_experiment.plot([self.matplotlibwidget_1.figure])
-                    self.matplotlibwidget_1.draw()
+        # get viewbox and mouse coordinates from primary PlotItem
+        viewbox = self.pyqtgraphwidget_1.graph.getItem(row=0, col=0).vb
+        mouse_point = viewbox.mapSceneToView(mouse_event.scenePos())
+
+        if (isinstance(self.current_experiment, SelectPoints) and self.current_experiment.is_running):
+            #if running the SelectPoints experiment triggers function to plot and save NV locations
+            if mouse_event.button() == Qt.LeftButton:
+                pt = np.array([mouse_point.x(), mouse_point.y()])
+                self.current_experiment.toggle_NV(pt)
+                self.current_experiment.plot([self.pyqtgraphwidget_1.graph])
+
+        if isinstance(self.current_experiment,ExperimentIterator) and self.current_experiment.is_running and isinstance(self.current_experiment._current_subexperiment_stage['current_subexperiment'], SelectPoints):
+            #if running an ExperimentIterator and the current subexperiment is SelectPoints triggers function to plot and save NV locations
+            select_points_instance = self.current_experiment._current_subexperiment_stage['current_subexperiment']
+            if mouse_event.button() == Qt.LeftButton:
+                pt = np.array([mouse_point.x(), mouse_point.y()])
+                select_points_instance.toggle_NV(pt)
+                select_points_instance.plot([self.pyqtgraphwidget_1.graph])
 
         item = self.tree_experiments.currentItem()
 
         if item is not None:
-            if item.is_point():
+            if hasattr(item, 'is_point') and item.is_point():
                # item_x = item.child(1)
                 item_x = item.child(0)
-                if mouse_event.xdata is not None:
+                if mouse_point.x() is not None:
                     self.tree_experiments.setCurrentItem(item_x)
-                    item_x.value = float(mouse_event.xdata)
-                    item_x.setText(1, '{:0.3f}'.format(float(mouse_event.xdata)))
+                    item_x.value = float(mouse_point.x())
+                    item_x.setText(1, '{:0.3f}'.format(float(mouse_point.x())))
                # item_y = item.child(0)
                 item_y = item.child(1)
-                if mouse_event.ydata is not None:
+                if mouse_point.y() is not None:
                     self.tree_experiments.setCurrentItem(item_y)
-                    item_y.value = float(mouse_event.ydata)
-                    item_y.setText(1, '{:0.3f}'.format(float(mouse_event.ydata)))
+                    item_y.value = float(mouse_point.y())
+                    item_y.setText(1, '{:0.3f}'.format(float(mouse_point.y())))
 
                 # focus back on item
                 self.tree_experiments.setCurrentItem(item)
             else:
                 if item.parent() is not None:
-                    if item.parent().is_point():
+                    if hasattr(item.parent(), 'is_point') and item.parent().is_point():
                         if item == item.parent().child(1):
-                            if mouse_event.xdata is not None:
-                                item.setData(1, 2, float(mouse_event.xdata))
+                            if mouse_point.x() is not None:
+                                item.setData(1, 2, float(mouse_point.x()))
                         if item == item.parent().child(0):
-                            if mouse_event.ydata is not None:
-                                item.setData(1, 2, float(mouse_event.ydata))
+                            if mouse_point.y() is not None:
+                                item.setData(1, 2, float(mouse_point.y()))
 
     def get_time(self):
         """
@@ -449,76 +646,88 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         msg = "{:s}\t {:s}".format(time, msg)
 
         self.history.append(msg)
-        self.history_model.insertRow(0, QtGui.QStandardItem(msg))
+        if self.history_model is not None:
+            self.history_model.insertRow(0, QtGui.QStandardItem(msg))
 
     def create_figures(self):
-        """
-        creates the maplotlib figures]
-        self.matplotlibwidget_1
-        self.matplotlibwidget_2
-        and toolbars
-        self.mpl_toolbar_1
-        self.mpl_toolbar_2
-        Returns:
-
-        """
-
 
         try:
-            self.horizontalLayout_14.removeWidget(self.matplotlibwidget_1)
-            self.matplotlibwidget_1.close()
+            self.horizontalLayout_14.removeWidget(self.pyqtgraphwidget_1)
+            self.pyqtgraphwidget_1.close()
         except AttributeError:
             pass
         try:
-            self.horizontalLayout_15.removeWidget(self.matplotlibwidget_2)
-            self.matplotlibwidget_2.close()
+            self.horizontalLayout_15.removeWidget(self.pyqtgraphwidget_2)
+            self.pyqtgraphwidget_2.close()
         except AttributeError:
             pass
-        self.matplotlibwidget_2 = MatplotlibWidget(self.plot_2)
+
+        #adds 2 graphics layout widgets. _1 is top layout and _2 is bottom layout
+        self.pyqtgraphwidget_2 = PyQtgraphWidget(self.plot_2)
         sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
-        sizePolicy.setHeightForWidth(self.matplotlibwidget_2.sizePolicy().hasHeightForWidth())
-        self.matplotlibwidget_2.setSizePolicy(sizePolicy)
-        self.matplotlibwidget_2.setMinimumSize(QtCore.QSize(200, 200))
-        self.matplotlibwidget_2.setObjectName("matplotlibwidget_2")
-        self.horizontalLayout_16.addWidget(self.matplotlibwidget_2)
-        self.matplotlibwidget_1 = MatplotlibWidget(self.plot_1)
-        self.matplotlibwidget_1.setMinimumSize(QtCore.QSize(200, 200))
-        self.matplotlibwidget_1.setObjectName("matplotlibwidget_1")
-        self.horizontalLayout_15.addWidget(self.matplotlibwidget_1)
+        sizePolicy.setHeightForWidth(self.pyqtgraphwidget_2.sizePolicy().hasHeightForWidth())
+        self.pyqtgraphwidget_2.setSizePolicy(sizePolicy)
+        self.pyqtgraphwidget_2.setMinimumSize(QtCore.QSize(200, 200))
+        self.pyqtgraphwidget_2.setObjectName("pyqtgraphwidget_2")
+        self.horizontalLayout_16.addWidget(self.pyqtgraphwidget_2)
+        self.pyqtgraphwidget_1 = PyQtgraphWidget(parent=self.plot_1)
+        self.pyqtgraphwidget_1.setMinimumSize(QtCore.QSize(200, 200))
+        self.pyqtgraphwidget_1.setObjectName("pyqtgraphwidget_1")
+        self.horizontalLayout_15.addWidget(self.pyqtgraphwidget_1)
 
-        self.matplotlibwidget_1.mpl_connect('button_press_event', self.plot_clicked)
-        self.matplotlibwidget_2.mpl_connect('button_press_event', self.plot_clicked)
+        #adds 2 coordinate bars (1 for each graphics widget)
+        self.cordbar_2 = PyQtCoordinatesBar(self.pyqtgraphwidget_2.get_graph)
+        self.cordbar_1 = PyQtCoordinatesBar(self.pyqtgraphwidget_1.get_graph)
+        self.horizontalLayout_9.addWidget(self.cordbar_2)
+        self.horizontalLayout_14.addWidget(self.cordbar_1)
 
-        # adds a toolbar to the plots
-        self.mpl_toolbar_1 = NavigationToolbar(self.matplotlibwidget_1.canvas, self.toolbar_space_1)
-        self.mpl_toolbar_2 = NavigationToolbar(self.matplotlibwidget_2.canvas, self.toolbar_space_2)
-        self.horizontalLayout_9.addWidget(self.mpl_toolbar_2)
-        self.horizontalLayout_14.addWidget(self.mpl_toolbar_1)
+        sizePolicy.setHeightForWidth(self.cordbar_2.sizePolicy().hasHeightForWidth())
+        self.cordbar_2.setSizePolicy(sizePolicy)
+        self.cordbar_2 .setMinimumSize(QtCore.QSize(200, 50))
+        self.cordbar_2 .setObjectName('cordinatebar_2')
 
-        self.matplotlibwidget_1.figure.set_tight_layout(True)
-        self.matplotlibwidget_2.figure.set_tight_layout(True)
+        sizePolicy.setHeightForWidth(self.cordbar_1.sizePolicy().hasHeightForWidth())
+        self.cordbar_1.setSizePolicy(sizePolicy)
+        self.cordbar_1.setMinimumSize(QtCore.QSize(200, 50))
+        self.cordbar_1.setObjectName('cordinatebar_1')
+
+        # connects plots so when clicked on the plot_clicked method triggers
+        self.pyqtgraphwidget_1.graph.scene().sigMouseClicked.connect(self.plot_clicked)
+        self.pyqtgraphwidget_2.graph.scene().sigMouseClicked.connect(self.plot_clicked)
+
 
     def load_experiments(self):
-            """
-            opens file dialog to load experiments into gui
-            """
-
-
+        """
+        opens file dialog to load experiments into gui
+        """
+        gui_logger.info("Starting load_experiments operation")
+        try:
             # update experiments so that current settings do not get lost
+            gui_logger.debug(f"Updating {self.tree_experiments.topLevelItemCount()} existing experiment items")
             for index in range(self.tree_experiments.topLevelItemCount()):
                 experiment_item = self.tree_experiments.topLevelItem(index)
-                self.update_experiment_from_item(experiment_item)
+                gui_logger.debug(f"Processing experiment item {index}: {type(experiment_item)}")
+                # Only update if the item has the get_experiment method (AQuISSQTreeItem)
+                if hasattr(experiment_item, 'get_experiment'):
+                    gui_logger.debug(f"Updating experiment item {index}")
+                    self.update_experiment_from_item(experiment_item)
+                else:
+                    gui_logger.warning(f"Experiment item {index} missing get_experiment method: {type(experiment_item)}")
 
-
+            gui_logger.info("Opening LoadDialog for experiments")
             dialog = LoadDialog(elements_type="experiments", elements_old=self.experiments,
                                 filename=self.gui_settings['experiments_folder'])
             if dialog.exec_():
-                self.gui_settings['experiments_folder'] = str(dialog.txt_probe_log_path.text())
+                gui_logger.info("LoadDialog completed, processing selected experiments")
+                # Don't modify the experiments_folder from the dialog - it should be set by user configuration
                 experiments = dialog.get_values()
+                gui_logger.debug(f"Dialog returned {len(experiments)} experiments: {list(experiments.keys())}")
+                
                 added_experiments = set(experiments.keys()) - set(self.experiments.keys())
                 removed_experiments = set(self.experiments.keys()) - set(experiments.keys())
+                gui_logger.info(f"Added: {len(added_experiments)}, Removed: {len(removed_experiments)}")
 
                 if 'data_folder' in list(self.gui_settings.keys()) and os.path.exists(self.gui_settings['data_folder']):
                     data_folder_name = self.gui_settings['data_folder']
@@ -526,6 +735,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                     data_folder_name = None
 
                 # create instances of new devices/experiments
+                gui_logger.info("Loading and appending new experiments")
                 self.experiments, loaded_failed, self.devices = Experiment.load_and_append(
                     experiment_dict={name: experiments[name] for name in added_experiments},
                     experiments=self.experiments,
@@ -536,7 +746,94 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
                 # delete instances of new devices/experiments that have been deselected
                 for name in removed_experiments:
+                    gui_logger.debug(f"Removing experiment: {name}")
                     del self.experiments[name]
+                    
+                gui_logger.info("load_experiments operation completed successfully")
+            else:
+                gui_logger.info("LoadDialog was cancelled")
+                
+        except Exception as e:
+            gui_logger.error(f"Error in load_experiments: {str(e)}")
+            gui_logger.error(f"Traceback: {traceback.format_exc()}")
+            # Show error to user
+            QtWidgets.QMessageBox.critical(self, "Error", f"Failed to load experiments: {str(e)}")
+
+    def convert_python_files(self):
+        """
+        opens export dialog to convert Python files to AQS format
+        """
+        gui_logger.info("Convert Python Files button clicked - opening export dialog")
+        
+        try:
+            gui_logger.debug(f"gui_settings: {self.gui_settings}")
+            gui_logger.debug(f"gui_settings_hidden: {self.gui_settings_hidden}")
+            
+            # Pass existing devices to enable real hardware usage during conversion
+            export_dialog = ExportDialog(existing_devices=self.devices)
+            gui_logger.debug("ExportDialog created successfully with existing devices")
+            
+            # Check for mock devices and warn user
+            try:
+                from src.tools.export_default import detect_mock_devices
+                mock_devices, warning_message = detect_mock_devices()
+                
+                if mock_devices:
+                    gui_logger.warning(f"Mock devices detected: {mock_devices}")
+                    QtWidgets.QMessageBox.warning(
+                        self,
+                        "Mock Devices Detected",
+                        f"⚠️  WARNING: Mock devices detected during conversion!\n\n"
+                        f"Mock devices found: {', '.join(mock_devices)}\n\n"
+                        "This conversion may not reflect real hardware capabilities.\n"
+                        "Check device connections and try again for accurate results.",
+                        QtWidgets.QMessageBox.Ok
+                    )
+                else:
+                    gui_logger.info("All devices appear to be real hardware implementations")
+                    
+            except Exception as e:
+                gui_logger.warning(f"Could not check for mock devices: {e}")
+                # Continue with conversion even if we can't check device status
+            
+            if 'experiments_folder' in self.gui_settings and self.gui_settings['experiments_folder']:
+                export_dialog.target_path.setText(self.gui_settings['experiments_folder'])
+                gui_logger.debug(f"Set target path to: {self.gui_settings['experiments_folder']}")
+            else:
+                # Use resolved paths instead of empty gui_settings
+                export_dialog.target_path.setText(str(self.paths['experiments_folder']))
+                gui_logger.debug(f"Set target path to resolved path: {self.paths['experiments_folder']}")
+                
+            if 'experiments_source_folder' in self.gui_settings_hidden:
+                export_dialog.source_path.setText(self.gui_settings_hidden['experiments_source_folder'])
+                gui_logger.debug(f"Set source path to: {self.gui_settings_hidden['experiments_source_folder']}")
+            else:
+                # Set default source path to src/Controller folder for devices
+                default_source_path = Path(__file__).parent.parent.parent / "Controller"
+                if default_source_path.exists():
+                    export_dialog.source_path.setText(str(default_source_path))
+                    gui_logger.debug(f"Set default source path to: {default_source_path}")
+                else:
+                    gui_logger.warning(f"Default source path does not exist: {default_source_path}")
+                
+            if export_dialog.source_path.text():
+                gui_logger.debug("Calling reset_available")
+                export_dialog.reset_available(export_dialog.source_path.text())
+            
+            gui_logger.debug("About to exec_() the export dialog")
+            # exec_() blocks while export dialog is used, subsequent code will run on dialog closing
+            export_dialog.exec_()
+            gui_logger.debug("Export dialog closed")
+            
+            self.gui_settings.update({'experiments_folder': export_dialog.target_path.text()})
+            self.gui_settings_hidden.update({'experiments_source_folder': export_dialog.source_path.text()})
+            
+            gui_logger.info("Convert Python Files dialog completed successfully")
+            
+        except Exception as e:
+            gui_logger.error(f"Error in convert_python_files: {str(e)}")
+            gui_logger.error(f"Traceback: {traceback.format_exc()}")
+            QtWidgets.QMessageBox.critical(self, "Error", f"Failed to open export dialog: {str(e)}")
 
     def btn_clicked(self):
         """
@@ -544,11 +841,19 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         """
         sender = self.sender()
         self.probe_to_plot = None
+        
+        # Log the button click for debugging
+        if sender:
+            sender_name = sender.objectName() if hasattr(sender, 'objectName') else str(sender)
+            gui_logger.info(f"Button clicked: {sender_name} (type: {type(sender).__name__})")
+        else:
+            gui_logger.warning("Button clicked but sender is None")
 
         def start_button():
             """
             starts the selected experiment
             """
+            gui_logger.info("Start button clicked - attempting to start experiment")
             item = self.tree_experiments.currentItem()
 
             # BROKEN 20170109: repeatedly erases updates to gui
@@ -559,11 +864,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             #         self.expanded_items.append(someitem.name)
             self.experiment_start_time = datetime.datetime.now()
 
-
             if item is not None:
                 # get experiment and update settings from tree
                 self.running_item = item
                 experiment, path_to_experiment, experiment_item = item.get_experiment()
+                
+                gui_logger.info(f"Starting experiment: {experiment.name}")
 
                 self.update_experiment_from_item(experiment_item)
 
@@ -576,7 +882,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 experiment_thread = self.experiment_thread
 
                 def move_to_worker_thread(experiment):
-
                     experiment.moveToThread(experiment_thread)
 
                     # move also the subexperiment to the worker thread
@@ -590,8 +895,19 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 experiment.finished.connect(experiment_thread.quit)  # clean up. quit thread after experiment is finished
                 experiment.finished.connect(self.experiment_finished) # connect finished signal of experiment to finished slot of gui
 
+                # for some experiments we want to inherit data from the previous experiment (for example NV locations from SelectPoints to use in say ODMR)
+                # to use you want an inherit data parameter in the experiment settings. Could be expanded depending on use cases
+                if self.previous_data is not None:
+                    if 'inherit_data' in experiment.settings and experiment.settings['inherit_data']:
+                        common_keys = experiment.data.keys() & self.previous_data.keys()
+                        gui_logger.debug(f"Inheriting data keys: {common_keys}")
+                        #print('common keys',common_keys)
+                        for key in common_keys:
+                            experiment.data[key] = self.previous_data[key]
+
                 # start thread, i.e. experiment
                 experiment_thread.start()
+                gui_logger.info(f"Experiment thread started for {experiment.name}")
 
                 self.current_experiment = experiment
                 self.btn_start_experiment.setEnabled(False)
@@ -599,230 +915,349 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
                 if isinstance(self.current_experiment, ExperimentIterator):
                     self.btn_skip_subexperiment.setEnabled(True)
-
+                    gui_logger.debug("Skip subexperiment button enabled (ExperimentIterator detected)")
 
             else:
+                gui_logger.warning("User tried to run an experiment without one selected")
                 self.log('User tried to run a experiment without one selected.')
 
         def stop_button():
             """
             stops the current experiment
             """
+            gui_logger.info("Stop button clicked - attempting to stop experiment")
             if self.current_experiment is not None and self.current_experiment.is_running:
+                gui_logger.info(f"Stopping experiment: {self.current_experiment.name}")
                 self.current_experiment.stop()
             else:
+                gui_logger.warning("User clicked stop, but there isn't anything running")
                 self.log('User clicked stop, but there isn\'t anything running...this is awkward. Re-enabling start button anyway.')
             self.btn_start_experiment.setEnabled(True)
+            gui_logger.debug("Start button re-enabled")
 
         def skip_button():
             """
             Skips to the next experiment if the current experiment is a Iterator experiment
             """
+            gui_logger.info("Skip button clicked - attempting to skip to next subexperiment")
             if self.current_experiment is not None and self.current_experiment.is_running and isinstance(self.current_experiment,
                                                                                                  ExperimentIterator):
+                gui_logger.info(f"Skipping to next subexperiment in {self.current_experiment.name}")
                 self.current_experiment.skip_next()
             else:
+                gui_logger.warning("User clicked skip, but there isn't a iterator experiment running")
                 self.log('User clicked skip, but there isn\'t a iterator experiment running...this is awkward.')
 
         def validate_button():
             """
             validates the selected experiment
             """
+            gui_logger.info("Validate button clicked - attempting to validate experiment")
             item = self.tree_experiments.currentItem()
 
             if item is not None:
                 experiment, path_to_experiment, experiment_item = item.get_experiment()
+                gui_logger.info(f"Validating experiment: {experiment.name}")
                 self.update_experiment_from_item(experiment_item)
                 experiment.is_valid()
-                experiment.plot_validate([self.matplotlibwidget_1.figure, self.matplotlibwidget_2.figure])
-                self.matplotlibwidget_1.draw()
-                self.matplotlibwidget_2.draw()
+                experiment.plot_validate([self.pyqtgraphwidget_1.graph, self.pyqtgraphwidget_2.graph])
+                #i dont think these two lines are necessary since pyqtgraph auto updates when plot_validate is called
+                self.pyqtgraphwidget_1.update()
+                self.pyqtgraphwidget_2.update()
+                gui_logger.info(f"Experiment {experiment.name} validation completed")
+            else:
+                gui_logger.warning("Validate button clicked but no experiment selected")
 
         def store_experiment_data():
             """
             updates the internal self.data_sets with selected experiment and updates tree self.fill_dataset_tree
             """
+            gui_logger.info("Store experiment data button clicked")
             item = self.tree_experiments.currentItem()
+            gui_logger.debug(f"Selected item: {item}")
+            
             if item is not None:
                 experiment, path_to_experiment, _ = item.get_experiment()
-                experiment_copy = experiment.duplicate()
-                time_tag = experiment.start_time.strftime('%y%m%d-%H_%M_%S')
-
-                self.data_sets.update({time_tag : experiment_copy})
-
-                self.fill_dataset_tree(self.tree_dataset, self.data_sets)
+                gui_logger.debug(f"Experiment from item: {experiment}")
+                gui_logger.debug(f"Path to experiment: {path_to_experiment}")
+                
+                if experiment is not None:
+                    try:
+                        experiment_copy = experiment.duplicate()
+                        time_tag = experiment.start_time.strftime('%y%m%d-%H_%M_%S')
+                        
+                        gui_logger.info(f"Storing experiment {experiment.name} with time tag {time_tag}")
+                        self.data_sets.update({time_tag : experiment_copy})
+                        self.fill_dataset_tree(self.tree_dataset, self.data_sets)
+                        gui_logger.info(f"Experiment data stored successfully. Total datasets: {len(self.data_sets)}")
+                    except Exception as e:
+                        gui_logger.error(f"Error storing experiment: {e}")
+                else:
+                    gui_logger.warning("Store button clicked but selected item does not contain an experiment")
+            else:
+                gui_logger.warning("Store button clicked but no item selected in experiments tree")
 
         def save_data():
             """"
             saves the selected experiment (where is contained in the experiment itself)
             """
+            gui_logger.info("Save data button clicked")
             indecies = self.tree_dataset.selectedIndexes()
-            model = indecies[0].model()
+            try:
+                model = indecies[0].model()
+            except IndexError:
+                gui_logger.warning("No experiment selected for saving")
+                self.log('No experiment selected.')
+                return
+                
             rows = list(set([index.row()for index in indecies]))
+            gui_logger.info(f"Saving {len(rows)} selected experiments")
 
             for row in rows:
                 time_tag = str(model.itemFromIndex(model.index(row, 0)).text())
                 name_tag = str(model.itemFromIndex(model.index(row, 1)).text())
                 path = self.gui_settings['data_folder']
                 experiment = self.data_sets[time_tag]
+                
+                gui_logger.info(f"Saving experiment {name_tag} (time: {time_tag}) to {path}")
                 experiment.update({'tag' : name_tag, 'path': path})
                 experiment.save_data()
                 experiment.save_image_to_disk()
                 experiment.save_aqs()
                 experiment.save_log()
+                experiment.save_data_to_matlab()
+                gui_logger.info(f"Experiment {name_tag} saved successfully")
 
         def delete_data():
             """
             deletes the data from the dataset
             Returns:
             """
+            gui_logger.info("Delete data button clicked")
             indecies = self.tree_dataset.selectedIndexes()
-            model = indecies[0].model()
+            try:
+                model = indecies[0].model()
+            except IndexError:
+                gui_logger.warning("No experiment selected for deletion")
+                return
+                
             rows = list(set([index.row()for index in indecies]))
+            gui_logger.info(f"Deleting {len(rows)} selected experiments")
 
             for row in rows:
                 time_tag = str(model.itemFromIndex(model.index(row, 0)).text())
+                gui_logger.info(f"Deleting experiment with time tag: {time_tag}")
                 del self.data_sets[time_tag]
-
                 model.removeRows(row,1)
+                
+            gui_logger.info(f"Data deletion completed. Remaining datasets: {len(self.data_sets)}")
+
+
 
         def load_probes():
             """
             opens file dialog to load probes into gui
             """
-
+            gui_logger.info("Load probes button clicked - opening probe selection dialog")
+            
             # if the probe has never been started it can not be disconnected so we catch that error
             try:
+                gui_logger.debug("Disconnecting existing probe update progress signal")
                 self.read_probes.updateProgress.disconnect()
                 self.read_probes.quit()
                 # self.read_probes.stop()
             except RuntimeError:
+                gui_logger.debug("No existing probe update progress signal to disconnect")
                 pass
+                
             dialog = LoadDialogProbes(probes_old=self.probes, filename=self.gui_settings['probes_folder'])
             if dialog.exec_():
-                self.gui_settings['probes_folder'] = str(dialog.txt_probe_log_path.text())
+                gui_logger.info("Probe selection dialog accepted")
+                # Don't modify the probes_folder from the dialog - it should be set by user configuration
                 probes = dialog.get_values()
                 added_devices = list(set(probes.keys()) - set(self.probes.keys()))
                 removed_devices = list(set(self.probes.keys()) - set(probes.keys()))
+                
+                gui_logger.info(f"Probe changes - Added: {added_devices}, Removed: {removed_devices}")
+                
                 # create instances of new probes
                 self.probes, loaded_failed, self.devices = Probe.load_and_append(
                     probe_dict=probes,
                     probes={},
                     devices=self.devices)
+                    
                 if not loaded_failed:
+                    gui_logger.warning(f"Following probes could not be loaded: {loaded_failed}")
                     print(('WARNING following probes could not be loaded', loaded_failed, len(loaded_failed)))
 
-
                 # restart the readprobes thread
+                gui_logger.debug("Restarting read probes thread")
                 del self.read_probes
                 self.read_probes = ReadProbes(self.probes)
                 self.read_probes.start()
                 self.tree_probes.clear() # clear tree because the probe might have changed
                 self.read_probes.updateProgress.connect(self.update_probes)
                 self.tree_probes.expandAll()
+                gui_logger.info(f"Probes loaded successfully. Total probes: {len(self.probes)}")
+            else:
+                gui_logger.info("Probe selection dialog cancelled")
 
         def load_devices():
             """
             opens file dialog to load devices into gui
             """
+            gui_logger.info("Load devices button clicked - opening device selection dialog")
+            
             if 'device_folder' in self.gui_settings:
                 dialog = LoadDialog(elements_type="devices", elements_old=self.devices,
                                     filename=self.gui_settings['device_folder'])
-
             else:
                 dialog = LoadDialog(elements_type="devices", elements_old=self.devices)
 
             if dialog.exec_():
-                self.gui_settings['device_folder'] = str(dialog.txt_probe_log_path.text())
+                gui_logger.info("Device selection dialog accepted")
+                # Don't modify the device_folder from the dialog - it should be set by user configuration
                 devices = dialog.get_values()
                 added_devices = set(devices.keys()) - set(self.devices.keys())
                 removed_devices = set(self.devices.keys()) - set(devices.keys())
-                # print('added_devices', {name: devices[name] for name in added_devices})
-
+                
+                gui_logger.info(f"Device changes - Added: {added_devices}, Removed: {removed_devices}")
+                
                 # create instances of new devices
                 self.devices, loaded_failed = Device.load_and_append(
                     {name: devices[name] for name in added_devices}, self.devices)
-                if len(loaded_failed)>0:
+                    
+                if len(loaded_failed) > 0:
+                    gui_logger.warning(f"Following devices could not be loaded: {loaded_failed}")
                     print(('WARNING following device could not be loaded', loaded_failed))
+                    
                 # delete instances of new devices/experiments that have been deselected
                 for name in removed_devices:
+                    gui_logger.debug(f"Removing device: {name}")
                     del self.devices[name]
+                    
+                gui_logger.info(f"Devices loaded successfully. Total devices: {len(self.devices)}")
+            else:
+                gui_logger.info("Device selection dialog cancelled")
 
         def plot_data(sender):
             """
             plots the data of the selected experiment
             """
+            gui_logger.info(f"Plot data requested from sender: {sender}")
             if sender == self.tree_dataset:
                 index = self.tree_dataset.selectedIndexes()[0]
                 model = index.model()
                 time_tag = str(model.itemFromIndex(model.index(index.row(), 0)).text())
                 experiment = self.data_sets[time_tag]
+                gui_logger.info(f"Plotting dataset experiment: {experiment.name} (time: {time_tag})")
                 self.plot_experiment(experiment)
             elif sender == self.tree_experiments:
                 item = self.tree_experiments.currentItem()
                 if item is not None:
                     experiment, path_to_experiment, _ = item.get_experiment()
-                # only plot if experiment has been selected but not if a parameter has been selected
-                if path_to_experiment == []:
-                    self.plot_experiment(experiment)
+                    # only plot if experiment has been selected but not if a parameter has been selected
+                    if path_to_experiment == []:
+                        gui_logger.info(f"Plotting experiment: {experiment.name}")
+                        self.plot_experiment(experiment)
+                    else:
+                        gui_logger.debug(f"Plot request ignored - parameter selected: {path_to_experiment}")
+                else:
+                    gui_logger.warning("Plot requested but no experiment item selected")
 
         def save():
-            self.save_config(self.gui_settings['gui_settings'])
+            gui_logger.info("Save GUI configuration requested")
+            # Save config if gui_settings key exists, otherwise save to default location
+            if 'gui_settings' in self.gui_settings:
+                gui_logger.info(f"Saving to configured path: {self.gui_settings['gui_settings']}")
+                self.save_config(self.gui_settings['gui_settings'])
+            else:
+                # Save to default location
+                default_config_path = get_project_root() / "src" / "gui_config.json"
+                gui_logger.info(f"Saving to default path: {default_config_path}")
+                self.save_config(str(default_config_path))
+                
+        # Main button routing with logging
+        gui_logger.debug(f"Routing button click from {sender}")
+        
         if sender is self.btn_start_experiment:
+            gui_logger.debug("Routing to start_button")
             start_button()
         elif sender is self.btn_stop_experiment:
+            gui_logger.debug("Routing to stop_button")
             stop_button()
         elif sender is self.btn_skip_subexperiment:
+            gui_logger.debug("Routing to skip_button")
             skip_button()
         elif sender is self.btn_validate_experiment:
+            gui_logger.debug("Routing to validate_button")
             validate_button()
         elif sender in (self.tree_dataset, self.tree_experiments):
+            gui_logger.debug("Routing to plot_data")
             plot_data(sender)
         elif sender is self.btn_store_experiment_data:
+            gui_logger.debug("Routing to store_experiment_data")
             store_experiment_data()
         elif sender is self.btn_save_data:
+            gui_logger.debug("Routing to save_data")
             save_data()
         elif sender is self.btn_delete_data:
+            gui_logger.debug("Routing to delete_data")
             delete_data()
         # elif sender is self.btn_plot_probe:
         elif sender is self.chk_probe_plot:
+            gui_logger.debug("Probe plot checkbox toggled")
             if self.chk_probe_plot.isChecked():
                 item = self.tree_probes.currentItem()
                 if item is not None:
                     if item.name in self.probes:
                         #selected item is an device not a probe, maybe plot all the probes...
+                        gui_logger.warning("Can't plot, No probe selected. Select probe and try again!")
                         self.log('Can\'t plot, No probe selected. Select probe and try again!')
                     else:
                         device = item.parent().name
                         self.probe_to_plot = self.probes[device][item.name]
+                        gui_logger.info(f"Probe plot enabled for {item.name} on device {device}")
                 else:
+                    gui_logger.warning("Can't plot, No probe selected. Select probe and try again!")
                     self.log('Can\'t plot, No probe selected. Select probe and try again!')
             else:
+                gui_logger.info("Probe plot disabled")
                 self.probe_to_plot = None
         elif sender is self.btn_save_gui:
+            gui_logger.debug("Routing to save GUI configuration")
             # get filename
-            filepath, _ = QtWidgets.QFileDialog.getSaveFileName(self, 'Save gui settings to file', self.config_filepath, filter = '*.aqs')
+            filepath, _ = QtWidgets.QFileDialog.getSaveFileName(self, 'Save workspace configuration to file', self.config_filepath, filter = '*.json;*.aqs')
 
             #in case the user cancels during the prompt, check that the filepath is not an empty string
             if filepath:
                 filename, file_extension = os.path.splitext(filepath)
-                if file_extension != '.aqs':
-                    filepath = filename + ".aqs"
+                if file_extension not in ['.json', '.aqs']:
+                    filepath = filename + ".json"  # Default to .json
                 filepath = os.path.normpath(filepath)
+                gui_logger.info(f"Saving GUI configuration to: {filepath}")
                 self.save_config(filepath)
                 self.gui_settings['gui_settings'] = filepath
                 self.refresh_tree(self.tree_gui_settings, self.gui_settings)
+            else:
+                gui_logger.info("GUI save operation cancelled by user")
         elif sender is self.btn_load_gui:
+            gui_logger.debug("Routing to load GUI configuration")
             # get filename
-            fname = QtWidgets.QFileDialog.getOpenFileName(self, 'Load gui settings from file',  self.gui_settings['data_folder'], filter = '*.aqs')
-            self.load_config(fname[0])
+            fname = QtWidgets.QFileDialog.getOpenFileName(self, 'Load workspace configuration from file',  self.gui_settings['data_folder'], filter = '*.json;*.aqs')
+            if fname[0]:
+                gui_logger.info(f"Loading GUI configuration from: {fname[0]}")
+                self.load_config(fname[0])
+            else:
+                gui_logger.info("GUI load operation cancelled by user")
         elif sender is self.btn_about:
+            gui_logger.debug("About button clicked")
             msg = QtWidgets.QMessageBox()
             msg.setIcon(QtWidgets.QMessageBox.Information)
-            msg.setText("src: AQuISS Laboratory Equipment Control for Scientific Experiments")
-            msg.setInformativeText("This software was developed by Gurudev Dutt and Jeffrey Guest at"
-                                   "University of Pittsburgh and Argonne National Laboratory. It is licensed under the LPGL licence. For more information,"
-                                   "visit the GitHub page at github.com/gurudevdutt/AQuISS . We thank the Pylabcontrol and B26_Toolkit project which significantly inspired "
+            msg.setText("Pitt AQuISS: Advanced Laboratory Equipment Control for Scientific Experiments")
+            msg.setInformativeText("This enhanced software was developed by Gurudev Dutt at University of Pittsburgh "
+                                   "and Jeffrey Guest at Argonne National Laboratory CNM. It is licensed under the LPGL licence. For more information, "
+                                   "visit the GitHub page at github.com/pitt-diamond-qtech/pittqlabsys . We thank the Pylabcontrol and B26_Toolkit project which significantly inspired "
                                    "this project.")
             msg.setWindowTitle("About")
             # msg.setDetailedText("some stuff")
@@ -830,23 +1265,36 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             # msg.buttonClicked.connect(msgbtn)
             retval = msg.exec_()
         # elif (sender is self.btn_load_devices) or (sender is self.btn_load_experiments):
-        elif sender in (self.btn_load_devices, self.btn_load_experiments, self.btn_load_probes):
+        elif sender in (self.btn_load_devices, self.btn_load_experiments, self.btn_load_probes, self.btn_convert_python_files):
             if sender is self.btn_load_devices:
                 load_devices()
             elif sender is self.btn_load_experiments:
                 self.load_experiments()
             elif sender is self.btn_load_probes:
                 load_probes()
+            elif sender is self.btn_convert_python_files:
+                self.convert_python_files()
             # refresh trees
             self.refresh_tree(self.tree_experiments, self.experiments)
             self.refresh_tree(self.tree_settings, self.devices)
         elif sender is self.actionSave:
-            self.save_config(self.gui_settings['gui_settings'])
+            # Save config if gui_settings key exists, otherwise save to default location
+            if 'gui_settings' in self.gui_settings:
+                self.save_config(self.gui_settings['gui_settings'])
+            else:
+                # Save to default location
+                default_config_path = get_project_root() / "src" / "gui_config.json"
+                self.save_config(str(default_config_path))
         elif sender is self.actionGo_to_AQuISS_GitHub_page:
-            webbrowser.open('https://github.com/gurudevdutt/AQuISS')
+            webbrowser.open('https://github.com/pitt-diamond-qtech/pittqlabsys')
         elif sender is self.actionExport:
-            export_dialog = ExportDialog()
-            export_dialog.target_path.setText(self.gui_settings['experiments_folder'])
+            # Pass existing devices to enable real hardware usage during conversion
+            export_dialog = ExportDialog(existing_devices=self.devices)
+            # Use resolved paths instead of empty gui_settings
+            if 'experiments_folder' in self.gui_settings and self.gui_settings['experiments_folder']:
+                export_dialog.target_path.setText(self.gui_settings['experiments_folder'])
+            else:
+                export_dialog.target_path.setText(str(self.paths['experiments_folder']))
             if self.gui_settings_hidden['experiments_source_folder']:
                 export_dialog.source_path.setText(self.gui_settings_hidden['experiments_source_folder'])
             if export_dialog.source_path.text():
@@ -854,8 +1302,32 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             #exec_() blocks while export dialog is used, subsequent code will run on dialog closing
             export_dialog.exec_()
             self.gui_settings.update({'experiments_folder': export_dialog.target_path.text()})
-            self.fill_treeview(self.tree_gui_settings, self.gui_settings)
+            # Removed problematic fill_treeview call that was breaking the menu
             self.gui_settings_hidden.update({'experiments_source_folder': export_dialog.source_path.text()})
+        elif sender is self.actionSaveWorkspace:
+            # Save current workspace state
+            workspace_name, ok = QtWidgets.QInputDialog.getText(self, 'Save Workspace', 'Enter workspace name:')
+            if ok and workspace_name:
+                self.save_config(workspace_name)
+                self.log(f"Workspace '{workspace_name}' saved successfully")
+        elif sender is self.actionLoadWorkspace:
+            # Load workspace from workspace_configs directory
+            workspace_dir = self.paths['workspace_config_dir']
+            workspace_files = list(workspace_dir.glob("*.json"))
+            
+            if not workspace_files:
+                QtWidgets.QMessageBox.information(self, "No Workspaces", "No saved workspaces found.")
+                return
+                
+            # Create a simple dialog to select workspace
+            workspace_name, ok = QtWidgets.QInputDialog.getItem(
+                self, 'Load Workspace', 
+                'Select workspace to load:',
+                [f.stem for f in workspace_files], 0, False)
+            
+            if ok and workspace_name:
+                self.load_config(workspace_name)
+                self.log(f"Workspace '{workspace_name}' loaded successfully")
 
     def _show_hide_parameter(self):
         """
@@ -885,10 +1357,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 item = iterator.value()
                 iterator +=1
 
-
         self.tree_experiments.setColumnWidth(0, 200)
         self.tree_experiments.setColumnWidth(1, 400)
         self.tree_experiments.setColumnWidth(2, 50)
+
     def update_parameters(self, treeWidget):
         """
         updates the internal dictionaries for experiments and devices with values from the respective trees
@@ -896,14 +1368,17 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         treeWidget: the tree from which to update
 
         """
+        gui_logger.debug(f"update_parameters called for tree: {type(treeWidget)}")
 
         if treeWidget == self.tree_settings:
-
+            gui_logger.debug("Updating parameters from tree_settings")
             item = treeWidget.currentItem()
-
-
+            if item is None:
+                gui_logger.debug("No current item in tree_settings")
+                return
 
             device, path_to_device = item.get_device()
+            gui_logger.debug(f"Updating device: {device.name}, path: {path_to_device}")
 
             # build nested dictionary to update device
             dictator = item.value
@@ -923,31 +1398,38 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             if new_value is not old_value:
                 msg = "changed parameter {:s} from {:s} to {:s} on {:s}".format(item.name, str(old_value),
                                                                                 str(new_value), device.name)
+                gui_logger.info(f"Parameter updated: {item.name} from {old_value} to {new_value} on {device.name}")
             else:
                 msg = "did not change parameter {:s} on {:s}".format(item.name, device.name)
+                gui_logger.debug(f"Parameter unchanged: {item.name} on {device.name}")
 
             self.log(msg)
         elif treeWidget == self.tree_experiments:
-
+            gui_logger.debug("Updating parameters from tree_experiments")
             item = treeWidget.currentItem()
+            if item is None:
+                gui_logger.debug("No current item in tree_experiments")
+                return
             experiment, path_to_experiment, _ = item.get_experiment()
+            gui_logger.debug(f"Updating experiment: {experiment.name}, path: {path_to_experiment}")
 
             # check if changes value is from an device
             device, path_to_device = item.get_device()
             if device is not None:
-
                 new_value = item.value
-
-
                 msg = "changed parameter {:s} to {:s} in {:s}".format(item.name,
                                                                                 str(new_value),
                                                                                 experiment.name)
+                gui_logger.info(f"Device parameter updated: {item.name} to {new_value} in {experiment.name}")
             else:
                 new_value = item.value
                 msg = "changed parameter {:s} to {:s} in {:s}".format(item.name,
                                                                             str(new_value),
                                                                             experiment.name)
+                gui_logger.info(f"Experiment parameter updated: {item.name} to {new_value} in {experiment.name}")
             self.log(msg)
+        else:
+            gui_logger.warning(f"Unknown tree widget type: {type(treeWidget)}")
 
     def plot_experiment(self, experiment):
         """
@@ -955,10 +1437,15 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         Args:
             experiment: experiment to be plotted
         """
-
-        experiment.plot([self.matplotlibwidget_1.figure, self.matplotlibwidget_2.figure])
-        self.matplotlibwidget_1.draw()
-        self.matplotlibwidget_2.draw()
+        gui_logger.info(f"Plotting experiment: {experiment.name}")
+        try:
+            experiment.plot([self.pyqtgraphwidget_1.graph, self.pyqtgraphwidget_2.graph])
+            gui_logger.debug("Experiment plot completed successfully")
+            #self.matplotlibwidget_1.draw()
+            #self.matplotlibwidget_2.draw()
+        except Exception as e:
+            gui_logger.error(f"Error plotting experiment {experiment.name}: {str(e)}")
+            gui_logger.error(f"Traceback: {traceback.format_exc()}")
 
 
     @pyqtSlot(int)
@@ -970,6 +1457,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         Returns:
 
         """
+        gui_logger.debug(f"Status update received: progress = {progress}")
 
         # interval at which the gui will be updated, if requests come in faster than they will be ignored
         update_interval = 0.2
@@ -977,9 +1465,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         now = datetime.datetime.now()
 
         if not self._last_progress_update is None and now-self._last_progress_update < datetime.timedelta(seconds=update_interval):
+            gui_logger.debug("Status update ignored - too frequent")
             return
 
         self._last_progress_update = now
+        gui_logger.debug(f"Updating progress bar to {progress}")
 
         self.progressBar.setValue(progress)
 
@@ -999,6 +1489,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         waits for the experiment to emit the experiment_finshed signal
         """
         experiment = self.current_experiment
+        self.previous_data = experiment.data
         experiment.updateProgress.disconnect(self.update_status)
         self.experiment_thread.started.disconnect()
         experiment.finished.disconnect()
@@ -1018,9 +1509,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         """
 
-        experiment.plot_validate([self.matplotlibwidget_1.figure, self.matplotlibwidget_2.figure])
-        self.matplotlibwidget_1.draw()
-        self.matplotlibwidget_2.draw()
+        experiment.plot_validate([self.pyqtgraphwidget_1.graph, self.pyqtgraphwidget_2.graph])
+        #self.matplotlibwidget_1.draw()
+        #self.matplotlibwidget_2.draw()
 
     def update_probes(self, progress):
         """
@@ -1091,15 +1582,33 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         Returns:
 
         """
+        gui_logger.debug(f"fill_treewidget called with tree: {type(tree)}, parameters: {type(parameters)}")
+        
+        try:
+            tree.clear()
+            assert isinstance(parameters, (dict, Parameter))
 
-        tree.clear()
-        assert isinstance(parameters, (dict, Parameter))
-
-        for key, value in parameters.items():
-            if isinstance(value, Parameter):
-                AQuISSQTreeItem(tree, key, value, parameters.valid_values[key], parameters.info[key])
-            else:
-                AQuISSQTreeItem(tree, key, value, type(value), '')
+            gui_logger.debug(f"Adding {len(parameters)} items to tree")
+            for key, value in parameters.items():
+                try:
+                    if isinstance(value, Parameter):
+                        gui_logger.debug(f"Creating Parameter item: {key}")
+                        item = AQuISSQTreeItem(tree, key, value, value.valid_values, value.info)
+                        tree.addTopLevelItem(item)
+                    else:
+                        gui_logger.debug(f"Creating non-Parameter item: {key} ({type(value)})")
+                        item = AQuISSQTreeItem(tree, key, value, type(value), '')
+                        tree.addTopLevelItem(item)
+                except Exception as e:
+                    gui_logger.error(f"Error creating tree item for {key}: {str(e)}")
+                    gui_logger.error(f"Traceback: {traceback.format_exc()}")
+                    
+            gui_logger.debug(f"fill_treewidget completed successfully, tree now has {tree.topLevelItemCount()} items")
+            
+        except Exception as e:
+            gui_logger.error(f"Error in fill_treewidget: {str(e)}")
+            gui_logger.error(f"Traceback: {traceback.format_exc()}")
+            raise
 
     def fill_treeview(self, tree, input_dict):
         """
@@ -1115,21 +1624,21 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         tree.model().removeRows(0, tree.model().rowCount())
 
         def add_element(item, key, value):
-            child_name = QtWidgets.QStandardItem(key)
+            child_name = QtGui.QStandardItem(key)
 
             if isinstance(value, dict):
                 for key_child, value_child in value.items():
                     add_element(child_name, key_child, value_child)
                 item.appendRow(child_name)
             else:
-                child_value = QtWidgets.QStandardItem(str(value))
+                child_value = QtGui.QStandardItem(str(value))
 
                 item.appendRow([child_name, child_value])
 
         for index, (key, value) in enumerate(input_dict.items()):
 
             if isinstance(value, dict):
-                item = QtWidgets.QStandardItem(key)
+                item = QtGui.QStandardItem(key)
                 for sub_key, sub_value in value.items():
                     add_element(item, sub_key, sub_value)
                 tree.model().appendRow(item)
@@ -1168,11 +1677,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 path = model.itemFromIndex(index).text()
                 key = str(model.itemFromIndex(model.index(index.row(), 0)).text())
                 if(key == 'gui_settings'):
-                    path, _ = QtWidgets.QFileDialog.getSaveFileName(self, caption = 'Select a file:', directory = path, filter = '*.aqs')
+                    path, _ = QtWidgets.QFileDialog.getSaveFileName(self, caption = 'Select a file:', directory = path, filter = '*.json;*.aqs')
                     if path:
                         name, extension = os.path.splitext(path)
-                        if extension != '.aqs':
-                            path = name + ".aqs"
+                        if extension not in ['.json', '.aqs']:
+                            path = name + ".json"  # Default to .json
                 else:
                     path = str(open_path_dialog_folder(path))
 
@@ -1206,36 +1715,55 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         Returns:
 
         """
-
+        gui_logger.info(f"Filling dataset tree with {len(data_sets)} datasets")
+        
         tree.model().removeRows(0, tree.model().rowCount())
         for index, (time, experiment) in enumerate(data_sets.items()):
-            name = experiment.settings['tag']
-            type = experiment.name
+            try:
+                # Get experiment name/tag safely
+                if hasattr(experiment, 'settings') and 'tag' in experiment.settings:
+                    name = experiment.settings['tag']
+                else:
+                    name = getattr(experiment, 'name', 'Unknown')
+                
+                type_name = getattr(experiment, 'name', 'Unknown')
 
-            item_time = QtGui.QStandardItem(str(time))
-            item_name = QtGui.QStandardItem(str(name))
-            item_type = QtGui.QStandardItem(str(type))
+                item_time = QtGui.QStandardItem(str(time))
+                item_name = QtGui.QStandardItem(str(name))
+                item_type = QtGui.QStandardItem(str(type_name))
 
-            item_time.setSelectable(False)
-            item_time.setEditable(False)
-            item_type.setSelectable(False)
-            item_type.setEditable(False)
+                item_time.setSelectable(False)
+                item_time.setEditable(False)
+                item_type.setSelectable(False)
+                item_type.setEditable(False)
 
-            tree.model().appendRow([item_time, item_name, item_type])
+                tree.model().appendRow([item_time, item_name, item_type])
+                gui_logger.debug(f"Added dataset: {time} - {name} ({type_name})")
+                
+            except Exception as e:
+                gui_logger.error(f"Error adding dataset {time} to tree: {e}")
+                continue
 
     def load_config(self, filepath=None):
         """
-        checks if the file is a valid config file
+        Loads a workspace configuration file from the workspace_configs directory
         Args:
-            filepath:
+            filepath: Name of the workspace configuration file (without .json extension) or full path
 
         """
+
+        # If filepath is just a name, look for it in the workspace_configs directory
+        if filepath and not Path(filepath).parent.name:
+            workspace_dir = self.paths['workspace_config_dir']
+            full_filepath = workspace_dir / f"{filepath}.json"
+        else:
+            full_filepath = filepath
 
         # load config or default if invalid
 
         def load_settings(filepath):
             """
-            loads a old_gui settings file (a json dictionary)
+            Loads a workspace configuration file (JSON dictionary)
             - path_to_file: path to file that contains the dictionary
 
             Returns:
@@ -1320,7 +1848,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         else:
             self.gui_settings_hidden['experiment_source_folder'] = ''
 
-        self.devices, self.experiments, self.probes = load_settings(filepath)
+        self.devices, self.experiments, self.probes = load_settings(full_filepath)
 
 
         self.refresh_tree(self.tree_gui_settings, self.gui_settings)
@@ -1364,81 +1892,157 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         # else:
         #     print('WARNING: no settings for hiding parameters all set to default')
 
+    # def save_config(self, filepath):
+    #     """
+    #     saves gui configuration to out_file_name
+    #     Args:
+    #         filepath: name of file
+    #     """
+    #     def get_hidden_parameter(item):
+    #
+    #         num_sub_elements = item.childCount()
+    #
+    #         if num_sub_elements == 0:
+    #             dictator = {item.name : item.visible}
+    #         else:
+    #             dictator = {item.name:{}}
+    #             for child_id in range(num_sub_elements):
+    #                 dictator[item.name].update(get_hidden_parameter(item.child(child_id)))
+    #         return dictator
+    #
+    #
+    #
+    #
+    #     print('GD tmp filepath', filepath)
+    #     try:
+    #         filepath = str(filepath)
+    #         if not os.path.exists(os.path.dirname(filepath)):
+    #             os.makedirs(os.path.dirname(filepath))
+    #             self.log('ceated dir ' + os.path.dirname(filepath))
+    #
+    #         # build a dictionary for the configuration of the hidden parameters
+    #         dictator = {}
+    #         for index in range(self.tree_experiments.topLevelItemCount()):
+    #             experiment_item = self.tree_experiments.topLevelItem(index)
+    #             dictator.update(get_hidden_parameter(experiment_item))
+    #
+    #         dictator = {"gui_settings": self.gui_settings, "gui_settings_hidden": self.gui_settings_hidden, "experiments_hidden_parameters":dictator}
+    #
+    #         # update the internal dictionaries from the trees in the gui
+    #         for index in range(self.tree_experiments.topLevelItemCount()):
+    #             experiment_item = self.tree_experiments.topLevelItem(index)
+    #             self.update_experiment_from_item(experiment_item)
+    #
+    #         dictator.update({'devices': {}, 'experiments': {}, 'probes': {}})
+    #
+    #         for device in self.devices.values():
+    #             dictator['devices'].update(device.to_dict())
+    #         for experiment in self.experiments.values():
+    #             dictator['experiments'].update(experiment.to_dict())
+    #
+    #         for device, probe_dict in self.probes.items():
+    #             dictator['probes'].update({device: ','.join(list(probe_dict.keys()))})
+    #
+    #         with open(filepath, 'w') as outfile:
+    #             json.dump(dictator, outfile, indent=4)
+    #         self.log('Saved GUI configuration (location: {:s})'.format(filepath))
+    #
+    #     except Exception:
+    #         msg = QtWidgets.QMessageBox()
+    #         msg.setText("Saving to {:s} failed."
+    #                     "Please use 'save as' to define a valid path for the gui.".format(filepath))
+    #         msg.exec_()
+    #     try:
+    #         save_config_path = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir, 'save_config.json'))
+    #         if os.path.isfile(save_config_path) and os.access(save_config_path, os.R_OK):
+    #             with open(save_config_path, 'w') as outfile:
+    #                 json.dump({'last_save_path': filepath}, outfile, indent=4)
+    #         else:
+    #             with io.open(save_config_path, 'w') as save_config_file:
+    #                 save_config_file.write(json.dumps({'last_save_path': filepath}))
+    #         self.log('Saved save_config.json')
+    #     except Exception:
+    #         msg = QtWidgets.QMessageBox()
+    #         msg.setText("Saving save_config.json failed (:s). Check if use has write access to this folder.".format(save_config_path))
+    #         msg.exec_()
+
     def save_config(self, filepath):
         """
-        saves gui configuration to out_file_name
-        Args:
-            filepath: name of file
+        Save complete workspace state to a workspace configuration file in the workspace_configs directory.
+        This includes devices, experiments, probes, GUI settings, and hidden parameters.
         """
-        def get_hidden_parameter(item):
-
-            num_sub_elements = item.childCount()
-
-            if num_sub_elements == 0:
-                dictator = {item.name : item.visible}
-            else:
-                dictator = {item.name:{}}
-                for child_id in range(num_sub_elements):
-                    dictator[item.name].update(get_hidden_parameter(item.child(child_id)))
-            return dictator
-
-
-
-
-        print('GD tmp filepath', filepath)
+        # If filepath is just a name, save it to the workspace_configs directory
+        if not Path(filepath).parent.name:
+            workspace_dir = self.paths['workspace_config_dir']
+            fp = workspace_dir / f"{filepath}.json"
+        else:
+            fp = Path(filepath)
+            
         try:
-            filepath = str(filepath)
-            if not os.path.exists(os.path.dirname(filepath)):
-                os.makedirs(os.path.dirname(filepath))
-                self.log('ceated dir ' + os.path.dirname(filepath))
+            # 1) Load any existing base config (preserves other keys: paths, devices, etc.)
+            base = load_config(fp)
 
-            # build a dictionary for the configuration of the hidden parameters
-            dictator = {}
-            for index in range(self.tree_experiments.topLevelItemCount()):
-                experiment_item = self.tree_experiments.topLevelItem(index)
-                dictator.update(get_hidden_parameter(experiment_item))
+            # 2) Build your dicts
+            # 2a) Hidden parameters tree
+            def get_hidden(item):
+                # Check if item has the required attributes (AQuISSQTreeItem)
+                if not hasattr(item, 'name') or not hasattr(item, 'visible'):
+                    return {}
+                
+                if item.childCount() == 0:
+                    return {item.name: item.visible}
+                d = {}
+                for i in range(item.childCount()):
+                    d.update(get_hidden(item.child(i)))
+                return {item.name: d}
 
-            dictator = {"gui_settings": self.gui_settings, "gui_settings_hidden": self.gui_settings_hidden, "experiments_hidden_parameters":dictator}
+            hidden = {}
+            for idx in range(self.tree_experiments.topLevelItemCount()):
+                hidden.update(get_hidden(self.tree_experiments.topLevelItem(idx)))
 
-            # update the internal dictionaries from the trees in the gui
-            for index in range(self.tree_experiments.topLevelItemCount()):
-                experiment_item = self.tree_experiments.topLevelItem(index)
-                self.update_experiment_from_item(experiment_item)
+            # 2b) Device & experiment state
+            dev_dict = {}
+            for dev in self.devices.values():
+                dev_dict.update(dev.to_dict())
 
-            dictator.update({'devices': {}, 'experiments': {}, 'probes': {}})
+            exp_dict = {}
+            for exp in self.experiments.values():
+                exp_dict.update(exp.to_dict())
 
-            for device in self.devices.values():
-                dictator['devices'].update(device.to_dict())
-            for experiment in self.experiments.values():
-                dictator['experiments'].update(experiment.to_dict())
+            probe_dict = {
+                dev: ",".join(self.probes[dev].keys())
+                for dev in self.probes
+            }
 
-            for device, probe_dict in self.probes.items():
-                dictator['probes'].update({device: ','.join(list(probe_dict.keys()))})
+            # 3) Merge everything
+            merged = merge_config(
+                base,
+                gui_settings=self.gui_settings,
+                hidden_params=hidden,
+                devices=dev_dict,
+                experiments=exp_dict,
+                probes=probe_dict
+            )
 
-            with open(filepath, 'w') as outfile:
-                json.dump(dictator, outfile, indent=4)
-            self.log('Saved GUI configuration (location: {:s})'.format(filepath))
+            # 4) Save atomic JSON
+            save_config(fp, merged)
+            self.log(f"Saved workspace configuration to {fp}")
 
-        except Exception:
-            msg = QtWidgets.QMessageBox()
-            msg.setText("Saving to {:s} failed."
-                        "Please use 'save as' to define a valid path for the gui.".format(filepath))
-            msg.exec_()
-        try:
-            save_config_path = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir, 'save_config.json'))
-            if os.path.isfile(save_config_path) and os.access(save_config_path, os.R_OK):
-                with open(save_config_path, 'w') as outfile:
-                    json.dump({'last_save_path': filepath}, outfile, indent=4)
-            else:
-                with io.open(save_config_path, 'w') as save_config_file:
-                    save_config_file.write(json.dumps({'last_save_path': filepath}))
-            self.log('Saved save_config.json')
-        except Exception:
-            msg = QtWidgets.QMessageBox()
-            msg.setText("Saving save_config.json failed (:s). Check if use has write access to this folder.".format(save_config_path))
-            msg.exec_()
+            # 5) Also remember last save path
+            last_cfg = get_project_root() / "src" / "gui_config.json"
+            last = load_config(last_cfg)
+            last["last_save_path"] = str(fp)
+            save_config(last_cfg, last)
+            self.log(f"Updated last_save_path in {last_cfg}")
 
-
+        except Exception as e:
+            gui_logger.error(f"Failed to save config: {e}")
+            gui_logger.error(f"Traceback: {traceback.format_exc()}")
+            QtWidgets.QMessageBox.critical(
+                self,
+                "Save Error",
+                f"Failed to save config:\n{e}"
+            )
 
 
     def save_dataset(self, out_file_name):

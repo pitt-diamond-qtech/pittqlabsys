@@ -1,0 +1,91 @@
+{
+  "awg520_connections": {
+    "description": "Template for typical qubit experiment setup with IQ modulator, laser, and counter",
+    "channels": {
+      "1": {
+        "connection": "IQ_modulator_I_input",
+        "type": "analog",
+        "calibration_delays": ["iq_delay"],
+        "description": "Microwave I quadrature input to IQ modulator",
+        "voltage_range": "±1V",
+        "impedance": "50Ω"
+      },
+      "2": {
+        "connection": "IQ_modulator_Q_input",
+        "type": "analog", 
+        "calibration_delays": ["iq_delay"],
+        "description": "Microwave Q quadrature input to IQ modulator",
+        "voltage_range": "±1V",
+        "impedance": "50Ω"
+      }
+    },
+    "markers": {
+      "ch1_marker1": {
+        "connection": "unassigned",
+        "type": "digital",
+        "calibration_delays": [],
+        "description": "Available for future use",
+        "voltage": "3.3V",
+        "impedance": "50Ω"
+      },
+      "ch1_marker2": {
+        "connection": "laser_switch",
+        "type": "digital",
+        "calibration_delays": ["laser_delay"],
+        "description": "Laser on/off control signal",
+        "voltage": "3.3V", 
+        "impedance": "50Ω"
+      },
+      "ch2_marker1": {
+        "connection": "unassigned",
+        "type": "digital",
+        "calibration_delays": [],
+        "description": "Available for future use",
+        "voltage": "3.3V",
+        "impedance": "50Ω"
+      },
+      "ch2_marker2": {
+        "connection": "counter_trigger",
+        "type": "digital",
+        "calibration_delays": ["counter_delay"],
+        "description": "Counter/DAQ trigger signal",
+        "voltage": "3.3V",
+        "impedance": "50Ω"
+      }
+    }
+  },
+  "calibration_delays": {
+    "description": "Typical delay values - adjust for your specific lab setup",
+    "laser_delay": 50.0,
+    "mw_delay": 25.0,
+    "iq_delay": 30.0,
+    "counter_delay": 15.0,
+    "trigger_delay": 10.0,
+    "units": "ns",
+    "notes": "Delays represent time to shift events BACKWARD so they arrive at experiment at intended time"
+  },
+  "experiment_types": {
+    "odmr": {
+      "description": "ODMR experiment using IQ modulator and laser",
+      "required_connections": ["ch1", "ch2", "ch1_marker2", "ch2_marker2"],
+      "optional_connections": ["ch1_marker1", "ch2_marker1"]
+    },
+    "rabi": {
+      "description": "Rabi oscillation experiment",
+      "required_connections": ["ch1", "ch2", "ch1_marker2", "ch2_marker2"],
+      "optional_connections": ["ch1_marker1", "ch2_marker1"]
+    },
+    "spin_echo": {
+      "description": "Spin echo experiment",
+      "required_connections": ["ch1", "ch2", "ch1_marker2", "ch2_marker2"],
+      "optional_connections": ["ch1_marker1", "ch2_marker1"]
+    }
+  },
+  "setup_instructions": [
+    "1. Copy this template to awg520_connection.json",
+    "2. Modify connection descriptions for your specific lab setup",
+    "3. Measure and update calibration delays for your hardware",
+    "4. Update config.lab.json to reference this connection file",
+    "5. Verify connections match your physical setup"
+  ]
+}

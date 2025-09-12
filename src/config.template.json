@@ -1,0 +1,79 @@
+{
+    "environment": {
+        "is_development": false,
+        "is_mock": false,
+        "force_mock_devices": false,
+        "hardware_detection_enabled": true
+    },
+    "gui_settings": {
+        "data_folder": "",
+        "probes_folder": "",
+        "device_folder": "",
+        "experiments_folder": "",
+        "probes_log_folder": "",
+        "gui_settings": ""
+    },
+    "gui_settings_hidden": {
+        "experiments_source_folder": "",
+        "experiment_source_folder": ""
+    },
+    "experiments_hidden_parameters": {},
+    "devices": {
+        "sg384": {
+            "class": "SG384Generator",
+            "filepath": "src/Controller/sg384.py",
+            "settings": {
+                "ip_address": "192.168.2.217",
+                "port": 5025,
+                "timeout": 5.0
+            }
+        },
+        "adwin": {
+            "class": "AdwinGoldDevice",
+            "filepath": "src/Controller/adwin_gold.py",
+            "settings": {
+                "board_number": 1
+            }
+        },
+        "nanodrive": {
+            "class": "MCLNanoDrive",
+            "filepath": "src/Controller/nanodrive.py",
+            "settings": {
+                "serial_port": "COM3"
+            }
+        },
+        "awg520": {
+            "class": "AWG520Device",
+            "filepath": "src/Controller/awg520.py",
+            "settings": {
+                "ip_address": "172.17.39.2",
+                "scpi_port": 4000,
+                "ftp_port": 21,
+                "ftp_user": "usr",
+                "ftp_pass": "pw",
+                "seq_file": "scan.seq",
+                "enable_iq": false
+            }
+        },
+        "mux_control": {
+            "class": "MUXControlDevice",
+            "filepath": "src/Controller/mux_control.py",
+            "settings": {
+                "port": "COM3",
+                "baudrate": 9600,
+                "timeout": 5000,
+                "auto_connect": true
+            }
+        }
+    },
+    "experiments": {},
+    "probes": {},
+    "paths": {
+        "data_folder": "D:/Duttlab/Experiments/AQuISS_default_save_location/data",
+        "probes_folder": "D:/Duttlab/Experiments/AQuISS_default_save_location/probes_auto_generated",
+        "device_folder": "D:/Duttlab/Experiments/AQuISS_default_save_location/devices_auto_generated",
+        "experiments_folder": "D:/Duttlab/Experiments/AQuISS_default_save_location/experiments_auto_generated",
+        "probes_log_folder": "D:/Duttlab/Experiments/AQuISS_default_save_location/aqs_tmp",
+        "workspace_config_dir": "D:/Duttlab/Experiments/AQuISS_default_save_location/workspace_configs"
+    }
+}

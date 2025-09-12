@@ -30,7 +30,7 @@ This experiment reads the Counter input from the DAQ and plots it.
 
 WARNING: Only implemented either for the PCI DAQ (NI6281) or PXIe6733 !!!!
 
-If you want to use it make sure that the right device is defined in _DEVICES = {'daq': PXI6733} in the python code.
+If you want to use it make sure that the right device is defined in _DEVICES = {'daq': 'pxi6733'} in the python code.
 
     """
     _DEFAULT_SETTINGS = [
@@ -40,8 +40,7 @@ If you want to use it make sure that the right device is defined in _DEVICES = {
         Parameter('plot_style',"main",['main', 'aux', '2D', 'two'])
     ]
 
-    #_DEVICES = {'daq': PXI6733}
-    _DEVICES = {'daq':PXI6733()}
+    _DEVICES = {'daq': 'pxi6733'}
     _EXPERIMENTS = {}
 
     def __init__(self, devices, experiments=None, name=None, settings=None, log_function=None, data_path=None):

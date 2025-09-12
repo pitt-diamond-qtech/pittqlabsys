@@ -15,6 +15,7 @@
 from src.View.windows_and_widgets.main_window import MainWindow
 from PyQt5 import QtWidgets
 import sys
+import os
 
 def launch_gui(filepath=None):
     """ this is the main class for the GUI.
@@ -24,7 +25,10 @@ def launch_gui(filepath=None):
     app = QtWidgets.QApplication(sys.argv)
 
     try:
-        ex = MainWindow(filepath)
+        # Pass config_file as filepath (can be None for default), and gui_config.json as the second parameter
+        from src.core.helper_functions import get_project_root
+        gui_config_path = get_project_root() / "src" / "gui_config.json"
+        ex = MainWindow(filepath, gui_config_path)
         ex.show()
         ex.raise_()
         sys.exit(app.exec_())

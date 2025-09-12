@@ -15,7 +15,7 @@
 
 import numpy as np
 import time
-from src.Controller.ni_daq import PXI6733, NI6281
+#from src.Controller.ni_daq import PXI6733, NI6281, PCI6229, PCI6601
 from src.View.plotting.plots_2d import plot_fluorescence, update_fluorescence
 from src.core import Experiment, Parameter
 
@@ -68,6 +68,7 @@ class GalvoScanGeneric(Experiment):
             data_path: path to save data
 
         '''
+        from src.Controller.ni_daq import PXI6733, NI6281, PCI6229, PCI6601
         super().__init__(name, settings=settings, devices=devices, log_function=log_function,
                          data_path=data_path)
 

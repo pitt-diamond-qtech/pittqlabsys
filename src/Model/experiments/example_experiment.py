@@ -19,12 +19,12 @@ import numpy as np
 import time
 
 from src.Controller import Plant, PIController
-import matplotlib.pyplot as plt
+import pyqtgraph as pg
 
 
 class MinimalExperiment(Experiment):
     """
-Minimal Example Experiment that has only a single parameter (execution time)
+    Minimal Example Experiment that has only a single parameter (execution time)
     """
 
     _DEFAULT_SETTINGS = [
@@ -32,7 +32,11 @@ Minimal Example Experiment that has only a single parameter (execution time)
         Parameter('p1', 0.1, float, 'dummy param')
     ]
 
-    _DEVICES = {}
+    _DEVICES = {
+        'daq': 'ni_daq',      # Device name string (maps to config)
+        'microwave': 'sg384',  # Device name string (maps to config)
+        'positioner': 'nanodrive'  # Device name string (maps to config)
+    }
     _EXPERIMENTS = {}
 
     def __init__(self, name=None, settings=None, log_function = None, data_path = None):
@@ -56,6 +60,36 @@ Minimal Example Experiment that has only a single parameter (execution time)
         self.data = {'empty_data': []}
         time.sleep(self.settings['execution_time'])
 
+    def get_axes_layout(self, figure_list):
+        """
+        Overrides method in parent Experiment class.
+        Creates 1 plot in top graph and 2 plots (columns) in bottom graph.
+        Args:
+            figure_list = [<bottom graph object>,<top graph object>]
+        Returns:
+            axes_list = [<bottom graph left plot>,<bottom graph right plot>,<top graph plot>]
+        """
+        axes_list = []
+        if self._plot_refresh is True:
+            for graph in figure_list:
+                graph.clear()
+            axes_list.append(figure_list[0].addPlot(row=0,col=0))
+            axes_list.append(figure_list[0].addPlot(row=0,col=1))
+            axes_list.append(figure_list[1].addPlot(row=0,col=0))
+
+        else:
+            axes_list.append(figure_list[0].getItem(row=0,col=0))
+            axes_list.append(figure_list[0].getItem(row=0,col=1))
+            axes_list.append(figure_list[1].getItem(row=0,col=0))
+
+        return axes_list
+
+    def _plot(self, axes_list):
+        x = np.linspace(-10,10,100)
+        axes_list[2].plot(x)     #plots x on top plot
+        axes_list[0].plot(x**2)  #plots x**2 on bottom left plot
+        axes_list[1].plot(x**3)  #plots x**3 on bottom right plot
+
 class ExampleExperiment(Experiment):
     """
 Example Experiment that has all different types of parameters (integer, str, fload, point, list of parameters). Plots 1D and 2D data.
@@ -72,7 +106,11 @@ Example Experiment that has all different types of parameters (integer, str, flo
         Parameter('plot_style', 'main', ['main', 'aux', '2D', 'two'])
     ]
 
-    _DEVICES = {}
+    _DEVICES = {
+        'daq': 'ni_daq',      # Device name string (maps to config)
+        'microwave': 'sg384',  # Device name string (maps to config)
+        'positioner': 'nanodrive'  # Device name string (maps to config)
+    }
     _EXPERIMENTS = {}
 
     def __init__(self, name=None, settings=None, log_function=None, data_path=None):
@@ -94,8 +132,8 @@ Example Experiment that has all different types of parameters (integer, str, flo
         # some generic function
         import time
         import random
-        self.data['random data'] = None
-        self.data['image data'] = None
+        self.data['random_data'] = None
+        self.data['image_data'] = None
         count = self.settings['count']
         name = self.settings['name']
         wait_time = self.settings['wait_time']
@@ -106,17 +144,18 @@ Example Experiment that has all different types of parameters (integer, str, flo
             time.sleep(wait_time)
             self.log('{:s} count {:02d}'.format(self.name, i))
             data.append(random.random())
-            self.data = {'random data': data}
+            self.data['random_data'] = data
             self.progress = 100. * (i + 1) / count
             self.updateProgress.emit(self.progress)
 
-        self.data = {'random data': data}
+        self.data = {'random_data': data}
 
         # create image data
-        Nx = int(np.sqrt(len(self.data['random data'])))
-        img = np.array(self.data['random data'][0:Nx ** 2])
+        Nx = int(np.sqrt(len(self.data['random_data'])))
+        img = np.array(self.data['random_data'][0:Nx ** 2])
         img = img.reshape((Nx, Nx))
-        self.data.update({'image data': img})
+        self.data.update({'image_data': img})
+
 
     def _plot(self, axes_list, data=None):
         """
@@ -134,21 +173,49 @@ Example Experiment that has all different types of parameters (integer, str, flo
 
         if data is not None and data is not {}:
             if plot_type in ('main', 'two'):
-                if not data['random data'] is None:
-                    axes_list[0].plot(data['random data'])
-                    # 20230816 GD : next line removed because hold has been deprecated
-                    #axes_list[0].hold(False)
+                if not data['random_data'] is None:
+                    axes_list[0].plot(data['random_data'])
             if plot_type in ('aux', 'two', '2D'):
-                if not data['random data'] is None:
-                    axes_list[1].plot(data['random data'])
-                    # 20230816 GD : next line removed because hold has been deprecated
-                    #axes_list[1].hold(False)
+                if not data['random_data'] is None:
+                    axes_list[1].plot(data['random_data'])
             if plot_type == '2D':
-                if 'image data' in data and not data['image data'] is None:
-                    fig = axes_list[0].get_figure()
-                    implot = axes_list[0].imshow(data['image data'], cmap='pink', interpolation="nearest",
-                                                 extent=[-1, 1, 1, -1])
-                    fig.colorbar(implot, label='kcounts/sec')
+                if self.data['image_data'] is not None:
+                    def create_img(add_colobar=True):
+                        '''
+                        Creates a new image and ImageItem. Optionally create colorbar
+                        '''
+                        axes_list[0].clear()
+                        self.ex_image = pg.ImageItem(self.data['image_data'], interpolation='nearest')
+                        self.ex_image.setLevels(levels)
+                        self.ex_image.setRect(pg.QtCore.QRectF(extent[0], extent[2], extent[1] - extent[0], extent[3] - extent[2]))
+                        axes_list[0].addItem(self.ex_image)
+
+                        axes_list[0].setAspectLocked(True)
+                        axes_list[0].setLabel('left', 'y')
+                        axes_list[0].setLabel('bottom', 'x')
+                        axes_list[0].setTitle('Example 2D plot')
+
+                        if add_colobar:
+                            self.colorbar = pg.ColorBarItem(values=(levels[0], levels[1]),colorMap='viridis')
+                            # layout is housing the PlotItem that houses the ImageItem. Add colorbar to layout so it is properly saved when saving dataset
+                            layout = axes_list[0].parentItem()
+                            layout.addItem(self.colorbar)
+                        self.colorbar.setImageItem(self.ex_image)
+
+                    extent=[-1, 1, -1, 1]
+                    levels = [np.min(self.data['image_data']),np.max(self.data['image_data'])]
+
+                    if self._plot_refresh == True:
+                        # if plot refresh is true the ImageItem has been deleted and needs recreated
+                        create_img()
+                    else:
+                        try:
+                            self.ex_image.setImage(self.data['image_data'], autoLevels=False)
+                            self.ex_image.setLevels(levels)
+                            self.colorbar.setLevels(levels)
+                        except RuntimeError or AttributeError:
+                            # sometimes when clicking other experiments ImageItem is deleted but _plot_refresh is false. This ensures the image can be replotted
+                            create_img(add_colobar=False)
 
     def _update(self, axes_list):
         """
@@ -161,16 +228,11 @@ Example Experiment that has all different types of parameters (integer, str, flo
         """
         plot_type = self.settings['plot_style']
         if plot_type == '2D':
-            # we expect exactely one image in the axes object (see ExperimentDummy.plot)
-            implot = axes_list[1].get_images()[0]
             # now update the data
-            implot.set_data(self.data['random data'])
-
-            colorbar = implot.colorbar
-
-            if not colorbar is None:
-                colorbar.update_bruteforce(implot)
-
+            levels = [np.min(self.data['image_data']), np.max(self.data['image_data'])]
+            self.ex_image.setImage(self.data['image_data'])
+            self.ex_image.setLevels(levels)
+            self.colorbar.setLevels(levels)
         else:
             # fall back to default behaviour
             Experiment._update(self, axes_list)
@@ -182,7 +244,10 @@ Example Experiment that has all different types of parameters (integer, str, flo
 
     _DEFAULT_SETTINGS = [Parameter('plot_style', 'main', ['main', 'aux', '2D', 'two'])]
 
-    _DEVICES = {}
+    _DEVICES = {
+        'daq': 'ni_daq',      # Device name string (maps to config)
+        'microwave': 'sg384',  # Device name string (maps to config)
+    }
     _EXPERIMENTS = {'ExptDummy':ExampleExperiment}
     #_EXPERIMENTS = {}
 
@@ -228,7 +293,6 @@ Example Experiment that has all different types of parameters (integer, str, flo
         self.experiments['ExptDummy']._update(axes_list)
 
 if __name__ == '__main__':
-
 
     expt = ExampleExperiment(name="silly")
     expt.run()
