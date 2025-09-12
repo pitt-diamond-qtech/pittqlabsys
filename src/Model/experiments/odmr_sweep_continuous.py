@@ -398,13 +398,35 @@ class ODMRSweepContinuousExperiment(Experiment):
         self.adwin.clear_process("Process_1")
         self.adwin.start_process("Process_1")
         
+        # Debug: Check if Adwin process started successfully
+        try:
+            process_status = self.adwin.get_process_status("Process_1")
+            self.log(f"🔍 Adwin Process_1 status: {process_status}")
+        except Exception as e:
+            self.log(f"⚠️  Could not check Adwin process status: {e}")
+        
         # Start microwave sweep
         # The SG384 will automatically sweep when modulation is enabled
         
         # Wait for sweep to complete using calculated sweep time
         # Add extra delay for ramp waveforms to avoid discontinuities
         total_wait_time = self.sweep_time + 0.1 + self.ramp_delay  # Base buffer + ramp delay
+        
+        # Debug: Check Adwin status before waiting
+        self.log(f"⏱️  Waiting {total_wait_time:.3f}s for sweep completion...")
+        self.log(f"   SG384 sweep rate: {self.sweep_rate:.3f} Hz")
+        self.log(f"   Expected sweep time: {self.sweep_time:.3f} s")
+        
         time.sleep(total_wait_time)
+        
+        # Debug: Check Adwin status after waiting
+        try:
+            from src.core.adwin_helpers import read_adwin_sweep_odmr_data
+            status_data = read_adwin_sweep_odmr_data(self.adwin)
+            self.log(f"🔍 Adwin status after wait: sweep_complete={status_data.get('sweep_complete', 'Unknown')}, data_ready={status_data.get('data_ready', 'Unknown')}")
+            self.log(f"   Step index: {status_data.get('step_index', 'Unknown')}, Sweep cycle: {status_data.get('sweep_cycle', 'Unknown')}")
+        except Exception as e:
+            self.log(f"⚠️  Could not check Adwin status: {e}")
         
         # Stop the sweep
         self.adwin.stop_process("Process_1")

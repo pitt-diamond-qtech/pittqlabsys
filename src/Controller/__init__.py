@@ -559,15 +559,6 @@ class MockAdwinGoldDevice(Device):
         if any('process' in key for key in settings.keys()):
             print(f"Mock AdwinGoldDevice: Process settings updated")
     
-    def read_probes(self, key, id=None, length=None):
-        """Read probe data."""
-        n = length if (length and length > 0) else 100
-        # Return mock count data
-        data = np.random.poisson(100, n)
-        # Only print for large reads
-        if n > 50:
-            print(f"Mock AdwinGoldDevice: Read {n} points")
-        return data
     
     def load_process(self, process_name, binary_file):
         """Load process into device."""
@@ -607,6 +598,83 @@ class MockAdwinGoldDevice(Device):
             return np.random.poisson(100)
         else:
             return np.random.randint(0, 1000)
+    
+    def set_int_var(self, param_num, value):
+        """Set integer variable value."""
+        # Store parameter values for testing
+        if not hasattr(self, '_int_vars'):
+            self._int_vars = {}
+        self._int_vars[param_num] = value
+        print(f"Mock AdwinGoldDevice: Set int_var {param_num} = {value}")
+    
+    def set_float_var(self, param_num, value):
+        """Set float variable value."""
+        # Store parameter values for testing
+        if not hasattr(self, '_float_vars'):
+            self._float_vars = {}
+        self._float_vars[param_num] = value
+        print(f"Mock AdwinGoldDevice: Set float_var {param_num} = {value}")
+    
+    def get_float_var(self, param_num):
+        """Get float variable value."""
+        if hasattr(self, '_float_vars') and param_num in self._float_vars:
+            return self._float_vars[param_num]
+        return np.random.random()
+    
+    def get_process_status(self, process_name):
+        """Get process status."""
+        if process_name in self.processes:
+            return self.processes[process_name]['running']
+        return False
+    
+    def read_probes(self, key, id=None, length=None):
+        """Read probe data with enhanced functionality."""
+        if key == 'int_var':
+            # Return integer variable values
+            if id is not None:
+                if hasattr(self, '_int_vars') and id in self._int_vars:
+                    return self._int_vars[id]
+                else:
+                    return np.random.randint(0, 1000)
+            else:
+                return [np.random.randint(0, 1000) for _ in range(length or 10)]
+        elif key == 'data':
+            # Return data array for sweep testing
+            n = length if (length and length > 0) else 100
+            if id == 1:  # Forward counts
+                return np.random.poisson(1000, n)
+            elif id == 2:  # Reverse counts
+                return np.random.poisson(1000, n)
+            elif id == 3:  # Forward voltages
+                return np.linspace(-1000, 1000, n)  # In millivolts
+            elif id == 4:  # Reverse voltages
+                return np.linspace(1000, -1000, n)  # In millivolts
+            else:
+                return np.random.poisson(100, n)
+        else:
+            # Original behavior
+            n = length if (length and length > 0) else 100
+            data = np.random.poisson(100, n)
+            if n > 50:
+                print(f"Mock AdwinGoldDevice: Read {n} points")
+            return data
+    
+    def simulate_sweep_completion(self, num_steps=100):
+        """Simulate sweep completion for testing."""
+        # Set up mock sweep data
+        self._sweep_complete = True
+        self._data_ready = True
+        self._step_index = num_steps
+        self._sweep_cycle = 2  # Complete
+        self._total_counts = np.random.poisson(1000 * num_steps)
+        
+        # Generate mock sweep data
+        self._forward_counts = np.random.poisson(1000, num_steps)
+        self._reverse_counts = np.random.poisson(1000, num_steps)
+        self._forward_voltages = np.linspace(-1000, 1000, num_steps)  # In millivolts
+        self._reverse_voltages = np.linspace(1000, -1000, num_steps)  # In millivolts
+        
+        print(f"Mock AdwinGoldDevice: Simulated sweep completion with {num_steps} steps")
     
     def read_array(self, array_num, length):
         """Read data array."""
