@@ -342,7 +342,7 @@ def test_experiment_creation():
             settings={
                 'frequency_range': {'start': 2.7e9, 'stop': 3.0e9},
                 'microwave': {'power': -10.0, 'step_freq': 1e6, 'sweep_function': 'Triangle'},
-                'acquisition': {'integration_time': 0.001, 'averages': 5, 'settle_time': 0.01},
+                'acquisition': {'integration_time': 0.005, 'averages': 5, 'settle_time': 0.001},
                 'laser': {'power': 1.0, 'wavelength': 532.0},
                 'analysis': {
                     'auto_fit': True, 
