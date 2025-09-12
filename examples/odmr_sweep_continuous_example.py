@@ -34,16 +34,16 @@ def create_devices(use_real_hardware=False):
         use_real_hardware (bool): If True, use real hardware; if False, use mock hardware
         
     Returns:
-        dict: Dictionary of device instances
+        dict: Dictionary of device instances in the correct format
     """
     if use_real_hardware:
         print("Using real hardware...")
         try:
             from src.Controller import SG384Generator, AdwinGoldDevice, MCLNanoDrive
             devices = {
-                'microwave': SG384Generator(),
-                'adwin': AdwinGoldDevice(),
-                'nanodrive': MCLNanoDrive(settings={'serial': 2849})
+                'microwave': {'instance': SG384Generator()},
+                'adwin': {'instance': AdwinGoldDevice()},
+                'nanodrive': {'instance': MCLNanoDrive(settings={'serial': 2849})}
             }
             print("✅ Real hardware initialized successfully")
             return devices
@@ -61,9 +61,9 @@ def create_mock_devices():
     try:
         from src.Controller import MockSG384Generator, MockAdwinGoldDevice, MockMCLNanoDrive
         devices = {
-            'microwave': MockSG384Generator(),
-            'adwin': MockAdwinGoldDevice(),
-            'nanodrive': MockMCLNanoDrive(settings={'serial': 2849})
+            'microwave': {'instance': MockSG384Generator()},
+            'adwin': {'instance': MockAdwinGoldDevice()},
+            'nanodrive': {'instance': MockMCLNanoDrive(settings={'serial': 2849})}
         }
         print("✅ Mock hardware initialized successfully")
         return devices
@@ -109,7 +109,7 @@ def run_odmr_sweep_scan(use_real_hardware=False, save_data=True):
             },
             'microwave': {
                 'power': -10.0,           # -10 dBm
-                'sweep_rate': 1e6,        # 1 MHz/s sweep rate
+                'step_freq': 1e6,         # 1 MHz step frequency
                 'sweep_function': 'Triangle'  # Triangle sweep waveform
             },
             'acquisition': {
@@ -132,7 +132,7 @@ def run_odmr_sweep_scan(use_real_hardware=False, save_data=True):
     
     print(f"✅ Experiment created: {experiment.name}")
     print(f"📊 Frequency range: {experiment.settings['frequency_range']['start']/1e9:.2f} - {experiment.settings['frequency_range']['stop']/1e9:.2f} GHz")
-    print(f"📊 Sweep rate: {experiment.settings['microwave']['sweep_rate']/1e6:.2f} MHz/s")
+    print(f"📊 Step frequency: {experiment.settings['microwave']['step_freq']/1e6:.2f} MHz")
     print(f"📊 Sweep function: {experiment.settings['microwave']['sweep_function']}")
     print(f"📊 Integration time: {experiment.settings['acquisition']['integration_time']*1000:.1f} ms per point")
     print(f"📊 Averages: {experiment.settings['acquisition']['averages']}")
@@ -208,7 +208,7 @@ def save_odmr_data(results, scan_type):
             f.write("=" * 40 + "\n")
             f.write(f"Timestamp: {timestamp}\n")
             f.write(f"Frequency Range: {results['settings']['frequency_range']['start']/1e9:.3f} - {results['settings']['frequency_range']['stop']/1e9:.3f} GHz\n")
-            f.write(f"Sweep Rate: {results['settings']['microwave']['sweep_rate']/1e6:.2f} MHz/s\n")
+            f.write(f"Step Frequency: {results['settings']['microwave']['step_freq']/1e6:.2f} MHz\n")
             f.write(f"Sweep Function: {results['settings']['microwave']['sweep_function']}\n")
             f.write(f"Integration Time: {results['settings']['acquisition']['integration_time']*1000:.1f} ms\n")
             f.write(f"Averages: {results['settings']['acquisition']['averages']}\n")
@@ -282,6 +282,50 @@ def plot_odmr_results(results):
         print(f"❌ Error plotting results: {e}")
 
 
+def test_experiment_creation():
+    """Test that the experiment can be created and configured properly."""
+    print("\n🧪 Testing experiment creation...")
+    
+    try:
+        # Create mock devices
+        devices = create_mock_devices()
+        
+        # Create experiment
+        experiment = ODMRSweepContinuousExperiment(
+            devices=devices,
+            name="Test_ODMR_Sweep",
+            settings={
+                'frequency_range': {'start': 2.7e9, 'stop': 3.0e9},
+                'microwave': {'power': -10.0, 'step_freq': 1e6, 'sweep_function': 'Triangle'},
+                'acquisition': {'integration_time': 0.001, 'averages': 5, 'settle_time': 0.01},
+                'laser': {'power': 1.0, 'wavelength': 532.0},
+                'analysis': {'auto_fit': True, 'smoothing': True}
+            }
+        )
+        
+        print("✅ Experiment created successfully")
+        
+        # Test parameter calculation
+        experiment._calculate_sweep_parameters()
+        print(f"✅ Parameters calculated: {experiment.num_steps} steps, {experiment.sweep_time:.3f}s sweep time")
+        
+        # Test device access
+        if hasattr(experiment, 'microwave') and experiment.microwave:
+            print("✅ Microwave device accessible")
+        if hasattr(experiment, 'adwin') and experiment.adwin:
+            print("✅ Adwin device accessible")
+        if hasattr(experiment, 'nanodrive') and experiment.nanodrive:
+            print("✅ Nanodrive device accessible")
+        
+        return True
+        
+    except Exception as e:
+        print(f"❌ Test failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
 def main():
     """Main function to run the ODMR continuous sweep example."""
     parser = argparse.ArgumentParser(description='Run ODMR Continuous Sweep Scan')
@@ -291,6 +335,8 @@ def main():
                        help='Use mock hardware (default)')
     parser.add_argument('--no-save', action='store_true',
                        help='Do not save data to files')
+    parser.add_argument('--test-only', action='store_true',
+                       help='Only test experiment creation, do not run full scan')
     
     args = parser.parse_args()
     
@@ -302,7 +348,16 @@ def main():
     print(f"🔧 Hardware mode: {'Real' if use_real_hardware else 'Mock'}")
     print(f"💾 Data saving: {'Enabled' if save_data else 'Disabled'}")
     
-    # Run the scan
+    # Test experiment creation first
+    if not test_experiment_creation():
+        print("\n❌ Experiment creation test failed!")
+        return 1
+    
+    if args.test_only:
+        print("\n✅ Test completed successfully!")
+        return 0
+    
+    # Run the full scan
     results = run_odmr_sweep_scan(use_real_hardware, save_data)
     
     if results:
