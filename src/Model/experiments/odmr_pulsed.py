@@ -36,6 +36,9 @@ class ODMRPulsedExperiment(Experiment):
     """
     Pulsed ODMR experiment using AWG520 for sequence generation and ADwin for counting.
     
+    ⚠️  WARNING: This experiment is EXPERIMENTAL and has not been fully tested with hardware.
+    Use with caution and verify all settings before running on valuable samples.
+    
     Features:
     - Text-based sequence definition using our sequence language
     - Sequence preview with first 10 scan points

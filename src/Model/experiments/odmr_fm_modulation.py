@@ -25,6 +25,9 @@ class ODMRFMModulationExperiment(Experiment):
     """
     ODMR Experiment with Frequency Modulation.
     
+    ⚠️  WARNING: This experiment is EXPERIMENTAL and has not been fully tested with hardware.
+    Use with caution and verify all settings before running on valuable samples.
+    
     This experiment performs ODMR measurements by:
     1. Setting SG384 to a center frequency
     2. Enabling frequency modulation with specified depth and rate

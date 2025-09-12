@@ -24,6 +24,9 @@ class GalvoScanGeneric(Experiment):
     """
     GalvoScan uses the apd, daq, and galvo to sweep across voltages while counting photons at each voltage,
     resulting in an image in the current field of view of the objective.
+    
+    ⚠️  WARNING: This experiment is EXPERIMENTAL and has not been fully tested with hardware.
+    Use with caution and verify all settings before running on valuable samples.
     """
 
     _DEFAULT_SETTINGS = [
