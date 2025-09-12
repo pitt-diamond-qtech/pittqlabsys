@@ -35,6 +35,21 @@ src/
 - **GUI Layer**: Configurable interface with real-time data visualization
 - **Data Layer**: Flexible data storage and export capabilities
 
+## 📋 **Quality Standards**
+
+This project follows comprehensive quality guidelines to ensure maintainable and understandable code:
+
+- **[📋 Quality Guidelines](docs/QUALITY_GUIDELINES.md)** - Complete quality standards and examples
+- **[🔧 Quality Assessment Tool](scripts/assess_quality.py)** - Objective quality metrics (0-100 scale)
+- **[📚 Lab Workflow Guide](docs/LAB_WORKFLOW_GUIDE.md)** - Three-level development workflow
+- **[📋 Quick Reference](docs/QUALITY_QUICK_REFERENCE.md)** - Quick quality standards reference
+
+### **Quick Quality Check**
+```bash
+# Check recent commits and code quality
+python scripts/assess_quality.py --commits 5
+```
+
 ## 🚀 Installation
 
 ### Prerequisites

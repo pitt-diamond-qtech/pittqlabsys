@@ -97,6 +97,7 @@ Only contribute to the main repository when you have something valuable for ever
 - ✅ Must follow existing code patterns
 - ✅ Must have clear commit messages
 - ✅ Must include comprehensive description
+- ✅ Must use the **[Pull Request Template](.github/pull_request_template.md)** for consistent formatting
 
 ### **Process**
 ```bash
@@ -107,7 +108,8 @@ python examples/your_experiment.py --test-only
 # 2. Update documentation
 # Update README.md, CHANGELOG.md, etc.
 
-# 3. Create PR with detailed description
+# 3. Create PR using the template
+# Use the Pull Request Template (.github/pull_request_template.md)
 # Include what, why, and how it benefits the lab
 
 # 4. Wait for review and approval from @gurudevdutt
@@ -165,12 +167,31 @@ python examples/your_experiment.py --test-only
 - **Use mock hardware for quick testing**
 - **Test with real hardware when available**
 - **No formal requirements**
+- **Optional quality assessment**: `python scripts/assess_quality.py --commits 5`
 
 ### **Lab-wide Contributions:**
 - **Must run full test suite**: `python -m pytest tests/`
 - **Must test with mock hardware**: `python examples/your_experiment.py --test-only`
 - **Must test with real hardware if available**
 - **Must not break existing functionality**
+- **Must run quality assessment**: `python scripts/assess_quality.py --commits 10`
+- **Must address major quality issues** before submitting PRs
+
+### **Quality Guidelines:**
+For detailed quality standards, commit message formats, and code documentation requirements, see:
+- **[📋 Quality Guidelines](QUALITY_GUIDELINES.md)** - Comprehensive quality standards and examples
+- **Quality Assessment Tool** - `scripts/assess_quality.py` for objective quality metrics
+- **GitHub Actions** - Automated quality checks run on all PRs and pushes to main
+
+### **GitHub Actions Quality Checks:**
+The repository includes automated quality checks that run on every pull request and push to main:
+- **Code style** (flake8) - checks for syntax errors and style issues
+- **Code formatting** (black) - ensures consistent code formatting
+- **Documentation** (pydocstyle) - checks docstring quality
+- **Tests** (pytest) - runs the test suite
+- **Commit messages** - validates commit message format
+
+> **⚠️ Note**: The GitHub Actions are currently set to **warn but not fail** on quality issues, allowing the repository to function while quality improvements are made incrementally.
 
 ### **Handling Divergent Forks:**
 - **Use tests to identify conflicts**: Run `pytest` to see what breaks
@@ -468,6 +489,10 @@ python examples/cryo_odmr_example.py --real-hardware
 # She runs the existing test suite to make sure she didn't break anything
 python -m pytest tests/
 # All tests pass - great!
+
+# She runs quality assessment to see how her code measures up
+python scripts/assess_quality.py --commits 5
+# This helps her learn good practices and identify areas for improvement
 ```
 
 ### **Step 6: Collaborative Development in Cryo Setup**
@@ -536,6 +561,10 @@ After several months of testing and refinement in the cryo setup, the team decid
 git fetch upstream
 git merge upstream/main
 git push origin main
+
+# She runs quality assessment before creating PR
+python scripts/assess_quality.py --commits 10
+# Addresses any major issues before submitting
 
 # She creates a comprehensive PR to the main repository
 # PR Title: "Add Lakeshore 336 cryostat temperature controller and cryo ODMR experiment"

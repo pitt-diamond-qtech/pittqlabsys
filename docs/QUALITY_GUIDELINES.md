@@ -342,4 +342,274 @@ def main():
 - ❌ **Multiple changes in one commit** - not atomic
 - ❌ **Merge commits in feature branches** - should use rebase
 
+## 🔧 **Quality Assessment Tool Usage**
+
+### **Overview**
+The `scripts/assess_quality.py` tool provides objective quality metrics for your code and commits. It analyzes:
+- **Commit message format** and content quality
+- **Code documentation** coverage and completeness
+- **Code style** issues (line length, complexity, etc.)
+- **Overall quality score** (0-100 scale)
+
+> **📋 Related Documentation**: For the complete lab workflow including individual forks, setup collaboration, and lab-wide contributions, see the **[Lab Workflow Guide](LAB_WORKFLOW_GUIDE.md)**.
+> 
+> **🤖 AI Assistant Context**: For AI assistants working on this project, see **[AI Context](AI_CONTEXT.md)** for key quality standards and workflow information.
+
+### **Basic Usage**
+```bash
+# Check recent commits (default: 10 commits)
+python scripts/assess_quality.py
+
+# Check specific number of commits
+python scripts/assess_quality.py --commits 5
+
+# Check specific files or directories
+python scripts/assess_quality.py --path src/Model/experiments/
+
+# Check specific files with recent commits
+python scripts/assess_quality.py --path src/core/ --commits 5
+```
+
+### **Understanding the Output**
+
+#### **Commit Quality Metrics**
+```
+📝 **Commit Quality** (10 recent commits)
+  ✅ Good format: 0/10 (0.0%)
+  ✅ Has setup name: 0/10 (0.0%)
+  ✅ Descriptive: 0/10 (0.0%)
+  ✅ Mentions testing: 1/10 (10.0%)
+```
+
+**What it checks:**
+- **Good format**: Follows `[setup-name] Description` format
+- **Has setup name**: Includes setup identifier like `[cryo]`, `[confocal]`
+- **Descriptive**: Contains detailed bullet points explaining changes
+- **Mentions testing**: References mock/real hardware testing
+
+#### **Code Quality Metrics**
+```
+📁 **File Analysis** (87 Python files)
+  Total issues found: 3894
+
+📋 **Issues by File:**
+  src/config_paths.py:
+    - Debug print on line 91: >>> print(paths["data_folder"])
+    - Line 120 too long: 94 characters
+```
+
+**What it checks:**
+- **Missing docstrings** in functions and classes
+- **Long lines** (over 88 characters)
+- **Debug print statements** left in code
+- **Missing Args/Returns** in existing docstrings
+- **Code complexity** and style issues
+
+#### **Overall Quality Score**
+```
+🎯 **Overall Quality Score: 0.0/100**
+  🔴 Poor quality, significant improvements needed
+```
+
+**Score interpretation:**
+- **90-100**: Excellent quality, minimal issues
+- **70-89**: Good quality, some minor improvements needed
+- **50-69**: Fair quality, several issues to address
+- **30-49**: Poor quality, significant improvements needed
+- **0-29**: Very poor quality, major refactoring required
+
+### **Usage by Collaboration Level**
+
+#### **1. Individual Development (Your Fork)**
+**Purpose**: Learning and self-improvement
+**Frequency**: Occasional (weekly/monthly)
+**Strictness**: Low - use as a guide, not a requirement
+
+```bash
+# Check your recent work occasionally
+python scripts/assess_quality.py --commits 5
+
+# Focus on major issues only
+python scripts/assess_quality.py --path src/Model/experiments/
+```
+
+**What to focus on:**
+- **Missing docstrings** in new functions
+- **Debug print statements** before committing
+- **Long lines** that hurt readability
+- **Commit message format** for consistency
+
+**What to ignore:**
+- Perfect scores - focus on functionality first
+- Minor style issues in experimental code
+- Complex refactoring unless necessary
+
+#### **2. Setup Collaboration (Team Work)**
+**Purpose**: Team coordination and knowledge sharing
+**Frequency**: Before merging feature branches
+**Strictness**: Moderate - focus on major issues
+
+```bash
+# Check before merging to setup main
+python scripts/assess_quality.py --path src/ --commits 5
+
+# Use to guide team members
+python scripts/assess_quality.py --path src/Model/experiments/
+```
+
+**What to focus on:**
+- **Missing docstrings** in public functions
+- **Long lines** that affect readability
+- **Debug print statements** in production code
+- **Commit message format** for team consistency
+
+**What to be flexible about:**
+- Minor style issues in working code
+- Complex refactoring unless critical
+- Perfect documentation in experimental features
+
+#### **3. Lab-wide Contributions (Main Repository)**
+**Purpose**: Quality control and maintainability
+**Frequency**: Before creating pull requests
+**Strictness**: High - address major issues before submitting
+
+```bash
+# Run before creating PRs
+python scripts/assess_quality.py --commits 10
+
+# Fix major issues before submitting
+python scripts/assess_quality.py --path src/Model/experiments/
+```
+
+**What to focus on:**
+- **All missing docstrings** in public functions
+- **All long lines** and style issues
+- **All debug print statements**
+- **Proper commit message format**
+- **Comprehensive error handling**
+
+**What to address:**
+- **Everything** - this is the main repository
+- **Quality score** should be 70+ before submitting
+- **All issues** should be addressed or justified
+
+### **Common Issues and How to Fix Them**
+
+#### **Commit Message Issues**
+```bash
+# ❌ Bad: Missing format
+Add cryostat controller
+
+# ✅ Good: Proper format
+[cryo] Add Lakeshore 336 cryostat temperature controller
+
+- Implements RS232 communication protocol
+- Adds safety interlocks for temperature limits
+- Tested with mock hardware
+```
+
+#### **Code Documentation Issues**
+```python
+# ❌ Bad: Missing docstring
+def set_temperature(self, temp, rate=1.0):
+    pass
+
+# ✅ Good: Comprehensive docstring
+def set_temperature(self, temp_kelvin: float, ramp_rate: float = 1.0) -> bool:
+    """
+    Set target temperature for cryostat with optional ramp rate control.
+    
+    Args:
+        temp_kelvin (float): Target temperature in Kelvin (4.2-300 K)
+        ramp_rate (float): Temperature ramp rate in K/min (0.1-10.0 K/min)
+        
+    Returns:
+        bool: True if command sent successfully, False if failed
+        
+    Tested with mock hardware
+    """
+```
+
+#### **Code Style Issues**
+```python
+# ❌ Bad: Long line (94 characters)
+very_long_variable_name = some_function_call_with_many_parameters(param1, param2, param3, param4)
+
+# ✅ Good: Break into multiple lines
+very_long_variable_name = some_function_call_with_many_parameters(
+    param1, param2, param3, param4
+)
+```
+
+#### **Debug Print Issues**
+```python
+# ❌ Bad: Debug print left in code
+def process_data(data):
+    print(f"Processing data: {data}")  # Remove this
+    return processed_data
+
+# ✅ Good: Use proper logging
+def process_data(data):
+    self.log(f"Processing data: {data}")
+    return processed_data
+```
+
+### **Quality Improvement Workflow**
+
+#### **Step 1: Run Assessment**
+```bash
+python scripts/assess_quality.py --commits 5
+```
+
+#### **Step 2: Identify Priority Issues**
+- **High Priority**: Missing docstrings, debug prints, long lines
+- **Medium Priority**: Style issues, minor documentation gaps
+- **Low Priority**: Minor formatting, optional improvements
+
+#### **Step 3: Fix Issues Systematically**
+1. **Start with high priority** - missing docstrings and debug prints
+2. **Address medium priority** - style issues and documentation gaps
+3. **Consider low priority** - minor formatting improvements
+
+#### **Step 4: Re-run Assessment**
+```bash
+python scripts/assess_quality.py --commits 5
+```
+
+#### **Step 5: Commit Improvements**
+```bash
+git add .
+git commit -m "[setup-name] Improve code quality
+
+- Add missing docstrings to public functions
+- Remove debug print statements
+- Fix long lines and style issues
+- Tested with mock hardware"
+```
+
+### **Quality Goals by Collaboration Level**
+
+#### **Individual Development**
+- **Target Score**: 40-60
+- **Focus**: Functionality first, quality second
+- **Frequency**: Monthly assessment
+
+#### **Setup Collaboration**
+- **Target Score**: 60-80
+- **Focus**: Major issues, team consistency
+- **Frequency**: Before merging feature branches
+
+#### **Lab-wide Contributions**
+- **Target Score**: 80-100
+- **Focus**: All issues, production quality
+- **Frequency**: Before creating pull requests
+
+### **Tips for Effective Use**
+
+1. **Start Small**: Don't try to fix everything at once
+2. **Focus on Impact**: Address issues that affect maintainability
+3. **Use as Learning**: The tool teaches good practices
+4. **Be Consistent**: Use the same standards across your team
+5. **Document Decisions**: Explain why you're ignoring certain issues
+
 Remember: **Quality is not about perfection, it's about making code maintainable and understandable for your lab team!**
