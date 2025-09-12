@@ -757,7 +757,7 @@ class Experiment(QObject):
         # windows can't deal with long filenames so we have to use the prefix '\\\\?\\'
         # if len(filename.split('\\\\?\\')) == 1:
         #     filename = '\\\\?\\' + filename
-        with open(filename, 'w') as outfile:
+        with open(filename, 'w', encoding='utf-8') as outfile:
             for item in self.log_data:
                 outfile.write("%s\n" % item)
 
@@ -891,7 +891,7 @@ class Experiment(QObject):
         # if len(filename.split('\\\\?\\')) == 1:
         #     filename = '\\\\?\\' + filename
         filename = self.check_filename(filename)
-        with open(filename, 'w') as outfile:
+        with open(filename, 'w', encoding='utf-8') as outfile:
             outfile.write(pickle.dumps(self.__dict__))
 
     def save_data_to_matlab(self, filename=None):
@@ -934,7 +934,7 @@ class Experiment(QObject):
             updated_devices
         """
         filename = Experiment.check_filename(filename)
-        with open(filename, 'r') as infile:
+        with open(filename, 'r', encoding='utf-8') as infile:
             dataPickle = infile.read()
 
         experiment_as_dict = pickle.loads(dataPickle)
