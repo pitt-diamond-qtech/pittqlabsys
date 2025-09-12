@@ -121,9 +121,9 @@ class ODMRSweepContinuousExperiment(Experiment):
         self.fit_quality = None
         
         # Setup devices
-        self.microwave = self.devices.get('microwave')
-        self.adwin = self.devices.get('adwin')
-        self.nanodrive = self.devices.get('nanodrive')
+        self.microwave = self.devices.get('microwave', {}).get('instance')
+        self.adwin = self.devices.get('adwin', {}).get('instance')
+        self.nanodrive = self.devices.get('nanodrive', {}).get('instance')
         
         if not self.microwave:
             raise ValueError("SG384 microwave generator is required")
