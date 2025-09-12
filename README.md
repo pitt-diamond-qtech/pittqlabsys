@@ -41,14 +41,22 @@ This project follows comprehensive quality guidelines to ensure maintainable and
 
 - **[📋 Quality Guidelines](docs/QUALITY_GUIDELINES.md)** - Complete quality standards and examples
 - **[🔧 Quality Assessment Tool](scripts/assess_quality.py)** - Objective quality metrics (0-100 scale)
-- **[📚 Lab Workflow Guide](docs/LAB_WORKFLOW_GUIDE.md)** - Three-level development workflow
+- **[📚 Lab Workflow Guide](docs/LAB_WORKFLOW_GUIDE.md)** - Three-level development workflow with student example
 - **[📋 Quick Reference](docs/QUALITY_QUICK_REFERENCE.md)** - Quick quality standards reference
+- **[🤖 AI Context](docs/AI_CONTEXT.md)** - AI assistant guidance for code quality
+- **[📋 Pull Request Template](.github/pull_request_template.md)** - Quality checklist for contributions
 
 ### **Quick Quality Check**
 ```bash
 # Check recent commits and code quality
 python scripts/assess_quality.py --commits 5
 ```
+
+### **Automated Quality Checks**
+- **GitHub Actions** run quality checks on all PRs and pushes
+- **Code style** (flake8), **formatting** (black), **documentation** (pydocstyle)
+- **Tests** (pytest) and **commit message** validation
+- Currently set to **warn only** - won't block development
 
 ## 🚀 Installation
 
@@ -349,6 +357,11 @@ AQuISS includes drivers for the following instruments:
 - **Example Experiments**: Templates for new experiment development
 
 ## 🛠️ Development
+
+### **Getting Started with Development**
+- **[📚 Lab Workflow Guide](docs/LAB_WORKFLOW_GUIDE.md)** - Complete development workflow with Jannet's student example
+- **[📋 Quality Guidelines](docs/QUALITY_GUIDELINES.md)** - Code quality standards and examples
+- **[🤖 AI Context](docs/AI_CONTEXT.md)** - For AI assistants working on the project
 
 ### Adding New Devices
 
