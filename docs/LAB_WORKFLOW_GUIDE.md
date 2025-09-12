@@ -470,21 +470,66 @@ python -m pytest tests/
 # All tests pass - great!
 ```
 
-### **Step 6: Sharing with Lab Members**
+### **Step 6: Collaborative Development in Cryo Setup**
 ```bash
-# Sarah announces her work in lab chat
-# "Hey everyone! I've added a cryostat controller and cryo ODMR experiment 
-#  to the pittqlabsys-cryo repo. Check it out if you're doing low-T measurements!"
+# Sarah creates a feature branch for her cryostat work
+git checkout -b feature/cryostat-controller
+git push origin feature/cryostat-controller
 
-# Other lab members can now:
-# 1. Clone her fork: git clone https://github.com/duttlab-sys/pittqlabsys-cryo.git
-# 2. Use her cryostat controller in their experiments
-# 3. Modify and improve her code for their needs
-# 4. Share their improvements back with her
+# She announces her work in lab chat
+# "Hey cryo team! I've added a cryostat controller and cryo ODMR experiment 
+#  in the feature/cryostat-controller branch. Check it out and let me know what you think!"
+
+# Other cryo team members can now:
+# 1. Clone the shared cryo repo: git clone https://github.com/duttlab-sys/pittqlabsys-cryo.git
+# 2. Check out her branch: git checkout feature/cryostat-controller
+# 3. Test her cryostat controller with their experiments
+# 4. Provide feedback and suggestions
+# 5. Create their own branches for improvements
+
+# Example: Tristan wants to add confocal scanning at low temperature
+git checkout -b feature/cryo-confocal-scan
+# He develops his confocal experiment using Sarah's cryostat controller
+# He commits and pushes his work
+git add src/Model/experiments/cryo_confocal_scan.py
+git commit -m "[cryo] Add confocal scanning at low temperature
+
+- Uses Sarah's cryostat controller for temperature control
+- Implements 2D scanning with temperature stabilization
+- Adds safety checks for cryogenic conditions
+- Tested with mock hardware"
+
+git push origin feature/cryo-confocal-scan
+
+# Sarah reviews Tristan's work and provides feedback
+# They collaborate to integrate their experiments
+# Eventually, when both features are working well, they merge to main
 ```
 
-### **Step 7: Contributing to Lab-wide Code (When Ready)**
-After several weeks of testing and refinement, Sarah decides her cryostat controller would benefit the entire lab:
+### **Step 7: Merging to Cryo Setup Main Branch**
+```bash
+# After testing and collaboration, Sarah merges her cryostat controller to main
+git checkout main
+git merge feature/cryostat-controller
+git push origin main
+
+# Tristan also merges his confocal work
+git checkout main
+git merge feature/cryo-confocal-scan
+git push origin main
+
+# Now the pittqlabsys-cryo main branch contains:
+# - Sarah's cryostat controller
+# - Sarah's cryo ODMR experiment
+# - Tristan's cryo confocal scan experiment
+# - Any other cryo table experiments from the team
+
+# The cryo team continues developing new features in branches
+# and merging to main when they're stable and tested
+```
+
+### **Step 8: Contributing to Lab-wide Code (When Ready)**
+After several months of testing and refinement in the cryo setup, the team decides their cryostat controller would benefit the entire lab:
 
 ```bash
 # She syncs with upstream to get latest changes
@@ -522,23 +567,42 @@ git push origin main
 
 ### **Key Takeaways from Sarah's Experience:**
 1. **Started with her own fork** - maximum freedom to experiment
-2. **Worked directly on main branch** - no bureaucracy, just coding
+2. **Used feature branches** - for organized development and collaboration
 3. **Used descriptive commit messages** - easy to track changes
 4. **Tested thoroughly** - mock hardware first, then real hardware
 5. **Created example scripts** - made her work easy for others to use
-6. **Shared early and often** - got feedback from lab members
-7. **Contributed back when ready** - only after extensive testing and refinement
+6. **Collaborated with cryo team** - shared branches for feedback and integration
+7. **Merged to setup main** - when features were stable and tested
+8. **Contributed to lab-wide** - only after extensive testing and team approval
 
-This is exactly how the lab workflow is designed to work - **freedom to innovate, quality when sharing!**
+This shows the **three-level workflow**:
+- **Individual branches** - for experimental development
+- **Setup main branch** - for stable, tested features for that setup
+- **Lab-wide main** - for features that benefit the entire lab
 
-## 🔄 **Workflow Summary**
+**Freedom to innovate, collaboration within setups, quality when sharing lab-wide!**
 
-1. **Fork main repo** with descriptive name
-2. **Work freely** in your fork - no restrictions
-3. **Sync weekly** with upstream main
-4. **Contribute back** when you have valuable features
-5. **Share experiments** via direct access or shared repos
-6. **Test thoroughly** before lab-wide contributions
-7. **Document changes** appropriately
+## 🔄 **Three-Level Workflow Summary**
 
-Remember: **Your fork is your playground, the main repo is our shared foundation.**
+### **Level 1: Individual Development (Maximum Freedom)**
+1. **Fork main repo** with descriptive name for your setup
+2. **Create feature branches** for experimental work
+3. **Work freely** - no restrictions, break things, iterate quickly
+4. **Test with mock hardware** for rapid development
+
+### **Level 2: Setup Collaboration (Team Coordination)**
+5. **Share branches** with setup team members
+6. **Collaborate and integrate** experiments within the setup
+7. **Merge to setup main** when features are stable and tested
+8. **Sync weekly** with upstream main to get lab-wide features
+
+### **Level 3: Lab-wide Contribution (Quality Control)**
+9. **Contribute back** when you have valuable features for entire lab
+10. **Test thoroughly** before lab-wide contributions
+11. **Document changes** appropriately
+12. **Wait for review** and approval
+
+**Remember**: 
+- **Your branches** are your playground for experimentation
+- **Setup main** is your team's stable foundation
+- **Lab-wide main** is our shared foundation for everyone
