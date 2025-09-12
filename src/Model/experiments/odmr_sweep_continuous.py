@@ -185,7 +185,7 @@ class ODMRSweepContinuousExperiment(Experiment):
         self.microwave.enable_output()
         
         self.log(f"Microwave sweep setup: {center_freq/1e9:.3f} GHz ± {deviation/1e6:.1f} MHz")
-        self.log(f"Sweep function: {sweep_func}, Rate: {self.sweep_rate/1e6:.2f} MHz/s")
+        self.log(f"Sweep function: {sweep_func}, Rate: {self.sweep_rate:.2f} Hz")
     
     def _setup_adwin_sweep(self):
         """Setup Adwin for sweep-synchronized counting."""
@@ -241,19 +241,33 @@ class ODMRSweepContinuousExperiment(Experiment):
         time_per_step = integration_time + settle_time
         self.sweep_time = self.num_steps * time_per_step
         
-        # Calculate actual sweep rate (Hz/s)
-        self.sweep_rate = abs(stop_freq - start_freq) / self.sweep_time
+        # For SG384 continuous sweep, the sweep rate is the frequency of the triangle/ramp waveform
+        # that modulates the frequency. This should be much slower than 120 Hz for good resolution.
+        # We'll use a reasonable sweep rate based on the desired integration time
+        # Typical values: 0.1-10 Hz for good resolution
+        desired_sweep_rate = 1.0  # Hz - frequency of the triangle waveform
         
-        # Generate frequency array
+        # Ensure we don't exceed SG384 maximum of 120 Hz
+        max_sg384_rate = 120.0  # Hz
+        self.sweep_rate = min(desired_sweep_rate, max_sg384_rate)
+        
+        # The actual sweep time will be determined by the SG384 sweep rate
+        # For a triangle waveform, one complete cycle takes 1/sweep_rate seconds
+        # But we need to account for the fact that we want to sweep from start to stop
+        # The SG384 will sweep at the specified rate, and we'll collect data during that time
+        self.sweep_time = 1.0 / self.sweep_rate  # Time for one complete triangle cycle
+        
+        # Generate frequency array for data collection
         self.frequencies = np.linspace(start_freq, stop_freq, self.num_steps)
         
         # Log calculation results
         self.log(f"Step frequency: {step_freq/1e6:.2f} MHz")
         self.log(f"Number of steps: {self.num_steps}")
         self.log(f"Time per step: {time_per_step*1e3:.1f} ms")
-        self.log(f"Sweep time: {self.sweep_time:.3f} s")
-        self.log(f"Calculated sweep rate: {self.sweep_rate/1e6:.2f} MHz/s")
+        self.log(f"SG384 sweep rate: {self.sweep_rate:.2f} Hz (triangle waveform frequency)")
+        self.log(f"Sweep cycle time: {self.sweep_time:.3f} s")
         self.log(f"Frequency range: {start_freq/1e9:.3f} - {stop_freq/1e9:.3f} GHz")
+        self.log(f"Frequency deviation: {abs(stop_freq - start_freq)/1e6:.1f} MHz")
     
     def _initialize_data_arrays(self):
         """Initialize data storage arrays."""
