@@ -33,6 +33,8 @@ def create_adwin_device(use_real_hardware=False, config_path=None, debug=False):
             # Use provided config path or default
             if config_path is None:
                 config_path = Path(__file__).parent.parent / "src" / "config.json"
+            else:
+                config_path = Path(config_path)
             
             if debug:
                 print(f"🔍 Debug: Loading devices from config: {config_path}")

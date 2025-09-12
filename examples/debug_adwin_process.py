@@ -34,7 +34,9 @@ def debug_adwin_process_loading():
     # 2. Load Adwin device
     print("\n2. Loading Adwin device...")
     try:
-        loaded_devices, failed_devices = load_devices_from_config("src/config.json")
+        from pathlib import Path
+        config_path = Path("src/config.json")
+        loaded_devices, failed_devices = load_devices_from_config(config_path)
         adwin = loaded_devices['adwin']
         print(f"   ✅ Adwin loaded: {type(adwin)}")
         print(f"   ✅ Connected: {adwin.is_connected}")
