@@ -26,29 +26,49 @@ sys.path.insert(0, str(Path(__file__).parent / '..'))
 from src.Model.experiments.odmr_sweep_continuous import ODMRSweepContinuousExperiment
 
 
-def create_devices(use_real_hardware=False):
+def create_devices(use_real_hardware=False, config_path=None):
     """
-    Create device instances based on hardware flag.
+    Create device instances using the device config manager.
     
     Args:
         use_real_hardware (bool): If True, use real hardware; if False, use mock hardware
+        config_path (str): Path to config.json file. If None, uses default.
         
     Returns:
         dict: Dictionary of device instances in the correct format
     """
     if use_real_hardware:
-        print("Using real hardware...")
+        print("Using real hardware from config...")
         try:
-            from src.Controller import SG384Generator, AdwinGoldDevice, MCLNanoDrive
-            devices = {
-                'microwave': {'instance': SG384Generator()},
-                'adwin': {'instance': AdwinGoldDevice()},
-                'nanodrive': {'instance': MCLNanoDrive(settings={'serial': 2849})}
-            }
-            print("✅ Real hardware initialized successfully")
+            from src.core.device_config import load_devices_from_config
+            from pathlib import Path
+            
+            # Use provided config path or default
+            if config_path is None:
+                config_path = Path(__file__).parent.parent / "src" / "config.json"
+            
+            # Load devices from config
+            loaded_devices, failed_devices = load_devices_from_config(config_path)
+            
+            if failed_devices:
+                print(f"⚠️  Some devices failed to load: {list(failed_devices.keys())}")
+                for device_name, error in failed_devices.items():
+                    print(f"  - {device_name}: {error}")
+            
+            if not loaded_devices:
+                print("❌ No devices loaded from config, falling back to mock hardware...")
+                return create_mock_devices()
+            
+            # Convert to the format expected by experiments
+            devices = {}
+            for device_name, device_instance in loaded_devices.items():
+                devices[device_name] = {'instance': device_instance}
+            
+            print(f"✅ Real hardware initialized successfully: {list(devices.keys())}")
             return devices
+            
         except Exception as e:
-            print(f"❌ Failed to initialize real hardware: {e}")
+            print(f"❌ Failed to load real hardware from config: {e}")
             print("Falling back to mock hardware...")
             return create_mock_devices()
     else:
@@ -72,7 +92,7 @@ def create_mock_devices():
         raise
 
 
-def run_odmr_sweep_scan(use_real_hardware=False, save_data=True):
+def run_odmr_sweep_scan(use_real_hardware=False, save_data=True, config_path=None):
     """
     Run an ODMR continuous sweep scan experiment.
     
@@ -96,7 +116,7 @@ def run_odmr_sweep_scan(use_real_hardware=False, save_data=True):
         return None
     
     # Create devices
-    devices = create_devices(use_real_hardware)
+    devices = create_devices(use_real_hardware, config_path)
     
     # Create experiment with optimized settings for continuous sweeping
     experiment = ODMRSweepContinuousExperiment(
@@ -337,6 +357,8 @@ def main():
                        help='Do not save data to files')
     parser.add_argument('--test-only', action='store_true',
                        help='Only test experiment creation, do not run full scan')
+    parser.add_argument('--config', type=str, default=None,
+                       help='Path to config.json file (default: src/config.json)')
     
     args = parser.parse_args()
     
@@ -358,7 +380,7 @@ def main():
         return 0
     
     # Run the full scan
-    results = run_odmr_sweep_scan(use_real_hardware, save_data)
+    results = run_odmr_sweep_scan(use_real_hardware, save_data, args.config)
     
     if results:
         print("\n✅ Example completed successfully!")
