@@ -26,13 +26,14 @@ sys.path.insert(0, str(Path(__file__).parent / '..'))
 from src.Model.experiments.odmr_sweep_continuous import ODMRSweepContinuousExperiment
 
 
-def create_devices(use_real_hardware=False, config_path=None):
+def create_devices(use_real_hardware=False, config_path=None, debug=False):
     """
     Create device instances using the device config manager.
     
     Args:
         use_real_hardware (bool): If True, use real hardware; if False, use mock hardware
         config_path (str): Path to config.json file. If None, uses default.
+        debug (bool): If True, show detailed debug information
         
     Returns:
         dict: Dictionary of device instances in the correct format
@@ -47,6 +48,10 @@ def create_devices(use_real_hardware=False, config_path=None):
             if config_path is None:
                 config_path = Path(__file__).parent.parent / "src" / "config.json"
             
+            if debug:
+                print(f"🔍 Debug: Loading devices from config: {config_path}")
+                print(f"🔍 Debug: Config file exists: {config_path.exists()}")
+            
             # Load devices from config
             loaded_devices, failed_devices = load_devices_from_config(config_path)
             
@@ -57,6 +62,12 @@ def create_devices(use_real_hardware=False, config_path=None):
             
             if not loaded_devices:
                 print("❌ No devices loaded from config, falling back to mock hardware...")
+                print("🔍 This usually means:")
+                print("   - Hardware devices are not connected or powered on")
+                print("   - Network connection issues (SG384 IP not reachable)")
+                print("   - Driver issues (Adwin drivers not installed)")
+                print("   - Port issues (COM ports in use or not available)")
+                print("   - Permission issues accessing hardware")
                 return create_mock_devices()
             
             # Convert to the format expected by experiments
@@ -128,7 +139,7 @@ def run_odmr_sweep_scan(use_real_hardware=False, save_data=True, config_path=Non
         return None
     
     # Create devices
-    devices = create_devices(use_real_hardware, config_path)
+    devices = create_devices(use_real_hardware, config_path, args.debug)
     
     # Create experiment with optimized settings for continuous sweeping
     experiment = ODMRSweepContinuousExperiment(
@@ -376,6 +387,8 @@ def main():
                        help='Only test experiment creation, do not run full scan')
     parser.add_argument('--config', type=str, default=None,
                        help='Path to config.json file (default: src/config.json)')
+    parser.add_argument('--debug', action='store_true',
+                       help='Show detailed debug information during device loading')
     
     args = parser.parse_args()
     
