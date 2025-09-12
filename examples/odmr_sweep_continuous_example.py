@@ -115,13 +115,15 @@ def create_mock_devices():
         raise
 
 
-def run_odmr_sweep_scan(use_real_hardware=False, save_data=True, config_path=None):
+def run_odmr_sweep_scan(use_real_hardware=False, save_data=True, config_path=None, debug=False):
     """
     Run an ODMR continuous sweep scan experiment.
     
     Args:
         use_real_hardware (bool): Whether to use real hardware
         save_data (bool): Whether to save the scan data
+        config_path (str): Path to config.json file
+        debug (bool): Whether to show debug information
         
     Returns:
         dict: Scan results and data
@@ -139,7 +141,7 @@ def run_odmr_sweep_scan(use_real_hardware=False, save_data=True, config_path=Non
         return None
     
     # Create devices
-    devices = create_devices(use_real_hardware, config_path, args.debug)
+    devices = create_devices(use_real_hardware, config_path, debug)
     
     # Create experiment with optimized settings for continuous sweeping
     experiment = ODMRSweepContinuousExperiment(
@@ -410,7 +412,7 @@ def main():
         return 0
     
     # Run the full scan
-    results = run_odmr_sweep_scan(use_real_hardware, save_data, args.config)
+    results = run_odmr_sweep_scan(use_real_hardware, save_data, args.config, args.debug)
     
     if results:
         print("\n✅ Example completed successfully!")
