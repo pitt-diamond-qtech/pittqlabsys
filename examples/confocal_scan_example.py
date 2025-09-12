@@ -63,9 +63,20 @@ def create_devices(use_real_hardware=False, config_path=None):
                 return create_mock_devices()
             
             # Convert to the format expected by experiments
+            # Map device names to the keys expected by NanodriveAdwinConfocalScanFast
+            device_mapping = {
+                'nanodrive': 'nanodrive',
+                'adwin': 'adwin'
+            }
+            
             devices = {}
             for device_name, device_instance in loaded_devices.items():
-                devices[device_name] = {'instance': device_instance}
+                if device_name in device_mapping:
+                    mapped_name = device_mapping[device_name]
+                    devices[mapped_name] = {'instance': device_instance}
+                else:
+                    # Keep other devices with their original names for compatibility
+                    devices[device_name] = {'instance': device_instance}
             
             print(f"✅ Real hardware initialized successfully: {list(devices.keys())}")
             return devices
@@ -92,6 +103,33 @@ def create_mock_devices():
     except Exception as e:
         print(f"❌ Failed to initialize mock hardware: {e}")
         raise
+
+
+def test_experiment_creation():
+    """Test that the experiment can be created successfully."""
+    try:
+        # Create mock devices
+        devices = create_mock_devices()
+        
+        # Create experiment
+        from src.Model.experiments.nanodrive_adwin_confocal_scan_fast import NanodriveAdwinConfocalScanFast
+        experiment = NanodriveAdwinConfocalScanFast(
+            devices=devices,
+            name="ConfocalScan_Test",
+            settings={
+                'scan_range': {'x_start': 30.0, 'x_stop': 40.0, 'y_start': 30.0, 'y_stop': 40.0},
+                'scan_points': {'x_points': 5, 'y_points': 5},
+                'integration_time': 0.1,
+                'settle_time': 0.01
+            }
+        )
+        
+        print("✅ Experiment created successfully")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Test failed: {e}")
+        return False
 
 
 def run_confocal_scan(use_real_hardware=False, save_data=True, show_plot=True, config_path=None):
@@ -205,9 +243,11 @@ def run_confocal_scan(use_real_hardware=False, save_data=True, show_plot=True, c
 def save_confocal_csv_data(experiment, scan_settings, use_real_hardware):
     """Save confocal scan data in CSV format for easy analysis."""
     try:
-        # Create output directory
-        output_dir = Path(__file__).parent / "scan_data"
-        output_dir.mkdir(exist_ok=True)
+        # Use configured data folder
+        from src.core.helper_functions import get_configured_data_folder
+        base_data_dir = get_configured_data_folder()
+        output_dir = base_data_dir / "confocal_scans"
+        output_dir.mkdir(parents=True, exist_ok=True)
         
         # Generate timestamp
         timestamp = time.strftime("%Y%m%d_%H%M%S")
@@ -356,10 +396,22 @@ def main():
                        help="Skip plotting the results")
     parser.add_argument("--no-save", action="store_true",
                        help="Skip saving scan data")
+    parser.add_argument("--test-only", action="store_true",
+                       help="Only test experiment creation, do not run full scan")
     parser.add_argument("--config", type=str, default=None,
                        help="Path to config.json file (default: src/config.json)")
     
     args = parser.parse_args()
+    
+    # Test experiment creation first
+    if args.test_only:
+        print("🧪 Testing experiment creation...")
+        if test_experiment_creation():
+            print("✅ Experiment creation test passed!")
+            return 0
+        else:
+            print("❌ Experiment creation test failed!")
+            return 1
     
     # Run the scan
     results = run_confocal_scan(
