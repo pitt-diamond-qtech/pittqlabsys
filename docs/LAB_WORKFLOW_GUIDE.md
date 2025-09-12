@@ -314,8 +314,9 @@ git remote -v
 
 ### **Step 2: Daily Development (Maximum Freedom)**
 ```bash
-# Sarah works directly on main branch - no restrictions!
-git checkout main
+# Sarah creates a feature branch for her work
+git checkout -b sarah-features
+git push origin sarah-features
 
 # She creates a new device controller
 # File: src/Controller/cryostat_controller.py
@@ -350,7 +351,7 @@ git commit -m "[cryo] Add Lakeshore 336 cryostat temperature controller
 - Includes safety interlocks for temperature limits
 - Tested with mock hardware"
 
-git push origin main
+git push origin sarah-features
 ```
 
 ### **Step 3: Creating an Experiment**
@@ -409,7 +410,7 @@ git commit -m "[cryo] Add temperature-controlled ODMR experiment
 - Includes example usage and documentation
 - Tested with mock hardware"
 
-git push origin main
+git push origin sarah-features
 ```
 
 ### **Step 4: Creating an Example Script**
@@ -472,7 +473,7 @@ git commit -m "[cryo] Add example script for cryo ODMR experiment
 - Shows proper device initialization and configuration
 - Ready for lab members to use and modify"
 
-git push origin main
+git push origin sarah-features
 ```
 
 ### **Step 5: Testing Her Work**
@@ -497,17 +498,13 @@ python scripts/assess_quality.py --commits 5
 
 ### **Step 6: Collaborative Development in Cryo Setup**
 ```bash
-# Sarah creates a feature branch for her cryostat work
-git checkout -b feature/cryostat-controller
-git push origin feature/cryostat-controller
-
-# She announces her work in lab chat
+# Sarah announces her work in lab chat
 # "Hey cryo team! I've added a cryostat controller and cryo ODMR experiment 
-#  in the feature/cryostat-controller branch. Check it out and let me know what you think!"
+#  in the sarah-features branch. Check it out and let me know what you think!"
 
 # Other cryo team members can now:
 # 1. Clone the shared cryo repo: git clone https://github.com/duttlab-sys/pittqlabsys-cryo.git
-# 2. Check out her branch: git checkout feature/cryostat-controller
+# 2. Check out her branch: git checkout sarah-features
 # 3. Test her cryostat controller with their experiments
 # 4. Provide feedback and suggestions
 # 5. Create their own branches for improvements
@@ -535,7 +532,7 @@ git push origin feature/cryo-confocal-scan
 ```bash
 # After testing and collaboration, Sarah merges her cryostat controller to main
 git checkout main
-git merge feature/cryostat-controller
+git merge sarah-features
 git push origin main
 
 # Tristan also merges his confocal work
@@ -596,7 +593,7 @@ python scripts/assess_quality.py --commits 10
 
 ### **Key Takeaways from Sarah's Experience:**
 1. **Started with her own fork** - maximum freedom to experiment
-2. **Used feature branches** - for organized development and collaboration
+2. **Used feature branches** - `sarah-features` for organized development and collaboration
 3. **Used descriptive commit messages** - easy to track changes
 4. **Tested thoroughly** - mock hardware first, then real hardware
 5. **Created example scripts** - made her work easy for others to use
