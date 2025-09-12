@@ -41,7 +41,7 @@ def create_devices(use_real_hardware=False, config_path=None):
         print("Using real hardware from config...")
         try:
             from src.core.device_config import load_devices_from_config
-            from pathlib import Path
+            from pathlib import Pathyte
             
             # Use provided config path or default
             if config_path is None:
@@ -60,9 +60,21 @@ def create_devices(use_real_hardware=False, config_path=None):
                 return create_mock_devices()
             
             # Convert to the format expected by experiments
+            # Map device names to the keys expected by ODMRSweepContinuousExperiment
+            device_mapping = {
+                'sg384': 'microwave',
+                'adwin': 'adwin', 
+                'nanodrive': 'nanodrive'
+            }
+            
             devices = {}
             for device_name, device_instance in loaded_devices.items():
-                devices[device_name] = {'instance': device_instance}
+                if device_name in device_mapping:
+                    mapped_name = device_mapping[device_name]
+                    devices[mapped_name] = {'instance': device_instance}
+                else:
+                    # Keep other devices with their original names for compatibility
+                    devices[device_name] = {'instance': device_instance}
             
             print(f"✅ Real hardware initialized successfully: {list(devices.keys())}")
             return devices
