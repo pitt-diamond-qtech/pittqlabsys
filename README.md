@@ -15,6 +15,9 @@ AQuISS provides a modular, extensible framework for controlling scientific instr
 - **Experiment automation** with parameterized experiment definitions
 - **Professional GUI** built with PyQt5
 - **Comprehensive data analysis** and export capabilities
+- **Mock data generation** for GUI testing without hardware
+- **Enhanced parameter validation** with nested parameter support
+- **Improved experiment loading** and dataset management
 
 ## 🏗️ Architecture
 
@@ -34,6 +37,38 @@ src/
 - **Experiment Layer**: Modular experiment definitions with parameter management
 - **GUI Layer**: Configurable interface with real-time data visualization
 - **Data Layer**: Flexible data storage and export capabilities
+
+## ✨ New in v1.0
+
+### Major Improvements
+- **Mock Data Generation**: Complete system for testing GUI without hardware
+  - Generate realistic ODMR and confocal data
+  - Loadable mock experiment for GUI testing
+  - Located in `examples/mock_data_experiment.py`
+
+- **Enhanced Parameter Validation**: Improved nested parameter handling
+  - Fixed `AssertionError` in parameter validation
+  - Better support for complex experiment configurations
+  - Backward compatibility maintained
+
+- **Experiment Loading Fixes**: Resolved critical loading issues
+  - Fixed `TypeError` in experiment iterators
+  - Improved dataset management in GUI
+  - Better error handling and logging
+
+- **Path Resolution**: Fixed import-time path evaluation issues
+  - Confocal experiments no longer create directories in wrong locations
+  - Runtime path resolution for better portability
+
+### Breaking Changes
+- **ODMR Sweep Continuous**: Parameter `sweep_rate` renamed to `step_freq`
+  - See `CHANGELOG.md` for migration guide
+  - Existing `.aqs` files need manual update
+
+### Testing Status
+- ✅ **Fully Tested**: Confocal scanning, SG384 communication, parameter validation
+- ⚠️ **Partially Tested**: ODMR sweep continuous, experiment iterators
+- ❌ **Experimental**: Pulsed ODMR, AWG520 integration, advanced features
 
 ## 🚀 Installation
 
