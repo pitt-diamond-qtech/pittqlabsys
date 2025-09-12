@@ -31,7 +31,7 @@ class ODMRSweepContinuousExperiment(Experiment):
     This experiment performs ODMR measurements by:
     1. Configuring SG384 for phase continuous frequency sweep
     2. Using Adwin ODMR_Sweep_Counter for synchronized counting
-    3. Collecting data during the sweep for high-speed acquisitionhey 
+for tod    3. Collecting data during the sweep for high-speed acquisitionhey 
     
     This approach provides:
     - Fast frequency sweeps with phase continuity
