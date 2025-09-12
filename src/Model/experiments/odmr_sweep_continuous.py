@@ -65,7 +65,8 @@ class ODMRSweepContinuousExperiment(Experiment):
         Parameter('acquisition', [
             Parameter('integration_time', 0.001, float, 'Integration time per point in seconds', units='s'),
             Parameter('averages', 10, int, 'Number of sweep averages'),
-            Parameter('settle_time', 0.01, float, 'Settle time between sweeps', units='s')
+            Parameter('settle_time', 0.01, float, 'Settle time between sweeps', units='s'),
+            Parameter('ramp_delay', 0.1, float, 'Delay between ramp cycles to avoid discontinuities (s)', units='s')
         ]),
         Parameter('laser', [
             Parameter('power', 1.0, float, 'Laser power in mW', units='mW'),
@@ -260,7 +261,7 @@ class ODMRSweepContinuousExperiment(Experiment):
         # For SG384 continuous sweep, we need to match the sweep rate to our desired timing
         # The SG384 sweep rate should be calculated to match our integration requirements
         # We want the SG384 to complete one full cycle in our calculated sweep_time
-        self.sweep_rate = 1.0 / self.sweep_time  # Hz - frequency of the triangle waveform
+        self.sweep_rate = 1.0 / self.sweep_time  # Hz - frequency of the waveform
         
         # Ensure we don't exceed SG384 maximum of 120 Hz
         max_sg384_rate = 120.0  # Hz
@@ -271,6 +272,20 @@ class ODMRSweepContinuousExperiment(Experiment):
             # Recalculate sweep time based on SG384 rate limit
             self.sweep_time = 1.0 / self.sweep_rate
             self.log(f"   New sweep time: {self.sweep_time:.3f} s")
+        
+        # Add delay between ramps if using ramp waveform to avoid discontinuities
+        sweep_function = self.settings['microwave'].get('sweep_function', 'Triangle')
+        if sweep_function.lower() == 'ramp':
+            # Use configurable delay between ramps to avoid sharp discontinuities
+            self.ramp_delay = self.settings['acquisition'].get('ramp_delay', 0.1)
+            self.log(f"⚠️  Using RAMP waveform - adding {self.ramp_delay*1000:.0f}ms delay between ramps to avoid discontinuities")
+            self.log(f"   Consider using 'Triangle' waveform for smoother operation")
+        elif sweep_function.lower() == 'triangle':
+            self.ramp_delay = 0.0  # No delay needed for triangle
+            self.log(f"✅ Using TRIANGLE waveform - smooth retrace, no delay needed")
+        else:
+            self.ramp_delay = 0.0  # No delay for other waveforms
+            self.log(f"ℹ️  Using {sweep_function.upper()} waveform")
         
         # Generate frequency array for data collection
         self.frequencies = np.linspace(start_freq, stop_freq, self.num_steps)
@@ -381,7 +396,9 @@ class ODMRSweepContinuousExperiment(Experiment):
         # The SG384 will automatically sweep when modulation is enabled
         
         # Wait for sweep to complete using calculated sweep time
-        time.sleep(self.sweep_time + 0.1)  # Add small buffer
+        # Add extra delay for ramp waveforms to avoid discontinuities
+        total_wait_time = self.sweep_time + 0.1 + self.ramp_delay  # Base buffer + ramp delay
+        time.sleep(total_wait_time)
         
         # Stop the sweep
         self.adwin.stop_process("Process_1")

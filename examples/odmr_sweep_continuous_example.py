@@ -158,9 +158,10 @@ def run_odmr_sweep_scan(use_real_hardware=False, save_data=True, config_path=Non
                 'sweep_function': 'Triangle'  # Triangle sweep waveform
             },
             'acquisition': {
-                'integration_time': 0.005,  # 1 ms per point
+                'integration_time': 0.005,  # 5 ms per point
                 'averages': 10,             # 10 sweep averages
-                'settle_time': 0.001         # 10 ms between sweeps
+                'settle_time': 0.001,       # 1 ms between sweeps
+                'ramp_delay': 0.1           # 100 ms delay between ramp cycles
             },
             'laser': {
                 'power': 1.0,        # 1 mW
@@ -342,7 +343,7 @@ def test_experiment_creation():
             settings={
                 'frequency_range': {'start': 2.7e9, 'stop': 3.0e9},
                 'microwave': {'power': -10.0, 'step_freq': 1e6, 'sweep_function': 'Triangle'},
-                'acquisition': {'integration_time': 0.005, 'averages': 5, 'settle_time': 0.001},
+                'acquisition': {'integration_time': 0.005, 'averages': 5, 'settle_time': 0.001, 'ramp_delay': 0.1},
                 'laser': {'power': 1.0, 'wavelength': 532.0},
                 'analysis': {
                     'auto_fit': True, 
