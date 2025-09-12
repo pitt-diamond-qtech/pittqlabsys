@@ -161,7 +161,8 @@ def run_odmr_sweep_scan(use_real_hardware=False, save_data=True, config_path=Non
                 'integration_time': 0.005,  # 5 ms per point
                 'averages': 10,             # 10 sweep averages
                 'settle_time': 0.001,       # 1 ms between sweeps
-                'ramp_delay': 0.1           # 100 ms delay between ramp cycles
+                'ramp_delay': 0.1,          # 100 ms delay between ramp cycles
+                'bidirectional': True       # Enable bidirectional sweeps (doubles efficiency)
             },
             'laser': {
                 'power': 1.0,        # 1 mW
@@ -223,9 +224,19 @@ def run_odmr_sweep_scan(use_real_hardware=False, save_data=True, config_path=Non
 def save_odmr_data(results, scan_type):
     """Save ODMR data to files."""
     try:
-        # Create output directory
-        output_dir = Path("examples/odmr_data")
-        output_dir.mkdir(exist_ok=True)
+        # Get configured data folder from config.json
+        from src.core.helper_functions import get_configured_data_folder
+        
+        try:
+            data_folder = get_configured_data_folder()
+            output_dir = Path(data_folder) / "odmr_data"
+            print(f"💾 Using configured data folder: {data_folder}")
+        except Exception as e:
+            print(f"⚠️  Could not get configured data folder: {e}")
+            print("   Falling back to default: ~/Experiments/odmr_data")
+            output_dir = Path.home() / "Experiments" / "odmr_data"
+        
+        output_dir.mkdir(parents=True, exist_ok=True)
         
         # Generate timestamp
         timestamp = time.strftime("%Y%m%d_%H%M%S")
@@ -313,9 +324,16 @@ def plot_odmr_results(results):
         
         plt.tight_layout()
         
-        # Save plot
-        output_dir = Path("examples/odmr_data")
-        output_dir.mkdir(exist_ok=True)
+        # Save plot to the same data folder
+        from src.core.helper_functions import get_configured_data_folder
+        
+        try:
+            data_folder = get_configured_data_folder()
+            output_dir = Path(data_folder) / "odmr_data"
+        except Exception as e:
+            output_dir = Path.home() / "Experiments" / "odmr_data"
+        
+        output_dir.mkdir(parents=True, exist_ok=True)
         timestamp = time.strftime("%Y%m%d_%H%M%S")
         plot_file = output_dir / f"odmr_sweep_continuous_{timestamp}.png"
         plt.savefig(plot_file, dpi=300, bbox_inches='tight')
@@ -343,7 +361,7 @@ def test_experiment_creation():
             settings={
                 'frequency_range': {'start': 2.7e9, 'stop': 3.0e9},
                 'microwave': {'power': -10.0, 'step_freq': 1e6, 'sweep_function': 'Triangle'},
-                'acquisition': {'integration_time': 0.005, 'averages': 5, 'settle_time': 0.001, 'ramp_delay': 0.1},
+                'acquisition': {'integration_time': 0.005, 'averages': 5, 'settle_time': 0.001, 'ramp_delay': 0.1, 'bidirectional': True},
                 'laser': {'power': 1.0, 'wavelength': 532.0},
                 'analysis': {
                     'auto_fit': True, 

@@ -66,7 +66,8 @@ class ODMRSweepContinuousExperiment(Experiment):
             Parameter('integration_time', 0.001, float, 'Integration time per point in seconds', units='s'),
             Parameter('averages', 10, int, 'Number of sweep averages'),
             Parameter('settle_time', 0.01, float, 'Settle time between sweeps', units='s'),
-            Parameter('ramp_delay', 0.1, float, 'Delay between ramp cycles to avoid discontinuities (s)', units='s')
+            Parameter('ramp_delay', 0.1, float, 'Delay between ramp cycles to avoid discontinuities (s)', units='s'),
+            Parameter('bidirectional', True, bool, 'Enable bidirectional sweeps (doubles acquisition efficiency)')
         ]),
         Parameter('laser', [
             Parameter('power', 1.0, float, 'Laser power in mW', units='mW'),
@@ -203,7 +204,7 @@ class ODMRSweepContinuousExperiment(Experiment):
         # Setup using helper function
         integration_time_ms = integration_time * 1000
         settle_time_ms = settle_time * 1000
-        bidirectional = True  # Enable bidirectional sweeps
+        bidirectional = self.settings['acquisition'].get('bidirectional', True)  # Use configurable setting
         
         setup_adwin_for_sweep_odmr(
             self.adwin, 
@@ -217,6 +218,11 @@ class ODMRSweepContinuousExperiment(Experiment):
         self.adwin.start_process("Process_1")
         
         self.log(f"Adwin sweep setup: {self.num_steps} steps, {integration_time*1e3:.1f} ms per step")
+        if bidirectional:
+            self.log(f"✅ Bidirectional sweeps enabled - will collect data during both forward and reverse sweeps")
+            self.log(f"   This doubles acquisition efficiency compared to unidirectional sweeps")
+        else:
+            self.log(f"ℹ️  Unidirectional sweeps enabled - will collect data during forward sweep only")
     
     def _setup_nanodrive(self):
         """Setup MCL nanodrive if available."""
@@ -446,6 +452,13 @@ class ODMRSweepContinuousExperiment(Experiment):
             self.log(f"📊 Reverse counts: {len(reverse_counts)} points, range: {np.min(reverse_counts):.1f} - {np.max(reverse_counts):.1f}")
             self.log(f"📊 Forward voltages: {len(forward_voltages)} points, range: {np.min(forward_voltages):.3f} - {np.max(forward_voltages):.3f} V")
             self.log(f"📊 Reverse voltages: {len(reverse_voltages)} points, range: {np.min(reverse_voltages):.3f} - {np.max(reverse_voltages):.3f} V")
+            
+            # Log bidirectional sweep status
+            if len(forward_counts) > 0 and len(reverse_counts) > 0:
+                self.log(f"✅ Bidirectional sweep data collected: {len(forward_counts)} forward + {len(reverse_counts)} reverse points")
+                self.log(f"   This effectively doubles the acquisition efficiency!")
+            else:
+                self.log(f"⚠️  Unidirectional sweep data only: {len(forward_counts)} points")
         
         # Convert voltages to frequencies
         # Voltage range is -1V to +1V, corresponding to frequency deviation
@@ -460,6 +473,14 @@ class ODMRSweepContinuousExperiment(Experiment):
             # Fallback to using the frequency array directly
             forward_freqs = self.frequencies
             reverse_freqs = self.frequencies[::-1]  # Reverse for reverse sweep
+        
+        # For bidirectional sweeps, we need to flip the reverse data to match forward order
+        # This is because the reverse sweep goes from stop_freq to start_freq, but we want
+        # both sweeps to be ordered from start_freq to stop_freq for proper averaging
+        if reverse_counts is not None and len(reverse_counts) > 0:
+            reverse_counts = reverse_counts[::-1]  # Flip reverse counts
+        if reverse_freqs is not None and len(reverse_freqs) > 0:
+            reverse_freqs = reverse_freqs[::-1]  # Flip reverse frequencies to match forward order
         
         return forward_counts, reverse_counts, forward_freqs
     
