@@ -1,0 +1,111 @@
+name: Quality Checks
+
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
+
+jobs:
+  code-quality:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install flake8 black pytest
+        pip install -r requirements.txt
+    
+    - name: Check code style with flake8
+      run: |
+        flake8 src/ examples/ --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 src/ examples/ --count --exit-zero --max-complexity=10 --max-line-length=88 --statistics
+    
+    - name: Check code formatting with black
+      run: |
+        black --check src/ examples/
+    
+    - name: Run tests
+      run: |
+        python -m pytest tests/ -v
+    
+    - name: Check for TODO/FIXME comments
+      run: |
+        echo "Checking for TODO/FIXME comments that should be addressed:"
+        grep -r "TODO\|FIXME" src/ examples/ || echo "No TODO/FIXME comments found"
+    
+    - name: Check commit message format
+      run: |
+        echo "Checking recent commit messages..."
+        git log --oneline -10 | while read line; do
+          if [[ ! $line =~ ^[a-f0-9]{7}.*\[.*\].* ]]; then
+            echo "⚠️  Commit message doesn't follow format: $line"
+            echo "   Expected format: [setup-name] Brief description"
+          fi
+        done
+
+  documentation-check:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pydocstyle
+        pip install -r requirements.txt
+    
+    - name: Check docstring quality
+      run: |
+        pydocstyle src/ --convention=google --add-ignore=D100,D101,D102,D103,D104,D105
+    
+    - name: Check for missing docstrings in public functions
+      run: |
+        python -c "
+        import ast
+        import os
+        
+        def check_file(filepath):
+            with open(filepath, 'r') as f:
+                tree = ast.parse(f.read())
+            
+            for node in ast.walk(tree):
+                if isinstance(node, ast.FunctionDef) and not node.name.startswith('_'):
+                    if not ast.get_docstring(node):
+                        print(f'⚠️  Missing docstring in {filepath}:{node.lineno} - {node.name}')
+        
+        for root, dirs, files in os.walk('src/'):
+            for file in files:
+                if file.endswith('.py'):
+                    check_file(os.path.join(root, file))
+        "
+    
+    - name: Check README updates
+      run: |
+        if git diff --name-only HEAD~1 HEAD | grep -q "README.md"; then
+          echo "✅ README.md was updated"
+        else
+          echo "⚠️  Consider updating README.md for new features"
+        fi
+    
+    - name: Check CHANGELOG updates
+      run: |
+        if git diff --name-only HEAD~1 HEAD | grep -q "CHANGELOG.md"; then
+          echo "✅ CHANGELOG.md was updated"
+        else
+          echo "⚠️  Consider updating CHANGELOG.md for significant changes"
+        fi
