@@ -78,22 +78,22 @@ def debug_odmr_counter(use_real_hardware=False, config_path=None):
         print(f"📁 Loading debug ODMR script: {script_path}")
         adwin.update({'process_1': {'load': str(script_path)}})
         
-        # Set up parameters for a short test (matching real ODMR experiment)
+        # Set up parameters matching real ODMR experiment (5ms integration time)
         print("⚙️  Setting up test parameters...")
-        adwin.set_int_var(2, 50)     # Par_2: Integration time (50 cycles = ~50ms)
-        adwin.set_int_var(3, 5)      # Par_3: Number of steps (5 steps)
-        adwin.set_int_var(11, 10)    # Par_11: Settle time (10 cycles = ~10ms)
+        adwin.set_int_var(2, 5)      # Par_2: Integration time (5 cycles = ~5ms) - CRITICAL for speed
+        adwin.set_int_var(3, 10)     # Par_3: Number of steps (10 steps)
+        adwin.set_int_var(11, 1)     # Par_11: Settle time (1 cycle = ~1ms)
         
         print("🚀 Starting counter process...")
         adwin.update({'process_1': {'running': True}})
         
-        # Monitor parameters for 15 seconds (should see all 10 steps)
-        print("\n📊 Monitoring parameters (15 seconds)...")
+        # Monitor parameters for 2 seconds (should see all 10 steps with 5ms integration)
+        print("\n📊 Monitoring parameters (2 seconds)...")
         print("Time | Par_1 | Par_4 | Par_8 | Par_12 | Par_13 | Par_14 | Par_15")
         print("-" * 70)
         
         start_time = time.time()
-        while time.time() - start_time < 15:
+        while time.time() - start_time < 2:
             try:
                 # Read all diagnostic parameters from debug script
                 par_1 = adwin.get_int_var(1)    # Raw counter
@@ -107,7 +107,7 @@ def debug_odmr_counter(use_real_hardware=False, config_path=None):
                 elapsed = time.time() - start_time
                 print(f"{elapsed:5.1f} | {par_1:5d} | {par_4:5d} | {par_8:5d} | {par_12:6d} | {par_13:6d} | {par_14:6d} | {par_15:5d}")
                 
-                time.sleep(0.5)
+                time.sleep(0.05)  # Monitor every 50ms to catch 6ms steps
                 
             except Exception as e:
                 print(f"❌ Error reading parameters: {e}")
@@ -123,7 +123,7 @@ def debug_odmr_counter(use_real_hardware=False, config_path=None):
         print("=" * 50)
         print("Key Debug Parameters to Check:")
         print("1. Par_1 (Raw Counter): Should show counts if detector is working")
-        print("2. Par_4 (Step Index): Should increment from 0 to 4 (5 steps total)")
+        print("2. Par_4 (Step Index): Should increment from 0 to 9 (10 steps total)")
         print("3. Par_8 (Total Counts): Should accumulate counts over integration time")
         print("4. Par_12 (Event Cycles): Should increment continuously (shows process is running)")
         print("5. Par_13 (Integration Cycles): Should increment during integration time")
