@@ -119,17 +119,47 @@ def debug_odmr_arrays(use_real_hardware=False, config_path=None):
         # Read all the data arrays
         print("\n📊 Reading data arrays...")
         
-        # Read the main data arrays
-        forward_counts = adwin.read_probes('int_var', 1)  # Data_1: Forward sweep counts
-        reverse_counts = adwin.read_probes('int_var', 2)  # Data_2: Reverse sweep counts
-        forward_voltages = adwin.read_probes('float_var', 1)  # Data_3: Forward sweep voltages
-        reverse_voltages = adwin.read_probes('float_var', 2)  # Data_4: Reverse sweep voltages
-        
-        # Read the debug capture arrays
-        step_indices = adwin.read_probes('int_var', 5)    # Data_5: Step indices
-        sweep_directions = adwin.read_probes('int_var', 6)  # Data_6: Sweep directions
-        integration_cycles = adwin.read_probes('int_var', 7)  # Data_7: Integration cycles
-        event_cycles = adwin.read_probes('int_var', 8)    # Data_8: Event cycles
+        # Read the main data arrays using the correct method
+        try:
+            # Read arrays using read_probes with correct array types
+            forward_counts = adwin.read_probes('int_array', 1, 20)  # Data_1: Forward sweep counts
+            reverse_counts = adwin.read_probes('int_array', 2, 20)  # Data_2: Reverse sweep counts
+            forward_voltages = adwin.read_probes('float_array', 3, 20)  # Data_3: Forward sweep voltages
+            reverse_voltages = adwin.read_probes('float_array', 4, 20)  # Data_4: Reverse sweep voltages
+            
+            # Read the debug capture arrays
+            step_indices = adwin.read_probes('int_array', 5, 20)    # Data_5: Step indices
+            sweep_directions = adwin.read_probes('int_array', 6, 20)  # Data_6: Sweep directions
+            integration_cycles = adwin.read_probes('int_array', 7, 20)  # Data_7: Integration cycles
+            event_cycles = adwin.read_probes('int_array', 8, 20)    # Data_8: Event cycles
+            
+        except Exception as e:
+            print(f"⚠️  Error reading arrays with read_probes: {e}")
+            print("   Trying alternative method...")
+            
+            # Fallback: try reading individual elements
+            forward_counts = []
+            reverse_counts = []
+            forward_voltages = []
+            reverse_voltages = []
+            step_indices = []
+            sweep_directions = []
+            integration_cycles = []
+            event_cycles = []
+            
+            # Read first 20 elements of each array
+            for i in range(20):
+                try:
+                    forward_counts.append(adwin.get_int_var(1 + i))
+                    reverse_counts.append(adwin.get_int_var(1001 + i))
+                    forward_voltages.append(adwin.get_float_var(1 + i))
+                    reverse_voltages.append(adwin.get_float_var(1001 + i))
+                    step_indices.append(adwin.get_int_var(2001 + i))
+                    sweep_directions.append(adwin.get_int_var(3001 + i))
+                    integration_cycles.append(adwin.get_int_var(4001 + i))
+                    event_cycles.append(adwin.get_int_var(5001 + i))
+                except:
+                    break
         
         # Get final parameters
         total_captured = adwin.get_int_var(16)
