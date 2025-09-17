@@ -64,7 +64,7 @@ init:
   ' Initialize counter
   Cnt_Enable(0)   ' Disable counter
   Cnt_Clear(1)    ' Clear counter 1
-  Cnt_Mode(1,0)   ' Set counter 1 to increment on rising edge
+  Cnt_Mode(1,8)   ' Set counter 1 to increment on falling edge
   Cnt_Enable(1)   ' Enable counter 1
   
   ' Initialize DAC for ±10V range (but we'll clamp output to ±1V for SG384)
@@ -115,8 +115,12 @@ init:
   NEXT step_index
 
 Event:
-  ' Read counter value
+  ' Read counter value with overflow protection
   Par_1 = Cnt_Read(1)
+  ' Handle counter overflow (16-bit signed counter wraps to negative)
+  IF (Par_1 < 0) THEN
+    Par_1 = Par_1 + 65536  ' Convert negative to positive overflow value
+  ENDIF
   
   ' Check if we're in settle time or integration time
   IF (settle_cycles > 0) THEN

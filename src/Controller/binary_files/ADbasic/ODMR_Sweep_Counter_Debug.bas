@@ -57,7 +57,7 @@ init:
   ' Initialize counter
   Cnt_Enable(0)   ' Disable counter
   Cnt_Clear(1)    ' Clear counter 1
-  Cnt_Mode(1,0)   ' DEBUG: Try rising edge first (mode 0)
+  Cnt_Mode(1,8)   ' DEBUG: Use falling edge (mode 8) - same as other working scripts
   Cnt_Enable(1)   ' Enable counter 1
   
   ' Initialize DAC for ±10V range (but we'll clamp output to ±1V for SG384)

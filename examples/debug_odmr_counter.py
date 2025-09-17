@@ -128,7 +128,7 @@ def debug_odmr_counter(use_real_hardware=False, config_path=None):
         print("4. Par_12 (Event Cycles): Should increment continuously (shows process is running)")
         print("5. Par_13 (Integration Cycles): Should increment during integration time")
         print("6. Par_14 (Raw Counter Before Clear): Should show accumulated counts before clearing")
-        print("7. Par_15 (Counter Mode): Should be 0 (rising edge) - this was our fix!")
+        print("7. Par_15 (Counter Mode): Should be 8 (falling edge) - same as other working scripts")
         print("\nIf Par_1 is always 0:")
         print("- Check detector connection to Adwin input")
         print("- Verify detector is powered on and working")
