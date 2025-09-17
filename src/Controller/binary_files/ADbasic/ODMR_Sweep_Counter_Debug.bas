@@ -31,6 +31,7 @@
 ' Par_13 - DEBUG: Integration cycle counter
 ' Par_14 - DEBUG: Raw counter before clear
 ' Par_15 - DEBUG: Counter mode (0=rising, 8=falling)
+' Par_16 - DEBUG: Total captured steps
 
 #Include ADwinGoldII.inc
 
@@ -46,12 +47,19 @@ DIM data_ready AS LONG
 DIM dac_value AS LONG
 DIM event_cycle AS LONG
 DIM raw_counter AS LONG
+DIM capture_index AS LONG  ' DEBUG: Index for capturing step data
 
 ' Declare data arrays for storing sweep data
 DIM Data_1[10000] AS LONG  ' Forward sweep counts
 DIM Data_2[10000] AS LONG  ' Reverse sweep counts  
 DIM Data_3[10000] AS FLOAT ' Forward sweep voltages
 DIM Data_4[10000] AS FLOAT ' Reverse sweep voltages
+
+' DEBUG: Additional arrays to capture step progression
+DIM Data_5[10000] AS LONG  ' Step indices captured during sweep
+DIM Data_6[10000] AS LONG  ' Sweep directions captured during sweep
+DIM Data_7[10000] AS LONG  ' Integration cycles captured during sweep
+DIM Data_8[10000] AS LONG  ' Event cycles captured during sweep
 
 init:
   ' Initialize counter
@@ -73,6 +81,7 @@ init:
   sweep_cycle = 0
   data_ready = 0
   event_cycle = 0
+  capture_index = 0  ' DEBUG: Initialize capture index
   
   ' Calculate voltage step size for ±1V range (SG384 safe)
   IF (Par_3 > 0) THEN
@@ -102,6 +111,7 @@ init:
   Par_13 = 0 ' Integration cycle counter
   Par_14 = 0 ' Raw counter before clear
   Par_15 = 0 ' Counter mode (0=rising)
+  Par_16 = 0 ' DEBUG: Total captured steps
   
   ' Clear data arrays by setting all elements to 0
   FOR step_index = 0 TO Par_3 - 1
@@ -109,6 +119,14 @@ init:
     Data_2[step_index] = 0  ' Clear reverse counts
     Data_3[step_index] = 0  ' Clear forward voltages
     Data_4[step_index] = 0  ' Clear reverse voltages
+  NEXT step_index
+  
+  ' DEBUG: Clear debug capture arrays
+  FOR step_index = 0 TO 9999
+    Data_5[step_index] = 0  ' Clear step indices
+    Data_6[step_index] = 0  ' Clear sweep directions
+    Data_7[step_index] = 0  ' Clear integration cycles
+    Data_8[step_index] = 0  ' Clear event cycles
   NEXT step_index
 
 Event:
@@ -153,6 +171,13 @@ Event:
         Data_4[step_index] = current_voltage
       ENDIF
       
+      ' DEBUG: Capture step data for analysis
+      Data_5[capture_index] = step_index
+      Data_6[capture_index] = sweep_direction
+      Data_7[capture_index] = integration_cycles
+      Data_8[capture_index] = event_cycle
+      capture_index = capture_index + 1
+      
       ' Move to next step
       step_index = step_index + 1
       Par_4 = step_index
@@ -178,6 +203,7 @@ Event:
           Par_7 = 1  ' Sweep complete
           Par_9 = 2  ' Complete cycle
           Par_10 = 1 ' Data ready to read
+          Par_16 = capture_index  ' DEBUG: Store total captured steps
           
           ' Reset for next cycle
           step_index = 0
@@ -187,6 +213,7 @@ Event:
           data_ready = 0
           current_voltage = -1.0
           voltage_step = 2.0 / Par_3
+          capture_index = 0  ' DEBUG: Reset capture index for next cycle
         ENDIF
         
       ELSE
