@@ -64,12 +64,8 @@ def debug_odmr_counter(use_real_hardware=False, config_path=None):
     
     print("\n🔍 Starting counter diagnostics...")
     
-    # Load the debug version of the ADbasic script
-    debug_script_path = Path(__file__).parent.parent / "src" / "Controller" / "binary_files" / "ADbasic" / "ODMR_Sweep_Counter_Debug.bas"
-    
-    if not debug_script_path.exists():
-        print(f"❌ Debug script not found: {debug_script_path}")
-        return False
+    # Use the compiled debug version for detailed diagnostics
+    from src.core.adwin_helpers import get_adwin_binary_path
     
     try:
         # Stop any running process
@@ -77,9 +73,10 @@ def debug_odmr_counter(use_real_hardware=False, config_path=None):
         time.sleep(0.1)
         adwin.clear_process(1)
         
-        # Load the debug script
-        print(f"📁 Loading debug script: {debug_script_path}")
-        adwin.update({'process_1': {'load': str(debug_script_path)}})
+        # Load the debug ODMR script (with detailed diagnostics)
+        script_path = get_adwin_binary_path('ODMR_Sweep_Counter_Debug.TB1')
+        print(f"📁 Loading debug ODMR script: {script_path}")
+        adwin.update({'process_1': {'load': str(script_path)}})
         
         # Set up parameters for a short test
         print("⚙️  Setting up test parameters...")
@@ -98,7 +95,7 @@ def debug_odmr_counter(use_real_hardware=False, config_path=None):
         start_time = time.time()
         while time.time() - start_time < 10:
             try:
-                # Read all diagnostic parameters
+                # Read all diagnostic parameters from debug script
                 par_1 = adwin.get_int_var(1)    # Raw counter
                 par_4 = adwin.get_int_var(4)    # Step index
                 par_8 = adwin.get_int_var(8)    # Total counts
@@ -124,17 +121,23 @@ def debug_odmr_counter(use_real_hardware=False, config_path=None):
         
         print("\n📋 Final Analysis:")
         print("=" * 50)
-        print("Key Issues to Check:")
+        print("Key Debug Parameters to Check:")
         print("1. Par_1 (Raw Counter): Should show counts if detector is working")
-        print("2. Par_12 (Event Cycles): Should increment continuously")
-        print("3. Par_13 (Integration Cycles): Should increment during integration")
-        print("4. Par_14 (Raw Counter Before Clear): Should show accumulated counts")
-        print("5. Par_15 (Counter Mode): 0=rising edge, 8=falling edge")
+        print("2. Par_4 (Step Index): Should increment from 0 to num_steps-1")
+        print("3. Par_8 (Total Counts): Should accumulate counts over integration time")
+        print("4. Par_12 (Event Cycles): Should increment continuously (shows process is running)")
+        print("5. Par_13 (Integration Cycles): Should increment during integration time")
+        print("6. Par_14 (Raw Counter Before Clear): Should show accumulated counts before clearing")
+        print("7. Par_15 (Counter Mode): Should be 0 (rising edge) - this was our fix!")
         print("\nIf Par_1 is always 0:")
-        print("- Check detector connection")
-        print("- Try changing counter mode (rising vs falling edge)")
-        print("- Verify detector is powered on")
-        print("- Check if detector output is inverted")
+        print("- Check detector connection to Adwin input")
+        print("- Verify detector is powered on and working")
+        print("- Check if detector output is connected to correct input")
+        print("- If Par_12 is incrementing but Par_1 is 0, detector signal issue")
+        print("- If Par_13 is incrementing but Par_8 is 0, counter clearing issue")
+        print("\nIf Par_1 shows counts but Par_8 is 0:")
+        print("- Counter clearing logic issue (should be fixed now)")
+        print("- Check if integration time is too short")
         
         return True
         
