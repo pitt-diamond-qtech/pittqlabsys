@@ -80,9 +80,9 @@ def debug_odmr_counter(use_real_hardware=False, config_path=None):
         
         # Set up parameters for a short test (matching real ODMR experiment)
         print("⚙️  Setting up test parameters...")
-        adwin.set_int_var(2, 5)      # Par_2: Integration time (5 cycles = ~5ms)
-        adwin.set_int_var(3, 10)     # Par_3: Number of steps (10 steps)
-        adwin.set_int_var(11, 1)     # Par_11: Settle time (1 cycle = ~1ms)
+        adwin.set_int_var(2, 50)     # Par_2: Integration time (50 cycles = ~50ms)
+        adwin.set_int_var(3, 5)      # Par_3: Number of steps (5 steps)
+        adwin.set_int_var(11, 10)    # Par_11: Settle time (10 cycles = ~10ms)
         
         print("🚀 Starting counter process...")
         adwin.update({'process_1': {'running': True}})
@@ -123,7 +123,7 @@ def debug_odmr_counter(use_real_hardware=False, config_path=None):
         print("=" * 50)
         print("Key Debug Parameters to Check:")
         print("1. Par_1 (Raw Counter): Should show counts if detector is working")
-        print("2. Par_4 (Step Index): Should increment from 0 to 9 (10 steps total)")
+        print("2. Par_4 (Step Index): Should increment from 0 to 4 (5 steps total)")
         print("3. Par_8 (Total Counts): Should accumulate counts over integration time")
         print("4. Par_12 (Event Cycles): Should increment continuously (shows process is running)")
         print("5. Par_13 (Integration Cycles): Should increment during integration time")
