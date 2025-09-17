@@ -87,25 +87,27 @@ def debug_odmr_counter(use_real_hardware=False, config_path=None):
         print("🚀 Starting counter process...")
         adwin.update({'process_1': {'running': True}})
         
-        # Monitor parameters for 2 seconds (should see all 10 steps with 5ms integration)
-        print("\n📊 Monitoring parameters (2 seconds)...")
-        print("Time | Par_1 | Par_4 | Par_8 | Par_12 | Par_13 | Par_14 | Par_15")
-        print("-" * 70)
+        # Monitor parameters for 1 second (should catch multiple cycles)
+        print("\n📊 Monitoring parameters (1 second)...")
+        print("Time | Par_1 | Par_4 | Par_5 | Par_8 | Par_9 | Par_12 | Par_13 | Par_14 | Par_15")
+        print("-" * 85)
         
         start_time = time.time()
-        while time.time() - start_time < 2:
+        while time.time() - start_time < 1:
             try:
                 # Read all diagnostic parameters from debug script
                 par_1 = adwin.get_int_var(1)    # Raw counter
                 par_4 = adwin.get_int_var(4)    # Step index
+                par_5 = adwin.get_int_var(5)    # Sweep direction (0=forward, 1=reverse)
                 par_8 = adwin.get_int_var(8)    # Total counts
+                par_9 = adwin.get_int_var(9)    # Sweep cycle (0=forward, 1=reverse, 2=complete)
                 par_12 = adwin.get_int_var(12)  # Event cycles
                 par_13 = adwin.get_int_var(13)  # Integration cycles
                 par_14 = adwin.get_int_var(14)  # Raw counter before clear
                 par_15 = adwin.get_int_var(15)  # Counter mode
                 
                 elapsed = time.time() - start_time
-                print(f"{elapsed:5.1f} | {par_1:5d} | {par_4:5d} | {par_8:5d} | {par_12:6d} | {par_13:6d} | {par_14:6d} | {par_15:5d}")
+                print(f"{elapsed:5.1f} | {par_1:5d} | {par_4:5d} | {par_5:5d} | {par_8:5d} | {par_9:5d} | {par_12:6d} | {par_13:6d} | {par_14:6d} | {par_15:5d}")
                 
                 time.sleep(0.05)  # Monitor every 50ms to catch 6ms steps
                 
@@ -124,11 +126,17 @@ def debug_odmr_counter(use_real_hardware=False, config_path=None):
         print("Key Debug Parameters to Check:")
         print("1. Par_1 (Raw Counter): Should show counts if detector is working")
         print("2. Par_4 (Step Index): Should increment from 0 to 9 (10 steps total)")
-        print("3. Par_8 (Total Counts): Should accumulate counts over integration time")
-        print("4. Par_12 (Event Cycles): Should increment continuously (shows process is running)")
-        print("5. Par_13 (Integration Cycles): Should increment during integration time")
-        print("6. Par_14 (Raw Counter Before Clear): Should show accumulated counts before clearing")
-        print("7. Par_15 (Counter Mode): Should be 8 (falling edge) - same as other working scripts")
+        print("3. Par_5 (Sweep Direction): 0=forward, 1=reverse")
+        print("4. Par_8 (Total Counts): Should accumulate counts over integration time")
+        print("5. Par_9 (Sweep Cycle): 0=forward, 1=reverse, 2=complete")
+        print("6. Par_12 (Event Cycles): Should increment continuously (shows process is running)")
+        print("7. Par_13 (Integration Cycles): Should increment during integration time")
+        print("8. Par_14 (Raw Counter Before Clear): Should show accumulated counts before clearing")
+        print("9. Par_15 (Counter Mode): Should be 8 (falling edge) - same as other working scripts")
+        print("\nExpected Pattern:")
+        print("- Forward sweep: Par_5=0, Par_9=0, Par_4 goes 0,1,2,3,4,5,6,7,8,9")
+        print("- Reverse sweep: Par_5=1, Par_9=1, Par_4 goes 0,1,2,3,4,5,6,7,8,9")
+        print("- Complete cycle: Par_5=0, Par_9=2, then resets to 0")
         print("\nIf Par_1 is always 0:")
         print("- Check detector connection to Adwin input")
         print("- Verify detector is powered on and working")
