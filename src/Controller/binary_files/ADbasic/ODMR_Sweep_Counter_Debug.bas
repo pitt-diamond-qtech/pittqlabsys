@@ -189,8 +189,8 @@ Event:
           ' Forward sweep complete, start reverse sweep
           sweep_direction = 1
           sweep_cycle = 1
-          step_index = 0
-          Par_4 = 0
+          step_index = Par_3 - 1  ' FIXED: Start reverse from last step
+          Par_4 = step_index
           Par_5 = 1  ' Reverse sweep
           
           ' Start reverse sweep from +1V (SG384 safe)
@@ -218,7 +218,13 @@ Event:
         
       ELSE
         ' Move to next voltage step in current direction
-        current_voltage = current_voltage + voltage_step
+        IF (sweep_direction = 0) THEN
+          ' Forward sweep: increment voltage
+          current_voltage = current_voltage + voltage_step
+        ELSE
+          ' Reverse sweep: decrement voltage
+          current_voltage = current_voltage + voltage_step
+        ENDIF
         
         ' CRITICAL: Clamp voltage to ±1V for SG384 safety
         IF (current_voltage > 1.0) THEN

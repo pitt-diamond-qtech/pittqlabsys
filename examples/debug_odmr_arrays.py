@@ -73,9 +73,9 @@ def debug_odmr_arrays(use_real_hardware=False, config_path=None):
         time.sleep(0.1)
         adwin.clear_process(1)
         
-        # Load the debug ODMR script (with detailed diagnostics)
-        script_path = get_adwin_binary_path('ODMR_Sweep_Counter_Debug.TB1')
-        print(f"📁 Loading debug ODMR script: {script_path}")
+    # Load the FIXED debug ODMR script (with corrected step progression)
+    script_path = get_adwin_binary_path('ODMR_Sweep_Counter_Debug.TB1')
+    print(f"📁 Loading FIXED debug ODMR script: {script_path}")
         adwin.update({'process_1': {'load': str(script_path)}})
         
         # Set up parameters for a complete sweep
