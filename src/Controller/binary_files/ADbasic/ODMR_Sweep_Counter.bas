@@ -40,7 +40,7 @@ Rem   Par_10 = START (1=run, 0=stop)
 Rem ============================================================
 
 Rem --- helper functions ---
-Function VoltsToDigits(v)
+Function VoltsToDigits(v) As Long
   VoltsToDigits = Round((v + 10.0) * 65535.0 / 20.0)
 EndFunction
 
