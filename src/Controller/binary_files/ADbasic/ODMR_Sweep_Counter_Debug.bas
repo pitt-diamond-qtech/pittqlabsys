@@ -104,19 +104,19 @@ Event:
 
   Rem --- snapshot parameters from Python (allows tweaking between sweeps) ---
   n_steps   = Par_1
-  If (n_steps < 2) Then n_steps = 2 EndIf
+  If (n_steps < 2) Then n_steps = 2 End If
   settle_us = Par_2
   dwell_us  = Par_3
   dac_ch    = Par_4
-  If (dac_ch < 1) Then dac_ch = 1 EndIf
-  If (dac_ch > 2) Then dac_ch = 2 EndIf
+  If (dac_ch < 1) Then dac_ch = 1 End If
+  If (dac_ch > 2) Then dac_ch = 2 End If
 
   vmin_dig  = VoltsToDigits(FPar_1)
   vmax_dig  = VoltsToDigits(FPar_2)
 
   Rem total points in triangle sweep (up and down, no repeated endpoints)
   n_points = (2 * n_steps) - 2
-  If (n_points < 2) Then n_points = 2 EndIf
+  If (n_points < 2) Then n_points = 2 End If
   Par_21 = n_points
 
   Rem Preload DAC to the first code so the first settle applies correctly
@@ -139,14 +139,14 @@ Event:
       pos = k
     Else
       pos = (2 * n_steps) - 2 - k
-    EndIf
+    End If
 
     Rem DAC code for this step
     If (n_steps > 1) Then
       step_dig = ((vmax_dig - vmin_dig) * pos) / (n_steps - 1)
     Else
       step_dig = 0
-    EndIf
+    End If
     Data_2[k+1] = vmin_dig + step_dig
 
     Rem DEBUG: Calculate and store current voltage
@@ -160,13 +160,13 @@ Event:
     Rem Settle after step change
     If (settle_us > 0) Then
       IO_Sleep(settle_us * 100)
-    EndIf
+    End If
 
     Rem Count during dwell window:
     Rem   Latch AFTER the dwell to get the integrated number of edges over dwell
     If (dwell_us > 0) Then
       IO_Sleep(dwell_us * 100)
-    EndIf
+    End If
     Cnt_Latch(0001b)
     cur_cnt = Cnt_Read_Latch(0001b)
 
@@ -174,8 +174,8 @@ Event:
     delta = cur_cnt - last_cnt
     If (delta < 0) Then
       Rem wrap-around correction for unsigned 32-bit hardware counter
-      delta = delta + 4294967295
-    EndIf
+      delta = delta + 4294967296
+    End If
     Data_1[k+1] = delta
     last_cnt = cur_cnt
 
@@ -189,7 +189,7 @@ Event:
     Rem short sleep to avoid hogging bus while waiting
     Rem 10 us
     IO_Sleep(1000)
-  Loop Until (Par_20 = 0 Or Par_10 = 0)
+  Loop Until (Par_20 = 0) Or (Par_10 = 0)
 
   Rem loop continues immediately for next sweep if Par_10 stays 1
   End
