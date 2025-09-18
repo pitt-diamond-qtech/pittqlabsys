@@ -53,8 +53,10 @@ Dim pos As Long
 Dim ready As Long
 
 Rem Allocate generous global buffers (PC reads the first Par_21 entries)
-Dim Data_1[200000] As Long   Rem counts
-Dim Data_2[200000] As Long   Rem dac digits
+Rem Data_1: counts per step
+Dim Data_1[200000] As Long
+Rem Data_2: dac digits per step  
+Dim Data_2[200000] As Long
 
 Init:
   Rem optional: set a modest Processdelay; timing uses P1_Sleep anyway
@@ -68,8 +70,10 @@ Init:
   Rem Mode bits (see manual): bit0=0 (clock/dir), bit2=1 (invert A/CLK), bit3=0 (DIR not inverted)
   Rem bits4-5=0 (use CLR input disabled), others 0.
   Cnt_Mode(1, 00000100b)
-  Cnt_SE_Diff(0000b)         Rem single-ended on all inputs
-  Cnt_Enable(0001b)          Rem start counter 1
+  Rem single-ended on all inputs
+  Cnt_SE_Diff(0000b)
+  Rem start counter 1
+  Cnt_Enable(0001b)
 
   Rem init handshake
   Par_20 = 0
@@ -160,7 +164,8 @@ Event:
   Par_20 = 1
   Do
     Rem short sleep to avoid hogging bus while waiting
-    P1_Sleep(1000)  Rem 10 us
+    Rem 10 us
+    P1_Sleep(1000)
   Loop While (Par_20 <> 0 And Par_10 <> 0)
 
   Rem loop continues immediately for next sweep if Par_10 stays 1
