@@ -10,8 +10,20 @@ import time
 from pathlib import Path
 
 # Add the src directory to the Python path
-project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root / "src"))
+# Get the absolute path to this script's directory
+script_dir = Path(__file__).resolve().parent
+# Go up one level to get the project root
+project_root = script_dir.parent
+# Add the src directory to Python path
+src_path = project_root / "src"
+sys.path.insert(0, str(src_path))
+
+# Debug: Print paths to help diagnose
+print(f"Script directory: {script_dir}")
+print(f"Project root: {project_root}")
+print(f"Source path: {src_path}")
+print(f"Source exists: {src_path.exists()}")
+print(f"Python path: {sys.path[:3]}")  # Show first 3 entries
 
 def main():
     """Test step progression with debug script."""
