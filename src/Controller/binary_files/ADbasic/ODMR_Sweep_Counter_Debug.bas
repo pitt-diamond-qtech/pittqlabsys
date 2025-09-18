@@ -189,7 +189,7 @@ Event:
           ' Forward sweep complete, start reverse sweep
           sweep_direction = 1
           sweep_cycle = 1
-          step_index = Par_3 - 1  ' FIXED: Start reverse from last step
+          step_index = 0  ' FIXED: Start reverse from first step (0)
           Par_4 = step_index
           Par_5 = 1  ' Reverse sweep
           
