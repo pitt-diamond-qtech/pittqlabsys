@@ -23,6 +23,15 @@ Rem   Par_4  = DAC_CH (1..2)
 Rem   Par_10 = START (1=run, 0=stop)
 Rem ============================================================
 
+Rem --- helper functions ---
+Function VoltsToDigits(v)
+  VoltsToDigits = Round((v + 10.0) * 65535.0 / 20.0)
+EndFunction
+
+Function DigitsToVolts(d)
+  DigitsToVolts = (d * 20.0 / 65535.0) - 10.0
+EndFunction
+
 Dim i, n_steps, n_points, k As Long
 Dim dac_ch As Long
 Dim settle_us, dwell_us As Long
@@ -36,17 +45,6 @@ Dim current_voltage As Float
 Rem Allocate generous global buffers (PC reads the first Par_21 entries)
 Dim Data_1[200000] As Long   Rem counts
 Dim Data_2[200000] As Long   Rem dac digits
-
-Rem --- helpers ---
-Function VoltsToDigits(v As Float) As Long
-  Rem Map +/-10 V to 0..65535 (0 -> -10V, 32768 -> 0V, 65535 -> +10V)
-  VoltsToDigits = Round( (v + 10.0) * 65535.0 / 20.0 )
-EndFunction
-
-Function DigitsToVolts(d As Long) As Float
-  Rem Map 0..65535 to +/-10V (0 -> -10V, 32768 -> 0V, 65535 -> +10V)
-  DigitsToVolts = (d * 20.0 / 65535.0) - 10.0
-EndFunction
 
 Init:
   Rem optional: set a modest Processdelay; timing uses P1_Sleep anyway
