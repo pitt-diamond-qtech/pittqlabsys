@@ -10,25 +10,13 @@ import time
 from pathlib import Path
 
 # Add the src directory to the Python path
-# First add the project root to path so we can import get_project_root
 project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root))
-
-# Now we can import and use get_project_root
-from src.core.helper_functions import get_project_root
-project_root = get_project_root()
 sys.path.insert(0, str(project_root / "src"))
 
 def main():
     """Test step progression with debug script."""
     print("🎯 Step Progression Test")
     print("🔧 Hardware mode: Real")
-    print()
-    
-    # Debug: Show Python path
-    print(f"🔍 Python path: {sys.path[:3]}...")
-    print(f"🔍 Project root: {project_root}")
-    print(f"🔍 Src path exists: {(project_root / 'src').exists()}")
     print()
     
     # Load real hardware
