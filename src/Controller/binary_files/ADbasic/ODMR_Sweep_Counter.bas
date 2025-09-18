@@ -1,3 +1,24 @@
+'<ADbasic Header, Headerversion 001.001>
+' Process_Number                 = 1
+' Initial_Processdelay           = 1000000
+' Eventsource                    = Timer
+' Control_long_Delays_for_Stop   = No
+' Priority                       = High
+' Version                        = 1
+' ADbasic_Version                = 6.3.0
+' Optimize                       = Yes
+' Optimize_Level                 = 1
+' Stacksize                      = 1000
+' Info_Last_Save                 = DUTTLAB8  Duttlab8\Duttlab
+'<Header End>
+'
+' ODMR Sweep Counter Script for Enhanced ODMR Experiments
+' This script generates a voltage ramp on DAC1 for SG384 modulation input
+' and counts photons synchronously during the sweep.
+'
+' IMPORTANT: Voltage is constrained to ±1V for SG384 compatibility
+' DAC operates at ±10V range for precision, but output is clamped to ±1V
+'
 #Include ADwinGoldII.inc
 
 Rem ============================================================
