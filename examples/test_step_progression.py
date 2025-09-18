@@ -9,7 +9,7 @@ import sys
 import time
 from pathlib import Path
 
-# Add the src directory to the Python path
+# Add the src directory to the Python path BEFORE any other imports
 # Get the absolute path to this script's directory
 script_dir = Path(__file__).resolve().parent
 # Go up one level to get the project root
@@ -25,6 +25,10 @@ print(f"Source path: {src_path}")
 print(f"Source exists: {src_path.exists()}")
 print(f"Python path: {sys.path[:3]}")  # Show first 3 entries
 
+# Now import the modules we need
+from src.core.device_config import load_devices_from_config
+from src.core.adwin_helpers import get_adwin_binary_path
+
 def main():
     """Test step progression with debug script."""
     print("🎯 Step Progression Test")
@@ -34,8 +38,6 @@ def main():
     # Load real hardware
     print("🔧 Loading real hardware...")
     try:
-        from src.core.device_config import load_devices_from_config
-        from src.core.adwin_helpers import get_adwin_binary_path
         
         # Load devices
         config_path = Path("src/config.json")
