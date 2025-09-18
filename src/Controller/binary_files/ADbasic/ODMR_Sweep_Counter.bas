@@ -84,7 +84,7 @@ Event:
 
   If (Par_10 = 0) Then
     Rem idle – keep comms alive
-    Return
+    End
   EndIf
 
   Rem --- snapshot parameters from Python (allows tweaking between sweeps) ---
@@ -136,13 +136,13 @@ Event:
 
     Rem Settle after step change
     If (settle_us > 0) Then
-      P1_Sleep(settle_us * 100)
+      IO_Sleep(settle_us * 100)
     EndIf
 
     Rem Count during dwell window:
     Rem   Latch AFTER the dwell to get the integrated number of edges over dwell
     If (dwell_us > 0) Then
-      P1_Sleep(dwell_us * 100)
+      IO_Sleep(dwell_us * 100)
     EndIf
     Cnt_Latch(0001b)
     cur_cnt = Cnt_Read_Latch(0001b)
@@ -151,7 +151,7 @@ Event:
     delta = cur_cnt - last_cnt
     If (delta < 0) Then
       Rem wrap-around correction for unsigned 32-bit hardware counter
-      delta = delta + 4294967296
+      delta = delta + 4294967295
     EndIf
     Data_1[k+1] = delta
     last_cnt = cur_cnt
@@ -165,8 +165,8 @@ Event:
   Do
     Rem short sleep to avoid hogging bus while waiting
     Rem 10 us
-    P1_Sleep(1000)
-  Loop While (Par_20 <> 0 And Par_10 <> 0)
+    IO_Sleep(1000)
+  Loop Until (Par_20 = 0 Or Par_10 = 0)
 
   Rem loop continues immediately for next sweep if Par_10 stays 1
-  Return
+  End
