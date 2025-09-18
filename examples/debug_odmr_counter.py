@@ -2,7 +2,7 @@
 """
 Debug ODMR Counter Script
 
-This script helps diagnose counting issues with the ODMR sweep counter.
+This script helps diagnose counting issues with the new triangle sweep counter.
 It loads the debug version of the ADbasic script and monitors all parameters.
 
 Usage:
@@ -22,14 +22,14 @@ from src.core.device_config import load_devices_from_config
 
 def debug_odmr_counter(use_real_hardware=False, config_path=None):
     """
-    Debug the ODMR counter by monitoring all parameters.
+    Debug the ODMR counter by monitoring all parameters with new triangle sweep.
     
     Args:
         use_real_hardware (bool): Whether to use real hardware
         config_path (str): Path to config.json file
     """
     print("\n" + "="*60)
-    print("ODMR COUNTER DEBUG SESSION")
+    print("ODMR COUNTER DEBUG SESSION - NEW TRIANGLE SWEEP")
     print("="*60)
     
     if use_real_hardware:
@@ -64,7 +64,7 @@ def debug_odmr_counter(use_real_hardware=False, config_path=None):
     
     print("\n🔍 Starting counter diagnostics...")
     
-    # Use the compiled debug version for detailed diagnostics
+    # Use the new triangle sweep debug script
     from src.core.adwin_helpers import get_adwin_binary_path
     
     try:
@@ -73,50 +73,51 @@ def debug_odmr_counter(use_real_hardware=False, config_path=None):
         time.sleep(0.1)
         adwin.clear_process(1)
         
-        # Load the debug ODMR script (with detailed diagnostics)
+        # Load the new triangle sweep debug script
         script_path = get_adwin_binary_path('ODMR_Sweep_Counter_Debug.TB1')
-        print(f"📁 Loading debug ODMR script: {script_path}")
+        print(f"📁 Loading new triangle sweep debug script: {script_path}")
         adwin.update({'process_1': {'load': str(script_path)}})
         
-        # Set up parameters matching real ODMR experiment (5ms integration time)
+        # Set up parameters for new script
         print("⚙️  Setting up test parameters...")
-        adwin.set_int_var(2, 5)      # Par_2: Integration time (5 cycles = ~5ms) - CRITICAL for speed
-        adwin.set_int_var(3, 10)     # Par_3: Number of steps (10 steps)
-        adwin.set_int_var(11, 1)     # Par_11: Settle time (1 cycle = ~1ms)
+        adwin.set_float_var(1, -1.0)  # FPar_1: Vmin (-1.0V)
+        adwin.set_float_var(2, 1.0)   # FPar_2: Vmax (+1.0V)
+        adwin.set_int_var(1, 10)      # Par_1: N_STEPS (10 steps)
+        adwin.set_int_var(2, 1000)    # Par_2: SETTLE_US (1ms)
+        adwin.set_int_var(3, 5000)    # Par_3: DWELL_US (5ms)
+        adwin.set_int_var(4, 1)       # Par_4: DAC_CH (1)
+        adwin.set_int_var(10, 0)      # Par_10: START (0=stop initially)
         
-        print("🚀 Starting counter process...")
-        adwin.update({'process_1': {'running': True}})
+        print("🚀 Starting triangle sweep...")
+        adwin.set_int_var(10, 1)  # Par_10: START (1=run)
         
-        # Monitor parameters for 1 second (should catch multiple cycles)
-        print("\n📊 Monitoring parameters (1 second)...")
-        print("Time | Par_1 | Par_4 | Par_5 | Par_8 | Par_9 | Par_12 | Par_13 | Par_14 | Par_15")
-        print("-" * 85)
+        # Monitor parameters for 2 seconds
+        print("\n📊 Monitoring parameters (2 seconds)...")
+        print("Time | Par_20 | Par_21 | Par_22 | Par_23 | Par_24 | Par_25")
+        print("-" * 60)
         
         start_time = time.time()
-        while time.time() - start_time < 1:
+        while time.time() - start_time < 2:
             try:
-                # Read all diagnostic parameters from debug script
-                par_1 = adwin.get_int_var(1)    # Raw counter
-                par_4 = adwin.get_int_var(4)    # Step index
-                par_5 = adwin.get_int_var(5)    # Sweep direction (0=forward, 1=reverse)
-                par_8 = adwin.get_int_var(8)    # Total counts
-                par_9 = adwin.get_int_var(9)    # Sweep cycle (0=forward, 1=reverse, 2=complete)
-                par_12 = adwin.get_int_var(12)  # Event cycles
-                par_13 = adwin.get_int_var(13)  # Integration cycles
-                par_14 = adwin.get_int_var(14)  # Raw counter before clear
-                par_15 = adwin.get_int_var(15)  # Counter mode
+                # Read all diagnostic parameters from new script
+                par_20 = adwin.get_int_var(20)  # Sweep ready flag
+                par_21 = adwin.get_int_var(21)  # Number of points
+                par_22 = adwin.get_int_var(22)  # Current step index
+                par_23 = adwin.get_int_var(23)  # Current position in triangle
+                par_24 = adwin.get_float_var(24)  # Current voltage
+                par_25 = adwin.get_int_var(25)  # Event cycle counter
                 
                 elapsed = time.time() - start_time
-                print(f"{elapsed:5.1f} | {par_1:5d} | {par_4:5d} | {par_5:5d} | {par_8:5d} | {par_9:5d} | {par_12:6d} | {par_13:6d} | {par_14:6d} | {par_15:5d}")
+                print(f"{elapsed:5.1f} | {par_20:6d} | {par_21:6d} | {par_22:6d} | {par_23:6d} | {par_24:6.2f} | {par_25:6d}")
                 
-                time.sleep(0.05)  # Monitor every 50ms to catch 6ms steps
+                time.sleep(0.1)  # Monitor every 100ms
                 
             except Exception as e:
                 print(f"❌ Error reading parameters: {e}")
                 break
         
         print("\n🛑 Stopping process...")
-        adwin.update({'process_1': {'running': False}})
+        adwin.set_int_var(10, 0)  # Par_10: START (0=stop)
         adwin.stop_process(1)
         time.sleep(0.1)
         adwin.clear_process(1)
@@ -124,28 +125,23 @@ def debug_odmr_counter(use_real_hardware=False, config_path=None):
         print("\n📋 Final Analysis:")
         print("=" * 50)
         print("Key Debug Parameters to Check:")
-        print("1. Par_1 (Raw Counter): Should show counts if detector is working")
-        print("2. Par_4 (Step Index): Should increment from 0 to 9 (10 steps total)")
-        print("3. Par_5 (Sweep Direction): 0=forward, 1=reverse")
-        print("4. Par_8 (Total Counts): Should accumulate counts over integration time")
-        print("5. Par_9 (Sweep Cycle): 0=forward, 1=reverse, 2=complete")
-        print("6. Par_12 (Event Cycles): Should increment continuously (shows process is running)")
-        print("7. Par_13 (Integration Cycles): Should increment during integration time")
-        print("8. Par_14 (Raw Counter Before Clear): Should show accumulated counts before clearing")
-        print("9. Par_15 (Counter Mode): Should be 8 (falling edge) - same as other working scripts")
+        print("1. Par_20 (Sweep Ready): 0=in progress, 1=ready for Python to read")
+        print("2. Par_21 (Number of Points): Should be 18 (10 forward + 8 reverse, no repeated endpoints)")
+        print("3. Par_22 (Current Step): Should increment from 0 to 17 during sweep")
+        print("4. Par_23 (Position): Should go 0,1,2,3,4,5,6,7,8,9,8,7,6,5,4,3,2,1 (triangle)")
+        print("5. Par_24 (Voltage): Should sweep from -1.0V to +1.0V and back")
+        print("6. Par_25 (Event Cycles): Should increment continuously (shows process is running)")
         print("\nExpected Pattern:")
-        print("- Forward sweep: Par_5=0, Par_9=0, Par_4 goes 0,1,2,3,4,5,6,7,8,9")
-        print("- Reverse sweep: Par_5=1, Par_9=1, Par_4 goes 0,1,2,3,4,5,6,7,8,9")
-        print("- Complete cycle: Par_5=0, Par_9=2, then resets to 0")
-        print("\nIf Par_1 is always 0:")
-        print("- Check detector connection to Adwin input")
-        print("- Verify detector is powered on and working")
-        print("- Check if detector output is connected to correct input")
-        print("- If Par_12 is incrementing but Par_1 is 0, detector signal issue")
-        print("- If Par_13 is incrementing but Par_8 is 0, counter clearing issue")
-        print("\nIf Par_1 shows counts but Par_8 is 0:")
-        print("- Counter clearing logic issue (should be fixed now)")
-        print("- Check if integration time is too short")
+        print("- Forward sweep: Par_23 goes 0,1,2,3,4,5,6,7,8,9")
+        print("- Reverse sweep: Par_23 goes 8,7,6,5,4,3,2,1 (no repeated endpoints)")
+        print("- Total points: 18 (not 20 like old script)")
+        print("- Voltage: -1.0V to +1.0V and back to -1.0V")
+        print("\nIf Par_25 is not incrementing:")
+        print("- Process is not running or crashed")
+        print("- Check ADbasic script compilation")
+        print("\nIf Par_20 stays 0:")
+        print("- Sweep is still in progress")
+        print("- Wait longer or check if process is stuck")
         
         return True
         
@@ -165,7 +161,7 @@ def debug_mock_counter():
 
 def main():
     """Main function."""
-    parser = argparse.ArgumentParser(description='Debug ODMR Counter')
+    parser = argparse.ArgumentParser(description='Debug ODMR Counter - New Triangle Sweep')
     parser.add_argument('--real-hardware', action='store_true',
                        help='Use real hardware instead of mock hardware')
     parser.add_argument('--config', type=str, default=None,
@@ -173,7 +169,7 @@ def main():
     
     args = parser.parse_args()
     
-    print("🎯 ODMR Counter Debug Tool")
+    print("🎯 ODMR Counter Debug Tool - New Triangle Sweep")
     print(f"🔧 Hardware mode: {'Real' if args.real_hardware else 'Mock'}")
     
     success = debug_odmr_counter(args.real_hardware, args.config)

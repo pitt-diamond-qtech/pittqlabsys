@@ -3,7 +3,7 @@
 Debug ODMR Arrays Script
 
 This script waits for a complete ODMR sweep and then reads all the data arrays
-from the Adwin to verify step progression and data capture.
+from the Adwin to verify step progression and data capture with the new triangle sweep.
 
 Usage:
     python debug_odmr_arrays.py --real-hardware
@@ -29,7 +29,7 @@ def debug_odmr_arrays(use_real_hardware=False, config_path=None):
         config_path (str): Path to config.json file
     """
     print("\n" + "="*60)
-    print("ODMR ARRAYS DEBUG SESSION")
+    print("ODMR ARRAYS DEBUG SESSION - NEW TRIANGLE SWEEP")
     print("="*60)
     
     if use_real_hardware:
@@ -64,7 +64,7 @@ def debug_odmr_arrays(use_real_hardware=False, config_path=None):
     
     print("\n🔍 Starting array diagnostics...")
     
-    # Use the compiled debug version for detailed diagnostics
+    # Use the new triangle sweep debug script
     from src.core.adwin_helpers import get_adwin_binary_path
     
     try:
@@ -73,37 +73,42 @@ def debug_odmr_arrays(use_real_hardware=False, config_path=None):
         time.sleep(0.1)
         adwin.clear_process(1)
         
-        # Load the IXED debug ODMR script (with corrected step progression)
+        # Load the new triangle sweep debug script
         script_path = get_adwin_binary_path('ODMR_Sweep_Counter_Debug.TB1')
-        print(f"📁 Loading original ODMR script: {script_path}")
+        print(f"📁 Loading new triangle sweep debug script: {script_path}")
         adwin.update({'process_1': {'load': str(script_path)}})
         
-        # Set up parameters for a complete sweep
+        # Set up parameters for new script
         print("⚙️  Setting up test parameters...")
-        adwin.set_int_var(2, 5)      # Par_2: Integration time (5 cycles = ~5ms)
-        adwin.set_int_var(3, 10)     # Par_3: Number of steps (10 steps)
-        adwin.set_int_var(11, 1)     # Par_11: Settle time (1 cycle = ~1ms)
+        adwin.set_float_var(1, -1.0)  # FPar_1: Vmin (-1.0V)
+        adwin.set_float_var(2, 1.0)   # FPar_2: Vmax (+1.0V)
+        adwin.set_int_var(1, 10)      # Par_1: N_STEPS (10 steps)
+        adwin.set_int_var(2, 1000)    # Par_2: SETTLE_US (1ms)
+        adwin.set_int_var(3, 5000)    # Par_3: DWELL_US (5ms)
+        adwin.set_int_var(4, 1)       # Par_4: DAC_CH (1)
+        adwin.set_int_var(10, 0)      # Par_10: START (0=stop initially)
         
-        print("🚀 Starting counter process...")
-        adwin.update({'process_1': {'running': True}})
+        print("🚀 Starting triangle sweep...")
+        adwin.set_int_var(10, 1)  # Par_10: START (1=run)
         
-        # Wait for sweep to complete (monitor Par_7 = sweep complete flag)
+        # Wait for sweep to complete (monitor Par_20 = sweep ready flag)
         print("\n⏳ Waiting for sweep to complete...")
-        print("Monitoring Par_7 (sweep complete flag)...")
+        print("Monitoring Par_20 (sweep ready flag)...")
         
         start_time = time.time()
         timeout = 10  # 10 second timeout
         
         while time.time() - start_time < timeout:
             try:
-                par_7 = adwin.get_int_var(7)    # Sweep complete flag
-                par_9 = adwin.get_int_var(9)    # Sweep cycle
-                par_16 = adwin.get_int_var(16)  # Total captured steps
+                par_20 = adwin.get_int_var(20)    # Sweep ready flag
+                par_21 = adwin.get_int_var(21)    # Number of points
+                par_22 = adwin.get_int_var(22)    # Current step index
+                par_25 = adwin.get_int_var(25)    # Event cycle counter
                 
                 elapsed = time.time() - start_time
-                print(f"  {elapsed:5.1f}s | Par_7={par_7} | Par_9={par_9} | Par_16={par_16}")
+                print(f"  {elapsed:5.1f}s | Par_20={par_20} | Par_21={par_21} | Par_22={par_22} | Par_25={par_25}")
                 
-                if par_7 == 1:  # Sweep complete
+                if par_20 == 1:  # Sweep ready
                     print("✅ Sweep completed!")
                     break
                     
@@ -119,123 +124,104 @@ def debug_odmr_arrays(use_real_hardware=False, config_path=None):
         # Read all the data arrays
         print("\n📊 Reading data arrays...")
         
+        # Get the number of points from the script
+        n_points = adwin.get_int_var(21)
+        print(f"📊 Number of points in sweep: {n_points}")
+        
         # Read the main data arrays using the correct method
         try:
             # Read arrays using read_probes with correct array types
-            forward_counts = adwin.read_probes('int_array', 1, 20)  # Data_1: Forward sweep counts
-            reverse_counts = adwin.read_probes('int_array', 2, 20)  # Data_2: Reverse sweep counts
-            forward_voltages = adwin.read_probes('float_array', 3, 20)  # Data_3: Forward sweep voltages
-            reverse_voltages = adwin.read_probes('float_array', 4, 20)  # Data_4: Reverse sweep voltages
-            
-            # Read the debug capture arrays
-            step_indices = adwin.read_probes('int_array', 5, 20)    # Data_5: Step indices
-            sweep_directions = adwin.read_probes('int_array', 6, 20)  # Data_6: Sweep directions
-            integration_cycles = adwin.read_probes('int_array', 7, 20)  # Data_7: Integration cycles
-            event_cycles = adwin.read_probes('int_array', 8, 20)    # Data_8: Event cycles
+            counts = adwin.read_probes('int_array', 1, n_points)  # Data_1: counts per step
+            dac_digits = adwin.read_probes('int_array', 2, n_points)  # Data_2: DAC digits per step
             
         except Exception as e:
             print(f"⚠️  Error reading arrays with read_probes: {e}")
             print("   Trying alternative method...")
             
             # Fallback: try reading individual elements
-            forward_counts = []
-            reverse_counts = []
-            forward_voltages = []
-            reverse_voltages = []
-            step_indices = []
-            sweep_directions = []
-            integration_cycles = []
-            event_cycles = []
+            counts = []
+            dac_digits = []
             
-            # Read first 20 elements of each array
-            for i in range(20):
+            # Read first n_points elements of each array
+            for i in range(n_points):
                 try:
-                    forward_counts.append(adwin.get_int_var(1 + i))
-                    reverse_counts.append(adwin.get_int_var(1001 + i))
-                    forward_voltages.append(adwin.get_float_var(1 + i))
-                    reverse_voltages.append(adwin.get_float_var(1001 + i))
-                    step_indices.append(adwin.get_int_var(2001 + i))
-                    sweep_directions.append(adwin.get_int_var(3001 + i))
-                    integration_cycles.append(adwin.get_int_var(4001 + i))
-                    event_cycles.append(adwin.get_int_var(5001 + i))
+                    counts.append(adwin.get_int_var(1 + i))
+                    dac_digits.append(adwin.get_int_var(1001 + i))
                 except:
                     break
         
-        # Get final parameters
-        total_captured = adwin.get_int_var(16)
-        
-        print(f"📊 Total captured steps: {total_captured}")
-        print(f"📊 Forward counts array length: {len(forward_counts)}")
-        print(f"📊 Reverse counts array length: {len(reverse_counts)}")
-        print(f"📊 Forward voltages array length: {len(forward_voltages)}")
-        print(f"📊 Reverse voltages array length: {len(reverse_voltages)}")
-        print(f"📊 Step indices array length: {len(step_indices)}")
-        print(f"📊 Sweep directions array length: {len(sweep_directions)}")
+        print(f"📊 Counts array length: {len(counts)}")
+        print(f"📊 DAC digits array length: {len(dac_digits)}")
         
         # Analyze the captured data
         print("\n📋 Analysis of Captured Data:")
         print("=" * 50)
         
-        if total_captured > 0:
-            print(f"✅ Successfully captured {total_captured} steps")
+        if len(counts) > 0:
+            print(f"✅ Successfully captured {len(counts)} data points")
             
-            # Show first 20 captured steps
-            print("\nFirst 20 captured steps:")
-            print("Index | Step | Direction | Integration | Event")
-            print("-" * 50)
-            for i in range(min(20, total_captured)):
-                step = step_indices[i] if i < len(step_indices) else 0
-                direction = sweep_directions[i] if i < len(sweep_directions) else 0
-                integration = integration_cycles[i] if i < len(integration_cycles) else 0
-                event = event_cycles[i] if i < len(event_cycles) else 0
-                print(f"{i:5d} | {step:4d} | {direction:9d} | {integration:11d} | {event:5d}")
+            # Show first 20 captured points
+            print("\nFirst 20 captured points:")
+            print("Index | Counts | DAC Digits | Voltage (V)")
+            print("-" * 45)
+            for i in range(min(20, len(counts))):
+                count = counts[i] if i < len(counts) else 0
+                dac = dac_digits[i] if i < len(dac_digits) else 0
+                # Convert DAC digits to voltage: (dac * 20.0 / 65535.0) - 10.0
+                voltage = (dac * 20.0 / 65535.0) - 10.0
+                print(f"{i:5d} | {count:6d} | {dac:10d} | {voltage:10.3f}")
             
             # Check for expected pattern
             print("\nPattern Analysis:")
-            if total_captured >= 20:  # Should have 10 forward + 10 reverse steps
-                print("✅ Captured enough steps for complete sweep")
+            if len(counts) >= 18:  # Should have 18 points (10 forward + 8 reverse)
+                print("✅ Captured enough points for complete triangle sweep")
                 
-                # Check forward sweep (first 10 steps)
-                forward_steps = step_indices[:10]
-                forward_dirs = sweep_directions[:10]
-                print(f"Forward sweep steps: {forward_steps}")
-                print(f"Forward sweep directions: {forward_dirs}")
+                # Check forward sweep (first 10 points)
+                forward_counts = counts[:10]
+                forward_voltages = [(dac_digits[i] * 20.0 / 65535.0) - 10.0 for i in range(10)]
+                print(f"Forward sweep counts: {forward_counts}")
+                print(f"Forward sweep voltages: {[f'{v:.2f}' for v in forward_voltages]}")
                 
-                # Check reverse sweep (next 10 steps)
-                if total_captured >= 20:
-                    reverse_steps = step_indices[10:20]
-                    reverse_dirs = sweep_directions[10:20]
-                    print(f"Reverse sweep steps: {reverse_steps}")
-                    print(f"Reverse sweep directions: {reverse_dirs}")
+                # Check reverse sweep (next 8 points)
+                if len(counts) >= 18:
+                    reverse_counts = counts[10:18]
+                    reverse_voltages = [(dac_digits[i] * 20.0 / 65535.0) - 10.0 for i in range(10, 18)]
+                    print(f"Reverse sweep counts: {reverse_counts}")
+                    print(f"Reverse sweep voltages: {[f'{v:.2f}' for v in reverse_voltages]}")
                 
-                # Verify step progression
-                expected_forward = list(range(10))
-                expected_reverse = list(range(10))
+                # Verify voltage progression
+                expected_forward_voltages = [-1.0 + i * 2.0 / 9.0 for i in range(10)]  # -1.0 to +1.0
+                expected_reverse_voltages = [1.0 - i * 2.0 / 9.0 for i in range(1, 9)]  # +0.78 to -0.78 (no repeated endpoints)
                 
-                if forward_steps == expected_forward:
-                    print("✅ Forward sweep step progression correct (0,1,2,3,4,5,6,7,8,9)")
+                print(f"\nExpected forward voltages: {[f'{v:.2f}' for v in expected_forward_voltages]}")
+                print(f"Expected reverse voltages: {[f'{v:.2f}' for v in expected_reverse_voltages]}")
+                
+                # Check if voltages are close to expected (within 0.1V tolerance)
+                forward_ok = all(abs(actual - expected) < 0.1 for actual, expected in zip(forward_voltages, expected_forward_voltages))
+                reverse_ok = all(abs(actual - expected) < 0.1 for actual, expected in zip(reverse_voltages, expected_reverse_voltages))
+                
+                if forward_ok:
+                    print("✅ Forward sweep voltage progression correct")
                 else:
-                    print(f"❌ Forward sweep step progression incorrect: {forward_steps}")
+                    print("❌ Forward sweep voltage progression incorrect")
                 
-                if total_captured >= 20 and reverse_steps == expected_reverse:
-                    print("✅ Reverse sweep step progression correct (0,1,2,3,4,5,6,7,8,9)")
-                elif total_captured >= 20:
-                    print(f"❌ Reverse sweep step progression incorrect: {reverse_steps}")
+                if reverse_ok:
+                    print("✅ Reverse sweep voltage progression correct")
+                else:
+                    print("❌ Reverse sweep voltage progression incorrect")
                 
             else:
-                print(f"⚠️  Only captured {total_captured} steps, expected 20 (10 forward + 10 reverse)")
+                print(f"⚠️  Only captured {len(counts)} points, expected 18 (10 forward + 8 reverse)")
         else:
-            print("❌ No steps captured!")
+            print("❌ No data points captured!")
         
         # Check data arrays
         print("\nData Array Analysis:")
-        print(f"Forward counts: {forward_counts[:10]}...")
-        print(f"Reverse counts: {reverse_counts[:10]}...")
-        print(f"Forward voltages: {forward_voltages[:10]}...")
-        print(f"Reverse voltages: {reverse_voltages[:10]}...")
+        print(f"Counts: {counts[:10]}...")
+        print(f"DAC digits: {dac_digits[:10]}...")
         
         print("\n🛑 Stopping process...")
-        adwin.update({'process_1': {'running': False}})
+        adwin.set_int_var(10, 0)  # Par_10: START (0=stop)
         adwin.stop_process(1)
         time.sleep(0.1)
         adwin.clear_process(1)
@@ -258,7 +244,7 @@ def debug_mock_arrays():
 
 def main():
     """Main function."""
-    parser = argparse.ArgumentParser(description='Debug ODMR Arrays')
+    parser = argparse.ArgumentParser(description='Debug ODMR Arrays - New Triangle Sweep')
     parser.add_argument('--real-hardware', action='store_true',
                        help='Use real hardware instead of mock hardware')
     parser.add_argument('--config', type=str, default=None,
@@ -266,7 +252,7 @@ def main():
     
     args = parser.parse_args()
     
-    print("🎯 ODMR Arrays Debug Tool")
+    print("🎯 ODMR Arrays Debug Tool - New Triangle Sweep")
     print(f"🔧 Hardware mode: {'Real' if args.real_hardware else 'Mock'}")
     
     success = debug_odmr_arrays(args.real_hardware, args.config)
