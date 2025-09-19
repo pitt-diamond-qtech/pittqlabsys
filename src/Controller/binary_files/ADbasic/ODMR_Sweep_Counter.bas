@@ -148,13 +148,13 @@ Event:
 
     Rem Settle after step change
     IF (settle_us > 0) THEN
-      P1_Sleep(settle_us * 100)
+      IO_Sleep(settle_us * 100)
     ENDIF
       
     Rem Count during dwell window:
     Rem   Latch AFTER the dwell to get the integrated number of edges over dwell
     IF (dwell_us > 0) THEN
-      P1_Sleep(dwell_us * 100)
+      IO_Sleep(dwell_us * 100)
     ENDIF
     Cnt_Latch(0001b)
     cur_cnt = Cnt_Read_Latch(0001b)
@@ -176,10 +176,10 @@ Event:
   DO
     Rem short sleep to avoid hogging bus while waiting
     Rem 10 us
-    P1_Sleep(1000)
+    IO_Sleep(1000)
     Rem reset watchdog during PC handshake to prevent timeout
     Watchdog_Reset()
-  UNTIL (Par_20 = 0) OR (Par_10 = 0)
+  UNTIL ((Par_20 = 0) OR (Par_10 = 0))
 
   Rem loop continues immediately for next sweep if Par_10 stays 1
   End
