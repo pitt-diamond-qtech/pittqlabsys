@@ -43,12 +43,13 @@ Dim Par_10 As Long
 Dim Par_20 As Long
 Dim Par_25 As Long
 
-Par_10 = 0
-Par_20 = 0
-Par_25 = 0
+
 
 Init:
   Par_20 = 1
+  Par_10 = 0
+  Par_20 = 0
+  Par_25 = 0
 
 Event:
   Par_25 = Par_25 + 1
@@ -56,8 +57,6 @@ Event:
 
 Finish:
   End"""
-
-    # Test 2: Counter setup only
     counter_script = """'<ADbasic Header, Headerversion 001.001>
 ' Process_Number                 = 1
 ' Initial_Processdelay           = 1000000
@@ -77,9 +76,7 @@ Dim Par_10 As Long
 Dim Par_20 As Long
 Dim Par_25 As Long
 
-Par_10 = 0
-Par_20 = 0
-Par_25 = 0
+
 
 Init:
   ' Test counter setup
@@ -89,6 +86,9 @@ Init:
   Cnt_SE_Diff(0000b)
   Cnt_Enable(0001b)
   Par_20 = 1
+  Par_10 = 0
+  Par_20 = 0
+  Par_25 = 0
 
 Event:
   Par_25 = Par_25 + 1
@@ -96,6 +96,7 @@ Event:
 
 Finish:
   End"""
+
 
     # Test 3: DAC setup only
     dac_script = """'<ADbasic Header, Headerversion 001.001>
@@ -117,15 +118,16 @@ Dim Par_10 As Long
 Dim Par_20 As Long
 Dim Par_25 As Long
 
-Par_10 = 0
-Par_20 = 0
-Par_25 = 0
+
 
 Init:
   ' Test DAC setup
   Write_DAC(1, 32768)  ' Mid-range value
   Start_DAC()
   Par_20 = 1
+  Par_10 = 0
+  Par_20 = 0
+  Par_25 = 0
 
 Event:
   Par_25 = Par_25 + 1
@@ -154,9 +156,7 @@ Dim Par_10 As Long
 Dim Par_20 As Long
 Dim Par_25 As Long
 
-Par_10 = 0
-Par_20 = 0
-Par_25 = 0
+
 
 Init:
   ' Test both counter and DAC
@@ -170,6 +170,9 @@ Init:
   Start_DAC()
   
   Par_20 = 1
+  Par_10 = 0
+  Par_20 = 0
+  Par_25 = 0
 
 Event:
   Par_25 = Par_25 + 1
