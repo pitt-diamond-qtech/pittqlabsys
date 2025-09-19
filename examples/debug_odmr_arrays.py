@@ -13,11 +13,17 @@ import argparse
 import sys
 import time
 from pathlib import Path
+import numpy as np
 
 # Add the project root to the path
 sys.path.insert(0, str(Path(__file__).parent / '..'))
 
 from src.core.device_config import load_devices_from_config
+
+
+def v_to_d(v):
+    """Convert voltage to DAC digits."""
+    return int(round((v + 10.0) * 65535.0 / 20.0))
 
 
 def debug_odmr_arrays(use_real_hardware=False, config_path=None):
@@ -77,6 +83,8 @@ def debug_odmr_arrays(use_real_hardware=False, config_path=None):
         script_path = get_adwin_binary_path('ODMR_Sweep_Counter_Debug.TB1')
         print(f"📁 Loading new triangle sweep debug script: {script_path}")
         adwin.update({'process_1': {'load': str(script_path)}})
+        print("▶️  Starting process 1...")
+        adwin.start_process(1)
         
         # Set up parameters for new script
         print("⚙️  Setting up test parameters...")
@@ -96,7 +104,7 @@ def debug_odmr_arrays(use_real_hardware=False, config_path=None):
         print("Monitoring Par_20 (sweep ready flag)...")
         
         start_time = time.time()
-        timeout = 10  # 10 second timeout
+        timeout = 2.0  # 2 second timeout (sweep should complete in ~60ms)
         
         while time.time() - start_time < timeout:
             try:
@@ -124,9 +132,15 @@ def debug_odmr_arrays(use_real_hardware=False, config_path=None):
         # Read all the data arrays
         print("\n📊 Reading data arrays...")
         
-        # Get the number of points from the script
+        # Get the number of points and validate
         n_points = adwin.get_int_var(21)
+        n_steps = adwin.get_int_var(1)
+        expected = 2 * n_steps - 2  # = 2*N_STEPS-2
         print(f"📊 Number of points in sweep: {n_points}")
+        print(f"📊 Expected points: {expected}")
+        
+        if n_points != expected or n_points <= 0:
+            raise RuntimeError(f"Unexpected n_points={n_points}, expected {expected}")
         
         # Read the main data arrays using the correct method
         try:
@@ -138,17 +152,25 @@ def debug_odmr_arrays(use_real_hardware=False, config_path=None):
             print(f"⚠️  Error reading arrays with read_probes: {e}")
             print("   Trying alternative method...")
             
-            # Fallback: try reading individual elements
-            counts = []
-            dac_digits = []
-            
-            # Read first n_points elements of each array
-            for i in range(n_points):
-                try:
-                    counts.append(adwin.get_int_var(1 + i))
-                    dac_digits.append(adwin.get_int_var(1001 + i))
-                except:
-                    break
+            # Fallback: try alternative common APIs
+            try:
+                counts = adwin.get_data(1, n_points)    # Data_1
+                dac_digits = adwin.get_data(2, n_points)    # Data_2
+            except Exception as e2:
+                print(f"⚠️  Error with get_data: {e2}")
+                print("   Trying individual element reading...")
+                
+                # Last resort: try reading individual elements
+                counts = []
+                dac_digits = []
+                
+                # Read first n_points elements of each array
+                for i in range(n_points):
+                    try:
+                        counts.append(adwin.get_int_var(1 + i))
+                        dac_digits.append(adwin.get_int_var(1001 + i))
+                    except:
+                        break
         
         print(f"📊 Counts array length: {len(counts)}")
         print(f"📊 DAC digits array length: {len(dac_digits)}")
@@ -171,47 +193,44 @@ def debug_odmr_arrays(use_real_hardware=False, config_path=None):
                 voltage = (dac * 20.0 / 65535.0) - 10.0
                 print(f"{i:5d} | {count:6d} | {dac:10d} | {voltage:10.3f}")
             
+            # Voltage validation using numpy
+            print("\n🔍 Voltage Progression Validation:")
+            vmin, vmax = adwin.get_float_var(1), adwin.get_float_var(2)
+            v_up = np.linspace(vmin, vmax, n_steps)
+            v_down = np.linspace(vmax, vmin, n_steps)[1:-1]  # no repeated endpoints
+            expected_digits = [v_to_d(v) for v in np.concatenate([v_up, v_down])]
+            
+            # Compare to dac_digits with a small tolerance for rounding
+            ok = all(abs(dac_digits[i] - expected_digits[i]) <= 1 for i in range(len(expected_digits)))
+            print(f"Voltage-to-digits progression OK? {ok}")
+            
+            if ok:
+                print("✅ DAC voltage progression matches expected triangle sweep")
+            else:
+                print("❌ DAC voltage progression does not match expected pattern")
+                print(f"Expected digits: {expected_digits[:10]}...")
+                print(f"Actual digits:   {dac_digits[:10]}...")
+            
             # Check for expected pattern
             print("\nPattern Analysis:")
-            if len(counts) >= 18:  # Should have 18 points (10 forward + 8 reverse)
-                print("✅ Captured enough points for complete triangle sweep")
+            if len(counts) >= expected:  # Should have 2*N_STEPS-2 points
+                print(f"✅ Captured enough points for complete triangle sweep ({len(counts)}/{expected})")
                 
-                # Check forward sweep (first 10 points)
-                forward_counts = counts[:10]
-                forward_voltages = [(dac_digits[i] * 20.0 / 65535.0) - 10.0 for i in range(10)]
+                # Check forward sweep (first n_steps points)
+                forward_counts = counts[:n_steps]
+                forward_voltages = [(dac_digits[i] * 20.0 / 65535.0) - 10.0 for i in range(n_steps)]
                 print(f"Forward sweep counts: {forward_counts}")
                 print(f"Forward sweep voltages: {[f'{v:.2f}' for v in forward_voltages]}")
                 
-                # Check reverse sweep (next 8 points)
-                if len(counts) >= 18:
-                    reverse_counts = counts[10:18]
-                    reverse_voltages = [(dac_digits[i] * 20.0 / 65535.0) - 10.0 for i in range(10, 18)]
+                # Check reverse sweep (remaining points)
+                if len(counts) >= expected:
+                    reverse_counts = counts[n_steps:expected]
+                    reverse_voltages = [(dac_digits[i] * 20.0 / 65535.0) - 10.0 for i in range(n_steps, expected)]
                     print(f"Reverse sweep counts: {reverse_counts}")
                     print(f"Reverse sweep voltages: {[f'{v:.2f}' for v in reverse_voltages]}")
                 
-                # Verify voltage progression
-                expected_forward_voltages = [-1.0 + i * 2.0 / 9.0 for i in range(10)]  # -1.0 to +1.0
-                expected_reverse_voltages = [1.0 - i * 2.0 / 9.0 for i in range(1, 9)]  # +0.78 to -0.78 (no repeated endpoints)
-                
-                print(f"\nExpected forward voltages: {[f'{v:.2f}' for v in expected_forward_voltages]}")
-                print(f"Expected reverse voltages: {[f'{v:.2f}' for v in expected_reverse_voltages]}")
-                
-                # Check if voltages are close to expected (within 0.1V tolerance)
-                forward_ok = all(abs(actual - expected) < 0.1 for actual, expected in zip(forward_voltages, expected_forward_voltages))
-                reverse_ok = all(abs(actual - expected) < 0.1 for actual, expected in zip(reverse_voltages, expected_reverse_voltages))
-                
-                if forward_ok:
-                    print("✅ Forward sweep voltage progression correct")
-                else:
-                    print("❌ Forward sweep voltage progression incorrect")
-                
-                if reverse_ok:
-                    print("✅ Reverse sweep voltage progression correct")
-                else:
-                    print("❌ Reverse sweep voltage progression incorrect")
-                
             else:
-                print(f"⚠️  Only captured {len(counts)} points, expected 18 (10 forward + 8 reverse)")
+                print(f"⚠️  Only captured {len(counts)} points, expected {expected} (2*N_STEPS-2)")
         else:
             print("❌ No data points captured!")
         
@@ -220,11 +239,8 @@ def debug_odmr_arrays(use_real_hardware=False, config_path=None):
         print(f"Counts: {counts[:10]}...")
         print(f"DAC digits: {dac_digits[:10]}...")
         
-        print("\n🛑 Stopping process...")
-        adwin.set_int_var(10, 0)  # Par_10: START (0=stop)
-        adwin.stop_process(1)
-        time.sleep(0.1)
-        adwin.clear_process(1)
+        # Clear ready flag to enable next sweep
+        adwin.set_int_var(20, 0)
         
         return True
         
@@ -233,6 +249,19 @@ def debug_odmr_arrays(use_real_hardware=False, config_path=None):
         import traceback
         traceback.print_exc()
         return False
+        
+    finally:
+        # Always clean up, even if there was an error
+        try:
+            adwin.set_int_var(10, 0)  # ensure START=0
+        except Exception:
+            pass
+        try:
+            adwin.stop_process(1)
+            time.sleep(0.1)
+            adwin.clear_process(1)
+        except Exception:
+            pass
 
 
 def debug_mock_arrays():
