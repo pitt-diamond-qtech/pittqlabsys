@@ -25,14 +25,15 @@ Dim Par_23 As Long    ' Position in triangle
 Dim Par_24 As Float   ' Current voltage
 Dim Par_25 As Long    ' Event cycle counter
 
-' Initialize parameters
-Par_10 = 0
-Par_20 = 0
-Par_21 = 0
-Par_22 = 0
-Par_23 = 0
-Par_24 = 0.0
-Par_25 = 0
+Init:
+    ' Initialize parameters
+    Par_10 = 0
+    Par_20 = 0
+    Par_21 = 0
+    Par_22 = 0
+    Par_23 = 0
+    Par_24 = 0.0
+    Par_25 = 0
 
 ' Main event loop
 Event:

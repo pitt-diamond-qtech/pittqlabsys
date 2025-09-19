@@ -22,11 +22,12 @@ Dim Par_20 As Long    ' READY flag
 Dim Par_21 As Long    ' Counter
 Dim counter As Long   ' Internal counter
 
-' Initialize parameters
-Par_10 = 0
-Par_20 = 0
-Par_21 = 0
-counter = 0
+Init:
+  ' Initialize parameters
+  Par_10 = 0
+  Par_20 = 0
+  Par_21 = 0
+  counter = 0
 
 ' Main event loop
 Event:
