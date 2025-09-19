@@ -50,6 +50,19 @@ Function DigitsToVolts(d) As Float
   DigitsToVolts = (d * 20.0 / 65535.0) - 10.0
 EndFunction
 
+' clamp to [lo, hi]
+Function Clamp(v, lo, hi) As Float
+  IF (v < lo) THEN
+    v = lo
+  ENDIF
+  IF (v > hi) THEN
+    v = hi
+  ENDIF
+  Clamp = v
+EndFunction
+
+
+
 '--- working vars ---
 Dim n_steps, n_points, k As Long
 Dim dac_ch As Long
@@ -109,32 +122,41 @@ Event:
 
       ' 1) snapshot params
       n_steps   = Par_1
-      IF (n_steps < 2) THEN n_steps = 2 ENDIF
+      IF (n_steps < 2) THEN 
+        n_steps = 2 
+      ENDIF
       settle_us = Par_2
       dwell_us  = Par_3
       dac_ch    = Par_4
-      IF (dac_ch < 1) THEN dac_ch = 1 ENDIF
-      IF (dac_ch > 2) THEN dac_ch = 2 ENDIF
+      IF (dac_ch < 1) THEN 
+        dac_ch = 1 
+      ENDIF
+      IF (dac_ch > 2) THEN 
+        dac_ch = 2 
+      ENDIF
 
       ' 2) clamp & order
-      vmin_clamped = FPar_1
-      vmax_clamped = FPar_2
-      IF (vmin_clamped < -1.0) THEN vmin_clamped = -1.0 ENDIF
-      IF (vmin_clamped >  1.0) THEN vmin_clamped =  1.0 ENDIF
-      IF (vmax_clamped < -1.0) THEN vmax_clamped = -1.0 ENDIF
-      IF (vmax_clamped >  1.0) THEN vmax_clamped =  1.0 ENDIF
+      
+      vmin_clamped = Clamp(FPar_1, -1.0, 1.0)
+      vmax_clamped = Clamp(FPar_2, -1.0, 1.0)
       IF (vmin_clamped > vmax_clamped) THEN
-        t = vmin_clamped : vmin_clamped = vmax_clamped : vmax_clamped = t
+        t = vmin_clamped
+        vmin_clamped = vmax_clamped
+        vmax_clamped = t
       ENDIF
 
       ' 3) digits
       vmin_dig = VoltsToDigits(vmin_clamped)
       vmax_dig = VoltsToDigits(vmax_clamped)
-      IF (vmin_dig = vmax_dig) THEN n_steps = 2 ENDIF
+      IF (vmin_dig = vmax_dig) THEN 
+        n_steps = 2 
+      ENDIF
 
       ' 4) points & preload
       n_points = (2 * n_steps) - 2
-      IF (n_points < 2) THEN n_points = 2 ENDIF
+      IF (n_points < 2) THEN 
+        n_points = 2 
+      ENDIF
       Par_21 = n_points
 
       Write_DAC(dac_ch, vmin_dig)
