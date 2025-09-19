@@ -58,7 +58,9 @@ Dim pos As Long
 Dim ready As Long
 Dim event_cycle As Long
 Dim current_voltage As Float
+Dim vmin_clamped, vmax_clamped As Float
 Dim fd As Float
+Dim t As Float
 
 Rem Allocate generous global buffers (PC reads the first Par_21 entries)
 Rem Data_1: counts per step
@@ -67,7 +69,7 @@ Rem Data_2: dac digits per step
 Dim Data_2[200000] As Long
 
 Init:
-  Rem optional: set a modest Processdelay; timing uses P1_Sleep anyway
+  Rem optional: set a modest Processdelay; timing uses IO_Sleep anyway
   Processdelay = 10000
 
   Rem --- configure Counter 1 for falling-edge counting ---
@@ -105,106 +107,133 @@ Event:
     Rem idle – keep comms alive
     IO_Sleep(1000)  ' 10 us delay
     Watchdog_Reset() ' reset watchdog to prevent timeout
-    Exit            ' exit event loop
-  EndIf
+                ' exit event loop
+  ELSE
 
-  Rem --- snapshot parameters from Python (allows tweaking between sweeps) ---
-  n_steps   = Par_1
-  IF (n_steps < 2) THEN
-    n_steps = 2
-  ENDIF
-  settle_us = Par_2
-  dwell_us  = Par_3
-  dac_ch    = Par_4
-  IF (dac_ch < 1) THEN
-    dac_ch = 1
-  ENDIF
-  IF (dac_ch > 2) THEN
-    dac_ch = 2
-  ENDIF
-
-  vmin_dig  = VoltsToDigits(FPar_1)
-  vmax_dig  = VoltsToDigits(FPar_2)
-
-  Rem total points in triangle sweep (up and down, no repeated endpoints)
-  n_points = (2 * n_steps) - 2
-  IF (n_points < 2) THEN
-    n_points = 2
-  ENDIF
-  Par_21 = n_points
-
-  Rem Preload DAC to the first code so the first settle applies correctly
-  Write_DAC(dac_ch, vmin_dig)
-  Start_DAC()
-
-  Rem Re-base the incremental counting window
-  Cnt_Latch(0001b)
-  last_cnt = Cnt_Read_Latch(0001b)
-
-  Rem ---- Sweep loop ----
-  For k = 0 To (n_points - 1)
-
-    Rem DEBUG: Update monitoring parameters
-    Par_22 = k
-    Par_23 = pos
-
-    Rem position index along the triangle (0..n_steps-1..1)
-    IF (k < n_steps) THEN
-      pos = k
-    ELSE
-      pos = (2 * n_steps) - 2 - k
+    Rem --- snapshot parameters from Python (allows tweaking between sweeps) ---
+    n_steps   = Par_1
+    IF (n_steps < 2) THEN
+      n_steps = 2
+    ENDIF
+    settle_us = Par_2
+    dwell_us  = Par_3
+    dac_ch    = Par_4
+    IF (dac_ch < 1) THEN
+      dac_ch = 1
+    ENDIF
+    IF (dac_ch > 2) THEN
+      dac_ch = 2
     ENDIF
 
-    Rem DAC code for this step
-    IF (n_steps > 1) THEN
-      step_dig = ((vmax_dig - vmin_dig) * pos) / (n_steps - 1)
-    ELSE
-      step_dig = 0
+    vmin_clamped = FPar_1
+    vmax_clamped = FPar_2
+    ' clamp each endpoint to [-1, +1]
+    IF (vmin_clamped < -1.0) THEN 
+      vmin_clamped = -1.0 
     ENDIF
-    Data_2[k+1] = vmin_dig + step_dig
+    IF (vmin_clamped >  1.0) THEN 
+      vmin_clamped =  1.0 
+    ENDIF
+    IF (vmax_clamped < -1.0) THEN 
+      vmax_clamped = -1.0 
+    ENDIF
+    IF (vmax_clamped >  1.0) THEN 
+      vmax_clamped =  1.0 
+    ENDIF
 
-    Rem DEBUG: Calculate and store current voltage
-    current_voltage = DigitsToVolts(Data_2[k+1])
-    Par_24 = current_voltage
+    ' if range was given reversed, swap to maintain vmin <= vmax
+    IF (vmin_clamped > vmax_clamped) THEN
+      t = vmin_clamped
+      vmin_clamped = vmax_clamped
+      vmax_clamped = t
+    ENDIF
+    vmin_dig  = VoltsToDigits(vmin_clamped)
+    vmax_dig  = VoltsToDigits(vmax_clamped)
+    ' (optional) if identical endpoints, enforce 2 steps
+    IF (vmin_dig = vmax_dig) THEN 
+      n_steps = 2
+    ENDIF
 
-    Rem Output the step
-    Write_DAC(dac_ch, Data_2[k+1])
+    Rem total points in triangle sweep (up and down, no repeated endpoints)
+    n_points = (2 * n_steps) - 2
+    IF (n_points < 2) THEN
+      n_points = 2
+    ENDIF
+    Par_21 = n_points
+
+    Rem Preload DAC to the first code so the first settle applies correctly
+    Write_DAC(dac_ch, vmin_dig)
     Start_DAC()
 
-    Rem Settle after step change
-    IF (settle_us > 0) THEN
-      IO_Sleep(settle_us * 100)
-    ENDIF
-
-    Rem Count during dwell window:
-    Rem   Latch AFTER the dwell to get the integrated number of edges over dwell
-    IF (dwell_us > 0) THEN
-      IO_Sleep(dwell_us * 100)
-    ENDIF
+    Rem Re-base the incremental counting window
     Cnt_Latch(0001b)
-    cur_cnt = Cnt_Read_Latch(0001b)
+    last_cnt = Cnt_Read_Latch(1)
 
-    Rem 32-bit wrap handling (do in Float to avoid overflow)
-    fd = cur_cnt - last_cnt
-    IF (fd < 0.0) THEN
-      fd = fd + 4294967296.0
-    ENDIF
-    Data_1[k+1] = Round(fd)
-    last_cnt = cur_cnt
+    Rem ---- Sweep loop ----
+    For k = 0 To (n_points - 1)
 
-    Rem reset watchdog after each step to prevent timeout
-    Rem Watchdog_Reset()
-  Next k
+      Rem DEBUG: Update monitoring parameters
+      Par_22 = k
+      Par_23 = pos
 
-  Rem Signal to Python that one sweep is ready; wait until it clears the flag.
-  Par_20 = 1
-  DO
-    Rem short sleep to avoid hogging bus while waiting
-    Rem 10 us
-    IO_Sleep(1000)
-    Rem reset watchdog during PC handshake to prevent timeout
-    Rem Watchdog_Reset()
-  UNTIL ((Par_20 = 0) OR (Par_10 = 0))
+      Rem position index along the triangle (0..n_steps-1..1)
+      IF (k < n_steps) THEN
+        pos = k
+      ELSE
+        pos = (2 * n_steps) - 2 - k
+      ENDIF
 
-  Rem loop continues immediately for next sweep if Par_10 stays 1
+      Rem DAC code for this step
+      IF (n_steps > 1) THEN
+        step_dig = ((vmax_dig - vmin_dig) * pos) / (n_steps - 1)
+      ELSE
+        step_dig = 0
+      ENDIF
+      Data_2[k+1] = vmin_dig + step_dig
+
+      Rem DEBUG: Calculate and store current voltage
+      current_voltage = DigitsToVolts(Data_2[k+1])
+      Par_24 = current_voltage
+
+      Rem Output the step
+      Write_DAC(dac_ch, Data_2[k+1])
+      Start_DAC()
+
+      Rem Settle after step change
+      IF (settle_us > 0) THEN
+        IO_Sleep(settle_us * 100)
+      ENDIF
+
+      Rem Count during dwell window:
+      Rem   Latch AFTER the dwell to get the integrated number of edges over dwell
+      IF (dwell_us > 0) THEN
+        IO_Sleep(dwell_us * 100)
+      ENDIF
+      Cnt_Latch(0001b)
+      cur_cnt = Cnt_Read_Latch(1)
+
+      Rem 32-bit wrap handling (do in Float to avoid overflow)
+      fd = cur_cnt - last_cnt
+      IF (fd < 0.0) THEN
+        fd = fd + 4294967296.0
+      ENDIF
+      Data_1[k+1] = Round(fd)
+      last_cnt = cur_cnt
+
+      Rem reset watchdog after each step to prevent timeout
+      Rem Watchdog_Reset()
+    Next k
+
+    Rem Signal to Python that one sweep is ready; wait until it clears the flag.
+    Par_20 = 1
+    DO
+      Rem short sleep to avoid hogging bus while waiting
+      Rem 10 us
+      IO_Sleep(1000)
+      Rem reset watchdog during PC handshake to prevent timeout
+      Rem Watchdog_Reset()
+    UNTIL ((Par_20 = 0) OR (Par_10 = 0))
+
+    Rem loop continues immediately for next sweep if Par_10 stays 1
+  ENDIF
  
