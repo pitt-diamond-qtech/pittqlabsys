@@ -192,4 +192,52 @@ def debug_odmr_arrays(use_real_hardware=False, config_path=None, tb1_filename='O
         if len(volts):
             print(f"   min/max volts: {min(volts):.3f} / {max(volts):.3f}")
 
-        #
+        # ---------- show first rows ----------
+        print("\nFirst 20 points:")
+        print(" idx | counts | digits |   volts  | pos")
+        print("-----+--------+--------+----------+-----")
+        for i in range(min(20, n_points)):
+            print(f"{i:4d} | {int(counts[i]):6d} | {int(dac_digits[i]):6d} | {float(volts[i]):8.4f} | {int(pos[i]):3d}")
+
+        # ---------- release next sweep ----------
+        adwin.set_int_var(20, 0)  # clear ready flag so DSP can start the next sweep
+
+        return True
+
+    except Exception as e:
+        print(f"\n❌ Error during debug session: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+    finally:
+        # Always clean up
+        try:
+            adwin.set_int_var(10, 0)  # STOP
+        except Exception:
+            pass
+        try:
+            adwin.stop_process(1)
+            time.sleep(0.1)
+            adwin.clear_process(1)
+        except Exception:
+            pass
+
+
+def main():
+    p = argparse.ArgumentParser(description='Debug ODMR Arrays – Triangle Sweep (DEBUG ADbasic)')
+    p.add_argument('--real-hardware', action='store_true', help='Use real ADwin hardware')
+    p.add_argument('--config', type=str, default=None, help='Path to config.json (default: src/config.json)')
+    p.add_argument('--tb1', type=str, default='ODMR_Sweep_Counter_Debug.TB1', help='TB1 filename to load')
+    args = p.parse_args()
+
+    print("🎯 ODMR Arrays Debug Tool — Array Diagnostics")
+    print(f"🔧 Hardware mode: {'Real' if args.real_hardware else 'Mock'}")
+
+    ok = debug_odmr_arrays(args.real_hardware, args.config, args.tb1)
+    print("\n✅ Debug session completed!" if ok else "\n❌ Debug session failed!")
+    return 0 if ok else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
