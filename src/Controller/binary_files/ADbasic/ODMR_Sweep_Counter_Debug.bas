@@ -82,6 +82,9 @@ Init:
   Rem start counter 1
   Cnt_Enable(0001b)
 
+  Rem --- initialize watchdog (50ms timeout, all actions armed) ---
+  Watchdog_Init(1, 5000, 1111b)
+
   Rem init handshake and debug parameters
   Par_20 = 0
   Par_21 = 0
@@ -99,24 +102,32 @@ Event:
 
   If (Par_10 = 0) Then
     Rem idle – keep comms alive
-    End
+    Exit
   EndIf
 
   Rem --- snapshot parameters from Python (allows tweaking between sweeps) ---
   n_steps   = Par_1
-  IF (n_steps < 2) THEN n_steps = 2 ENDIF
+  IF (n_steps < 2) THEN
+    n_steps = 2
+  ENDIF
   settle_us = Par_2
   dwell_us  = Par_3
   dac_ch    = Par_4
-  IF (dac_ch < 1) THEN dac_ch = 1 ENDIF
-  IF (dac_ch > 2) THEN dac_ch = 2 ENDIF
+  IF (dac_ch < 1) THEN
+    dac_ch = 1
+  ENDIF
+  IF (dac_ch > 2) THEN
+    dac_ch = 2
+  ENDIF
 
   vmin_dig  = VoltsToDigits(FPar_1)
   vmax_dig  = VoltsToDigits(FPar_2)
 
   Rem total points in triangle sweep (up and down, no repeated endpoints)
   n_points = (2 * n_steps) - 2
-  IF (n_points < 2) THEN n_points = 2 ENDIF
+  IF (n_points < 2) THEN
+    n_points = 2
+  ENDIF
   Par_21 = n_points
 
   Rem Preload DAC to the first code so the first settle applies correctly
@@ -135,18 +146,10 @@ Event:
     Par_23 = pos
 
     Rem position index along the triangle (0..n_steps-1..1)
-    IF (k < n_steps) THEN
-      pos = k
-    ELSE
-      pos = (2 * n_steps) - 2 - k
-    ENDIF
+    IF (k < n_steps) THEN pos = k ELSE pos = (2 * n_steps) - 2 - k
 
     Rem DAC code for this step
-    IF (n_steps > 1) THEN
-      step_dig = ((vmax_dig - vmin_dig) * pos) / (n_steps - 1)
-    ELSE
-      step_dig = 0
-    ENDIF
+    IF (n_steps > 1) THEN step_dig = ((vmax_dig - vmin_dig) * pos) / (n_steps - 1) ELSE step_dig = 0
     Data_2[k+1] = vmin_dig + step_dig
 
     Rem DEBUG: Calculate and store current voltage
@@ -159,28 +162,28 @@ Event:
 
     Rem Settle after step change
     IF (settle_us > 0) THEN
-      IO_Sleep(settle_us * 100)
+      P1_Sleep(settle_us * 100)
     ENDIF
 
     Rem Count during dwell window:
     Rem   Latch AFTER the dwell to get the integrated number of edges over dwell
     IF (dwell_us > 0) THEN
-      IO_Sleep(dwell_us * 100)
+      P1_Sleep(dwell_us * 100)
     ENDIF
     Cnt_Latch(0001b)
     cur_cnt = Cnt_Read_Latch(0001b)
 
-    Rem delta with 32-bit wrap handling
-    delta = cur_cnt - last_cnt
-    IF (delta < 0) THEN
-      Rem wrap-around correction for unsigned 32-bit hardware counter
-      delta = delta + 4294967296
+    Rem 32-bit wrap handling (do in Float to avoid overflow)
+    Dim fd As Float
+    fd = cur_cnt - last_cnt
+    IF (fd < 0.0) THEN
+      fd = fd + 4294967296.0
     ENDIF
-    Data_1[k+1] = delta
+    Data_1[k+1] = Round(fd)
     last_cnt = cur_cnt
 
-    Rem (optional) watchdog reset could be placed here if you use it
-    Rem Watchdog_Reset()
+    Rem reset watchdog after each step to prevent timeout
+    Watchdog_Reset()
   Next k
 
   Rem Signal to Python that one sweep is ready; wait until it clears the flag.
@@ -188,8 +191,10 @@ Event:
   DO
     Rem short sleep to avoid hogging bus while waiting
     Rem 10 us
-    IO_Sleep(1000)
-  UNTIL (Par_20 = 0) OR (Par_10 = 0)
+    P1_Sleep(1000)
+    Rem reset watchdog during PC handshake to prevent timeout
+    Watchdog_Reset()
+  LOOP UNTIL (Par_20 = 0) OR (Par_10 = 0)
 
   Rem loop continues immediately for next sweep if Par_10 stays 1
   End
