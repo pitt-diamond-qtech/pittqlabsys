@@ -156,7 +156,11 @@ def debug_odmr_arrays(use_real_hardware=False, config_path=None, tb1_filename='O
         print("📥 Reading arrays…")
         counts     = read_int_array(adwin, 1, n_points)                  # Data_1
         dac_digits = read_int_array(adwin, 2, n_points)                  # Data_2
-        volts      = read_float_array_or_compute(adwin, 1, n_points, dac_digits)  # FData_1 or compute
+        try:
+            v = adwin.read_probes('float_array', 1, n_points)  # FData_1
+            volts = v if any(v) else [d_to_v(int(d)) for d in dac_digits]
+        except Exception:
+            volts = [d_to_v(int(d)) for d in dac_digits]
         pos        = read_int_array(adwin, 3, n_points)                  # Data_3
 
         print(f"✅ Got arrays: counts={len(counts)}, digits={len(dac_digits)}, volts={len(volts)}, pos={len(pos)}")
