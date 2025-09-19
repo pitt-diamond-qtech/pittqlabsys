@@ -104,6 +104,7 @@ coverage_reports/
 *.temp
 *.bak
 *.backup
+*.backup*
 
 # User-specific configuration files (should not be committed)
 src/View/gui_config.json
