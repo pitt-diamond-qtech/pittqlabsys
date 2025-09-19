@@ -58,6 +58,7 @@ Dim pos As Long
 Dim ready As Long
 Dim event_cycle As Long
 Dim current_voltage As Float
+Dim fd As Float
 
 Rem Allocate generous global buffers (PC reads the first Par_21 entries)
 Rem Data_1: counts per step
@@ -174,7 +175,6 @@ Event:
     cur_cnt = Cnt_Read_Latch(0001b)
 
     Rem 32-bit wrap handling (do in Float to avoid overflow)
-    Dim fd As Float
     fd = cur_cnt - last_cnt
     IF (fd < 0.0) THEN
       fd = fd + 4294967296.0

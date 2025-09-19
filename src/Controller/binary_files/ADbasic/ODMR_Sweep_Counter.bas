@@ -51,6 +51,7 @@ Dim last_cnt, cur_cnt, delta As Long
 Dim vmin_dig, vmax_dig, step_dig As Long
 Dim pos As Long
 Dim ready As Long
+Dim fd As Float
 
 Rem Allocate generous global buffers (PC reads the first Par_21 entries)
 Rem Data_1: counts per step
@@ -151,7 +152,6 @@ Event:
     cur_cnt = Cnt_Read_Latch(0001b)
 
     Rem 32-bit wrap handling (do in Float to avoid overflow)
-    Dim fd As Float
     fd = cur_cnt - last_cnt
     IF (fd < 0.0) THEN
       fd = fd + 4294967296.0
