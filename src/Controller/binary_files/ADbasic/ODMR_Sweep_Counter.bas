@@ -198,7 +198,7 @@ Event:
       last_cnt = cur_cnt
 
       Rem reset watchdog after each step to prevent timeout
-      Rem Watchdog_Reset()
+      Watchdog_Reset()
     Next k
 
     Rem Signal to Python that one sweep is ready; wait until it clears the flag.

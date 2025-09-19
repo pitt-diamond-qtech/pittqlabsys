@@ -231,7 +231,7 @@ Event:
       Rem 10 us
       IO_Sleep(1000)
       Rem reset watchdog during PC handshake to prevent timeout
-      Rem Watchdog_Reset()
+      Watchdog_Reset()
     UNTIL ((Par_20 = 0) OR (Par_10 = 0))
 
     Rem loop continues immediately for next sweep if Par_10 stays 1
