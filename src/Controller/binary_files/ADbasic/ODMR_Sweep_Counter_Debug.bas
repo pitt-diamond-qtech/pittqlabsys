@@ -104,19 +104,19 @@ Event:
 
   Rem --- snapshot parameters from Python (allows tweaking between sweeps) ---
   n_steps   = Par_1
-  If (n_steps < 2) Then n_steps = 2 End If
+  IF (n_steps < 2) THEN n_steps = 2 ENDIF
   settle_us = Par_2
   dwell_us  = Par_3
   dac_ch    = Par_4
-  If (dac_ch < 1) Then dac_ch = 1 End If
-  If (dac_ch > 2) Then dac_ch = 2 End If
+  IF (dac_ch < 1) THEN dac_ch = 1 ENDIF
+  IF (dac_ch > 2) THEN dac_ch = 2 ENDIF
 
   vmin_dig  = VoltsToDigits(FPar_1)
   vmax_dig  = VoltsToDigits(FPar_2)
 
   Rem total points in triangle sweep (up and down, no repeated endpoints)
   n_points = (2 * n_steps) - 2
-  If (n_points < 2) Then n_points = 2 End If
+  IF (n_points < 2) THEN n_points = 2 ENDIF
   Par_21 = n_points
 
   Rem Preload DAC to the first code so the first settle applies correctly
@@ -135,18 +135,18 @@ Event:
     Par_23 = pos
 
     Rem position index along the triangle (0..n_steps-1..1)
-    If (k < n_steps) Then
+    IF (k < n_steps) THEN
       pos = k
-    Else
+    ELSE
       pos = (2 * n_steps) - 2 - k
-    End If
+    ENDIF
 
     Rem DAC code for this step
-    If (n_steps > 1) Then
+    IF (n_steps > 1) THEN
       step_dig = ((vmax_dig - vmin_dig) * pos) / (n_steps - 1)
-    Else
+    ELSE
       step_dig = 0
-    End If
+    ENDIF
     Data_2[k+1] = vmin_dig + step_dig
 
     Rem DEBUG: Calculate and store current voltage
@@ -158,24 +158,24 @@ Event:
     Start_DAC()
 
     Rem Settle after step change
-    If (settle_us > 0) Then
+    IF (settle_us > 0) THEN
       IO_Sleep(settle_us * 100)
-    End If
+    ENDIF
 
     Rem Count during dwell window:
     Rem   Latch AFTER the dwell to get the integrated number of edges over dwell
-    If (dwell_us > 0) Then
+    IF (dwell_us > 0) THEN
       IO_Sleep(dwell_us * 100)
-    End If
+    ENDIF
     Cnt_Latch(0001b)
     cur_cnt = Cnt_Read_Latch(0001b)
 
     Rem delta with 32-bit wrap handling
     delta = cur_cnt - last_cnt
-    If (delta < 0) Then
+    IF (delta < 0) THEN
       Rem wrap-around correction for unsigned 32-bit hardware counter
       delta = delta + 4294967296
-    End If
+    ENDIF
     Data_1[k+1] = delta
     last_cnt = cur_cnt
 
@@ -185,11 +185,11 @@ Event:
 
   Rem Signal to Python that one sweep is ready; wait until it clears the flag.
   Par_20 = 1
-  Do
+  DO
     Rem short sleep to avoid hogging bus while waiting
     Rem 10 us
     IO_Sleep(1000)
-  Loop Until (Par_20 = 0) Or (Par_10 = 0)
+  UNTIL (Par_20 = 0) OR (Par_10 = 0)
 
   Rem loop continues immediately for next sweep if Par_10 stays 1
   End
