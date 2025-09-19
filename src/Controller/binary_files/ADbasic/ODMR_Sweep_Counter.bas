@@ -77,7 +77,7 @@ Init:
   Cnt_Enable(0001b)
 
   Rem --- initialize watchdog (50ms timeout, all actions armed) ---
-  Watchdog_Init(1, 5000, 1111b)
+  Rem Watchdog_Init(1, 5000, 1111b)
 
   Rem init handshake
   Par_20 = 0
@@ -168,7 +168,7 @@ Event:
     last_cnt = cur_cnt
 
     Rem reset watchdog after each step to prevent timeout
-    Watchdog_Reset()
+    Rem Watchdog_Reset()
   Next k
 
   Rem Signal to Python that one sweep is ready; wait until it clears the flag.
