@@ -16,23 +16,17 @@
 ' Minimal ODMR Test Script
 ' This script removes hardware initialization to test basic functionality
 
-' Global parameters
-Dim Par_10 As Long    ' START flag
-Dim Par_20 As Long    ' READY flag  
-Dim Par_21 As Long    ' Number of points
-Dim Par_22 As Long    ' Current step
-Dim Par_23 As Long    ' Position in triangle
-Dim Par_24 As Float   ' Current voltage
-Dim Par_25 As Long    ' Event cycle counter
+' Internal variables only (Par_n and FPar_n are reserved by ADbasic)
+' No Dim statements needed for Par_n or FPar_n variables
 
 Init:
-    ' Initialize parameters
+    ' Initialize parameters (Par_n and FPar_n are reserved by ADbasic)
     Par_10 = 0
     Par_20 = 0
     Par_21 = 0
     Par_22 = 0
     Par_23 = 0
-    Par_24 = 0.0
+    FPar_24 = 0.0
     Par_25 = 0
 
 ' Main event loop
@@ -46,7 +40,7 @@ Event:
     Par_21 = 18  ' Number of points
     Par_22 = 0   ' Current step
     Par_23 = 0   ' Position
-    Par_24 = -1.0  ' Start voltage
+    FPar_24 = -1.0  ' Start voltage
     
     ' Simulate sweep completion
     Par_20 = 1   ' Ready flag

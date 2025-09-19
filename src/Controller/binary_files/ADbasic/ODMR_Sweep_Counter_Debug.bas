@@ -84,7 +84,7 @@ Init:
   Cnt_Enable(0001b)
 
   Rem --- initialize watchdog (50ms timeout, all actions armed) ---
-  Rem Watchdog_Init(1, 5000, 1111b)
+  Watchdog_Init(1, 5000, 1111b)
 
   Rem init handshake and debug parameters
   Par_20 = 0
@@ -103,7 +103,9 @@ Event:
 
   If (Par_10 = 0) Then
     Rem idle – keep comms alive
-    End
+    IO_Sleep(1000)  ' 10 us delay
+    Watchdog_Reset() ' reset watchdog to prevent timeout
+    Exit            ' exit event loop
   EndIf
 
   Rem --- snapshot parameters from Python (allows tweaking between sweeps) ---
@@ -205,4 +207,4 @@ Event:
   UNTIL ((Par_20 = 0) OR (Par_10 = 0))
 
   Rem loop continues immediately for next sweep if Par_10 stays 1
-  End
+ 

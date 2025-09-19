@@ -39,11 +39,8 @@ def create_test_scripts():
 
 #Include ADwinGoldII.inc
 
-Dim Par_10 As Long
-Dim Par_20 As Long
-Dim Par_25 As Long
-
-
+' Internal variables only (Par_n and FPar_n are reserved by ADbasic)
+' No Dim statements needed for Par_n or FPar_n variables
 
 Init:
   Par_20 = 1
@@ -72,11 +69,8 @@ Finish:
 
 #Include ADwinGoldII.inc
 
-Dim Par_10 As Long
-Dim Par_20 As Long
-Dim Par_25 As Long
-
-
+' Internal variables only (Par_n and FPar_n are reserved by ADbasic)
+' No Dim statements needed for Par_n or FPar_n variables
 
 Init:
   ' Test counter setup
@@ -114,11 +108,8 @@ Finish:
 
 #Include ADwinGoldII.inc
 
-Dim Par_10 As Long
-Dim Par_20 As Long
-Dim Par_25 As Long
-
-
+' Internal variables only (Par_n and FPar_n are reserved by ADbasic)
+' No Dim statements needed for Par_n or FPar_n variables
 
 Init:
   ' Test DAC setup
@@ -152,11 +143,8 @@ Finish:
 
 #Include ADwinGoldII.inc
 
-Dim Par_10 As Long
-Dim Par_20 As Long
-Dim Par_25 As Long
-
-
+' Internal variables only (Par_n and FPar_n are reserved by ADbasic)
+' No Dim statements needed for Par_n or FPar_n variables
 
 Init:
   ' Test both counter and DAC

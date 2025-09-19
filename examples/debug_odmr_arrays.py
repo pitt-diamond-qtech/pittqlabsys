@@ -83,8 +83,7 @@ def debug_odmr_arrays(use_real_hardware=False, config_path=None):
         script_path = get_adwin_binary_path('ODMR_Sweep_Counter_Debug.TB1')
         print(f"📁 Loading new triangle sweep debug script: {script_path}")
         adwin.update({'process_1': {'load': str(script_path)}})
-        print("▶️  Starting process 1...")
-        adwin.start_process(1)
+        
         
         # Set up parameters for new script
         print("⚙️  Setting up test parameters...")
@@ -94,10 +93,12 @@ def debug_odmr_arrays(use_real_hardware=False, config_path=None):
         adwin.set_int_var(2, 1000)    # Par_2: SETTLE_US (1ms)
         adwin.set_int_var(3, 5000)    # Par_3: DWELL_US (5ms)
         adwin.set_int_var(4, 1)       # Par_4: DAC_CH (1)
-        adwin.set_int_var(10, 0)      # Par_10: START (0=stop initially)
+        adwin.set_int_var(10, 1)      # Par_10: START (0=stop initially)
         
+        print("▶️  Starting process 1...")
+        adwin.start_process(1)
         print("🚀 Starting triangle sweep...")
-        adwin.set_int_var(10, 1)  # Par_10: START (1=run)
+        
         
         # Wait for sweep to complete (monitor Par_20 = sweep ready flag)
         print("\n⏳ Waiting for sweep to complete...")

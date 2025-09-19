@@ -16,14 +16,11 @@
 ' Simple ADbasic Test Script
 ' This script just sets some parameters and runs a basic loop
 
-' Global parameters
-Dim Par_10 As Long    ' START flag
-Dim Par_20 As Long    ' READY flag  
-Dim Par_21 As Long    ' Counter
+' Internal variables only (Par_n and FPar_n are reserved by ADbasic)
 Dim counter As Long   ' Internal counter
 
 Init:
-  ' Initialize parameters
+  ' Initialize parameters (Par_n and FPar_n are reserved by ADbasic)
   Par_10 = 0
   Par_20 = 0
   Par_21 = 0
