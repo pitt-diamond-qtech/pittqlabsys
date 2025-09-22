@@ -197,13 +197,32 @@ def debug_odmr_arrays(use_real_hardware=False, config_path=None, tb1_filename='O
             print(f"   ❌ Error reading Data_2: {e}")
             dac_digits = []
         
+        # Always compute volts from DAC digits to avoid garbage data from FData_1
         try:
-            v = adwin.read_probes('float_array', 1, n_points)  # FData_1
-            volts = v if any(v) else [d_to_v(int(d)) for d in dac_digits]
-            print(f"   ✅ FData_1 read successfully: {len(volts)} elements")
+            if dac_digits:
+                # Validate DAC digits are in valid range (0-65535)
+                valid_digits = []
+                invalid_count = 0
+                for d in dac_digits:
+                    d_int = int(d)
+                    if 0 <= d_int <= 65535:
+                        valid_digits.append(d_int)
+                    else:
+                        invalid_count += 1
+                        print(f"   ⚠️  Invalid DAC digit: {d_int} (should be 0-65535)")
+                
+                if invalid_count > 0:
+                    print(f"   ⚠️  Found {invalid_count} invalid DAC digits out of {len(dac_digits)}")
+                
+                volts = [d_to_v(d) for d in valid_digits]
+                print(f"   ✅ Volts computed from {len(valid_digits)} valid DAC digits: {len(volts)} elements")
+                print(f"   First few volts: {volts[:5] if len(volts) >= 5 else volts}")
+            else:
+                volts = []
+                print(f"   ❌ No DAC digits available for volt computation")
         except Exception as e:
-            print(f"   ❌ Error reading FData_1: {e}")
-            volts = [d_to_v(int(d)) for d in dac_digits] if dac_digits else []
+            print(f"   ❌ Error computing volts from DAC digits: {e}")
+            volts = []
         
         try:
             pos = read_int_array(adwin, 3, n_points)                     # Data_3

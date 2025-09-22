@@ -67,10 +67,9 @@ EndFunction
 Dim n_steps, n_points, k As Long
 Dim dac_ch As Long
 Dim settle_us, dwell_us As Long
-Dim last_cnt, cur_cnt As Long
+Dim old_cnt, new_cnt, diff As Long
 Dim vmin_dig, vmax_dig As Long
 Dim step_dig, pos As Long
-Dim fd As Float
 Dim vmin_clamped, vmax_clamped, t As Float
 Dim sum_counts, max_counts, max_idx As Long
 
@@ -83,10 +82,10 @@ Dim Data_3[200000]  As Long   ' triangle pos per step
 Init:
   Processdelay = 10000
 
-  ' Counter 1: clk/dir, invert A/CLK => count falling edges
+  ' Counter 1: clk/dir, count up on rising edges (DIR tied high)
   Cnt_Enable(0)
   Cnt_Clear(0001b)
-  Cnt_Mode(1, 00000100b)   ' bit0=0 clk/dir, bit2=1 invert A/CLK
+  Cnt_Mode(1, 00000000b)   ' bit0=0 clk/dir, no inversions (count up)
   Cnt_SE_Diff(0000b)
   Cnt_Enable(0001b)
 
@@ -100,7 +99,7 @@ Init:
   Par_31 = 0
   Par_32 = 0
   FPar_33 = 0.0
-  last_cnt = 0
+  old_cnt = 0
 
 Event:
   ' heartbeat
@@ -163,7 +162,7 @@ Event:
       Start_DAC()
 
       Cnt_Latch(0001b)
-      last_cnt = Cnt_Read_Latch(1)
+      old_cnt = Cnt_Read_Latch(1)
 
       sum_counts = 0
       max_counts = -2147483648   ' lowest LONG
@@ -186,6 +185,15 @@ Event:
           step_dig = 0
         ENDIF
         Data_2[k+1]  = vmin_dig + step_dig
+        
+        ' bounds check for DAC digits (should be 0-65535)
+        IF (Data_2[k+1] < 0) THEN
+          Data_2[k+1] = 0
+        ENDIF
+        IF (Data_2[k+1] > 65535) THEN
+          Data_2[k+1] = 65535
+        ENDIF
+        
         FData_1[k+1] = DigitsToVolts(Data_2[k+1])
         Data_3[k+1]  = pos
 
@@ -205,15 +213,12 @@ Event:
 
         ' latch & read
         Cnt_Latch(0001b)
-        cur_cnt = Cnt_Read_Latch(1)
+        new_cnt = Cnt_Read_Latch(1)
 
-        ' wrap-safe delta
-        fd = cur_cnt - last_cnt
-        IF (fd < 0.0) THEN
-          fd = fd + 4294967296.0
-        ENDIF
-        Data_1[k+1] = Round(fd)
-        last_cnt = cur_cnt
+        ' wrap-safe delta using LONG arithmetic (handles wrap automatically)
+        diff = new_cnt - old_cnt        ' LONG math => wrap handled per manual
+        Data_1[k+1] = Abs(diff)         ' magnitude only (works for both up/down counting)
+        old_cnt = new_cnt
 
         ' summaries
         sum_counts = sum_counts + Data_1[k+1]

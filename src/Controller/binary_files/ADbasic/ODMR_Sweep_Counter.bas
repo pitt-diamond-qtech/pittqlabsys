@@ -59,10 +59,9 @@ EndFunction
 Dim n_steps, n_points, k      As Long
 Dim dac_ch                    As Long
 Dim settle_us, dwell_us       As Long
-Dim last_cnt, cur_cnt         As Long
+Dim old_cnt, new_cnt, diff    As Long
 Dim vmin_dig, vmax_dig        As Long
 Dim step_dig, pos             As Long
-Dim fd                        As Float
 Dim vmin_clamped, vmax_clamped, t As Float
 
 ' ---- result buffers (1-based indexing) ----
@@ -73,10 +72,10 @@ Init:
   ' Event timing isn’t critical; waits use IO_Sleep (10 ns units)
   Processdelay = 10000
 
-  ' Counter 1: clock/direction, invert A/CLK => falling edges
+  ' Counter 1: clk/dir, count up on rising edges (DIR tied high)
   Cnt_Enable(0)
   Cnt_Clear(0001b)
-  Cnt_Mode(1, 00000100b)   ' bit0=0 clk/dir, bit2=1 invert A/CLK
+  Cnt_Mode(1, 00000000b)   ' bit0=0 clk/dir, no inversions (count up)
   Cnt_SE_Diff(0000b)       ' single-ended
   Cnt_Enable(0001b)
 
@@ -87,7 +86,7 @@ Init:
   Par_20 = 0
   Par_21 = 0
   Par_25 = 0
-  last_cnt = 0
+  old_cnt = 0
 
 Event:
   ' Heartbeat so the PC can see Event is running
@@ -150,7 +149,7 @@ Event:
 
       ' Base the incremental counter window
       Cnt_Latch(0001b)
-      last_cnt = Cnt_Read_Latch(1)
+      old_cnt = Cnt_Read_Latch(1)
 
       ' 5) Sweep
       For k = 0 To (n_points - 1)
@@ -169,6 +168,14 @@ Event:
           step_dig = 0
         ENDIF
         Data_2[k+1] = vmin_dig + step_dig
+        
+        ' bounds check for DAC digits (should be 0-65535)
+        IF (Data_2[k+1] < 0) THEN
+          Data_2[k+1] = 0
+        ENDIF
+        IF (Data_2[k+1] > 65535) THEN
+          Data_2[k+1] = 65535
+        ENDIF
 
         ' output
         Write_DAC(dac_ch, Data_2[k+1])
@@ -184,16 +191,14 @@ Event:
           IO_Sleep(dwell_us * 100)
         ENDIF
 
-        ' latch & read; wrap-safe delta
+        ' latch & read; wrap-safe delta using LONG arithmetic
         Cnt_Latch(0001b)
-        cur_cnt = Cnt_Read_Latch(1)
+        new_cnt = Cnt_Read_Latch(1)
 
-        fd = cur_cnt - last_cnt
-        IF (fd < 0.0) THEN
-          fd = fd + 4294967296.0       ' add 2^32 in float space
-        ENDIF
-        Data_1[k+1] = Round(fd)
-        last_cnt = cur_cnt
+        ' wrap-safe delta using LONG arithmetic (handles wrap automatically)
+        diff = new_cnt - old_cnt        ' LONG math => wrap handled per manual
+        Data_1[k+1] = Abs(diff)         ' magnitude only (works for both up/down counting)
+        old_cnt = new_cnt
 
         Watchdog_Reset()
       Next k
