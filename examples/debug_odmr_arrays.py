@@ -154,16 +154,91 @@ def debug_odmr_arrays(use_real_hardware=False, config_path=None, tb1_filename='O
         print(f"📊 Sweep reports n_points = {n_points} (expected ≈ {expected_points})")
 
         print("📥 Reading arrays…")
-        counts     = read_int_array(adwin, 1, n_points)                  # Data_1
-        dac_digits = read_int_array(adwin, 2, n_points)                  # Data_2
+        
+        # Add detailed diagnostics for array reading
+        print(f"🔍 Diagnostic info:")
+        print(f"   n_points = {n_points}")
+        print(f"   Expected array length = {n_points}")
+        
+        # Test array length first
+        try:
+            array_length_1 = adwin.read_probes('array_length', 1)
+            array_length_2 = adwin.read_probes('array_length', 2)
+            array_length_3 = adwin.read_probes('array_length', 3)
+            print(f"   Data_1 length = {array_length_1}")
+            print(f"   Data_2 length = {array_length_2}")
+            print(f"   Data_3 length = {array_length_3}")
+        except Exception as e:
+            print(f"   Error reading array lengths: {e}")
+        
+        # Test reading a single element first
+        try:
+            single_count = adwin.read_probes('int_array', 1, 1)
+            single_digit = adwin.read_probes('int_array', 2, 1)
+            single_pos = adwin.read_probes('int_array', 3, 1)
+            print(f"   Single elements - count: {single_count}, digit: {single_digit}, pos: {single_pos}")
+        except Exception as e:
+            print(f"   Error reading single elements: {e}")
+        
+        # Now try reading the full arrays with error handling
+        try:
+            counts = read_int_array(adwin, 1, n_points)                  # Data_1
+            print(f"   ✅ Data_1 read successfully: {len(counts)} elements")
+            print(f"   First few counts: {counts[:5] if len(counts) >= 5 else counts}")
+        except Exception as e:
+            print(f"   ❌ Error reading Data_1: {e}")
+            counts = []
+        
+        try:
+            dac_digits = read_int_array(adwin, 2, n_points)              # Data_2
+            print(f"   ✅ Data_2 read successfully: {len(dac_digits)} elements")
+            print(f"   First few digits: {dac_digits[:5] if len(dac_digits) >= 5 else dac_digits}")
+        except Exception as e:
+            print(f"   ❌ Error reading Data_2: {e}")
+            dac_digits = []
+        
         try:
             v = adwin.read_probes('float_array', 1, n_points)  # FData_1
             volts = v if any(v) else [d_to_v(int(d)) for d in dac_digits]
-        except Exception:
-            volts = [d_to_v(int(d)) for d in dac_digits]
-        pos        = read_int_array(adwin, 3, n_points)                  # Data_3
+            print(f"   ✅ FData_1 read successfully: {len(volts)} elements")
+        except Exception as e:
+            print(f"   ❌ Error reading FData_1: {e}")
+            volts = [d_to_v(int(d)) for d in dac_digits] if dac_digits else []
+        
+        try:
+            pos = read_int_array(adwin, 3, n_points)                     # Data_3
+            print(f"   ✅ Data_3 read successfully: {len(pos)} elements")
+            print(f"   First few positions: {pos[:5] if len(pos) >= 5 else pos}")
+        except Exception as e:
+            print(f"   ❌ Error reading Data_3: {e}")
+            pos = []
 
         print(f"✅ Got arrays: counts={len(counts)}, digits={len(dac_digits)}, volts={len(volts)}, pos={len(pos)}")
+
+        # ---------- additional diagnostics ----------
+        print("\n🔍 Additional diagnostics:")
+        try:
+            # Check if the process is still running
+            process_status = adwin.read_probes('process_status', 1)
+            print(f"   Process 1 status: {process_status}")
+            
+            # Check some key parameters
+            par_20 = adwin.get_int_var(20)  # ready flag
+            par_21 = adwin.get_int_var(21)  # points
+            par_25 = adwin.get_int_var(25)  # heartbeat
+            print(f"   Par_20 (ready): {par_20}")
+            print(f"   Par_21 (points): {par_21}")
+            print(f"   Par_25 (heartbeat): {par_25}")
+            
+            # Check if there are any ADwin errors
+            try:
+                last_error = adwin.read_probes('last_error')
+                print(f"   Last ADwin error: {last_error}")
+            except Exception:
+                print("   No error information available")
+                
+        except Exception as e:
+            print(f"   Error in additional diagnostics: {e}")
 
         # ---------- summaries ----------
         try:
