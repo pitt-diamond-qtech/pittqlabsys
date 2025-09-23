@@ -3,7 +3,7 @@
 ' Initial_Processdelay           = 1000000
 ' Eventsource                    = Timer
 ' Control_long_Delays_for_Stop   = No
-' Priority                       = High
+' Priority                       = Normal
 ' Version                        = 1
 ' ADbasic_Version                = 6.3.0
 ' Optimize                       = Yes
@@ -78,7 +78,7 @@ Dim sum_counts, max_counts, max_idx As Long
 
 '--- state machine vars ---
 Dim state As Long
-Dim settle_rem_us, dwell_rem_us, chunk_us, chunk As Long
+Dim settle_rem_us, dwell_rem_us, tick_us As Long
 
 '--- result buffers (1-based indexing) ---
 Dim Data_1[200000]  As Long   ' counts per step
@@ -87,7 +87,11 @@ Dim FData_1[200000] As Float  ' volts per step
 Dim Data_3[200000]  As Long   ' triangle pos per step
 
 Init:
-  Processdelay = 10000
+  ' default chunk 200 µs if Par_8 not set yet
+  IF (Par_8 <= 0) THEN
+    Par_8 = 200
+  ENDIF
+  Processdelay = Par_8 * 100   ' (10 ns units)
 
   ' Counter 1: clk/dir, count up on rising edges (DIR tied high)
   Cnt_Enable(0)
@@ -115,24 +119,15 @@ Init:
   old_cnt = 0
 
 Event:
-  ' Heartbeat
   Par_25 = Par_25 + 1
+  tick_us = Processdelay / 100  ' 10 ns units -> µs
 
-  ' Chunk size (µs) from PC; default 200 µs if not set
-  chunk_us = Par_8
-  IF (chunk_us <= 0) THEN
-    chunk_us = 200
-  ENDIF
-
-  ' IDLE if STOP
   IF (Par_10 = 0) THEN
+    ' idle
     state = 0
-    IO_Sleep(1000)
     Watchdog_Reset()
-
   ELSE
-
-    SELECTCASE state
+    SelectCase state
 
       ' ------------------------------------------------------
       CASE 0   ' START NEW SWEEP (when Par_20 == 0)
@@ -220,53 +215,50 @@ Event:
 
         Write_DAC(dac_ch, Data_2[k+1])
         Start_DAC()
-
         settle_rem_us = settle_us
+        dwell_rem_us  = dwell_us
         state = 30
 
       ' ------------------------------------------------------
       CASE 30   ' SETTLE (excluded from counting)
         IF (settle_rem_us > 0) THEN
-          chunk = settle_rem_us
-          IF (chunk > chunk_us) THEN 
-            chunk = chunk_us 
+          IF (settle_rem_us > tick_us) THEN
+            settle_rem_us = settle_rem_us - tick_us
+          ELSE
+            settle_rem_us = 0
           ENDIF
-          IO_Sleep(chunk * 100)          ' 1 µs = 100 * 10 ns
-          settle_rem_us = settle_rem_us - chunk
           Watchdog_Reset()
         ELSE
           state = 40
         ENDIF
 
       ' ------------------------------------------------------
-      CASE 40   ' LATCH BASELINE (start-of-dwell)
+      CASE 40   ' LATCH BASELINE
         Cnt_Latch(0001b)
         old_cnt = Cnt_Read_Latch(1)
-        dwell_rem_us = dwell_us
         state = 50
 
       ' ------------------------------------------------------
-      CASE 50   ' DWELL (counting window) in chunks
+      CASE 50   ' DWELL (counting window)
         IF (dwell_rem_us > 0) THEN
-          chunk = dwell_rem_us
-          IF (chunk > chunk_us) THEN 
-            chunk = chunk_us 
+          IF (dwell_rem_us > tick_us) THEN
+            dwell_rem_us = dwell_rem_us - tick_us
+          ELSE
+            dwell_rem_us = 0
           ENDIF
-          IO_Sleep(chunk * 100)          ' 1 µs = 100 * 10 ns
-          dwell_rem_us = dwell_rem_us - chunk
           Watchdog_Reset()
         ELSE
           state = 60
         ENDIF
 
       ' ------------------------------------------------------
-      CASE 60   ' LATCH END (end-of-dwell), store delta
+      CASE 60   ' LATCH END, store delta
         Cnt_Latch(0001b)
         new_cnt = Cnt_Read_Latch(1)
-        diff = new_cnt - old_cnt         ' LONG math: wrap handled
+        diff = new_cnt - old_cnt
         IF (diff < 0) THEN
           diff = -diff
-        ENDIF
+        ENDIF   ' magnitude; drop this if you want signed
         Data_1[k+1] = diff
         Par_30 = Par_30 + diff
         IF (diff > Par_31) THEN
@@ -292,17 +284,46 @@ Event:
         ENDIF
 
       ' ------------------------------------------------------
-      CASE 90   ' WAIT FOR PC TO CLEAR Par_20
+      CASE 90   ' WAIT FOR PC
         IF (Par_20 = 0) THEN
-          state = 0               ' start next sweep
+          state = 0
         ELSE
-          IO_Sleep(1000)          ' ~10 µs
           Watchdog_Reset()
         ENDIF
 
       CaseElse
         state = 0
     EndSelect
-
   ENDIF
-  ' (no End here)
+
+End  ' <-- single End that closes the Event section
+
+Finish:
+  ' Mark stopped and clear handshake
+  Par_10 = 0
+  Par_20 = 0
+
+  ' Disable counter(s) and clear counter 1
+  Cnt_Enable(0)
+  Cnt_Clear(0001b)
+
+  ' Park DAC channel at 0 V (center)
+  IF (Par_4 < 1) THEN
+    dac_ch = 1
+  ELSEIF (Par_4 > 2) THEN
+    dac_ch = 2
+  ELSE
+    dac_ch = Par_4
+  ENDIF
+  Write_DAC(dac_ch, VoltsToDigits(0.0))
+  Start_DAC()
+
+  ' Reset internal state (optional but tidy)
+  state = 0
+  k = 0
+  Par_21 = 0
+  Par_22 = 0
+  Par_23 = 0
+  Par_24 = 0.0
+
+End
