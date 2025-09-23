@@ -27,7 +27,7 @@
 '   Par_2  = SETTLE_US  (us)
 '   Par_3  = DWELL_US   (us)
 '   Par_4  = DAC_CH     (1..2)
-'   Par_8  = CHUNK_US   (µs, default 500 if 0)
+'   Par_8  = CHUNK_US   (µs, default 200 if 0)
 '   Par_10 = START      (1=run, 0=idle)
 ' To Python:
 '   Data_1[] = counts per step (LONG)
@@ -101,10 +101,10 @@ Event:
   ' Heartbeat so the PC can see Event is running
   Par_25 = Par_25 + 1
 
-  ' Chunk size (µs) from PC; default 500 µs if not set
+  ' Chunk size (µs) from PC; default 200 µs if not set
   chunk_us = Par_8
   IF (chunk_us <= 0) THEN
-    chunk_us = 500
+    chunk_us = 200
   ENDIF
 
   ' If STOP, just idle this tick
