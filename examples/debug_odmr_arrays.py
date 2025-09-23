@@ -97,13 +97,16 @@ def debug_odmr_arrays(use_real_hardware=False, config_path=None, tb1_filename='O
         print(f"✅ Adwin loaded: {type(adwin)}")
         print(f"✅ Connected: {adwin.is_connected}")
         
-        # Set a generous timeout for longer dwell times
+        # Note: ADwin Python library doesn't support timeout control
+        # The timeout is handled at the driver level
         try:
-            adwin.set_timeout(10000)  # 10 seconds timeout
             current_timeout = adwin.get_timeout()
-            print(f"✅ ADwin timeout set to: {current_timeout} ms")
+            if current_timeout == 0:
+                print("ℹ️  ADwin timeout control not available (using driver defaults)")
+            else:
+                print(f"✅ ADwin timeout: {current_timeout} ms")
         except Exception as e:
-            print(f"⚠️  Could not set ADwin timeout: {e}")
+            print(f"⚠️  Could not check ADwin timeout: {e}")
 
     except Exception as e:
         print(f"❌ Failed to load real hardware: {e}")
