@@ -300,11 +300,9 @@ Event:
           Watchdog_Reset()
         ENDIF
 
-      ' ------------------------------------------------------
-      CASE ELSE
+      CaseElse
         state = 0
-
-    ENDSELECT
+    EndSelect
 
   ENDIF
   ' (no End here)
