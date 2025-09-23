@@ -5,24 +5,86 @@ This test verifies that the new timeout methods work correctly.
 """
 
 import pytest
+from unittest.mock import Mock, patch
 from src.Controller.adwin_gold import AdwinGoldDevice
 
 
 @pytest.fixture
-def mock_adwin_with_timeout(mock_adwin):
+def mock_adwin():
     """
-    Extend the existing mock_adwin fixture with timeout methods.
+    Mock ADwin fixture for testing without hardware.
+    Provides realistic mock responses for ADwin methods.
     """
-    # Add timeout methods to the existing mock
-    mock_adwin.adw.Set_Timeout = pytest.Mock()
-    mock_adwin.adw.Get_Timeout = pytest.Mock(return_value=1000)  # Default 1 second
-    
-    return mock_adwin
+    with patch('src.Controller.adwin_gold.ADwin') as mock_adwin_class:
+        # Create a mock ADwin instance
+        mock_adw = Mock()
+        
+        # Mock the ADwin class to return our mock instance
+        mock_adwin_class.return_value = mock_adw
+        
+        # Set up mock properties and methods
+        mock_adw.ADwindir = '/mock/adwin/dir/'
+        mock_adw.Boot = Mock()
+        mock_adw.Test_Version = Mock(return_value="Mock ADwin v1.0")
+        
+        # Mock process control methods
+        mock_adw.Load_Process = Mock()
+        mock_adw.Clear_Process = Mock()
+        mock_adw.Start_Process = Mock()
+        mock_adw.Stop_Process = Mock()
+        mock_adw.Set_Processdelay = Mock()
+        mock_adw.Get_Processdelay = Mock(return_value=3000)
+        mock_adw.Process_Status = Mock(return_value=0)  # 0 = Not running
+        
+        # Mock variable setting/getting methods
+        mock_adw.Set_Par = Mock()
+        mock_adw.Set_FPar = Mock()
+        mock_adw.Get_Par = Mock(return_value=0)
+        mock_adw.Get_FPar = Mock(return_value=0.0)
+        mock_adw.Get_FPar_Double = Mock(return_value=0.0)
+        
+        # Mock timeout methods
+        mock_adw.Set_Timeout = Mock()
+        mock_adw.Get_Timeout = Mock(return_value=1000)  # Default 1 second
+        
+        # Mock array methods
+        mock_adw.Data_Length = Mock(return_value=5)
+        mock_adw.GetData_Long = Mock(return_value=[1, 2, 3, 4, 5])
+        mock_adw.GetData_Float = Mock(return_value=[1.0, 2.0, 3.0, 4.0, 5.0])
+        mock_adw.GetData_Double = Mock(return_value=[1.0, 2.0, 3.0, 4.0, 5.0])
+        mock_adw.GetData_String = Mock(return_value=b'Hello')
+        mock_adw.String_Length = Mock(return_value=5)
+        
+        # Mock FIFO methods
+        mock_adw.GetFifo_Long = Mock(return_value=[1, 2, 3])
+        mock_adw.GetFifo_Float = Mock(return_value=[1.0, 2.0, 3.0])
+        mock_adw.GetFifo_Double = Mock(return_value=[1.0, 2.0, 3.0])
+        mock_adw.Fifo_Empty = Mock(return_value=True)
+        mock_adw.Fifo_Full = Mock(return_value=0)
+        
+        # Mock other methods
+        mock_adw.Get_Par_All = Mock(return_value=[0] * 80)
+        mock_adw.Get_FPar_All = Mock(return_value=[0.0] * 80)
+        mock_adw.Get_FPar_All_Double = Mock(return_value=[0.0] * 80)
+        mock_adw.Get_Error_Text = Mock(return_value="No error")
+        mock_adw.Get_Last_Error = Mock(return_value=0)
+        mock_adw.Workload = Mock(return_value=25.5)
+        
+        # Create ADwinGold instance with mocked ADwin
+        adwin_gold = AdwinGoldDevice(boot=False)  # Don't boot to avoid hardware connection
+        
+        yield adwin_gold
+        
+        # Clean up: explicitly call close to avoid __del__ issues
+        try:
+            adwin_gold.close()
+        except:
+            pass  # Ignore any cleanup errors
 
 
-def test_set_timeout(mock_adwin_with_timeout):
+def test_set_timeout(mock_adwin):
     """Test setting ADwin timeout."""
-    adwin = mock_adwin_with_timeout
+    adwin = mock_adwin
     
     # Test setting timeout to 5 seconds
     adwin.set_timeout(5000)
@@ -31,9 +93,9 @@ def test_set_timeout(mock_adwin_with_timeout):
     adwin.adw.Set_Timeout.assert_called_once_with(5000)
 
 
-def test_get_timeout(mock_adwin_with_timeout):
+def test_get_timeout(mock_adwin):
     """Test getting ADwin timeout."""
-    adwin = mock_adwin_with_timeout
+    adwin = mock_adwin
     
     # Test getting current timeout
     timeout = adwin.get_timeout()
@@ -43,9 +105,9 @@ def test_get_timeout(mock_adwin_with_timeout):
     assert timeout == 1000  # Default mock value
 
 
-def test_timeout_round_trip(mock_adwin_with_timeout):
+def test_timeout_round_trip(mock_adwin):
     """Test setting and getting timeout in sequence."""
-    adwin = mock_adwin_with_timeout
+    adwin = mock_adwin
     
     # Set timeout to 10 seconds
     adwin.set_timeout(10000)
@@ -62,9 +124,9 @@ def test_timeout_round_trip(mock_adwin_with_timeout):
     adwin.adw.Get_Timeout.assert_called()
 
 
-def test_timeout_integration_with_debug_script(mock_adwin_with_timeout):
+def test_timeout_integration_with_debug_script(mock_adwin):
     """Test timeout functionality as it would be used in debug_odmr_arrays.py."""
-    adwin = mock_adwin_with_timeout
+    adwin = mock_adwin
     
     # Test the timeout setting as done in debug script
     try:
@@ -76,9 +138,9 @@ def test_timeout_integration_with_debug_script(mock_adwin_with_timeout):
         pytest.fail(f"Timeout setting failed: {e}")
 
 
-def test_timeout_error_handling(mock_adwin_with_timeout):
+def test_timeout_error_handling(mock_adwin):
     """Test timeout error handling."""
-    adwin = mock_adwin_with_timeout
+    adwin = mock_adwin
     
     # Make Set_Timeout raise an exception
     adwin.adw.Set_Timeout.side_effect = Exception("Timeout setting failed")
@@ -88,9 +150,9 @@ def test_timeout_error_handling(mock_adwin_with_timeout):
         adwin.set_timeout(5000)
 
 
-def test_timeout_values(mock_adwin_with_timeout):
+def test_timeout_values(mock_adwin):
     """Test various timeout values."""
-    adwin = mock_adwin_with_timeout
+    adwin = mock_adwin
     
     # Test various timeout values
     test_values = [1000, 5000, 10000, 30000]  # 1s, 5s, 10s, 30s
