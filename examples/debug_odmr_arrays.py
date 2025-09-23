@@ -136,22 +136,34 @@ def debug_odmr_arrays(use_real_hardware=False, config_path=None, tb1_filename='O
         per_point_s = (SETTLE_US + DWELL_US) / 1e6
         timeout = max(5.0, expected_points * per_point_s * 10)  # very generous margin for longer dwell times
 
+        # Clear any stale ready flags first
+        print("🧹 Clearing any stale ready flags...")
+        try:
+            adwin.set_int_var(20, 0)  # Clear Par_20 (ready flag)
+        except Exception as e:
+            print(f"Warning: Could not clear ready flag: {e}")
+
         print("\n⏳ Waiting for Par_20 == 1 (sweep ready)…")
         t0 = time.time()
         while True:
-            par_20 = adwin.get_int_var(20)    # ready flag
-            par_21 = adwin.get_int_var(21)    # points (filled when ready)
-            hb     = adwin.get_int_var(25)    # heartbeat
-            elapsed = time.time() - t0
-            print(f"  {elapsed:5.2f}s | ready={par_20}  n_points={par_21}  hb={hb}", end='\r')
-
-            if par_20 == 1:
-                print()
+            try:
+                ready = adwin.get_int_var(20)  # ready flag
+                hb    = adwin.get_int_var(25)  # heartbeat
+                state = adwin.get_int_var(26)  # current state
+                elapsed = time.time() - t0
+                print(f"  {elapsed:5.2f}s | ready={ready} hb={hb} state={state}", end='\r')
+                
+                if ready == 1:
+                    print()
+                    break
+                time.sleep(0.05)
+            except Exception as e:
+                print(f"\n❌ Poll error: {e}")
                 break
+
             if elapsed > timeout:
-                print("\n⏰ Timeout waiting for sweep completion.")
+                print(f"\n❌ Timeout after {elapsed:.1f}s (expected ~{expected_points * per_point_s:.1f}s)")
                 return False
-            time.sleep(0.05)
 
         # ---------- read arrays ----------
         n_points = adwin.get_int_var(21)

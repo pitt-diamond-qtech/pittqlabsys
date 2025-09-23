@@ -101,34 +101,48 @@ Init:
   old_cnt = 0
 
 Event:
-  Par_25 = Par_25 + 1
-  tick_us = Processdelay / 100  ' 10 ns units -> µs
+  ' ---- heartbeat & tick ----
+  hb_div = hb_div + 1
+  IF (hb_div >= 10) THEN         ' update heartbeat every ~10 ticks
+    Par_25 = Par_25 + 1
+    hb_div = 0
+  ENDIF
 
+  tick_us = Processdelay / 100   ' 10 ns -> µs
+  IF (tick_us <= 0) THEN
+    tick_us = 1                  ' never allow zero tick
+  ENDIF
+
+  Par_26 = state                 ' live: which CASE we are in
+
+  ' ---- idle gate ----
   IF (Par_10 = 0) THEN
-    ' idle
     state = 0
-    Watchdog_Reset()
   ELSE
+
     SelectCase state
 
-      ' ------------------------------------------------------
-      CASE 0   ' START NEW SWEEP (when Par_20 == 0)
+      Case 0        ' START SWEEP (only when Par_20 == 0)
         IF (Par_20 <> 0) THEN
           state = 90
         ELSE
-          ' --- snapshot & clamp ---
+          ' snapshot basic params
           n_steps   = Par_1
           IF (n_steps < 2) THEN
             n_steps = 2
           ENDIF
           settle_us = Par_2
           dwell_us  = Par_3
-          dac_ch    = Par_4
-          IF (dac_ch < 1) THEN
+
+          ' clamp DAC ch (nested IF, no ELSEIF)
+          IF (Par_4 < 1) THEN
             dac_ch = 1
-          ENDIF
-          IF (dac_ch > 2) THEN
-            dac_ch = 2
+          ELSE
+            IF (Par_4 > 2) THEN
+              dac_ch = 2
+            ELSE
+              dac_ch = Par_4
+            ENDIF
           ENDIF
 
           vmin_clamped = Clamp(FPar_1, -1.0, 1.0)
@@ -151,19 +165,19 @@ Event:
           ENDIF
           Par_21 = n_points
 
-          ' Start with first step
           k = 0
           state = 20
         ENDIF
 
-      ' ------------------------------------------------------
-      CASE 20   ' PREP CURRENT STEP: compute pos, code; output; start settle
+      Case 20     ' PREP STEP: compute DAC code; start settle window
+        ' triangle index
         IF (k < n_steps) THEN
           pos = k
         ELSE
           pos = (2 * n_steps) - 2 - k
         ENDIF
 
+        ' code for this step
         IF (n_steps > 1) THEN
           step_dig = ((vmax_dig - vmin_dig) * pos) / (n_steps - 1)
         ELSE
@@ -179,80 +193,76 @@ Event:
           Data_2[k+1] = 65535
         ENDIF
 
+        ' output
         Write_DAC(dac_ch, Data_2[k+1])
         Start_DAC()
+
+        ' initialize timers
         settle_rem_us = settle_us
         dwell_rem_us  = dwell_us
         state = 30
 
-      ' ------------------------------------------------------
-      CASE 30   ' SETTLE (excluded from counting)
+      Case 30     ' SETTLE (excluded from counting)
         IF (settle_rem_us > 0) THEN
           IF (settle_rem_us > tick_us) THEN
             settle_rem_us = settle_rem_us - tick_us
           ELSE
             settle_rem_us = 0
           ENDIF
-          Watchdog_Reset()
         ELSE
           state = 40
         ENDIF
 
-      ' ------------------------------------------------------
-      CASE 40   ' LATCH BASELINE
+      Case 40     ' LATCH BASELINE
         Cnt_Latch(0001b)
         old_cnt = Cnt_Read_Latch(1)
         state = 50
 
-      ' ------------------------------------------------------
-      CASE 50   ' DWELL (counting window)
+      Case 50     ' DWELL (counting window)
         IF (dwell_rem_us > 0) THEN
           IF (dwell_rem_us > tick_us) THEN
             dwell_rem_us = dwell_rem_us - tick_us
           ELSE
             dwell_rem_us = 0
           ENDIF
-          Watchdog_Reset()
         ELSE
           state = 60
         ENDIF
 
-      ' ------------------------------------------------------
-      CASE 60   ' LATCH END, store delta
+      Case 60     ' LATCH END + STORE DELTA
         Cnt_Latch(0001b)
         new_cnt = Cnt_Read_Latch(1)
-        diff = new_cnt - old_cnt
+        diff = new_cnt - old_cnt   ' LONG math handles wrap
         IF (diff < 0) THEN
           diff = -diff
-        ENDIF   ' magnitude; drop this if you want signed
+        ENDIF
         Data_1[k+1] = diff
+
         state = 70
 
-      ' ------------------------------------------------------
-      CASE 70   ' ADVANCE STEP
+      Case 70     ' ADVANCE
         k = k + 1
         IF (k >= n_points) THEN
-          ' Finish sweep
-          Par_20 = 1              ' READY
-          state  = 90             ' wait for PC
+          Par_20 = 1     ' ready
+          state  = 90
         ELSE
-          state = 20              ' next step
+          state = 20
         ENDIF
 
-      ' ------------------------------------------------------
-      CASE 90   ' WAIT FOR PC
+      Case 90     ' WAIT FOR PC
+        ' no sleeps; just yield this tick
+        ' allow PC to clear Par_20
         IF (Par_20 = 0) THEN
           state = 0
-        ELSE
-          Watchdog_Reset()
         ENDIF
 
       CaseElse
         state = 0
+
     EndSelect
   ENDIF
 
-End  ' <-- single End that closes the Event section
+End
 
 Finish:
   ' Mark stopped and clear handshake
