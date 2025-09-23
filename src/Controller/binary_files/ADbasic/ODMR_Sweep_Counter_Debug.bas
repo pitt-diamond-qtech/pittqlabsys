@@ -12,9 +12,10 @@
 ' Info_Last_Save                 = DUTTLAB8  Duttlab8\Duttlab
 '<Header End>
 '
-' ODMR Sweep Counter Script — DEBUG (array-based step diagnostics)
+' ODMR Sweep Counter Script — DEBUG (state machine, chunked processing)
 ' Triangle on DACx; counts falling edges on Counter 1.
 ' Non-blocking handshake: Par_20=1 when ready; PC must clear to 0.
+' State machine prevents Get_Par timeouts by doing small chunks per Event.
 
 #Include ADwinGoldII.inc
 
@@ -26,6 +27,7 @@
 '   Par_2  = SETTLE_US (µs)
 '   Par_3  = DWELL_US  (µs)
 '   Par_4  = DAC_CH    (1..2)
+'   Par_8  = CHUNK_US  (µs, default 500 if 0)
 '   Par_10 = START     (1=run, 0=idle)
 ' To Python:
 '   Data_1[]  = counts per step (LONG)
@@ -34,6 +36,9 @@
 '   Data_3[]  = triangle pos per step (LONG)
 '   Par_20    = ready flag (1=data ready)
 '   Par_21    = number of points (2*N_STEPS-2)
+'   Par_22    = current step index (0-based)
+'   Par_23    = current triangle position
+'   Par_24    = current volts (FLOAT)
 '   Par_25    = heartbeat
 '   Par_30    = total counts (sum)
 '   Par_31    = max counts (per step)
@@ -61,8 +66,6 @@ Function Clamp(v, lo, hi) As Float
   Clamp = v
 EndFunction
 
-
-
 '--- working vars ---
 Dim n_steps, n_points, k As Long
 Dim dac_ch As Long
@@ -72,6 +75,10 @@ Dim vmin_dig, vmax_dig As Long
 Dim step_dig, pos As Long
 Dim vmin_clamped, vmax_clamped, t As Float
 Dim sum_counts, max_counts, max_idx As Long
+
+'--- state machine vars ---
+Dim state As Long
+Dim settle_rem_us, dwell_rem_us, chunk_us, chunk As Long
 
 '--- result buffers (1-based indexing) ---
 Dim Data_1[200000]  As Long   ' counts per step
@@ -92,8 +99,14 @@ Init:
   ' Watchdog (debug): 5 s (units = 10 µs) - increased for longer dwell times
   Watchdog_Init(1, 500000, 1111b)
 
+  ' Initialize state machine
+  state = 0
+
   Par_20 = 0
   Par_21 = 0
+  Par_22 = 0
+  Par_23 = 0
+  Par_24 = 0.0
   Par_25 = 0
   Par_30 = 0
   Par_31 = 0
@@ -102,89 +115,96 @@ Init:
   old_cnt = 0
 
 Event:
-  ' heartbeat
+  ' Heartbeat
   Par_25 = Par_25 + 1
 
-  ' idle when STOP
+  ' Chunk size (µs) from PC; default 500 µs if not set
+  chunk_us = Par_8
+  IF (chunk_us <= 0) THEN
+    chunk_us = 500
+  ENDIF
+
+  ' IDLE if STOP
   IF (Par_10 = 0) THEN
+    state = 0
     IO_Sleep(1000)
     Watchdog_Reset()
 
   ELSE
-    ' non-blocking handshake: if previous data not read, idle
-    IF (Par_20 <> 0) THEN
-      IO_Sleep(1000)
-      Watchdog_Reset()
 
-    ELSE
-      ' -------- run ONE triangle sweep --------
+    SELECTCASE state
 
-      ' 1) snapshot params
-      n_steps   = Par_1
-      IF (n_steps < 2) THEN 
-        n_steps = 2 
-      ENDIF
-      settle_us = Par_2
-      dwell_us  = Par_3
-      dac_ch    = Par_4
-      IF (dac_ch < 1) THEN 
-        dac_ch = 1 
-      ENDIF
-      IF (dac_ch > 2) THEN 
-        dac_ch = 2 
-      ENDIF
+      ' ------------------------------------------------------
+      CASE 0   ' START NEW SWEEP (when Par_20 == 0)
+        IF (Par_20 <> 0) THEN
+          state = 90
+        ELSE
+          ' --- snapshot & clamp ---
+          n_steps   = Par_1
+          IF (n_steps < 2) THEN 
+            n_steps = 2 
+          ENDIF
+          settle_us = Par_2
+          dwell_us  = Par_3
+          dac_ch    = Par_4
+          IF (dac_ch < 1) THEN 
+            dac_ch = 1
+          ENDIF
+          IF (dac_ch > 2) THEN 
+            dac_ch = 2 
+          ENDIF
 
-      ' 2) clamp & order
-      
-      vmin_clamped = Clamp(FPar_1, -1.0, 1.0)
-      vmax_clamped = Clamp(FPar_2, -1.0, 1.0)
-      IF (vmin_clamped > vmax_clamped) THEN
-        t = vmin_clamped
-        vmin_clamped = vmax_clamped
-        vmax_clamped = t
-      ENDIF
+          vmin_clamped = Clamp(FPar_1, -1.0, 1.0)
+          vmax_clamped = Clamp(FPar_2, -1.0, 1.0)
+          IF (vmin_clamped > vmax_clamped) THEN
+            t = vmin_clamped
+            vmin_clamped = vmax_clamped
+            vmax_clamped = t
+          ENDIF
 
-      ' 3) digits
-      vmin_dig = VoltsToDigits(vmin_clamped)
-      vmax_dig = VoltsToDigits(vmax_clamped)
-      IF (vmin_dig = vmax_dig) THEN 
-        n_steps = 2 
-      ENDIF
+          vmin_dig = VoltsToDigits(vmin_clamped)
+          vmax_dig = VoltsToDigits(vmax_clamped)
+          IF (vmin_dig = vmax_dig) THEN 
+            n_steps = 2 
+          ENDIF
 
-      ' 4) points & preload
-      n_points = (2 * n_steps) - 2
-      IF (n_points < 2) THEN 
-        n_points = 2 
-      ENDIF
-      Par_21 = n_points
+          n_points = (2 * n_steps) - 2
+          IF (n_points < 2) THEN 
+            n_points = 2 
+          ENDIF
+          Par_21 = n_points
 
-      Write_DAC(dac_ch, vmin_dig)
-      Start_DAC()
+          ' Preload DAC to first code (computed in next state)
+          k   = 0
+          Par_22 = 0
+          Par_23 = 0
+          Par_24 = 0.0
 
-      Cnt_Latch(0001b)
-      old_cnt = Cnt_Read_Latch(1)
+          ' Clear summaries
+          Par_30 = 0
+          Par_31 = -2147483648
+          Par_32 = 0
+          FPar_33 = 0.0
 
-      sum_counts = 0
-      max_counts = -2147483648   ' lowest LONG
-      max_idx    = 0
+          state = 20
+        ENDIF
 
-      ' 5) sweep
-      For k = 0 To (n_points - 1)
-
-        ' triangle position
+      ' ------------------------------------------------------
+      CASE 20   ' PREP CURRENT STEP: compute pos, code; output; start settle
         IF (k < n_steps) THEN
           pos = k
         ELSE
           pos = (2 * n_steps) - 2 - k
         ENDIF
+        Par_22 = k
+        Par_23 = pos
 
-        ' step digits
         IF (n_steps > 1) THEN
           step_dig = ((vmax_dig - vmin_dig) * pos) / (n_steps - 1)
         ELSE
           step_dig = 0
         ENDIF
-        Data_2[k+1]  = vmin_dig + step_dig
+        Data_2[k+1] = vmin_dig + step_dig
         
         ' bounds check for DAC digits (should be 0-65535)
         IF (Data_2[k+1] < 0) THEN
@@ -196,57 +216,95 @@ Event:
         
         FData_1[k+1] = DigitsToVolts(Data_2[k+1])
         Data_3[k+1]  = pos
+        Par_24 = FData_1[k+1]  ' debug volts
 
-        ' Output DAC step
         Write_DAC(dac_ch, Data_2[k+1])
         Start_DAC()
 
-        ' Settle (excluded from counting)
-        IF (settle_us > 0) THEN
-          IO_Sleep(settle_us * 100)
+        settle_rem_us = settle_us
+        state = 30
+
+      ' ------------------------------------------------------
+      CASE 30   ' SETTLE (excluded from counting)
+        IF (settle_rem_us > 0) THEN
+          chunk = settle_rem_us
+          IF (chunk > chunk_us) THEN 
+            chunk = chunk_us 
+          ENDIF
+          IO_Sleep(chunk * 100)          ' 1 µs = 100 * 10 ns
+          settle_rem_us = settle_rem_us - chunk
+          Watchdog_Reset()
+        ELSE
+          state = 40
         ENDIF
 
-        ' --- latch baseline at start of dwell ---
+      ' ------------------------------------------------------
+      CASE 40   ' LATCH BASELINE (start-of-dwell)
         Cnt_Latch(0001b)
         old_cnt = Cnt_Read_Latch(1)
+        dwell_rem_us = dwell_us
+        state = 50
 
-        ' Dwell (this is the counted window)
-        IF (dwell_us > 0) THEN
-          IO_Sleep(dwell_us * 100)
+      ' ------------------------------------------------------
+      CASE 50   ' DWELL (counting window) in chunks
+        IF (dwell_rem_us > 0) THEN
+          chunk = dwell_rem_us
+          IF (chunk > chunk_us) THEN 
+            chunk = chunk_us 
+          ENDIF
+          IO_Sleep(chunk * 100)          ' 1 µs = 100 * 10 ns
+          dwell_rem_us = dwell_rem_us - chunk
+          Watchdog_Reset()
+        ELSE
+          state = 60
         ENDIF
 
-        ' --- latch at end of dwell ---
+      ' ------------------------------------------------------
+      CASE 60   ' LATCH END (end-of-dwell), store delta
         Cnt_Latch(0001b)
         new_cnt = Cnt_Read_Latch(1)
+        diff = new_cnt - old_cnt         ' LONG math: wrap handled
+        IF (diff < 0) THEN
+          diff = -diff
+        ENDIF
+        Data_1[k+1] = diff
+        Par_30 = Par_30 + diff
+        IF (diff > Par_31) THEN
+          Par_31 = diff
+          Par_32 = k
+        ENDIF
+        state = 70
 
-        ' LONG arithmetic handles wrap; use Abs() if you don't care about direction
-        diff = new_cnt - old_cnt
-        Data_1[k+1] = Abs(diff)
-
-        ' summaries
-        sum_counts = sum_counts + Data_1[k+1]
-        IF (Data_1[k+1] > max_counts) THEN
-          max_counts = Data_1[k+1]
-          max_idx = k
+      ' ------------------------------------------------------
+      CASE 70   ' ADVANCE STEP
+        k = k + 1
+        IF (k >= n_points) THEN
+          ' Finish sweep
+          IF (n_points > 0) THEN
+            FPar_33 = Par_30 / n_points
+          ELSE
+            FPar_33 = 0.0
+          ENDIF
+          Par_20 = 1              ' READY
+          state  = 90             ' wait for PC
+        ELSE
+          state = 20              ' next step
         ENDIF
 
-        Watchdog_Reset()
-      Next k
+      ' ------------------------------------------------------
+      CASE 90   ' WAIT FOR PC TO CLEAR Par_20
+        IF (Par_20 = 0) THEN
+          state = 0               ' start next sweep
+        ELSE
+          IO_Sleep(1000)          ' ~10 µs
+          Watchdog_Reset()
+        ENDIF
 
-      ' 6) end-of-sweep summaries
-      Par_30  = sum_counts
-      Par_31  = max_counts
-      Par_32  = max_idx
-      IF (n_points > 0) THEN
-        FPar_33 = sum_counts / n_points
-      ELSE
-        FPar_33 = 0.0
-      ENDIF
+      ' ------------------------------------------------------
+      CASE ELSE
+        state = 0
 
-      ' 7) signal ready — non-blocking
-      Par_20 = 1
+    ENDSELECT
 
-      ' return; PC clears Par_20 to 0 to release next sweep
-    ENDIF
   ENDIF
   ' (no End here)
