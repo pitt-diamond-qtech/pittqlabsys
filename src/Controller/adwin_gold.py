@@ -206,27 +206,6 @@ class AdwinGoldDevice(Device):
             raise KeyError
         return self.adw.Get_FPar(FPar_id)
 
-    def set_timeout(self, timeout_ms):
-        '''
-        Sets the communication timeout for ADwin operations
-        Note: This method is not supported by the ADwin Python library.
-        Args:
-            timeout_ms: timeout in milliseconds (ignored)
-        '''
-        # ADwin Python library doesn't support timeout control
-        # This method is kept for compatibility but does nothing
-        pass
-
-    def get_timeout(self):
-        '''
-        Gets the current communication timeout
-        Note: This method is not supported by the ADwin Python library.
-        Returns:
-            int: Always returns 0 (not supported)
-        '''
-        # ADwin Python library doesn't support timeout control
-        # Return 0 to indicate timeout control is not available
-        return 0
 
     def get_process_status(self, process_id):
         '''
