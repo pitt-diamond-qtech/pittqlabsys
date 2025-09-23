@@ -310,10 +310,12 @@ Finish:
   ' Park DAC channel at 0 V (center)
   IF (Par_4 < 1) THEN
     dac_ch = 1
-  ELSEIF (Par_4 > 2) THEN
-    dac_ch = 2
   ELSE
-    dac_ch = Par_4
+    IF (Par_4 > 2) THEN
+      dac_ch = 2
+    ELSE
+      dac_ch = Par_4
+    ENDIF
   ENDIF
   Write_DAC(dac_ch, VoltsToDigits(0.0))
   Start_DAC()
@@ -326,4 +328,4 @@ Finish:
   Par_23 = 0
   Par_24 = 0.0
 
-End
+  Exit
