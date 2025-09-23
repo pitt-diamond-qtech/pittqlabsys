@@ -89,8 +89,8 @@ Init:
   Cnt_SE_Diff(0000b)
   Cnt_Enable(0001b)
 
-  ' Watchdog (debug): 1 s (units = 10 µs)
-  Watchdog_Init(1, 100000, 1111b)
+  ' Watchdog (debug): 5 s (units = 10 µs) - increased for longer dwell times
+  Watchdog_Init(1, 500000, 1111b)
 
   Par_20 = 0
   Par_21 = 0
@@ -197,28 +197,31 @@ Event:
         FData_1[k+1] = DigitsToVolts(Data_2[k+1])
         Data_3[k+1]  = pos
 
-        ' output
+        ' Output DAC step
         Write_DAC(dac_ch, Data_2[k+1])
         Start_DAC()
 
-        ' settle
+        ' Settle (excluded from counting)
         IF (settle_us > 0) THEN
           IO_Sleep(settle_us * 100)
         ENDIF
 
-        ' dwell
+        ' --- latch baseline at start of dwell ---
+        Cnt_Latch(0001b)
+        old_cnt = Cnt_Read_Latch(1)
+
+        ' Dwell (this is the counted window)
         IF (dwell_us > 0) THEN
           IO_Sleep(dwell_us * 100)
         ENDIF
 
-        ' latch & read
+        ' --- latch at end of dwell ---
         Cnt_Latch(0001b)
         new_cnt = Cnt_Read_Latch(1)
 
-        ' wrap-safe delta using LONG arithmetic (handles wrap automatically)
-        diff = new_cnt - old_cnt        ' LONG math => wrap handled per manual
-        Data_1[k+1] = Abs(diff)         ' magnitude only (works for both up/down counting)
-        old_cnt = new_cnt
+        ' LONG arithmetic handles wrap; use Abs() if you don't care about direction
+        diff = new_cnt - old_cnt
+        Data_1[k+1] = Abs(diff)
 
         ' summaries
         sum_counts = sum_counts + Data_1[k+1]

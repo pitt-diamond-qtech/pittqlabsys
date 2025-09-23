@@ -96,6 +96,14 @@ def debug_odmr_arrays(use_real_hardware=False, config_path=None, tb1_filename='O
         adwin = loaded_devices['adwin']
         print(f"✅ Adwin loaded: {type(adwin)}")
         print(f"✅ Connected: {adwin.is_connected}")
+        
+        # Set a generous timeout for longer dwell times
+        try:
+            adwin.set_timeout(10000)  # 10 seconds timeout
+            current_timeout = adwin.get_timeout()
+            print(f"✅ ADwin timeout set to: {current_timeout} ms")
+        except Exception as e:
+            print(f"⚠️  Could not set ADwin timeout: {e}")
 
     except Exception as e:
         print(f"❌ Failed to load real hardware: {e}")
@@ -128,7 +136,7 @@ def debug_odmr_arrays(use_real_hardware=False, config_path=None, tb1_filename='O
         # ---------- wait for non-blocking handshake ----------
         expected_points = max(2, 2 * N_STEPS - 2)
         per_point_s = (SETTLE_US + DWELL_US) / 1e6
-        timeout = max(2.0, expected_points * per_point_s * 5)  # generous margin
+        timeout = max(5.0, expected_points * per_point_s * 10)  # very generous margin for longer dwell times
 
         print("\n⏳ Waiting for Par_20 == 1 (sweep ready)…")
         t0 = time.time()

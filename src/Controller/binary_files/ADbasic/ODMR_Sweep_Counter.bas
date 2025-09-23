@@ -79,8 +79,8 @@ Init:
   Cnt_SE_Diff(0000b)       ' single-ended
   Cnt_Enable(0001b)
 
-  ' Watchdog (debug-friendly: 1 s). Keep Reset calls in code.
-  Watchdog_Init(1, 100000, 1111b)   ' time units = 10 µs
+  ' Watchdog (debug-friendly: 5 s). Keep Reset calls in code.
+  Watchdog_Init(1, 500000, 1111b)   ' time units = 10 µs
 
   ' Handshake init
   Par_20 = 0
@@ -177,28 +177,31 @@ Event:
           Data_2[k+1] = 65535
         ENDIF
 
-        ' output
+        ' Output DAC step
         Write_DAC(dac_ch, Data_2[k+1])
         Start_DAC()
 
-        ' settle
+        ' Settle (excluded from counting)
         IF (settle_us > 0) THEN
           IO_Sleep(settle_us * 100)    ' 1 µs = 100 * 10 ns
         ENDIF
 
-        ' dwell
+        ' --- latch baseline at start of dwell ---
+        Cnt_Latch(0001b)
+        old_cnt = Cnt_Read_Latch(1)
+
+        ' Dwell (this is the counted window)
         IF (dwell_us > 0) THEN
           IO_Sleep(dwell_us * 100)
         ENDIF
 
-        ' latch & read; wrap-safe delta using LONG arithmetic
+        ' --- latch at end of dwell ---
         Cnt_Latch(0001b)
         new_cnt = Cnt_Read_Latch(1)
 
-        ' wrap-safe delta using LONG arithmetic (handles wrap automatically)
-        diff = new_cnt - old_cnt        ' LONG math => wrap handled per manual
-        Data_1[k+1] = Abs(diff)         ' magnitude only (works for both up/down counting)
-        old_cnt = new_cnt
+        ' LONG arithmetic handles wrap; use Abs() if you don't care about direction
+        diff = new_cnt - old_cnt
+        Data_1[k+1] = Abs(diff)
 
         Watchdog_Reset()
       Next k

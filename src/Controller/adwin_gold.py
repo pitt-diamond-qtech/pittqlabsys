@@ -206,6 +206,22 @@ class AdwinGoldDevice(Device):
             raise KeyError
         return self.adw.Get_FPar(FPar_id)
 
+    def set_timeout(self, timeout_ms):
+        '''
+        Sets the communication timeout for ADwin operations
+        Args:
+            timeout_ms: timeout in milliseconds
+        '''
+        self.adw.Set_Timeout(timeout_ms)
+
+    def get_timeout(self):
+        '''
+        Gets the current communication timeout
+        Returns:
+            int: timeout in milliseconds
+        '''
+        return self.adw.Get_Timeout()
+
     def get_process_status(self, process_id):
         '''
         Gets the status of a specific process
