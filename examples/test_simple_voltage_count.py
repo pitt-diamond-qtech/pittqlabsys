@@ -45,7 +45,7 @@ def test_simple_voltage_count(adwin, output_volts=0.0, settle_us=1000, dwell_us=
     # Load the simple test script
     script_path = os.path.join(os.path.dirname(__file__), '..', 'src', 'Controller', 'binary_files', 'ADbasic', 'Simple_Voltage_Count_Test.TB1')
     print(f"📁 Loading: {script_path}")
-    adwin.load_process(1, script_path)
+    adwin.load_process(script_path)
     
     # Set parameters while STOPPED
     print("⚙️  Setting parameters...")
