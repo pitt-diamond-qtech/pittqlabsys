@@ -62,9 +62,26 @@ def test_hello_heartbeat(adwin):
     except Exception as e:
         print(f"   ❌ Failed to start process: {e}")
         return False
-    time.sleep(0.1)
+    time.sleep(0.5)  # Give process time to initialize
     
-    # Try reading some basic parameters first
+    # Test basic parameter read/write functionality first
+    print("\n🔍 Testing basic parameter read/write...")
+    try:
+        print("   Testing Par_77 read/write...")
+        adwin.set_int_var(77, 123456)
+        val = adwin.get_int_var(77)
+        print(f"   Set Par_77 = 123456, Read Par_77 = {val}")
+        if val == 123456:
+            print("   ✅ Basic parameter read/write working!")
+        else:
+            print(f"   ❌ Parameter read/write failed! Expected 123456, got {val}")
+            return False
+    except Exception as e:
+        print(f"   ❌ Error with parameter read/write: {e}")
+        print(f"   Error type: {type(e).__name__}")
+        return False
+    
+    # Try reading some basic parameters
     print("\n🔍 Testing basic parameter access...")
     try:
         print("   Testing Par_25 (heartbeat)...")
@@ -84,6 +101,24 @@ def test_hello_heartbeat(adwin):
         if st != 'Running':
             print(f"   ❌ Process not running! Status: {st}")
             print("   This explains why Par_80 is not accessible")
+            
+            # Try to get more diagnostic info
+            print("\n🔍 Additional diagnostics...")
+            try:
+                last_error = adwin.read_probes('last_error', 1)
+                print(f"   Last ADwin error: {last_error}")
+            except:
+                print("   Could not read last error")
+            
+            # Check if we can read any parameters at all
+            print("   Testing parameter access...")
+            for test_par in [1, 2, 3, 10, 20, 25, 80]:
+                try:
+                    val = adwin.get_int_var(test_par)
+                    print(f"   Par_{test_par} = {val}")
+                except Exception as e:
+                    print(f"   Par_{test_par} = ERROR: {e}")
+            
             return False
         else:
             print("   ✅ Process is running!")
