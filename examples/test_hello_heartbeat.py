@@ -64,19 +64,6 @@ def test_hello_heartbeat(adwin):
         return False
     time.sleep(0.1)
     
-    # Check if process is running
-    print("\n📊 Checking process status...")
-    try:
-        st = adwin.adw.Process_Status(1)
-        print(f"   Process_Status(1) = {st}")
-        if st != 1:
-            print(f"   ❌ Process not running! Status: {st}")
-            return False
-        else:
-            print("   ✅ Process is running!")
-    except Exception as e:
-        print(f"   ⚠️  Could not check process status: {e}")
-    
     # Try reading some basic parameters first
     print("\n🔍 Testing basic parameter access...")
     try:
@@ -107,6 +94,19 @@ def test_hello_heartbeat(adwin):
         print("   Full traceback:")
         traceback.print_exc()
         return False
+    
+    # Check if process is running
+    print("\n📊 Checking process status...")
+    try:
+        st = adwin.adw.Process_Status(1)
+        print(f"   Process_Status(1) = {st}")
+        if st != 1:
+            print(f"   ❌ Process not running! Status: {st}")
+            return False
+        else:
+            print("   ✅ Process is running!")
+    except Exception as e:
+        print(f"   ⚠️  Could not check process status: {e}")
     
     # Heartbeat check
     print("\n💓 Checking heartbeat...")
