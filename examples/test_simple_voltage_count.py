@@ -10,11 +10,12 @@ import sys
 import os
 import time
 import argparse
+from pathlib import Path
 
-# Add src to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+# Add project root
+sys.path.insert(0, str(Path(__file__).parent / '..'))
 
-from Controller.adwin_gold import AdwinGoldDevice
+from src.Controller.adwin_gold import AdwinGoldDevice
 
 def test_simple_voltage_count(adwin, output_volts=0.0, settle_us=1000, dwell_us=5000, dac_ch=1, edge_rising=False, tick_us=200):
     """
@@ -195,7 +196,7 @@ def main():
             return 1
     else:
         print("🔧 Using mock hardware...")
-        from tests.conftest import mock_adwin
+        from src.tests.conftest import mock_adwin
         adwin = mock_adwin()
     
     try:
