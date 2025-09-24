@@ -79,7 +79,7 @@ def test_hello_heartbeat(adwin):
     # Check if process is running first
     print("\n📊 Checking process status...")
     try:
-        st = adwin.get_process_status(1)
+        st = adwin.read_probes('process_status', 1)
         print(f"   Process_Status(1) = {st}")
         if st != 'Running':
             print(f"   ❌ Process not running! Status: {st}")
