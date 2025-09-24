@@ -12,14 +12,12 @@
 Init:
   Par_25 = 0
   Par_99 = 4242
-  ' signature so we know this TB1 is actually loaded
 
 Event:
   Par_25 = Par_25 + 1
 End
 
 Finish:
-  ' Clean shutdown
   Par_25 = 0
   Par_99 = 0
   Exit
