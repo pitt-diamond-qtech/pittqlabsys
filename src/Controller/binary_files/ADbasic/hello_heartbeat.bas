@@ -26,9 +26,15 @@ Init:
   Par_25 = 0 ' heartbeat counter
   Par_80 = 4242 ' signature to confirm script is loaded
   Par_71 = Processdelay
-  Par_72 = 0 ' second counter to confirm Event is ticking
+  Par_72 = 1000    ' second counter to confirm Event is ticking
+  Par_78 = 0                  ' toggle variable to confirm Event is ticking
 
 Event:
   Par_25 = Par_25 + 1
   Par_72 = Par_72 + 10
+  IF (Par_78 = 0) THEN
+    Par_78 = 1
+  ELSE
+    Par_78 = 0
+  ENDIF
 End
