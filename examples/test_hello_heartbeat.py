@@ -42,9 +42,35 @@ def test_hello_heartbeat(adwin):
     adwin.start_process(1)
     time.sleep(0.1)
     
+    # Check if process is running
+    print("\n📊 Checking process status...")
+    try:
+        st = adwin.adw.Process_Status(1)
+        print(f"   Process_Status(1) = {st}")
+        if st != 1:
+            print(f"   ❌ Process not running! Status: {st}")
+            return False
+        else:
+            print("   ✅ Process is running!")
+    except Exception as e:
+        print(f"   ⚠️  Could not check process status: {e}")
+    
+    # Try reading some basic parameters first
+    print("\n🔍 Testing basic parameter access...")
+    try:
+        print("   Testing Par_25 (heartbeat)...")
+        hb_test = adwin.get_int_var(25)
+        print(f"   Par_25 = {hb_test}")
+        print("   ✅ Basic parameter access working!")
+    except Exception as e:
+        print(f"   ❌ Error reading Par_25: {e}")
+        print(f"   Error type: {type(e).__name__}")
+        return False
+    
     # Confirm the TB1 is really the one we loaded
     print("\n🔍 Verifying script loaded...")
     try:
+        print("   Attempting to read Par_99...")
         sig = adwin.get_int_var(99)
         print(f"   Signature Par_99 = {sig}")
         if sig == 4242:
@@ -54,6 +80,10 @@ def test_hello_heartbeat(adwin):
             return False
     except Exception as e:
         print(f"   ❌ Error reading signature: {e}")
+        print(f"   Error type: {type(e).__name__}")
+        import traceback
+        print("   Full traceback:")
+        traceback.print_exc()
         return False
     
     # Heartbeat check
