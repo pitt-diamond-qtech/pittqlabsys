@@ -162,40 +162,48 @@ class AdwinGoldDevice(Device):
         '''
         Changes value of specified global parameter Par_#
         Args:
-            Par_id: index of global integer variable (let ADwin handle range validation)
+            Par_id: index of global integer variable (range Par_1 to Par_80)
             value: integer value to write to parameter (32-bit integer)
         '''
         value = int(value)
+        if (Par_id < 1) or (Par_id > 80):
+            raise KeyError
         self.adw.Set_Par(Par_id, value)
 
     def set_float_var(self, FPar_id, value):
         '''
         Changes value of specified global parameter FPar_#
         Args:
-            FPar_id: index of global float variable (let ADwin handle range validation)
+            FPar_id: index of global float variable (range FPar_1 to FPar_80)
             value: float value to write to parameter
         '''
         value = float(value)
+        if (FPar_id < 1) or (FPar_id > 80):
+            raise KeyError
         self.adw.Set_FPar(FPar_id, value)
 
     def get_int_var(self, Par_id):
         '''
         Gets value of specified global parameter Par_#
         Args:
-            Par_id: index of global integer variable (let ADwin handle range validation)
+            Par_id: index of global integer variable (range Par_1 to Par_80)
         Returns:
             int: value of the parameter
         '''
+        if (Par_id < 1) or (Par_id > 80):
+            raise KeyError
         return self.adw.Get_Par(Par_id)
 
     def get_float_var(self, FPar_id):
         '''
         Gets value of specified global parameter FPar_#
         Args:
-            FPar_id: index of global float variable (let ADwin handle range validation)
+            FPar_id: index of global float variable (range FPar_1 to FPar_80)
         Returns:
             float: value of the parameter
         '''
+        if (FPar_id < 1) or (FPar_id > 80):
+            raise KeyError
         return self.adw.Get_FPar(FPar_id)
 
 

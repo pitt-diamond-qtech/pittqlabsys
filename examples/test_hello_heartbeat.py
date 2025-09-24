@@ -96,7 +96,7 @@ def test_hello_heartbeat(adwin):
     # First, let's test what parameters are accessible
     print("   Testing parameter accessibility...")
     accessible_params = []
-    for par_num in [25, 99, 1, 2, 3, 10, 20]:
+    for par_num in [25, 80, 1, 2, 3, 10, 20]:
         try:
             val = adwin.get_int_var(par_num)
             accessible_params.append(f"Par_{par_num}={val}")
@@ -105,9 +105,9 @@ def test_hello_heartbeat(adwin):
     print(f"   Accessible parameters: {', '.join(accessible_params)}")
     
     try:
-        print("   Attempting to read Par_99...")
-        sig = adwin.get_int_var(99)
-        print(f"   Signature Par_99 = {sig}")
+        print("   Attempting to read Par_80...")
+        sig = adwin.get_int_var(80)
+        print(f"   Signature Par_80 = {sig}")
         if sig == 4242:
             print("   ✅ Correct script loaded!")
         else:
@@ -116,7 +116,7 @@ def test_hello_heartbeat(adwin):
     except Exception as e:
         print(f"   ❌ Error reading signature: {e}")
         print(f"   Error type: {type(e).__name__}")
-        print("   This suggests the script didn't load properly or Par_99 is not accessible")
+        print("   This suggests the script didn't load properly or Par_80 is not accessible")
         return False
     
     # Heartbeat check
