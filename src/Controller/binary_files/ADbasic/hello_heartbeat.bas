@@ -11,7 +11,7 @@
 
 Init:
   Par_25 = 0
-  Par_99 = 4242
+  Par_80 = 4242
 
 Event:
   Par_25 = Par_25 + 1
@@ -19,5 +19,5 @@ End
 
 Finish:
   Par_25 = 0
-  Par_99 = 0
+  Par_80 = 0
   Exit
