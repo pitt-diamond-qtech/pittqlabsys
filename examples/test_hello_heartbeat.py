@@ -79,18 +79,18 @@ def test_hello_heartbeat(adwin):
     # Check if process is running first
     print("\n📊 Checking process status...")
     try:
-        st = adwin.adw.Process_Status(1)
+        st = adwin.get_process_status(1)
         print(f"   Process_Status(1) = {st}")
-        if st != 1:
+        if st != 'Running':
             print(f"   ❌ Process not running! Status: {st}")
-            print("   This explains why Par_99 is not accessible")
+            print("   This explains why Par_80 is not accessible")
             return False
         else:
             print("   ✅ Process is running!")
     except Exception as e:
         print(f"   ⚠️  Could not check process status: {e}")
     
-    # Try reading Par_99 now that we know the process is running
+    # Try reading Par_80 now that we know the process is running
     print("\n🔍 Verifying script loaded...")
     
     # First, let's test what parameters are accessible
