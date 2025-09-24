@@ -7,7 +7,6 @@
 ' ADbasic_Version              = 6.3.0
 '<Header End>
 
-#Include ADwinGoldII.inc
 
 Init:
   Par_25 = 0
@@ -16,8 +15,3 @@ Init:
 Event:
   Par_25 = Par_25 + 1
 End
-
-Finish:
-  Par_25 = 0
-  Par_80 = 0
-  Exit
