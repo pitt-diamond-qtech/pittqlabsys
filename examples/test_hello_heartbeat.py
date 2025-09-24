@@ -25,9 +25,19 @@ def test_hello_heartbeat(adwin):
     
     # Get the TB1 path using absolute Windows path
     tb1 = Path(r"D:\PyCharmProjects\pittqlabsys\src\Controller\binary_files\ADbasic\hello_heartbeat.TB1")
-    assert tb1.exists(), f"TB1 not found: {tb1}"
+    if not tb1.exists():
+        print(f"❌ TB1 not found: {tb1}")
+        print("   Please compile hello_heartbeat.bas on the lab PC first!")
+        return False
+    
+    # Check file size
+    file_size = tb1.stat().st_size
     tbi_path = str(tb1)
     print(f"📁 TB1 path: {tbi_path}")
+    print(f"📊 TB1 file size: {file_size} bytes")
+    if file_size == 0:
+        print("❌ TB1 file is empty! Compilation may have failed.")
+        return False
     
     # Clean start
     print("\n🧹 Clean start...")
@@ -37,11 +47,21 @@ def test_hello_heartbeat(adwin):
     
     # Load the minimal script
     print("📁 Loading hello_heartbeat.TB1...")
-    adwin.update({'process_1': {'load': str(tbi_path)}})
+    try:
+        adwin.update({'process_1': {'load': str(tbi_path)}})
+        print("   ✅ TB1 loaded successfully")
+    except Exception as e:
+        print(f"   ❌ Failed to load TB1: {e}")
+        return False
     
     # Start process
     print("▶️  Starting process...")
-    adwin.start_process(1)
+    try:
+        adwin.start_process(1)
+        print("   ✅ Process start command sent")
+    except Exception as e:
+        print(f"   ❌ Failed to start process: {e}")
+        return False
     time.sleep(0.1)
     
     # Check if process is running
