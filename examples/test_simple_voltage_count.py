@@ -39,18 +39,16 @@ def test_simple_voltage_count(adwin, output_volts=0.0, settle_us=1000, dwell_us=
     # Clean start
     print("🧹 Clean start...")
     adwin.stop_process(1)
-    time.sleep(0.05)
+    time.sleep(0.1)
     adwin.clear_process(1)
     
-    # Load the simple test script
+    # Load the simple test script using the same pattern as debug_odmr_arrays.py
     script_path = os.path.join(os.path.dirname(__file__), '..', 'src', 'Controller', 'binary_files', 'ADbasic', 'Simple_Voltage_Count_Test.TB1')
     print(f"📁 Loading: {script_path}")
-    adwin.load_process(script_path)
+    adwin.update({'process_1': {'load': str(script_path)}})
     
     # Set parameters while STOPPED
     print("⚙️  Setting parameters...")
-    adwin.set_int_var(10, 0)         # START=0
-    adwin.set_int_var(20, 0)         # READY=0
     adwin.set_int_var(8, tick_us)    # tick size (Processdelay = tick_us*100)
     adwin.set_int_var(2, settle_us)  # SETTLE_US
     adwin.set_int_var(3, dwell_us)   # DWELL_US
@@ -58,7 +56,8 @@ def test_simple_voltage_count(adwin, output_volts=0.0, settle_us=1000, dwell_us=
     adwin.set_int_var(5, 0 if edge_rising else 1)  # edge select (0=rising, 1=falling)
     adwin.set_float_var(1, output_volts)  # Vout
     
-    # Start process
+    # Set START=1 first (so Event sees START=1 on its first tick)
+    adwin.set_int_var(10, 1)         # Par_10 = START
     print("▶️  Starting process...")
     adwin.start_process(1)
     time.sleep(0.05)
@@ -76,7 +75,7 @@ def test_simple_voltage_count(adwin, output_volts=0.0, settle_us=1000, dwell_us=
     # Run one window
     print("\n⏳ Running measurement window...")
     adwin.set_int_var(20, 0)   # clear ready
-    adwin.set_int_var(10, 1)   # START
+    # START is already set to 1, state machine will re-arm
     
     t0 = time.time()
     while True:
