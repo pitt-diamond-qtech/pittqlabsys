@@ -76,8 +76,34 @@ def test_hello_heartbeat(adwin):
         print(f"   Error type: {type(e).__name__}")
         return False
     
-    # Confirm the TB1 is really the one we loaded
+    # Check if process is running first
+    print("\n📊 Checking process status...")
+    try:
+        st = adwin.adw.Process_Status(1)
+        print(f"   Process_Status(1) = {st}")
+        if st != 1:
+            print(f"   ❌ Process not running! Status: {st}")
+            print("   This explains why Par_99 is not accessible")
+            return False
+        else:
+            print("   ✅ Process is running!")
+    except Exception as e:
+        print(f"   ⚠️  Could not check process status: {e}")
+    
+    # Try reading Par_99 now that we know the process is running
     print("\n🔍 Verifying script loaded...")
+    
+    # First, let's test what parameters are accessible
+    print("   Testing parameter accessibility...")
+    accessible_params = []
+    for par_num in [25, 99, 1, 2, 3, 10, 20]:
+        try:
+            val = adwin.get_int_var(par_num)
+            accessible_params.append(f"Par_{par_num}={val}")
+        except:
+            accessible_params.append(f"Par_{par_num}=ERROR")
+    print(f"   Accessible parameters: {', '.join(accessible_params)}")
+    
     try:
         print("   Attempting to read Par_99...")
         sig = adwin.get_int_var(99)
@@ -90,23 +116,8 @@ def test_hello_heartbeat(adwin):
     except Exception as e:
         print(f"   ❌ Error reading signature: {e}")
         print(f"   Error type: {type(e).__name__}")
-        import traceback
-        print("   Full traceback:")
-        traceback.print_exc()
+        print("   This suggests the script didn't load properly or Par_99 is not accessible")
         return False
-    
-    # Check if process is running
-    print("\n📊 Checking process status...")
-    try:
-        st = adwin.adw.Process_Status(1)
-        print(f"   Process_Status(1) = {st}")
-        if st != 1:
-            print(f"   ❌ Process not running! Status: {st}")
-            return False
-        else:
-            print("   ✅ Process is running!")
-    except Exception as e:
-        print(f"   ⚠️  Could not check process status: {e}")
     
     # Heartbeat check
     print("\n💓 Checking heartbeat...")
