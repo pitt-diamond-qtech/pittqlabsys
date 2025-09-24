@@ -9,7 +9,7 @@ This isolates fundamental communication issues from complex timing logic.
 import sys
 import os
 import time
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 # Add project root
 sys.path.insert(0, str(Path(__file__).parent / '..'))
@@ -23,8 +23,10 @@ def test_hello_heartbeat(adwin):
     print("🧪 Hello Heartbeat Test - Ultra-minimal ADwin test")
     print("=" * 60)
     
-    # Get the TB1 path
-    tbi_path = os.path.join(os.path.dirname(__file__), '..', 'src', 'Controller', 'binary_files', 'ADbasic', 'hello_heartbeat.TB1')
+    # Get the TB1 path using absolute Windows path
+    tb1 = Path(r"D:\PyCharmProjects\pittqlabsys\src\Controller\binary_files\ADbasic\hello_heartbeat.TB1")
+    assert tb1.exists(), f"TB1 not found: {tb1}"
+    tbi_path = str(tb1)
     print(f"📁 TB1 path: {tbi_path}")
     
     # Clean start
