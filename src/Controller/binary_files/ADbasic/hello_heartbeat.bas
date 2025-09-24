@@ -7,7 +7,7 @@
 ' ADbasic_Version              = 6.3.0
 '<Header End>
 
-' No includes, no functions
+#Include ADwinGoldII.inc
 
 Init:
   Par_25 = 0
@@ -17,3 +17,9 @@ Init:
 Event:
   Par_25 = Par_25 + 1
 End
+
+Finish:
+  ' Clean shutdown
+  Par_25 = 0
+  Par_99 = 0
+  Exit
