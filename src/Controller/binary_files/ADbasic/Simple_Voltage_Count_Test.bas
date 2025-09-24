@@ -36,7 +36,7 @@ Function VoltsToDigits(v) As Long
   VoltsToDigits = Round((v + 10.0) * 65535.0 / 20.0)
 EndFunction
 
-' clamp to [lo, hi]
+Rem clamp to [lo, hi]
 Function Clamp(v, lo, hi) As Float
   IF (v < lo) THEN
     v = lo
@@ -62,20 +62,23 @@ Init:
   IF (Par_8 <= 0) THEN
     Par_8 = 200
   ENDIF
-  Processdelay = Par_8 * 100   Rem 10 ns units
+  Processdelay = Par_8 * 100
+  Rem 10 ns units
 
   Par_20 = 0
   Par_25 = 0
   Par_30 = 0
   state  = 0
 
-  Rem ---- Counter setup: clock/direction, single-ended ----
+  Rem Counter setup: clock/direction, single-ended
   Cnt_Enable(0)
   Cnt_Clear(0001b)
   IF (Par_5 = 1) THEN
-    Cnt_Mode(1, 00000100b)   Rem invert A/CLK -> count on falling edges
+    Cnt_Mode(1, 00000100b)
+    Rem invert A/CLK -> count on falling edges
   ELSE
-    Cnt_Mode(1, 00000000b)   Rem rising edges
+    Cnt_Mode(1, 00000000b)
+    Rem rising edges
   ENDIF
   Cnt_SE_Diff(0000b)
   Cnt_Enable(0001b)
@@ -88,14 +91,16 @@ Event:
     tick_us = 1
   ENDIF
 
-  Par_26 = state   Rem live state (debug)
+  Par_26 = state
+  Rem live state (debug)
 
   IF (Par_10 = 0) THEN
     state = 0
   ELSE
     SelectCase state
 
-      Case 0   Rem ARM MEASUREMENT
+      Case 0
+        Rem ARM MEASUREMENT
         settle_us = Par_2
         dwell_us  = Par_3
 
@@ -124,7 +129,8 @@ Event:
 
         state = 10
 
-      Case 10  Rem SETTLE countdown (excluded from counting)
+      Case 10
+        Rem SETTLE countdown (excluded from counting)
         IF (settle_rem_us > 0) THEN
           IF (settle_rem_us > tick_us) THEN
             settle_rem_us = settle_rem_us - tick_us
@@ -135,12 +141,14 @@ Event:
           state = 20
         ENDIF
 
-      Case 20  Rem LATCH BASELINE (start of dwell)
+      Case 20
+        Rem LATCH BASELINE (start of dwell)
         Cnt_Latch(0001b)
         old_cnt = Cnt_Read_Latch(1)
         state = 30
 
-      Case 30  Rem DWELL countdown (counting window)
+      Case 30
+        Rem DWELL countdown (counting window)
         IF (dwell_rem_us > 0) THEN
           IF (dwell_rem_us > tick_us) THEN
             dwell_rem_us = dwell_rem_us - tick_us
@@ -151,7 +159,8 @@ Event:
           state = 40
         ENDIF
 
-      Case 40  Rem LATCH END + STORE RESULT
+      Case 40
+        Rem LATCH END + STORE RESULT
         Cnt_Latch(0001b)
         new_cnt = Cnt_Read_Latch(1)
         diff = new_cnt - old_cnt
@@ -159,10 +168,12 @@ Event:
           diff = -diff
         ENDIF
         Par_30 = diff
-        Par_20 = 1           Rem READY
+        Par_20 = 1
+        Rem READY
         state  = 90
 
-      Case 90  Rem WAIT FOR PC TO CLEAR READY OR STOP
+      Case 90
+        Rem WAIT FOR PC TO CLEAR READY OR STOP
         IF (Par_10 = 0) THEN
           state = 0
         ELSE
