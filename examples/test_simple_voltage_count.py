@@ -188,9 +188,10 @@ def main():
         print("🔧 Using real hardware...")
         try:
             adwin = AdwinGoldDevice()
-            if not adwin.connect():
+            if not adwin.is_connected:
                 print("❌ Failed to connect to ADwin")
                 return 1
+            print(f"✅ ADwin connected: {adwin.is_connected}")
         except Exception as e:
             print(f"❌ Hardware connection failed: {e}")
             return 1
