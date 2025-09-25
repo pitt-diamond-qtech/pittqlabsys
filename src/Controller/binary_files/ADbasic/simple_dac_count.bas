@@ -129,7 +129,7 @@ Event:
 
     Rem ---- compute delta with wrap handling using Float arithmetic ----
     Rem Convert to Float explicitly to avoid type issues
-    fd = Float(cur_cnt) - Float(last_cnt)
+    fd = cur_cnt - last_cnt
     
     Rem Debug: store raw counter values for analysis
     Rem store last_cnt for debugging
@@ -140,16 +140,15 @@ Event:
     Par_24 = fd          
     
     IF (fd < 0.0) THEN    
-      Rem hardware is unsigned 32-bit           
+      Rem hardware is unsigned 32-bit     
+      ' modulo 2^32 into [0,2^32)      
       fd = fd + 4294967296.0
     ENDIF
 
-    Rem clamp before storing in signed Long
-    IF (fd < 0.0) THEN 
-      fd = 0.0 
-    ENDIF
-    IF (fd > 2147483647.0) THEN 
-      fd = 2147483647.0 
+    ' Direction-agnostic: pick the smaller arc on the 32-bit ring
+
+    IF (fd > 2147483647.0) THEN ' > 2^31
+      fd = 4294967296.0 - fd     ' take the other way around
     ENDIF
     
     Rem safe INT result
