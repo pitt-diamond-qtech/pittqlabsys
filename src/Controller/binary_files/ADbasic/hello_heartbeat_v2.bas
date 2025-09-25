@@ -24,7 +24,7 @@ Event:
   Par_25 = Par_25 + 1
   Par_72 = Par_72 + 10
   Par_60 = 199      ' exiting Event
-End
+
 
 Finish:
   Par_60 = 900      ' Finish ran because process stopped

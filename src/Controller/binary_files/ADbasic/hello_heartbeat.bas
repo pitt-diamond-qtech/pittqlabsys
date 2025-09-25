@@ -32,4 +32,6 @@ Event:
   ELSE
     Par_78 = 0
   ENDIF
-End
+
+Finish:
+  Par_25 = 0
