@@ -100,6 +100,8 @@ def test_hello_heartbeat(adwin):
     t0 = time.time()
     last_status = "Not running"
     last_hb = 0
+    start_hb = adwin.get_int_var(25)
+    
     while time.time() - t0 < 5.0:
         try:
             st  = adwin.get_process_status(1)
@@ -129,6 +131,12 @@ def test_hello_heartbeat(adwin):
         except Exception as e:
             print(f"❌ Error during monitoring: {e}")
             return False
+    
+    # Calculate event rate after monitoring is complete
+    end_hb = adwin.get_int_var(25)
+    total_elapsed = time.time() - t0
+    rate = (end_hb - start_hb) / total_elapsed
+    print(f"\n📊 Event rate: {rate:.1f} Hz (over {total_elapsed:.1f}s)")
     
     print("\n✅ Hello Heartbeat test completed successfully!")
     return True
