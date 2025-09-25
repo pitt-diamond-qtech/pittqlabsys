@@ -115,7 +115,9 @@ def debug_odmr_arrays(use_real_hardware=False, config_path=None, tb1_filename='O
         SETTLE_US  = 1000     # 1 ms
         DWELL_US   = 5000     # 5 ms
         DAC_CH     = 1
-        CHUNK_US   = 0        # Use ADbasic default (200 µs)
+        CHUNK_US   = 0        # Use ADbasic auto-calculate (hybrid timing)
+        # CHUNK_US = 0: Auto-calculate Processdelay based on dwell time
+        # CHUNK_US > 0: Manual Processdelay override (µs)
 
         print("⚙️  Applying parameters…")
         adwin.set_float_var(1, VMIN)     # FPar_1
@@ -124,7 +126,7 @@ def debug_odmr_arrays(use_real_hardware=False, config_path=None, tb1_filename='O
         adwin.set_int_var(2, SETTLE_US)  # Par_2
         adwin.set_int_var(3, DWELL_US)   # Par_3
         adwin.set_int_var(4, DAC_CH)     # Par_4
-        adwin.set_int_var(8, CHUNK_US)   # Par_8 = CHUNK_US (0 = use default)
+        adwin.set_int_var(8, CHUNK_US)   # Par_8 = PROCESSDELAY_US (0 = auto-calculate)
 
         # Start first (so Event sees START=1 on its first tick)
         adwin.set_int_var(10, 1)         # Par_10 = START

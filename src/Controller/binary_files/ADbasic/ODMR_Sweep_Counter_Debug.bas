@@ -1,6 +1,6 @@
 '<ADbasic Header, Headerversion 001.001>
 ' Process_Number                 = 1
-' Initial_Processdelay           = 1000000
+' Initial_Processdelay           = 3000000
 ' Eventsource                    = Timer
 ' Control_long_Delays_for_Stop   = No
 ' Priority                       = Normal
@@ -26,8 +26,10 @@
 '   Par_1  = N_STEPS   (>=2)
 '   Par_2  = SETTLE_US (µs)
 '   Par_3  = DWELL_US  (µs)
-'   Par_4  = DAC_CH    (1..2)
-'   Par_8  = CHUNK_US  (µs, default 200 if 0)
+'   Par_4  = EDGE_MODE  (0=rising, 1=falling)
+'   Par_5  = DAC_CH    (1..2)
+'   Par_6  = DIR_SENSE (0=DIR Low=up, 1=DIR High=up)
+'   Par_8  = PROCESSDELAY_US (µs, 0=auto-calculate from dwell time)
 '   Par_10 = START     (1=run, 0=idle)
 ' To Python:
 '   Data_1[]  = counts per step (LONG)
@@ -66,11 +68,36 @@ Function Clamp(v, lo, hi) As Float
   Clamp = v
 EndFunction
 
+Sub SetProcessdelay()
+  Dim pd_us, pd_ticks As Long
+  
+  ' Processdelay control: hybrid approach
+  ' Par_8 > 0: Python specified (µs) -> convert to ticks
+  ' Par_8 = 0: Auto-calculate based on dwell time for optimal chunking
+  IF (Par_8 > 0) THEN
+    pd_us = Par_8   ' Python specified (µs)
+  ELSE
+    ' Auto-calculate: aim for ~10 chunks per dwell
+    ' This ensures good timing resolution without too many Event calls
+    pd_us = Par_3 / 10   ' dwell_us / 10
+  ENDIF
+  
+  ' Convert µs to ticks (approximate: 1µs ≈ 300 ticks)
+  pd_ticks = pd_us * 300
+  
+  ' Clamp to reasonable bounds
+  IF (pd_ticks < 1000) THEN pd_ticks = 1000 ENDIF     ' min 3.3µs
+  IF (pd_ticks > 5000000) THEN pd_ticks = 5000000 ENDIF ' max 16.7ms
+  
+  Processdelay = pd_ticks
+EndSub
+
 '--- working vars ---
 Dim n_steps, n_points, k As Long
-Dim dac_ch As Long
+Dim dac_ch, edge_mode, dir_sense As Long
 Dim settle_us, dwell_us As Long
-Dim old_cnt, new_cnt, diff As Long
+Dim old_cnt, new_cnt As Long
+Dim fd As Float
 Dim vmin_dig, vmax_dig As Long
 Dim step_dig, pos As Long
 Dim vmin_clamped, vmax_clamped, t As Float
@@ -88,16 +115,12 @@ Dim FData_1[200000] As Float  ' volts per step
 Dim Data_3[200000]  As Long   ' triangle pos per step
 
 Init:
-  ' default chunk 200 µs if Par_8 not set yet
-  IF (Par_8 <= 0) THEN
-    Par_8 = 200
-  ENDIF
-  Processdelay = Par_8 * 100   ' (10 ns units)
+  ' Set optimal Processdelay using hybrid approach
+  Call SetProcessdelay()
 
-  ' Counter 1: clk/dir, count up on rising edges (DIR tied high)
+  ' Counter 1: clk/dir, single-ended mode
   Cnt_Enable(0)
   Cnt_Clear(0001b)
-  Cnt_Mode(1, 00000000b)   ' bit0=0 clk/dir, no inversions (count up)
   Cnt_SE_Diff(0000b)
   Cnt_Enable(0001b)
 
@@ -128,7 +151,7 @@ Event:
     hb_div = 0
   ENDIF
 
-  tick_us = Processdelay / 100   ' 10 ns -> µs
+  tick_us = Processdelay * 3.3 / 1000   ' Convert ticks to µs
   IF (tick_us <= 0) THEN
     tick_us = 1                  ' never allow zero tick
   ENDIF
@@ -153,15 +176,16 @@ Event:
           ENDIF
           settle_us = Par_2
           dwell_us  = Par_3
+          edge_mode = Par_4
+          dac_ch    = Par_5
+          dir_sense = Par_6
 
           ' clamp DAC ch (nested IF, no ELSEIF)
-          IF (Par_4 < 1) THEN
+          IF (dac_ch < 1) THEN
             dac_ch = 1
           ELSE
-            IF (Par_4 > 2) THEN
+            IF (dac_ch > 2) THEN
               dac_ch = 2
-            ELSE
-              dac_ch = Par_4
             ENDIF
           ENDIF
 
@@ -233,6 +257,26 @@ Event:
         Write_DAC(dac_ch, Data_2[k+1])
         Start_DAC()
 
+        ' configure counter mode for this measurement
+        Cnt_Enable(0)
+        Cnt_Clear(0001b)
+        IF (edge_mode = 0) THEN
+          Rem rising edges
+          IF (dir_sense = 1) THEN
+            Cnt_Mode(1, 00000000b)
+          ELSE
+            Cnt_Mode(1, 00001000b)
+          ENDIF
+        ELSE
+          Rem falling edges
+          IF (dir_sense = 1) THEN
+            Cnt_Mode(1, 00000100b)
+          ELSE
+            Cnt_Mode(1, 00001100b)
+          ENDIF
+        ENDIF
+        Cnt_Enable(0001b)
+
         ' initialize timers
         settle_rem_us = settle_us
         dwell_rem_us  = dwell_us
@@ -268,15 +312,28 @@ Event:
       Case 60     ' LATCH END + STORE DELTA
         Cnt_Latch(0001b)
         new_cnt = Cnt_Read_Latch(1)
-        diff = new_cnt - old_cnt   ' LONG math handles wrap
-        IF (diff < 0) THEN
-          diff = -diff
+        
+        Rem ---- compute delta with wrap handling using Float arithmetic ----
+        fd = new_cnt - old_cnt
+        
+        IF (fd < 0.0) THEN    
+          Rem hardware is unsigned 32-bit     
+          Rem modulo 2^32 into [0,2^32)      
+          fd = fd + 4294967296.0
         ENDIF
-        Data_1[k+1] = diff
 
-        Par_30 = Par_30 + diff
-        IF (diff > Par_31) THEN
-          Par_31 = diff
+        Rem Direction-agnostic: pick the smaller arc on the 32-bit ring
+        IF (fd > 2147483647.0) THEN 
+          Rem > 2^31
+          fd = 4294967296.0 - fd     
+          Rem take the other way around
+        ENDIF
+        
+        Data_1[k+1] = Round(fd)
+
+        Par_30 = Par_30 + Round(fd)
+        IF (Round(fd) > Par_31) THEN
+          Par_31 = Round(fd)
           Par_32 = k
         ENDIF
 
