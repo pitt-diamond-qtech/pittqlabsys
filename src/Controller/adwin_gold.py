@@ -206,6 +206,69 @@ class AdwinGoldDevice(Device):
             raise KeyError
         return self.adw.Get_FPar(FPar_id)
 
+    def get_int_data(self, Data_id, length=100):
+        '''
+        Gets integer data array from Data_#
+        Args:
+            Data_id: index of data array (range Data_1 to Data_10)
+            length: number of elements to read (default 100)
+        Returns:
+            list: array of integer values
+        '''
+        if (Data_id < 1) or (Data_id > 10):
+            raise KeyError
+        return self.read_probes('int_array', Data_id, length)
+
+    def get_float_data(self, Data_id, length=100):
+        '''
+        Gets float data array from Data_#
+        Args:
+            Data_id: index of data array (range Data_1 to Data_10)
+            length: number of elements to read (default 100)
+        Returns:
+            list: array of float values
+        '''
+        if (Data_id < 1) or (Data_id > 10):
+            raise KeyError
+        return self.read_probes('float_array', Data_id, length)
+
+    def get_float64_data(self, Data_id, length=100):
+        '''
+        Gets 64-bit float data array from Data_#
+        Args:
+            Data_id: index of data array (range Data_1 to Data_10)
+            length: number of elements to read (default 100)
+        Returns:
+            list: array of 64-bit float values
+        '''
+        if (Data_id < 1) or (Data_id > 10):
+            raise KeyError
+        return self.read_probes('float64_array', Data_id, length)
+
+    def get_string_data(self, Data_id, length=100):
+        '''
+        Gets string data array from Data_#
+        Args:
+            Data_id: index of data array (range Data_1 to Data_10)
+            length: number of elements to read (default 100)
+        Returns:
+            list: array of string values
+        '''
+        if (Data_id < 1) or (Data_id > 10):
+            raise KeyError
+        return self.read_probes('str_array', Data_id, length)
+
+    def get_data_length(self, Data_id):
+        '''
+        Gets the length of a data array
+        Args:
+            Data_id: index of data array (range Data_1 to Data_10)
+        Returns:
+            int: length of the array
+        '''
+        if (Data_id < 1) or (Data_id > 10):
+            raise KeyError
+        return self.read_probes('array_length', Data_id)
 
     def get_process_status(self, process_id):
         '''
