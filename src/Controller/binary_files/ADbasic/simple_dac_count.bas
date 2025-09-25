@@ -116,8 +116,10 @@ Event:
     cur_cnt = Cnt_Read_Latch(1)
 
     Rem ---- compute delta with wrap handling using Float arithmetic ----
-    fd = cur_cnt - last_cnt         Rem Float delta
-    IF (fd < 0.0) THEN               Rem hardware is unsigned 32-bit
+    Rem Float delta
+    fd = cur_cnt - last_cnt        
+    IF (fd < 0.0) THEN    
+      Rem hardware is unsigned 32-bit           
       fd = fd + 4294967296.0
     ENDIF
 
@@ -128,10 +130,13 @@ Event:
     IF (fd > 2147483647.0) THEN 
       fd = 2147483647.0 
     ENDIF
-
-    Data_1[1]  = Round(fd)          Rem safe INT result
-    FData_1[1] = fd                 Rem exact (prefer reading this from Python)
-    Par_21 = Data_1[1]              Rem quick check path
+    
+    Rem safe INT result
+    Data_1[1]  = Round(fd)          
+    Rem exact (prefer reading this from Python)
+    FData_1[1] = fd                 
+    Rem quick check path
+    Par_21 = Data_1[1]              
 
     Rem one-shot ready handshake
     Par_20 = 1
