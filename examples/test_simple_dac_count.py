@@ -111,10 +111,20 @@ def test_simple_dac_count(adwin, output_volts=0.0, settle_us=1000, dwell_us=5000
     final_counts = adwin.get_int_var(21)  # Par_21 = counts
     process_delay = adwin.get_int_var(71)  # Par_71 = Processdelay
     
+    # Get debug values
+    last_cnt = adwin.get_int_var(22)  # Par_22 = last_cnt
+    cur_cnt = adwin.get_int_var(23)   # Par_23 = cur_cnt  
+    raw_delta = adwin.get_float_var(24)  # Par_24 = raw delta
+    
     print(f"\n✅ Test completed!")
     print(f"   Final counts: {final_counts}")
     print(f"   Process delay: {process_delay} ticks")
     print(f"   Expected counts: ~{dwell_us * 50 / 1000} (assuming 50kHz signal) over {dwell_us}µs")
+    print(f"\n🔍 Debug info:")
+    print(f"   Last counter: {last_cnt}")
+    print(f"   Current counter: {cur_cnt}")
+    print(f"   Raw delta: {raw_delta}")
+    print(f"   Counter difference: {cur_cnt - last_cnt}")
     
     # Read the Data_1 array that the ADbasic script populated
     try:

@@ -118,6 +118,15 @@ Event:
     Rem ---- compute delta with wrap handling using Float arithmetic ----
     Rem Float delta
     fd = cur_cnt - last_cnt        
+    
+    Rem Debug: store raw counter values for analysis
+    Rem store last_cnt for debugging
+    Par_22 = last_cnt    
+    Rem store cur_cnt for debugging
+    Par_23 = cur_cnt     
+    Rem store raw delta for debugging
+    Par_24 = fd          
+    
     IF (fd < 0.0) THEN    
       Rem hardware is unsigned 32-bit           
       fd = fd + 4294967296.0
