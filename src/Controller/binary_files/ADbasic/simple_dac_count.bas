@@ -20,11 +20,15 @@ Rem   Par_1   : DWELL_US (microseconds)
 Rem   Par_2   : SETTLE_US (microseconds)
 Rem   Par_4   : EDGE mode (0=rising, 1=falling)
 Rem   Par_5   : DAC channel (1..2)
+Rem   Par_6   : DIR sense (0=DIR Low=up, 1=DIR High=up)
 Rem   Par_10  : START (1=do one measurement, 0=idle)
 Rem
 Rem Results (DSP -> PC)
 Rem   Par_20  : READY flag (1=result ready, host must clear to 0)
 Rem   Par_21  : COUNTS measured in the dwell window
+Rem   Par_22  : last_cnt (debug)
+Rem   Par_23  : cur_cnt (debug)
+Rem   Par_24  : raw delta (debug)
 Rem   Par_25  : heartbeat
 Rem   Par_71  : Processdelay (ticks of 10 ns)
 Rem   Par_80  : signature (4242)
@@ -92,11 +96,19 @@ Event:
     Cnt_Enable(0)
     Cnt_Clear(0001b)
     IF (edge_mode = 0) THEN
-      Rem rising edges: clk/dir, no inversion
-      Cnt_Mode(1, 00000000b)
+      Rem rising edges
+      IF (Par_6 = 1) THEN
+        Cnt_Mode(1, 00000000b)
+      ELSE
+        Cnt_Mode(1, 00001000b)
+      ENDIF
     ELSE
-      Rem falling edges: invert A/CLK
-      Cnt_Mode(1, 00000100b)
+      Rem falling edges
+      IF (Par_6 = 1) THEN
+        Cnt_Mode(1, 00000100b)
+      ELSE
+        Cnt_Mode(1, 00001100b)
+      ENDIF
     ENDIF
     Cnt_Enable(0001b)
 
@@ -116,8 +128,8 @@ Event:
     cur_cnt = Cnt_Read_Latch(1)
 
     Rem ---- compute delta with wrap handling using Float arithmetic ----
-    Rem Float delta
-    fd = cur_cnt - last_cnt        
+    Rem Convert to Float explicitly to avoid type issues
+    fd = Float(cur_cnt) - Float(last_cnt)
     
     Rem Debug: store raw counter values for analysis
     Rem store last_cnt for debugging

@@ -8,6 +8,7 @@ Follows the pattern from hello_heartbeat test files.
 
 import sys
 import time
+import argparse
 from pathlib import Path
 
 # Add project root
@@ -16,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).parent / '..'))
 from src.Controller.adwin_gold import AdwinGoldDevice
 from src.core.adwin_helpers import get_adwin_binary_path
 
-def test_simple_dac_count(adwin, output_volts=0.0, settle_us=1000, dwell_us=5000, dac_ch=1, edge_rising=False):
+def test_simple_dac_count(adwin, output_volts=0.0, settle_us=1000, dwell_us=5000, dac_ch=1, dir_sense=1, edge_rising=False):
     """
     Test simple DAC output and counting.
     
@@ -26,12 +27,14 @@ def test_simple_dac_count(adwin, output_volts=0.0, settle_us=1000, dwell_us=5000
         settle_us: Settle time in microseconds (excluded from counting)
         dwell_us: Dwell time in microseconds (counting window)
         dac_ch: DAC channel (1 or 2)
+        dir_sense: DIR sense (0=DIR Low=up, 1=DIR High=up)
         edge_rising: True for rising edges, False for falling edges
     """
     print(f"🧪 Simple DAC + Count Test")
     print(f"   Output: {output_volts}V on DAC{dac_ch}")
     print(f"   Settle: {settle_us}µs, Dwell: {dwell_us}µs")
     print(f"   Edge: {'rising' if edge_rising else 'falling'}")
+    print(f"   DIR sense: {'High=up' if dir_sense else 'Low=up'}")
     print()
     
     # Clean start
@@ -51,6 +54,7 @@ def test_simple_dac_count(adwin, output_volts=0.0, settle_us=1000, dwell_us=5000
     adwin.set_int_var(2, settle_us)      # Par_2 = settle_us
     adwin.set_int_var(4, 0 if edge_rising else 1)  # Par_4 = edge mode (0=rising, 1=falling)
     adwin.set_int_var(5, dac_ch)         # Par_5 = dac_ch
+    adwin.set_int_var(6, dir_sense)      # Par_6 = dir_sense (0=DIR Low=up, 1=DIR High=up)
     adwin.set_float_var(1, output_volts) # FPar_1 = output_volts
     
     
@@ -161,8 +165,30 @@ def test_simple_dac_count(adwin, output_volts=0.0, settle_us=1000, dwell_us=5000
     return True
 
 def main():
+    parser = argparse.ArgumentParser(description='Simple DAC + Count Test')
+    parser.add_argument('--output-volts', type=float, default=0.0, 
+                       help='Output voltage (-10.0 to +10.0V, default: 0.0) [use --output-volts=1.5]')
+    parser.add_argument('--dir-sense', type=int, choices=[0, 1], default=1,
+                       help='DIR sense: 0=DIR Low=up, 1=DIR High=up (default: 1) [use --dir-sense=0]')
+    parser.add_argument('--dac-ch', type=int, choices=[1, 2], default=1,
+                       help='DAC channel (default: 1) [use --dac-ch=2]')
+    parser.add_argument('--edge-rising', action='store_true',
+                       help='Use rising edges (default: falling edges) [use --edge-rising]')
+    parser.add_argument('--settle-us', type=int, default=1000,
+                       help='Settle time in microseconds (default: 1000) [use --settle-us=2000]')
+    parser.add_argument('--dwell-us', type=int, default=5000,
+                       help='Dwell time in microseconds (default: 5000) [use --dwell-us=10000]')
+    
+    args = parser.parse_args()
+    
     print("🎯 Simple DAC + Count Test")
     print("=" * 40)
+    print(f"📋 Configuration:")
+    print(f"   Output: {args.output_volts}V on DAC{args.dac_ch}")
+    print(f"   Settle: {args.settle_us}µs, Dwell: {args.dwell_us}µs")
+    print(f"   Edge: {'rising' if args.edge_rising else 'falling'}")
+    print(f"   DIR sense: {'High=up' if args.dir_sense else 'Low=up'}")
+    print()
     
     # Connect to ADwin
     print("🔧 Connecting to ADwin...")
@@ -180,11 +206,12 @@ def main():
         # Run the test
         success = test_simple_dac_count(
             adwin,
-            output_volts=0.0,    # 0V output
-            settle_us=1000,      # 1ms settle
-            dwell_us=5000,       # 5ms dwell
-            dac_ch=1,            # DAC channel 1
-            edge_rising=False    # falling edges
+            output_volts=args.output_volts,
+            settle_us=args.settle_us,
+            dwell_us=args.dwell_us,
+            dac_ch=args.dac_ch,
+            dir_sense=args.dir_sense,
+            edge_rising=args.edge_rising
         )
         
         if success:
