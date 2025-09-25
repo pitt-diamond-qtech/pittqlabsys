@@ -121,13 +121,27 @@ def test_simple_dac_count(adwin, output_volts=0.0, settle_us=1000, dwell_us=5000
         array_length_1 = adwin.get_data_length(1)
         print(f"   Data_1 length = {array_length_1}")
         
-        # Read the actual data from Data_1 array
+        # Read the actual data from Data_1 array (integer, clamped)
         data_1_array = adwin.get_int_data(1, length=8)  # Read first 8 elements
-        print(f"   Data_1 array: {data_1_array}")
+        print(f"   Data_1 array (int, clamped): {data_1_array}")
+        
+        # Read the exact count from FData_1 array (float, unclamped)
+        try:
+            fdata_1_array = adwin.get_float_data(1, length=8)  # Read first 8 elements
+            print(f"   FData_1 array (float, exact): {fdata_1_array}")
+        except Exception as e:
+            print(f"   Could not read FData_1 array: {e}")
+            fdata_1_array = []
+        
+        if len(data_1_array) != 8:
+            print(f"❌ Data_1 array length is not 8: {len(data_1_array)}")
+            return False
         
         # Show first few elements for analysis
         if len(data_1_array) > 0:
             print(f"   First element (Data_1[1]): {data_1_array[0]}")
+            if len(fdata_1_array) > 0:
+                print(f"   First element (FData_1[1]): {fdata_1_array[0]}")
             if len(data_1_array) > 1:
                 print(f"   Second element (Data_1[2]): {data_1_array[1]}")
         

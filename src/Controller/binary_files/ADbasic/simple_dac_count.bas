@@ -48,6 +48,7 @@ Dim fd As Float
 Dim dig As Long
 Rem store the last result for easy array readback
 Dim Data_1[8] As Long   
+Dim FData_1[8] As Float   
 
 Init:
   Rem ~1 ms loop @ 10 ns tick
@@ -114,13 +115,23 @@ Event:
     Cnt_Latch(0001b)
     cur_cnt = Cnt_Read_Latch(1)
 
-    Rem ---- compute delta with wrap handling ----
-    fd = cur_cnt - last_cnt
-    IF (fd < 0.0) THEN
+    Rem ---- compute delta with wrap handling using Float arithmetic ----
+    fd = cur_cnt - last_cnt         Rem Float delta
+    IF (fd < 0.0) THEN               Rem hardware is unsigned 32-bit
       fd = fd + 4294967296.0
     ENDIF
-    Par_21 = Round(fd)
-    Data_1[1] = Par_21
+
+    Rem clamp before storing in signed Long
+    IF (fd < 0.0) THEN 
+      fd = 0.0 
+    ENDIF
+    IF (fd > 2147483647.0) THEN 
+      fd = 2147483647.0 
+    ENDIF
+
+    Data_1[1]  = Round(fd)          Rem safe INT result
+    FData_1[1] = fd                 Rem exact (prefer reading this from Python)
+    Par_21 = Data_1[1]              Rem quick check path
 
     Rem one-shot ready handshake
     Par_20 = 1
