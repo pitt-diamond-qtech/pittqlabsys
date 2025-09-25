@@ -38,23 +38,43 @@ def main():
         return 1
     print("✅ Parameter read/write working!")
     
-    # Your minimal test code
-    tb1 = Path(r"D:\PyCharmProjects\pittqlabsys\src\Controller\binary_files\ADbasic\hello_heartbeat.TB1")
+    # Clean start - stop/clear everything
+    print("\n🧹 Clean start...")
+    adwin.stop_process(1)
+    adwin.clear_process(1)
+    time.sleep(0.1)
     
-    adwin.stop_process(1); time.sleep(0.05); adwin.clear_process(1)
-    adwin.update({'process_1': {'load': str(tb1)}})
-    
-    print("Status before start:", adwin.adw.Process_Status(1))  # expect 0
+    # Load and start
+    script_path = Path(__file__).parent / '..' / 'src' / 'Controller' / 'binary_files' / 'ADbasic' / 'hello_heartbeat_v2.TB1'
+    print(f"📁 Loading: {script_path}")
+    adwin.load_process(str(script_path))
     adwin.start_process(1)
-    print("Status after start :", adwin.adw.Process_Status(1))  # expect >0
+    print("Status after start:", adwin.get_process_status(1))
     
-    # Give it a tick
-    time.sleep(0.05)
+    # Check signature and process delay using wrapper functions
+    print("sig:", adwin.get_int_var(80))        # expect 4242
+    print("PD :", adwin.get_int_var(71))        # expect 300000
     
-    # Confirm we loaded the right file and Event is ticking
-    print("sig =", adwin.get_int_var(80))  # expect 4242
-    hb1 = adwin.get_int_var(25); time.sleep(0.05); hb2 = adwin.get_int_var(25)
-    print("HB:", hb1, "→", hb2)            # expect hb2 > hb1
+    # Watch for 2 seconds
+    print("\n⏱️  Monitoring for 2 seconds...")
+    t0 = time.time()
+    last_status = "Not running"
+    while time.time() - t0 < 2.0:
+        st  = adwin.get_process_status(1)
+        hb  = adwin.get_int_var(25)
+        tr  = adwin.get_int_var(60)
+        c2  = adwin.get_int_var(72)
+        print(f"status={st} | heartbeat (Par_25)={hb} | trace1 (Par_60)={tr} | trace2 (Par_72)={c2}")
+        if st == "Not running" and last_status != "Not running":
+            # process just stopped — grab last error text
+            try:
+                last_error = adwin.read_probes('last_error', 1)
+                print("LastError:", last_error)
+            except Exception:
+                pass
+            break
+        last_status = st
+        time.sleep(0.05)
     
     print("\n✅ Test completed!")
     return 0

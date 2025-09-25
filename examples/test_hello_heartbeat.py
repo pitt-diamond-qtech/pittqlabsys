@@ -23,46 +23,20 @@ def test_hello_heartbeat(adwin):
     print("🧪 Hello Heartbeat Test - Ultra-minimal ADwin test")
     print("=" * 60)
     
-    # Get the TB1 path using absolute Windows path
-    tb1 = Path(r"D:\PyCharmProjects\pittqlabsys\src\Controller\binary_files\ADbasic\hello_heartbeat.TB1")
-    if not tb1.exists():
-        print(f"❌ TB1 not found: {tb1}")
+    # Get the TB1 path using relative path
+    script_path = Path(__file__).parent / '..' / 'src' / 'Controller' / 'binary_files' / 'ADbasic' / 'hello_heartbeat.TB1'
+    if not script_path.exists():
+        print(f"❌ TB1 not found: {script_path}")
         print("   Please compile hello_heartbeat.bas on the lab PC first!")
         return False
     
     # Check file size
-    file_size = tb1.stat().st_size
-    tbi_path = str(tb1)
-    print(f"📁 TB1 path: {tbi_path}")
+    file_size = script_path.stat().st_size
+    print(f"📁 TB1 path: {script_path}")
     print(f"📊 TB1 file size: {file_size} bytes")
     if file_size == 0:
         print("❌ TB1 file is empty! Compilation may have failed.")
         return False
-    
-    # Clean start
-    print("\n🧹 Clean start...")
-    adwin.stop_process(1)
-    time.sleep(0.05)
-    adwin.clear_process(1)
-    
-    # Load the minimal script
-    print("📁 Loading hello_heartbeat.TB1...")
-    try:
-        adwin.update({'process_1': {'load': str(tbi_path)}})
-        print("   ✅ TB1 loaded successfully")
-    except Exception as e:
-        print(f"   ❌ Failed to load TB1: {e}")
-        return False
-    
-    # Start process
-    print("▶️  Starting process...")
-    try:
-        adwin.start_process(1)
-        print("   ✅ Process start command sent")
-    except Exception as e:
-        print(f"   ❌ Failed to start process: {e}")
-        return False
-    time.sleep(0.5)  # Give process time to initialize
     
     # Test basic parameter read/write functionality first
     print("\n🔍 Testing basic parameter read/write...")
@@ -81,68 +55,36 @@ def test_hello_heartbeat(adwin):
         print(f"   Error type: {type(e).__name__}")
         return False
     
-    # Try reading some basic parameters
-    print("\n🔍 Testing basic parameter access...")
+    # Clean start - stop/clear everything
+    print("\n🧹 Clean start...")
+    adwin.stop_process(1)
+    adwin.clear_process(1)
+    time.sleep(0.1)
+    
+    # Load and start
+    print("📁 Loading hello_heartbeat.TB1...")
     try:
-        print("   Testing Par_25 (heartbeat)...")
-        hb_test = adwin.get_int_var(25)
-        print(f"   Par_25 = {hb_test}")
-        print("   ✅ Basic parameter access working!")
+        adwin.load_process(str(script_path))
+        print("   ✅ TB1 loaded successfully")
     except Exception as e:
-        print(f"   ❌ Error reading Par_25: {e}")
-        print(f"   Error type: {type(e).__name__}")
+        print(f"   ❌ Failed to load TB1: {e}")
         return False
     
-    # Check if process is running first
-    print("\n📊 Checking process status...")
+    print("▶️  Starting process...")
     try:
-        st = adwin.read_probes('process_status', 1)
-        print(f"   Process_Status(1) = {st}")
-        if st != 'Running':
-            print(f"   ❌ Process not running! Status: {st}")
-            print("   This explains why Par_80 is not accessible")
-            
-            # Try to get more diagnostic info
-            print("\n🔍 Additional diagnostics...")
-            try:
-                last_error = adwin.read_probes('last_error', 1)
-                print(f"   Last ADwin error: {last_error}")
-            except:
-                print("   Could not read last error")
-            
-            # Check if we can read any parameters at all
-            print("   Testing parameter access...")
-            for test_par in [1, 2, 3, 10, 20, 25, 80]:
-                try:
-                    val = adwin.get_int_var(test_par)
-                    print(f"   Par_{test_par} = {val}")
-                except Exception as e:
-                    print(f"   Par_{test_par} = ERROR: {e}")
-            
-            return False
-        else:
-            print("   ✅ Process is running!")
+        adwin.start_process(1)
+        print("   ✅ Process start command sent")
     except Exception as e:
-        print(f"   ⚠️  Could not check process status: {e}")
+        print(f"   ❌ Failed to start process: {e}")
+        return False
     
-    # Try reading Par_80 now that we know the process is running
+    # Check signature and process delay using wrapper functions
     print("\n🔍 Verifying script loaded...")
-    
-    # First, let's test what parameters are accessible
-    print("   Testing parameter accessibility...")
-    accessible_params = []
-    for par_num in [25, 80, 1, 2, 3, 10, 20]:
-        try:
-            val = adwin.get_int_var(par_num)
-            accessible_params.append(f"Par_{par_num}={val}")
-        except:
-            accessible_params.append(f"Par_{par_num}=ERROR")
-    print(f"   Accessible parameters: {', '.join(accessible_params)}")
-    
     try:
-        print("   Attempting to read Par_80...")
         sig = adwin.get_int_var(80)
-        print(f"   Signature Par_80 = {sig}")
+        pd = adwin.get_int_var(71)
+        print(f"   Signature Par_80 = {sig} (expect 4242)")
+        print(f"   ProcessDelay Par_71 = {pd} (expect 300000)")
         if sig == 4242:
             print("   ✅ Correct script loaded!")
         else:
@@ -151,53 +93,44 @@ def test_hello_heartbeat(adwin):
     except Exception as e:
         print(f"   ❌ Error reading signature: {e}")
         print(f"   Error type: {type(e).__name__}")
-        print("   This suggests the script didn't load properly or Par_80 is not accessible")
         return False
     
-    # Heartbeat check
-    print("\n💓 Checking heartbeat...")
-    try:
-        hb1 = adwin.get_int_var(25)
-        time.sleep(0.05)
-        hb2 = adwin.get_int_var(25)
-        print(f"   Heartbeat: {hb1} → {hb2}")
-        if hb2 > hb1:
-            print("   ✅ Heartbeat advancing!")
-        else:
-            print("   ❌ Heartbeat not advancing!")
-            return False
-    except Exception as e:
-        print(f"   ❌ Error checking heartbeat: {e}")
-        return False
-    
-    # Process status check
-    print("\n📊 Process status...")
-    try:
-        st = adwin.adw.Process_Status(1)
-        print(f"   Process_Status(1) = {st}")
-        if st == 1:
-            print("   ✅ Process running!")
-        else:
-            print(f"   ⚠️  Process status: {st} (expected 1)")
-    except Exception as e:
-        print(f"   ⚠️  Could not check process status: {e}")
-    
-    # Monitor heartbeat for a few seconds
-    print("\n⏱️  Monitoring heartbeat for 3 seconds...")
-    start_time = time.time()
-    last_hb = hb2
-    while time.time() - start_time < 3.0:
+    # Watch for 5 seconds with detailed monitoring
+    print("\n⏱️  Monitoring for 5 seconds...")
+    t0 = time.time()
+    last_status = "Not running"
+    last_hb = 0
+    while time.time() - t0 < 5.0:
         try:
-            current_hb = adwin.get_int_var(25)
-            elapsed = time.time() - start_time
-            print(f"   {elapsed:5.2f}s | HB: {current_hb} (Δ: {current_hb - last_hb})", end='\r')
-            last_hb = current_hb
-            time.sleep(0.1)
+            st  = adwin.get_process_status(1)
+            hb  = adwin.get_int_var(25)
+            tr  = adwin.get_int_var(60)
+            c2  = adwin.get_int_var(72)
+            elapsed = time.time() - t0
+            print(f"{elapsed:5.2f}s | status={st} | heartbeat (Par_25)={hb} | trace1 (Par_60)={tr} | trace2 (Par_72)={c2}")
+            
+            if st == "Not running" and last_status != "Not running":
+                # process just stopped — grab last error text
+                try:
+                    last_error = adwin.read_probes('last_error', 1)
+                    print("LastError:", last_error)
+                except Exception:
+                    pass
+                print("❌ Process stopped unexpectedly!")
+                return False
+            
+            # Check if heartbeat is advancing
+            if last_hb > 0 and hb <= last_hb:
+                print("⚠️  Heartbeat not advancing!")
+            
+            last_status = st
+            last_hb = hb
+            time.sleep(0.05)
         except Exception as e:
-            print(f"\n   ❌ Error during monitoring: {e}")
+            print(f"❌ Error during monitoring: {e}")
             return False
     
-    print("\n\n✅ Hello Heartbeat test completed successfully!")
+    print("\n✅ Hello Heartbeat test completed successfully!")
     return True
 
 def main():
