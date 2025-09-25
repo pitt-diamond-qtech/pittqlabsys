@@ -6,7 +6,12 @@
 ' ADbasic_Version        = 6.3.0
 ' <Header End>
 
+' If your project uses the vendor include, keep it:
+#Include ADwinGoldII.inc
+
 Init:
+' *** Disable any armed board watchdog from previous code ***
+  Watchdog_Init(0, 0, 0)
   Processdelay = 300000
   Par_80 = 4242     ' signature
   Par_25 = 0        ' heartbeat
