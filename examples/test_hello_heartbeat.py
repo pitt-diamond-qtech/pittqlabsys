@@ -104,10 +104,10 @@ def test_hello_heartbeat(adwin):
         try:
             st  = adwin.get_process_status(1)
             hb  = adwin.get_int_var(25)
-            tr  = adwin.get_int_var(60)
+            tog  = adwin.get_int_var(78)
             c2  = adwin.get_int_var(72)
             elapsed = time.time() - t0
-            print(f"{elapsed:5.2f}s | status={st} | heartbeat (Par_25)={hb} | trace1 (Par_60)={tr} | trace2 (Par_72)={c2}")
+            print(f"{elapsed:5.2f}s | status={st} | heartbeat (Par_25)={hb} | toggle (Par_78)={tog} | trace (Par_72)={c2}")
             
             if st == "Not running" and last_status != "Not running":
                 # process just stopped — grab last error text
