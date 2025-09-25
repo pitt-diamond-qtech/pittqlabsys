@@ -1,6 +1,6 @@
 ' <ADbasic Header, Headerversion 001.001>
 ' Process_Number         = 1
-' Initial_Processdelay   = 300000    ' ~1 ms on Gold-II
+' Initial_Processdelay   = 300000
 ' Eventsource            = Timer
 ' Priority               = Normal
 ' ADbasic_Version        = 6.3.0
