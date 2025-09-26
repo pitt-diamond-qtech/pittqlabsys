@@ -87,10 +87,13 @@ Sub SetProcessdelay()
   ' Clamp to reasonable bounds
   IF (pd_ticks < 1000) THEN pd_ticks = 1000      ' min 3.3µs
   IF (pd_ticks > 5000000) THEN pd_ticks = 5000000 ' max 16.7ms
-  IF (pd_ticks <> Processdelay) THEN
-    Processdelay = pd_ticks
-    Par_71 = Processdelay ' max 10ms
-  ENDIF
+  
+  ' Debug: store calculation steps
+  Par_72 = pd_us      ' calculated µs
+  Par_73 = pd_ticks   ' calculated ticks
+  
+  Processdelay = pd_ticks
+  Par_71 = Processdelay
 EndSub
 
 '--- working vars ---

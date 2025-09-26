@@ -140,8 +140,12 @@ def debug_odmr_arrays(use_real_hardware=False, config_path=None, tb1_filename='O
         try:
             signature = adwin.get_int_var(80)
             processdelay = adwin.get_int_var(71)
+            pd_us = adwin.get_int_var(72)
+            pd_ticks = adwin.get_int_var(73)
             print(f"   Signature Par_80 = {signature} (expect 7777)")
             print(f"   Processdelay Par_71 = {processdelay}")
+            print(f"   Calculated pd_us Par_72 = {pd_us}")
+            print(f"   Calculated pd_ticks Par_73 = {pd_ticks}")
             if signature == 7777:
                 print("   ✅ Correct debug script loaded!")
             else:
