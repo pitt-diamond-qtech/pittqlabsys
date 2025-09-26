@@ -42,10 +42,9 @@
 '   Par_23    = current triangle position
 '   Par_24    = current volts (FLOAT)
 '   Par_25    = heartbeat
-'   Par_30    = total counts (sum)
-'   Par_31    = max counts (per step)
-'   Par_32    = index of max (0-based)
-'   FPar_33   = average counts (float)
+'   Par_26    = current state (0=idle, 20=prep, 30=settle, etc.)
+'   Par_71    = Processdelay (ticks)
+'   Par_80    = signature (7777)
 '=============================================
 
 '--- helpers (typed return OK; no typed args) ---
@@ -139,10 +138,8 @@ Init:
   Par_23 = 0
   Par_24 = 0.0
   Par_25 = 0
-  Par_30 = 0
-  Par_31 = 0
-  Par_32 = 0
-  FPar_33 = 0.0
+  Par_71 = 0        ' Processdelay (set by SetProcessdelay)
+  Par_80 = 7777     ' Signature to confirm script is loaded
   old_cnt = 0
 
 Event:
@@ -216,11 +213,7 @@ Event:
           Par_23 = 0
           Par_24 = 0.0
 
-          ' clear summaries
-          Par_30 = 0
-          Par_31 = -2147483648
-          Par_32 = 0
-          FPar_33 = 0.0
+          ' Ready to start sweep
 
           state = 20
         ENDIF
@@ -333,22 +326,11 @@ Event:
         
         Data_1[k+1] = Round(fd)
 
-        Par_30 = Par_30 + Round(fd)
-        IF (Round(fd) > Par_31) THEN
-          Par_31 = Round(fd)
-          Par_32 = k
-        ENDIF
-
         state = 70
 
       Case 70     ' ADVANCE
         k = k + 1
         IF (k >= n_points) THEN
-          IF (n_points > 0) THEN
-            FPar_33 = Par_30 / n_points
-          ELSE
-            FPar_33 = 0.0
-          ENDIF
           Par_20 = 1     ' ready
           state  = 90
         ELSE

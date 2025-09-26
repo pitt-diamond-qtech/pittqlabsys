@@ -125,13 +125,31 @@ def debug_odmr_arrays(use_real_hardware=False, config_path=None, tb1_filename='O
         adwin.set_int_var(1, N_STEPS)    # Par_1
         adwin.set_int_var(2, SETTLE_US)  # Par_2
         adwin.set_int_var(3, DWELL_US)   # Par_3
-        adwin.set_int_var(4, DAC_CH)     # Par_4
+        adwin.set_int_var(4, 0)          # Par_4 = EDGE_MODE (0=rising)
+        adwin.set_int_var(5, DAC_CH)     # Par_5 = DAC_CH
+        adwin.set_int_var(6, 0)          # Par_6 = DIR_SENSE (0=DIR Low=up)
         adwin.set_int_var(8, CHUNK_US)   # Par_8 = PROCESSDELAY_US (0 = auto-calculate)
 
         # Start first (so Event sees START=1 on its first tick)
         adwin.set_int_var(10, 1)         # Par_10 = START
         print("▶️  Starting process 1…")
         adwin.start_process(1)
+        
+        # Check signature to confirm correct script loaded
+        print("🔍 Checking signature...")
+        try:
+            signature = adwin.get_int_var(80)
+            processdelay = adwin.get_int_var(71)
+            print(f"   Signature Par_80 = {signature} (expect 7777)")
+            print(f"   Processdelay Par_71 = {processdelay}")
+            if signature == 7777:
+                print("   ✅ Correct debug script loaded!")
+            else:
+                print(f"   ❌ Wrong signature! Expected 7777, got {signature}")
+                return False
+        except Exception as e:
+            print(f"   ❌ Error reading signature: {e}")
+            return False
 
         # ---------- wait for non-blocking handshake ----------
         expected_points = max(2, 2 * N_STEPS - 2)
