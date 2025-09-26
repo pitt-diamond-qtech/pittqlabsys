@@ -130,10 +130,18 @@ def debug_odmr_arrays(use_real_hardware=False, config_path=None, tb1_filename='O
         adwin.set_int_var(6, 0)          # Par_6 = DIR_SENSE (0=DIR Low=up)
         adwin.set_int_var(8, CHUNK_US)   # Par_8 = PROCESSDELAY_US (0 = auto-calculate)
 
-        # Start first (so Event sees START=1 on its first tick)
-        adwin.set_int_var(10, 1)         # Par_10 = START
         print("▶️  Starting process 1…")
         adwin.start_process(1)
+        
+        # Wait for process to start and verify it's running
+        print("⏳ Waiting for process to start...")
+        time.sleep(0.5)  # Give process time to start
+        
+        process_status = adwin.get_process_status(1)
+        print(f"   Process status: {process_status}")
+        if process_status != "Running":
+            print("   ❌ Process failed to start!")
+            return False
         
         # Check signature to confirm correct script loaded
         print("🔍 Checking signature...")
@@ -155,6 +163,29 @@ def debug_odmr_arrays(use_real_hardware=False, config_path=None, tb1_filename='O
             print(f"   ❌ Error reading signature: {e}")
             return False
 
+        # Arm the sweep
+        print("🚀 Arming sweep...")
+        adwin.set_int_var(10, 1)         # Par_10 = START
+
+        # Wait for heartbeat to start advancing (prove Event loop is running)
+        print("⏳ Waiting for heartbeat to start...")
+        initial_hb = adwin.get_int_var(25)
+        start_time = time.time()
+        
+        while time.time() - start_time < 1.0:  # Wait up to 1 second
+            try:
+                current_hb = adwin.get_int_var(25)
+                if current_hb > initial_hb:
+                    print(f"   ✅ Heartbeat advancing: {initial_hb} → {current_hb}")
+                    break
+                time.sleep(0.01)  # 10ms polling
+            except Exception as e:
+                print(f"   ⚠️  Transient Get_Par error (tolerated): {e}")
+                time.sleep(0.01)
+        else:
+            print("   ❌ Heartbeat not advancing after 1s - process not running!")
+            return False
+
         # ---------- wait for non-blocking handshake ----------
         expected_points = max(2, 2 * N_STEPS - 2)
         per_point_s = (SETTLE_US + DWELL_US) / 1e6
@@ -169,6 +200,8 @@ def debug_odmr_arrays(use_real_hardware=False, config_path=None, tb1_filename='O
 
         print("\n⏳ Waiting for Par_20 == 1 (sweep ready)…")
         t0 = time.time()
+        last_hb = adwin.get_int_var(25)
+        
         while True:
             try:
                 ready = adwin.get_int_var(20)  # ready flag
@@ -180,10 +213,16 @@ def debug_odmr_arrays(use_real_hardware=False, config_path=None, tb1_filename='O
                 if ready == 1:
                     print()
                     break
+                    
+                # Check if heartbeat is still advancing (after 100ms grace period)
+                if hb <= last_hb and elapsed > 0.1:
+                    print(f"\n⚠️  Heartbeat stalled at {hb}!")
+                    
+                last_hb = hb
                 time.sleep(0.05)
             except Exception as e:
-                print(f"\n❌ Poll error: {e}")
-                break
+                print(f"\n⚠️  Transient Get_Par error (tolerated): {e}")
+                time.sleep(0.05)  # Continue polling despite error
 
             if elapsed > timeout:
                 print(f"\n❌ Timeout after {elapsed:.1f}s (expected ~{expected_points * per_point_s:.1f}s)")

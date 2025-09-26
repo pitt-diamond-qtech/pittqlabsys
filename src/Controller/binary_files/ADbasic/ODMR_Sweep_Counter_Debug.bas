@@ -67,35 +67,6 @@ Function Clamp(v, lo, hi) As Float
   Clamp = v
 EndFunction
 
-Sub SetProcessdelay()
-  Dim pd_us, pd_ticks As Long
-  
-  ' Processdelay control: hybrid approach
-  ' Par_8 > 0: Python specified (µs) -> convert to ticks
-  ' Par_8 = 0: Auto-calculate based on dwell time for optimal chunking
-  IF (Par_8 > 0) THEN
-    pd_us = Par_8   ' Python specified (µs)
-  ELSE
-    ' Auto-calculate: aim for ~10 chunks per dwell
-    ' This ensures good timing resolution without too many Event calls
-    pd_us = Par_3 / 10   ' dwell_us / 10
-  ENDIF
-  
-  ' Convert µs to ticks (approximate: 1µs ≈ 300 ticks)
-  pd_ticks = pd_us * 300
-  
-  ' Clamp to reasonable bounds
-  IF (pd_ticks < 1000) THEN pd_ticks = 1000      ' min 3.3µs
-  IF (pd_ticks > 5000000) THEN pd_ticks = 5000000 ' max 16.7ms
-  
-  ' Debug: store calculation steps
-  Par_72 = pd_us      ' calculated µs
-  Par_73 = pd_ticks   ' calculated ticks
-  IF (pd_ticks <=0) THEN pd_ticks = 300000 
-  Processdelay = pd_ticks
-  Par_71 = Processdelay
-EndSub
-
 '--- working vars ---
 Dim n_steps, n_points, k As Long
 Dim dac_ch, edge_mode, dir_sense As Long
@@ -119,8 +90,70 @@ Dim FData_1[200000] As Float  ' volts per step
 Dim Data_3[200000]  As Long   ' triangle pos per step
 
 Init:
-  ' Set optimal Processdelay using hybrid approach
-  SetProcessdelay()
+  ' Processdelay control: hybrid approach (inline calculation)
+  Dim pd_us, pd_ticks As Long
+  
+  ' Par_8 > 0: Python specified (µs) -> convert to ticks
+  ' Par_8 = 0: Auto-calculate based on dwell time for optimal chunking
+  IF (Par_8 > 0) THEN
+    pd_us = Par_8   ' Python specified (µs)
+  ELSE
+    ' Auto-calculate: aim for ~10 chunks per dwell
+    pd_us = Par_3 / 10   ' dwell_us / 10
+  ENDIF
+  
+  ' Convert µs to ticks (approximate: 1µs ≈ 300 ticks)
+  pd_ticks = pd_us * 300
+  
+  ' Clamp to reasonable bounds
+  IF (pd_ticks < 1000) THEN pd_ticks = 1000      ' min 3.3µs
+  IF (pd_ticks > 5000000) THEN pd_ticks = 5000000 ' max 16.7ms
+  IF (pd_ticks <= 0) THEN pd_ticks = 300000      ' safety fallback
+  
+  ' Debug: store calculation steps
+  Par_72 = pd_us      ' calculated µs
+  Par_73 = pd_ticks   ' calculated ticks
+  
+  ' Set Processdelay directly in Init
+  Processdelay = pd_ticks
+  Par_71 = Processdelay
+  
+  ' Calculate tick_us once (constant for this session)
+  tick_us = Round(Processdelay * 3.3 / 1000)   ' Convert ticks to µs
+  IF (tick_us <= 0) THEN
+    tick_us = 1                  ' never allow zero tick
+  ENDIF
+
+  ' Validate and clamp parameters once
+  n_steps = Par_1
+  IF (n_steps < 2) THEN n_steps = 2 ENDIF
+  
+  settle_us = Par_2
+  dwell_us = Par_3
+  edge_mode = Par_4
+  dac_ch = Par_5
+  dir_sense = Par_6
+  
+  ' Clamp DAC channel
+  IF (dac_ch < 1) THEN dac_ch = 1 ENDIF
+  IF (dac_ch > 2) THEN dac_ch = 2 ENDIF
+  
+  ' Clamp voltage range
+  vmin_clamped = Clamp(FPar_1, -1.0, 1.0)
+  vmax_clamped = Clamp(FPar_2, -1.0, 1.0)
+  IF (vmin_clamped > vmax_clamped) THEN
+    t = vmin_clamped
+    vmin_clamped = vmax_clamped
+    vmax_clamped = t
+  ENDIF
+  
+  ' Convert to DAC digits
+  vmin_dig = VoltsToDigits(vmin_clamped)
+  vmax_dig = VoltsToDigits(vmax_clamped)
+  IF (vmin_dig = vmax_dig) THEN n_steps = 2 ENDIF
+  
+  n_points = (2 * n_steps) - 2
+  IF (n_points < 2) THEN n_points = 2 ENDIF
 
   ' Counter 1: clk/dir, single-ended mode
   Cnt_Enable(0)
@@ -146,80 +179,49 @@ Init:
   old_cnt = 0
 
 Event:
-  ' ---- heartbeat & tick ----
+  Rem tiny global yield so the PC can always grab the bus
+  IO_Sleep(50)   ' 0.5 µs in 10 ns units
+  
+  ' ---- heartbeat ----
   hb_div = hb_div + 1
   IF (hb_div >= 10) THEN         ' update heartbeat every ~10 ticks
     Par_25 = Par_25 + 1
     hb_div = 0
   ENDIF
 
-  tick_us = Processdelay * 3.3 / 1000   ' Convert ticks to µs
-  IF (tick_us <= 0) THEN
-    tick_us = 1                  ' never allow zero tick
-  ENDIF
-
   Par_26 = state                 ' live: which CASE we are in
 
-  ' ---- idle gate ----
+  ' ---- async stop: force state = 0 if Par_10 = 0 ----
   IF (Par_10 = 0) THEN
     state = 0
-  ELSE
+  ENDIF
 
-    SelectCase state
+  ' ---- run state machine unconditionally ----
+  SelectCase state
 
-      Case 0        ' START SWEEP (only when Par_20 == 0)
-        IF (Par_20 <> 0) THEN
-          state = 90
-        ELSE
-          ' snapshot basic params
-          n_steps   = Par_1
-          IF (n_steps < 2) THEN
-            n_steps = 2
-          ENDIF
-          settle_us = Par_2
-          dwell_us  = Par_3
-          edge_mode = Par_4
-          dac_ch    = Par_5
-          dir_sense = Par_6
-
-          ' clamp DAC ch (nested IF, no ELSEIF)
-          IF (dac_ch < 1) THEN
-            dac_ch = 1
-          ELSE
-            IF (dac_ch > 2) THEN
-              dac_ch = 2
-            ENDIF
-          ENDIF
-
-          vmin_clamped = Clamp(FPar_1, -1.0, 1.0)
-          vmax_clamped = Clamp(FPar_2, -1.0, 1.0)
-          IF (vmin_clamped > vmax_clamped) THEN
-            t = vmin_clamped
-            vmin_clamped = vmax_clamped
-            vmax_clamped = t
-          ENDIF
-
-          vmin_dig = VoltsToDigits(vmin_clamped)
-          vmax_dig = VoltsToDigits(vmax_clamped)
-          IF (vmin_dig = vmax_dig) THEN
-            n_steps = 2
-          ENDIF
-
-          n_points = (2 * n_steps) - 2
-          IF (n_points < 2) THEN
-            n_points = 2
-          ENDIF
+      Case 0        ' IDLE: async start detection and housekeeping
+        Rem breathe and advertise that we are alive
+        IO_Sleep(1000)   ' 10 µs yield
+        
+        ' Check for async start: Par_10 flipped to 1
+        IF (Par_10 = 1) THEN
+          ' Start new sweep
           Par_21 = n_points
-
           k = 0
           Par_22 = 0
           Par_23 = 0
           Par_24 = 0.0
-
-          ' Ready to start sweep
-
-          state = 20
+          state = 10   ' ARM state
+        ELSE
+          ' Stay in IDLE, check if sweep completed
+          IF (Par_20 <> 0) THEN
+            state = 90  ' Wait for PC to clear ready flag
+          ENDIF
         ENDIF
+
+      Case 10     ' ARM: prepare for first measurement
+        ' Move to first step preparation
+        state = 20
 
       Case 20     ' PREP STEP: compute DAC code; start settle window
         ' triangle index
@@ -351,7 +353,6 @@ Event:
         state = 0
 
     EndSelect
-  ENDIF
 
 End
 
