@@ -91,7 +91,7 @@ Sub SetProcessdelay()
   ' Debug: store calculation steps
   Par_72 = pd_us      ' calculated µs
   Par_73 = pd_ticks   ' calculated ticks
-  
+  IF (pd_ticks <=0) THEN pd_ticks = 300000 
   Processdelay = pd_ticks
   Par_71 = Processdelay
 EndSub
