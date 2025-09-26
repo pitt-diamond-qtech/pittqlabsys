@@ -86,10 +86,12 @@ Sub SetProcessdelay()
   pd_ticks = pd_us * 300
   
   ' Clamp to reasonable bounds
-  IF (pd_ticks < 1000) THEN pd_ticks = 1000 ENDIF     ' min 3.3µs
-  IF (pd_ticks > 5000000) THEN pd_ticks = 5000000 ENDIF ' max 16.7ms
-  
-  Processdelay = pd_ticks
+  IF (pd_ticks < 1000) THEN pd_ticks = 1000      ' min 3.3µs
+  IF (pd_ticks > 5000000) THEN pd_ticks = 5000000 ' max 16.7ms
+  IF (pd_ticks <> Processdelay) THEN
+    Processdelay = pd_ticks
+    Par_71 = Processdelay ' max 10ms
+  ENDIF
 EndSub
 
 '--- working vars ---
@@ -116,7 +118,7 @@ Dim Data_3[200000]  As Long   ' triangle pos per step
 
 Init:
   ' Set optimal Processdelay using hybrid approach
-  Call SetProcessdelay()
+  SetProcessdelay()
 
   ' Counter 1: clk/dir, single-ended mode
   Cnt_Enable(0)
