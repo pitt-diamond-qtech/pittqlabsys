@@ -1,16 +1,10 @@
-'<ADbasic Header, Headerversion 001.001>
-' Process_Number                 = 1
-' Initial_Processdelay           = 20000
-' Eventsource                    = Timer
-' Control_long_Delays_for_Stop   = No
-' Priority                       = Normal
-' Version                        = 1
-' ADbasic_Version                = 6.3.0
-' Optimize                       = Yes
-' Optimize_Level                 = 1
-' Stacksize                      = 1000
-' Info_Last_Save                 = —
-'<Header End>
+' <ADbasic Header, Headerversion 001.001>
+' Process_Number         = 1
+' Initial_Processdelay   = 300000
+' Eventsource            = Timer
+' Priority               = Normal
+' ADbasic_Version        = 6.3.0
+' <Header End>
 
 #Include ADwinGoldII.inc
 
