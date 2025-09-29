@@ -1363,7 +1363,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     def update_parameters(self, treeWidget):
         """
-        updates the internal dictionaries for experiments and devices with values from the respective trees
+        Enhanced parameter update with validation and user feedback.
+        Updates the internal dictionaries for experiments and devices with values from the respective trees.
+        Provides visual feedback for parameter validation, clamping, and errors.
 
         treeWidget: the tree from which to update
 
@@ -1380,30 +1382,35 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             device, path_to_device = item.get_device()
             gui_logger.debug(f"Updating device: {device.name}, path: {path_to_device}")
 
-            # build nested dictionary to update device
+            # Store original values for comparison
+            requested_value = item.value
+            old_value = device.settings
+            path_to_device_copy = path_to_device.copy()
+            path_to_device_copy.reverse()
+            for element in path_to_device_copy:
+                old_value = old_value[element]
+
+            # Build nested dictionary to update device
             dictator = item.value
             for element in path_to_device:
                 dictator = {element: dictator}
 
-            # get old value from device
-            old_value = device.settings
-            path_to_device.reverse()
-            for element in path_to_device:
-                old_value = old_value[element]
-
-            # send new value from tree to device
-            device.update(dictator)
-
-            new_value = item.value
-            if new_value is not old_value:
-                msg = "changed parameter {:s} from {:s} to {:s} on {:s}".format(item.name, str(old_value),
-                                                                                str(new_value), device.name)
-                gui_logger.info(f"Parameter updated: {item.name} from {old_value} to {new_value} on {device.name}")
-            else:
-                msg = "did not change parameter {:s} on {:s}".format(item.name, device.name)
-                gui_logger.debug(f"Parameter unchanged: {item.name} on {device.name}")
-
-            self.log(msg)
+            try:
+                # Attempt to update device with validation
+                self._update_device_with_validation(device, dictator, item, path_to_device)
+                
+                # Get actual value after update (in case device clamped it)
+                actual_value = device.settings
+                for element in path_to_device_copy:
+                    actual_value = actual_value[element]
+                
+                # Provide user feedback based on what happened
+                self._provide_parameter_feedback(item, requested_value, actual_value, old_value, device.name)
+                
+            except Exception as e:
+                # Handle validation errors gracefully
+                self._handle_parameter_error(item, str(e), device.name)
+                return
         elif treeWidget == self.tree_experiments:
             gui_logger.debug("Updating parameters from tree_experiments")
             item = treeWidget.currentItem()
@@ -1430,6 +1437,215 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.log(msg)
         else:
             gui_logger.warning(f"Unknown tree widget type: {type(treeWidget)}")
+
+    def _update_device_with_validation(self, device, settings_dict, item, path_to_device):
+        """
+        Update device with parameter validation and error handling.
+        
+        Args:
+            device: Device instance to update
+            settings_dict: Dictionary of settings to apply
+            item: Tree item being updated
+            path_to_device: Path to the parameter in device settings
+        """
+        try:
+            # Check if device has validation method
+            if hasattr(device, 'validate_parameter'):
+                validation_result = device.validate_parameter(path_to_device, item.value)
+                if not validation_result.get('valid', True):
+                    raise ValueError(validation_result.get('message', 'Parameter validation failed'))
+            
+            # Update the device
+            device.update(settings_dict)
+            
+        except Exception as e:
+            gui_logger.error(f"Device update failed: {str(e)}")
+            raise
+
+    def _provide_parameter_feedback(self, item, requested_value, actual_value, old_value, device_name):
+        """
+        Provide visual and textual feedback for parameter changes.
+        
+        Args:
+            item: Tree item that was updated
+            requested_value: Value the user requested
+            actual_value: Value actually set by device
+            old_value: Previous value
+            device_name: Name of the device
+        """
+        # Determine what happened and provide appropriate feedback
+        if actual_value == requested_value:
+            # Value was accepted as-is
+            if actual_value != old_value:
+                msg = f"✅ Parameter {item.name} changed from {old_value} to {actual_value} on {device_name}"
+                gui_logger.info(f"Parameter updated successfully: {item.name} on {device_name}")
+                self._set_item_visual_feedback(item, 'success')
+            else:
+                msg = f"Parameter {item.name} unchanged on {device_name}"
+                gui_logger.debug(f"Parameter unchanged: {item.name} on {device_name}")
+                self._set_item_visual_feedback(item, 'normal')
+        else:
+            # Value was clamped by device
+            msg = f"⚠️ Parameter {item.name} clamped from {requested_value} to {actual_value} on {device_name}"
+            gui_logger.warning(f"Parameter clamped: {item.name} from {requested_value} to {actual_value} on {device_name}")
+            self._set_item_visual_feedback(item, 'warning')
+            
+            # Update the tree item to show the actual value
+            item.value = actual_value
+            item.setText(1, str(actual_value))
+            
+            # Show notification to user
+            self._show_parameter_notification(f"Parameter {item.name} was clamped to {actual_value}")
+        
+        self.log(msg)
+
+    def _handle_parameter_error(self, item, error_message, device_name):
+        """
+        Handle parameter validation errors with user feedback.
+        
+        Args:
+            item: Tree item that failed validation
+            error_message: Error message from validation
+            device_name: Name of the device
+        """
+        msg = f"❌ Parameter {item.name} validation failed on {device_name}: {error_message}"
+        gui_logger.error(f"Parameter validation failed: {item.name} on {device_name} - {error_message}")
+        
+        # Set visual feedback for error
+        self._set_item_visual_feedback(item, 'error')
+        
+        # Show error notification
+        self._show_parameter_notification(f"Parameter {item.name} error: {error_message}", is_error=True)
+        
+        self.log(msg)
+
+    def _set_item_visual_feedback(self, item, feedback_type):
+        """
+        Set visual feedback on tree item based on validation result.
+        
+        Args:
+            item: Tree item to update
+            feedback_type: 'success', 'warning', 'error', or 'normal'
+        """
+        # Reset any existing styling
+        item.setBackground(0, QtGui.QBrush())
+        item.setBackground(1, QtGui.QBrush())
+        
+        if feedback_type == 'success':
+            # Green background for successful updates
+            item.setBackground(1, QtGui.QBrush(QtGui.QColor(200, 255, 200)))
+            # Auto-clear after 2 seconds
+            self._clear_visual_feedback_after_delay(item, 2000)
+        elif feedback_type == 'warning':
+            # Yellow background for clamped values
+            item.setBackground(1, QtGui.QBrush(QtGui.QColor(255, 255, 200)))
+            # Auto-clear after 3 seconds (longer for warnings)
+            self._clear_visual_feedback_after_delay(item, 3000)
+        elif feedback_type == 'error':
+            # Red background for validation errors
+            item.setBackground(1, QtGui.QBrush(QtGui.QColor(255, 200, 200)))
+            # Auto-clear after 4 seconds (longer for errors)
+            self._clear_visual_feedback_after_delay(item, 4000)
+        # 'normal' doesn't change the background
+
+    def _show_parameter_notification(self, message, is_error=False):
+        """
+        Show a notification to the user about parameter changes.
+        
+        Args:
+            message: Message to display
+            is_error: Whether this is an error message
+        """
+        # For now, just log the message. In the future, this could show:
+        # - Toast notifications
+        # - Status bar messages
+        # - Modal dialogs for critical errors
+        
+        if is_error:
+            gui_logger.error(f"Parameter notification (ERROR): {message}")
+        else:
+            gui_logger.info(f"Parameter notification: {message}")
+        
+        # TODO: Implement actual GUI notifications
+        # This could use QMessageBox, QStatusBar, or custom toast notifications
+
+    def _get_parameter_ranges(self, device, path_to_device):
+        """
+        Get valid parameter ranges for a device parameter.
+        
+        Args:
+            device: Device instance
+            path_to_device: Path to the parameter in device settings
+            
+        Returns:
+            dict: Dictionary with 'min', 'max', 'valid_values' keys
+        """
+        try:
+            if hasattr(device, 'get_parameter_ranges'):
+                return device.get_parameter_ranges(path_to_device)
+            
+            # Fallback: try to get ranges from Parameter object
+            param_obj = device.settings
+            for element in path_to_device:
+                if hasattr(param_obj, element):
+                    param_obj = getattr(param_obj, element)
+                else:
+                    return {}
+            
+            if hasattr(param_obj, 'valid_values'):
+                if isinstance(param_obj.valid_values, list):
+                    return {'valid_values': param_obj.valid_values}
+                elif hasattr(param_obj.valid_values, '__bases__') and param_obj.valid_values in (int, float):
+                    # For numeric types, we could try to infer ranges from Parameter info
+                    return {'type': param_obj.valid_values}
+            
+            return {}
+        except Exception as e:
+            gui_logger.debug(f"Could not get parameter ranges: {e}")
+            return {}
+
+    def _add_parameter_tooltip(self, item, device, path_to_device):
+        """
+        Add informative tooltip to parameter item showing valid ranges.
+        
+        Args:
+            item: Tree item to add tooltip to
+            device: Device instance
+            path_to_device: Path to the parameter
+        """
+        try:
+            ranges = self._get_parameter_ranges(device, path_to_device)
+            tooltip_parts = [f"Parameter: {item.name}"]
+            
+            if 'valid_values' in ranges:
+                tooltip_parts.append(f"Valid values: {ranges['valid_values']}")
+            elif 'min' in ranges and 'max' in ranges:
+                tooltip_parts.append(f"Range: {ranges['min']} to {ranges['max']}")
+            elif 'type' in ranges:
+                tooltip_parts.append(f"Type: {ranges['type'].__name__}")
+            
+            # Add current value
+            tooltip_parts.append(f"Current: {item.value}")
+            
+            tooltip_text = "\n".join(tooltip_parts)
+            item.setToolTip(1, tooltip_text)
+            
+        except Exception as e:
+            gui_logger.debug(f"Could not add tooltip: {e}")
+
+    def _clear_visual_feedback_after_delay(self, item, delay_ms=2000):
+        """
+        Clear visual feedback after a delay to avoid permanent highlighting.
+        
+        Args:
+            item: Tree item to clear feedback from
+            delay_ms: Delay in milliseconds before clearing
+        """
+        # Use QTimer to clear feedback after delay
+        timer = QtCore.QTimer()
+        timer.setSingleShot(True)
+        timer.timeout.connect(lambda: self._set_item_visual_feedback(item, 'normal'))
+        timer.start(delay_ms)
 
     def plot_experiment(self, experiment):
         """
