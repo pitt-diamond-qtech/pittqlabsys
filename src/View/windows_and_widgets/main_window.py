@@ -14,7 +14,7 @@
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 from PyQt5 import QtGui, QtCore, QtWidgets
 from PyQt5.uic import loadUiType
-from PyQt5.QtCore import QThread, pyqtSlot, Qt
+from PyQt5.QtCore import QThread, pyqtSlot, Qt, QTimer
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 import pyqtgraph as pg
 
@@ -1396,16 +1396,28 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 dictator = {element: dictator}
 
             try:
-                # Attempt to update device with validation
-                self._update_device_with_validation(device, dictator, item, path_to_device)
-                
-                # Get actual value after update (in case device clamped it)
-                actual_value = device.settings
-                for element in path_to_device_copy:
-                    actual_value = actual_value[element]
-                
-                # Provide user feedback based on what happened
-                self._provide_parameter_feedback(item, requested_value, actual_value, old_value, device.name)
+                # Use the enhanced feedback system if available
+                if hasattr(device, 'get_feedback_only'):
+                    # Get detailed feedback about the update
+                    feedback = device.get_feedback_only(dictator)
+                    
+                    # Update the device
+                    device.update(dictator)
+                    
+                    # Process feedback for each parameter
+                    for param_name, param_feedback in feedback.items():
+                        self._process_parameter_feedback(item, param_feedback, device.name, path_to_device)
+                else:
+                    # Fallback to old method for devices without enhanced feedback
+                    self._update_device_with_validation(device, dictator, item, path_to_device)
+                    
+                    # Get actual value after update (in case device clamped it)
+                    actual_value = device.settings
+                    for element in path_to_device_copy:
+                        actual_value = actual_value[element]
+                    
+                    # Provide user feedback based on what happened
+                    self._provide_parameter_feedback(item, requested_value, actual_value, old_value, device.name)
                 
             except Exception as e:
                 # Handle validation errors gracefully
@@ -1519,6 +1531,67 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         
         self.log(msg)
 
+    def _process_parameter_feedback(self, item, param_feedback, device_name, path_to_device):
+        """
+        Process enhanced parameter feedback from device.
+        
+        Args:
+            item: Tree item that was updated
+            param_feedback: Feedback dictionary from device
+            device_name: Name of the device
+            path_to_device: Path to the parameter in device settings
+        """
+        if not param_feedback.get('changed', False):
+            # Parameter was set successfully without changes
+            msg = f"✅ Parameter {item.name} set to {param_feedback['actual']} on {device_name}"
+            gui_logger.info(f"Parameter set successfully: {item.name} on {device_name}")
+            self._set_item_visual_feedback(item, 'success')
+            self._show_parameter_notification(f"Parameter {item.name} set successfully")
+        else:
+            # Parameter value changed - determine the reason
+            reason = param_feedback.get('reason', 'unknown')
+            message = param_feedback.get('message', 'Value changed')
+            actual_value = param_feedback.get('actual')
+            requested_value = param_feedback.get('requested')
+            
+            if reason == 'error':
+                # Hardware error
+                msg = f"❌ {device_name}: {message}"
+                gui_logger.error(f"Hardware error: {item.name} on {device_name} - {message}")
+                self._set_item_visual_feedback(item, 'error')
+                self._show_parameter_notification(f"Hardware error: {message}", is_error=True)
+                
+                # Update tree item to show actual value
+                if actual_value is not None:
+                    item.value = actual_value
+                    item.setText(1, str(actual_value))
+                    
+            elif reason == 'clamped':
+                # Value was clamped by hardware limits
+                msg = f"⚠️ {device_name}: {message}"
+                gui_logger.warning(f"Parameter clamped: {item.name} on {device_name} - {message}")
+                self._set_item_visual_feedback(item, 'warning')
+                self._show_parameter_notification(f"Parameter clamped: {message}")
+                
+                # Update tree item to show actual value
+                if actual_value is not None:
+                    item.value = actual_value
+                    item.setText(1, str(actual_value))
+                    
+            else:
+                # Unknown reason for change
+                msg = f"⚠️ {device_name}: {message}"
+                gui_logger.warning(f"Parameter changed: {item.name} on {device_name} - {message}")
+                self._set_item_visual_feedback(item, 'warning')
+                self._show_parameter_notification(f"Parameter changed: {message}")
+                
+                # Update tree item to show actual value
+                if actual_value is not None:
+                    item.value = actual_value
+                    item.setText(1, str(actual_value))
+        
+        self.log(msg)
+
     def _set_item_visual_feedback(self, item, feedback_type):
         """
         Set visual feedback on tree item based on validation result.
@@ -1556,18 +1629,44 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             message: Message to display
             is_error: Whether this is an error message
         """
-        # For now, just log the message. In the future, this could show:
-        # - Toast notifications
-        # - Status bar messages
-        # - Modal dialogs for critical errors
-        
+        # Log the message
         if is_error:
             gui_logger.error(f"Parameter notification (ERROR): {message}")
         else:
             gui_logger.info(f"Parameter notification: {message}")
         
-        # TODO: Implement actual GUI notifications
-        # This could use QMessageBox, QStatusBar, or custom toast notifications
+        # Show visual notification to user
+        self._show_visual_notification(message, is_error)
+    
+    def _show_visual_notification(self, message, is_error=False):
+        """
+        Show visual notification to user (popup only for critical errors).
+        
+        Args:
+            message: Message to display
+            is_error: Whether this is an error message
+        """
+        try:
+            if is_error:
+                # Only show popup for critical hardware errors
+                msg_box = QtWidgets.QMessageBox()
+                msg_box.setIcon(QtWidgets.QMessageBox.Critical)
+                msg_box.setWindowTitle("Hardware Error")
+                msg_box.setText("Hardware Error Detected")
+                msg_box.setInformativeText(message)
+                msg_box.setStandardButtons(QtWidgets.QMessageBox.Ok)
+                msg_box.exec_()
+            else:
+                # For non-critical messages, just rely on:
+                # - Log messages (already handled in _show_parameter_notification)
+                # - Visual feedback on tree items (colored backgrounds)
+                # - Status bar updates (if available)
+                pass
+                
+        except Exception as e:
+            # Fallback to logging if GUI notification fails
+            gui_logger.warning(f"Failed to show visual notification: {e}")
+            gui_logger.info(f"Notification message: {message}")
 
     def _get_parameter_ranges(self, device, path_to_device):
         """
