@@ -216,14 +216,10 @@ Event:
         Par_22 = 0
         Par_23 = 0
         Par_24 = 0.0
-        state = 20
         
-
-      Case 20     ' CONFIGURE COUNTER FOR THIS RUN
-        Par_26 = state
+        ' Configure counter once for entire sweep
         Cnt_Enable(0)
         Cnt_Clear(0001b)
-        
         edge_mode = Par_4  ' 0=rising, 1=falling
         IF (edge_mode = 0) THEN
           ' Rising edges
@@ -241,7 +237,12 @@ Event:
           ENDIF
         ENDIF
         
-        ' Don't enable counter yet - wait for dwell window
+        state = 20
+        
+
+      Case 20     ' PREPARE STEP (counter already configured)
+        Par_26 = state
+        ' Counter configuration moved to Case 10 (once per sweep)
         state = 30
         
 
