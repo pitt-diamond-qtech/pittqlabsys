@@ -206,6 +206,9 @@ class ODMRSweepContinuousExperiment(Experiment):
         settle_time_ms = settle_time * 1000
         bidirectional = self.settings['acquisition'].get('bidirectional', True)  # Use configurable setting
         
+        # Set calibrated overhead factor for precise timing (1.2 = 20% correction)
+        self.adwin.set_int_var(9, int(1.2 * 10))  # Par_9 = 12 (1.2× scaled by 10)
+        
         setup_adwin_for_sweep_odmr(
             self.adwin, 
             integration_time_ms, 
@@ -216,6 +219,22 @@ class ODMRSweepContinuousExperiment(Experiment):
         
         # Start the process
         self.adwin.start_process("Process_1")
+        
+        # Verify the process started correctly by checking signature and heartbeat
+        try:
+            signature = self.adwin.get_int_var(80)
+            if signature != 7777:
+                self.log(f"⚠️  Warning: Unexpected signature {signature}, expected 7777")
+            else:
+                self.log(f"✅ ADwin process started correctly (signature: {signature})")
+            
+            # Wait a moment for heartbeat to start
+            time.sleep(0.1)
+            initial_heartbeat = self.adwin.get_int_var(25)
+            self.log(f"✅ ADwin heartbeat started: {initial_heartbeat}")
+            
+        except Exception as e:
+            self.log(f"⚠️  Could not verify ADwin process status: {e}")
         
         self.log(f"Adwin sweep setup: {self.num_steps} steps, {integration_time*1e3:.1f} ms per step")
         if bidirectional:
@@ -417,7 +436,8 @@ class ODMRSweepContinuousExperiment(Experiment):
         self.log(f"   SG384 sweep rate: {self.sweep_rate:.3f} Hz")
         self.log(f"   Expected sweep time: {self.sweep_time:.3f} s")
         
-        time.sleep(total_wait_time)
+        # Monitor ADwin state during sweep
+        self._monitor_sweep_progress(total_wait_time)
         
         # Debug: Check Adwin status after waiting
         try:
@@ -526,6 +546,56 @@ class ODMRSweepContinuousExperiment(Experiment):
             self._fit_resonances()
         
         self.log("Data analysis completed")
+    
+    def _monitor_sweep_progress(self, total_wait_time: float):
+        """Monitor ADwin state during sweep execution."""
+        start_time = time.time()
+        last_heartbeat = None
+        last_state = None
+        check_interval = 0.5  # Check every 500ms
+        
+        self.log("🔍 Monitoring ADwin sweep progress...")
+        
+        while time.time() - start_time < total_wait_time:
+            try:
+                # Check heartbeat
+                current_heartbeat = self.adwin.get_int_var(25)
+                if last_heartbeat is not None and current_heartbeat == last_heartbeat:
+                    self.log(f"⚠️  Warning: ADwin heartbeat not advancing ({current_heartbeat})")
+                last_heartbeat = current_heartbeat
+                
+                # Check state
+                current_state = self.adwin.get_int_var(26)
+                if last_state is not None and current_state != last_state:
+                    state_names = {
+                        255: "IDLE", 10: "PREP", 20: "PREPARE", 30: "ISSUE_STEP",
+                        31: "SETTLE", 32: "OPEN_WINDOW", 33: "DWELL", 34: "CLOSE_WINDOW",
+                        35: "NEXT_STEP", 70: "READY"
+                    }
+                    state_name = state_names.get(current_state, f"UNKNOWN({current_state})")
+                    self.log(f"   State: {current_state} ({state_name})")
+                last_state = current_state
+                
+                # Check if ready (sweep complete)
+                ready_flag = self.adwin.get_int_var(20)
+                if ready_flag == 1:
+                    elapsed = time.time() - start_time
+                    self.log(f"✅ Sweep completed early at {elapsed:.2f}s (expected {total_wait_time:.2f}s)")
+                    break
+                    
+            except Exception as e:
+                self.log(f"⚠️  Error monitoring ADwin: {e}")
+            
+            time.sleep(check_interval)
+        
+        # Final status check
+        try:
+            final_heartbeat = self.adwin.get_int_var(25)
+            final_state = self.adwin.get_int_var(26)
+            final_ready = self.adwin.get_int_var(20)
+            self.log(f"🔍 Final status: heartbeat={final_heartbeat}, state={final_state}, ready={final_ready}")
+        except Exception as e:
+            self.log(f"⚠️  Could not get final ADwin status: {e}")
     
     def _smooth_data(self, data: np.ndarray) -> np.ndarray:
         """Apply Savitzky-Golay smoothing to the data."""

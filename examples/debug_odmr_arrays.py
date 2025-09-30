@@ -413,7 +413,7 @@ def main():
     p.add_argument('--tb1', type=str, default='ODMR_Sweep_Counter_Debug.TB1', help='TB1 filename to load')
     p.add_argument('--dwell-us', type=int, default=5000, help='Dwell time in microseconds (default: 5000)')
     p.add_argument('--settle-us', type=int, default=1000, help='Settle time in microseconds (default: 1000)')
-    p.add_argument('--overhead-factor', type=float, default=1.2, help='Event loop overhead correction factor (default: 1.2)')
+    p.add_argument('--overhead-factor', type=float, default=1.2, help='Event loop overhead correction factor (default: 1.2, calibrated for production)')
     args = p.parse_args()
 
     print("🎯 ODMR Arrays Debug Tool — Array Diagnostics")
