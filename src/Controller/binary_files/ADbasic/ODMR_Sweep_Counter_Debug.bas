@@ -82,7 +82,9 @@ Dim sum_counts, max_counts, max_idx As Long
 Dim state As Long
 Dim settle_rem_us, dwell_rem_us, tick_us As Long
 Dim hb_div As Long ' heartbeat prescaler to avoid spamming
-
+' Processdelay control: hybrid approach (inline calculation)
+Dim pd_us, pd_ticks As Long
+  
 '--- result buffers (1-based indexing) ---
 Dim Data_1[200000]  As Long   ' counts per step
 Dim Data_2[200000]  As Long   ' DAC digits per step
@@ -90,8 +92,6 @@ Dim FData_1[200000] As Float  ' volts per step
 Dim Data_3[200000]  As Long   ' triangle pos per step
 
 Init:
-  ' Processdelay control: hybrid approach (inline calculation)
-  Dim pd_us, pd_ticks As Long
   
   ' Par_8 > 0: Python specified (µs) -> convert to ticks
   ' Par_8 = 0: Auto-calculate based on dwell time for optimal chunking
