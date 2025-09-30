@@ -127,6 +127,12 @@ def diagnose_adwin_script(use_real_hardware=False, config_path=None, script_name
             print(f"   Par_25 (heartbeat): {par_25}")
         except Exception as e:
             print(f"   ⚠️  Could not read Par_25: {e}")
+        
+        try:
+            par_71 = adwin.get_int_var(71)  # Processdelay
+            print(f"   Par_71 (processdelay): {par_71}")
+        except Exception as e:
+            print(f"   ⚠️  Could not read Par_71: {e}")
             
     except Exception as e:
         print(f"❌ Error checking script information: {e}")
@@ -145,16 +151,18 @@ def diagnose_adwin_script(use_real_hardware=False, config_path=None, script_name
             if process_status == "Running":
                 print("✅ Process started successfully!")
                 
-                # Check signature
+                # Check signature and processdelay
                 try:
                     signature = adwin.get_int_var(80)
+                    processdelay = adwin.get_int_var(71)
                     print(f"   Signature: {signature}")
+                    print(f"   Processdelay: {processdelay}")
                     if signature == 7777:
                         print("✅ Correct signature detected!")
                     else:
                         print(f"⚠️  Unexpected signature: {signature}")
                 except Exception as e:
-                    print(f"   ⚠️  Could not read signature: {e}")
+                    print(f"   ⚠️  Could not read signature/processdelay: {e}")
                 
                 # Check heartbeat
                 try:

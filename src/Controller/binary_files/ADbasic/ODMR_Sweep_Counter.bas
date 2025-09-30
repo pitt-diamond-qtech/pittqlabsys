@@ -108,6 +108,7 @@ Init:
   
   ' Set Processdelay directly in Init
   Processdelay = pd_ticks
+  Par_71 = Processdelay
   
   ' Calculate tick_us once (constant for this session)
   ' Use Par_9 as overhead correction factor (scaled by 10: 10=1.0, 12=1.2, 20=2.0)
