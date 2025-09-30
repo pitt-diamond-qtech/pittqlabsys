@@ -126,7 +126,7 @@ Init:
 
   ' Validate and clamp parameters once
   n_steps = Par_1
-  IF (n_steps < 2) THEN n_steps = 2 ENDIF
+  IF (n_steps < 2) THEN n_steps = 2
   
   settle_us = Par_2
   dwell_us = Par_3
@@ -135,8 +135,8 @@ Init:
   dir_sense = Par_6
   
   ' Clamp DAC channel
-  IF (dac_ch < 1) THEN dac_ch = 1 ENDIF
-  IF (dac_ch > 2) THEN dac_ch = 2 ENDIF
+  IF (dac_ch < 1) THEN dac_ch = 1
+  IF (dac_ch > 2) THEN dac_ch = 2
   
   ' Clamp voltage range
   vmin_clamped = Clamp(FPar_1, -1.0, 1.0)
@@ -150,10 +150,10 @@ Init:
   ' Convert to DAC digits
   vmin_dig = VoltsToDigits(vmin_clamped)
   vmax_dig = VoltsToDigits(vmax_clamped)
-  IF (vmin_dig = vmax_dig) THEN n_steps = 2 ENDIF
+  IF (vmin_dig = vmax_dig) THEN n_steps = 2
   
   n_points = (2 * n_steps) - 2
-  IF (n_points < 2) THEN n_points = 2 ENDIF
+  IF (n_points < 2) THEN n_points = 2
 
   ' Counter 1: clk/dir, single-ended mode
   Cnt_Enable(0)
