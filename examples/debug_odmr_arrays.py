@@ -127,7 +127,7 @@ def debug_odmr_arrays(use_real_hardware=False, config_path=None, tb1_filename='O
         adwin.set_int_var(3, DWELL_US)   # Par_3
         adwin.set_int_var(4, 0)          # Par_4 = EDGE_MODE (0=rising)
         adwin.set_int_var(5, DAC_CH)     # Par_5 = DAC_CH
-        adwin.set_int_var(6, 0)          # Par_6 = DIR_SENSE (0=DIR Low=up)
+        adwin.set_int_var(6, 1)          # Par_6 = DIR_SENSE (1=DIR High=up)
         adwin.set_int_var(8, CHUNK_US)   # Par_8 = PROCESSDELAY_US (0 = auto-calculate)
 
         print("▶️  Starting process 1…")
