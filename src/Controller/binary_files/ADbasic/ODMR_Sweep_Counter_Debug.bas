@@ -241,7 +241,7 @@ Event:
           ENDIF
         ENDIF
         
-        Cnt_Enable(0001b)
+        ' Don't enable counter yet - wait for dwell window
         state = 30
         
 
@@ -287,6 +287,7 @@ Event:
         ENDIF
 
       Case 32     ' OPEN DWELL WINDOW (latch start)
+        Cnt_Enable(0001b)   ' Enable counter for dwell window only
         Cnt_Latch(0001b)
         Par_26 = state
         old_cnt = Cnt_Read_Latch(1)
@@ -306,6 +307,7 @@ Event:
       Case 34     ' CLOSE WINDOW, READ, STORE
         Cnt_Latch(0001b)
         new_cnt = Cnt_Read_Latch(1)
+        Cnt_Enable(0)        ' Disable counter after dwell window
         Par_26 = state
         Rem ---- compute delta with wrap handling using Float arithmetic ----
         fd = new_cnt - old_cnt
