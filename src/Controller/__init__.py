@@ -147,6 +147,26 @@ class MockSG384Generator(Device):
         """Set modulation type."""
         print(f"Mock SG384Generator: Set modulation type to {mtype}")
     
+    def set_sweep_deviation(self, deviation_hz: float):
+        """Set sweep deviation."""
+        self.settings['sweep_deviation'] = deviation_hz
+        print(f"Mock SG384Generator: Set sweep deviation to {deviation_hz/1e6:.1f} MHz")
+    
+    def set_sweep_function(self, function: str):
+        """Set sweep function."""
+        self.settings['sweep_function'] = function
+        print(f"Mock SG384Generator: Set sweep function to {function}")
+    
+    def set_sweep_rate(self, rate_hz: float):
+        """Set sweep rate."""
+        self.settings['sweep_rate'] = rate_hz
+        print(f"Mock SG384Generator: Set sweep rate to {rate_hz:.3f} Hz")
+    
+    def enable_output(self):
+        """Enable output."""
+        self.settings['enable_output'] = True
+        print("Mock SG384Generator: Output enabled")
+    
     def set_modulation_depth(self, depth_hz: float):
         """Set modulation depth."""
         print(f"Mock SG384Generator: Set modulation depth to {depth_hz} Hz")
