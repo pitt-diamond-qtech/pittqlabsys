@@ -125,7 +125,7 @@ Init:
   overhead_factor = Par_9 / 10.0  ' Convert scaled integer back to float
   IF (overhead_factor <= 0.0) THEN overhead_factor = 1.0
   ' Calculate base tick_us, then apply overhead correction
-  tick_us = Round(Processdelay * 3.3 / 1000.0 / overhead_factor)   ' Apply overhead correction
+  tick_us = Round(Processdelay * 3.3 / 1000.0 * overhead_factor)   ' Apply overhead correction
   IF (tick_us <= 0) THEN
     tick_us = 1                  ' never allow zero tick
   ENDIF
