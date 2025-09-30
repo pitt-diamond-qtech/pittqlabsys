@@ -287,11 +287,17 @@ Event:
           state = 32
         ENDIF
 
-      Case 32     ' OPEN DWELL WINDOW (latch start)
-        Cnt_Enable(0001b)   ' Enable counter for dwell window only
-        Cnt_Latch(0001b)
+      Case 32     ' OPEN DWELL WINDOW (start fresh)
+        ' Start a fresh window: clear -> enable -> dwell
+        Cnt_Enable(0)
+        Cnt_Clear(0001b)
+        Cnt_Enable(0001b)
+        
+        ' If you want, you can latch once to prove it's zero:
+        ' Cnt_Latch(0001b) : old_cnt = Cnt_Read_Latch(1)  ' should be 0
+        ' But we simply treat baseline as 0:
+        old_cnt = 0
         Par_26 = state
-        old_cnt = Cnt_Read_Latch(1)
         dwell_rem_us = Par_3
         state = 33
 
