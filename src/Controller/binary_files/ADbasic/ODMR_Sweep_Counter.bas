@@ -174,6 +174,7 @@ Event:
     hb_div = 0
   ENDIF
 
+  Par_26 = state                 ' live: which CASE we are in
   Watchdog_Reset()  ' Reset watchdog in Event
 
   ' ---- async stop: force state = 255 if Par_10 = 0 ----
