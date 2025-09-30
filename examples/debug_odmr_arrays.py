@@ -69,7 +69,7 @@ def bring_up_process(adwin, tb1_filename: str):
     adwin.update({'process_1': {'load': str(script_path)}})
 
 
-def debug_odmr_arrays(use_real_hardware=False, config_path=None, tb1_filename='ODMR_Sweep_Counter_Debug.TB1', dwell_us=5000, settle_us=1000):
+def debug_odmr_arrays(use_real_hardware=False, config_path=None, tb1_filename='ODMR_Sweep_Counter_Debug.TB1', dwell_us=5000, settle_us=1000, overhead_factor=1.2):
     print("\n" + "=" * 60)
     print("ODMR ARRAYS DEBUG SESSION – new DEBUG ADbasic (non-blocking)")
     print("=" * 60)
@@ -129,6 +129,7 @@ def debug_odmr_arrays(use_real_hardware=False, config_path=None, tb1_filename='O
         adwin.set_int_var(5, DAC_CH)     # Par_5 = DAC_CH
         adwin.set_int_var(6, 1)          # Par_6 = DIR_SENSE (1=DIR High=up)
         adwin.set_int_var(8, CHUNK_US)   # Par_8 = PROCESSDELAY_US (0 = auto-calculate)
+        adwin.set_int_var(9, int(overhead_factor * 10))  # Par_9 = OVERHEAD_FACTOR (scaled by 10 for integer)
 
         print("▶️  Starting process 1…")
         adwin.start_process(1)
@@ -412,12 +413,13 @@ def main():
     p.add_argument('--tb1', type=str, default='ODMR_Sweep_Counter_Debug.TB1', help='TB1 filename to load')
     p.add_argument('--dwell-us', type=int, default=5000, help='Dwell time in microseconds (default: 5000)')
     p.add_argument('--settle-us', type=int, default=1000, help='Settle time in microseconds (default: 1000)')
+    p.add_argument('--overhead-factor', type=float, default=1.2, help='Event loop overhead correction factor (default: 1.2)')
     args = p.parse_args()
 
     print("🎯 ODMR Arrays Debug Tool — Array Diagnostics")
     print(f"🔧 Hardware mode: {'Real' if args.real_hardware else 'Mock'}")
 
-    ok = debug_odmr_arrays(args.real_hardware, args.config, args.tb1, args.dwell_us, args.settle_us)
+    ok = debug_odmr_arrays(args.real_hardware, args.config, args.tb1, args.dwell_us, args.settle_us, args.overhead_factor)
     print("\n✅ Debug session completed!" if ok else "\n❌ Debug session failed!")
     return 0 if ok else 1
 

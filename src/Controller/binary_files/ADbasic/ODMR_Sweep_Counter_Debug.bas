@@ -30,6 +30,7 @@
 '   Par_5  = DAC_CH    (1..2)
 '   Par_6  = DIR_SENSE (0=DIR Low=up, 1=DIR High=up)
 '   Par_8  = PROCESSDELAY_US (µs, 0=auto-calculate from dwell time)
+'   Par_9  = OVERHEAD_FACTOR (1.0=no correction, 1.2=20% overhead, default=1.0)
 '   Par_10 = START     (1=run, 0=idle)
 ' To Python:
 '   Data_1[]  = counts per step (LONG)
@@ -119,7 +120,10 @@ Init:
   Par_71 = Processdelay
   
   ' Calculate tick_us once (constant for this session)
-  tick_us = Round(Processdelay * 3.3 / 1000)   ' Convert ticks to µs
+  ' Use Par_9 as overhead correction factor (scaled by 10: 10=1.0, 12=1.2, 20=2.0)
+  overhead_factor = Par_9 / 10.0  ' Convert scaled integer back to float
+  IF (overhead_factor <= 0.0) THEN overhead_factor = 1.0 ENDIF
+  tick_us = Round(Processdelay * 3.3 / 1000 / overhead_factor)   ' Convert ticks to µs, corrected for overhead
   IF (tick_us <= 0) THEN
     tick_us = 1                  ' never allow zero tick
   ENDIF
