@@ -69,7 +69,7 @@ def bring_up_process(adwin, tb1_filename: str):
     adwin.update({'process_1': {'load': str(script_path)}})
 
 
-def debug_odmr_arrays(use_real_hardware=False, config_path=None, tb1_filename='ODMR_Sweep_Counter_Debug.TB1'):
+def debug_odmr_arrays(use_real_hardware=False, config_path=None, tb1_filename='ODMR_Sweep_Counter_Debug.TB1', dwell_us=5000, settle_us=1000):
     print("\n" + "=" * 60)
     print("ODMR ARRAYS DEBUG SESSION – new DEBUG ADbasic (non-blocking)")
     print("=" * 60)
@@ -112,8 +112,8 @@ def debug_odmr_arrays(use_real_hardware=False, config_path=None, tb1_filename='O
         # Parameters (adjust as needed)
         VMIN, VMAX = -1.0, 1.0
         N_STEPS    = 10
-        SETTLE_US  = 1000     # 1 ms
-        DWELL_US   = 5000     # 5 ms
+        SETTLE_US  = settle_us     # Settle time from command line
+        DWELL_US   = dwell_us      # Dwell time from command line
         DAC_CH     = 1
         CHUNK_US   = 0        # Use ADbasic auto-calculate (hybrid timing)
         # CHUNK_US = 0: Auto-calculate Processdelay based on dwell time
@@ -410,12 +410,14 @@ def main():
     p.add_argument('--real-hardware', action='store_true', help='Use real ADwin hardware')
     p.add_argument('--config', type=str, default=None, help='Path to config.json (default: src/config.json)')
     p.add_argument('--tb1', type=str, default='ODMR_Sweep_Counter_Debug.TB1', help='TB1 filename to load')
+    p.add_argument('--dwell-us', type=int, default=5000, help='Dwell time in microseconds (default: 5000)')
+    p.add_argument('--settle-us', type=int, default=1000, help='Settle time in microseconds (default: 1000)')
     args = p.parse_args()
 
     print("🎯 ODMR Arrays Debug Tool — Array Diagnostics")
     print(f"🔧 Hardware mode: {'Real' if args.real_hardware else 'Mock'}")
 
-    ok = debug_odmr_arrays(args.real_hardware, args.config, args.tb1)
+    ok = debug_odmr_arrays(args.real_hardware, args.config, args.tb1, args.dwell_us, args.settle_us)
     print("\n✅ Debug session completed!" if ok else "\n❌ Debug session failed!")
     return 0 if ok else 1
 
