@@ -82,6 +82,7 @@ Dim sum_counts, max_counts, max_idx As Long
 '--- state machine vars ---
 Dim state As Long
 Dim settle_rem_us, dwell_rem_us, tick_us As Long
+Dim overhead_factor As Float
 Dim hb_div As Long ' heartbeat prescaler to avoid spamming
 ' Processdelay control: hybrid approach (inline calculation)
 Dim pd_us, pd_ticks As Long
@@ -123,7 +124,8 @@ Init:
   ' Use Par_9 as overhead correction factor (scaled by 10: 10=1.0, 12=1.2, 20=2.0)
   overhead_factor = Par_9 / 10.0  ' Convert scaled integer back to float
   IF (overhead_factor <= 0.0) THEN overhead_factor = 1.0 ENDIF
-  tick_us = Round(Processdelay * 3.3 / 1000 / overhead_factor)   ' Convert ticks to µs, corrected for overhead
+  ' Calculate base tick_us, then apply overhead correction
+  tick_us = Round(Processdelay * 3.3 / 1000.0 / overhead_factor)   ' Apply overhead correction
   IF (tick_us <= 0) THEN
     tick_us = 1                  ' never allow zero tick
   ENDIF
@@ -308,7 +310,7 @@ Event:
       Case 33     ' DWELL (time-sliced)
         Watchdog_Reset()   ' Reset watchdog during long dwell
         Par_26 = state
-        IF (dwell_rem_us > tick_us) THEN
+        IF (dwell_rem_us >= tick_us) THEN
           dwell_rem_us = dwell_rem_us - tick_us
           state = 33
         ELSE
