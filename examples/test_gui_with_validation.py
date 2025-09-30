@@ -101,8 +101,22 @@ def mock_hardware_devices():
 # Apply the mocks
 mock_load_device = mock_hardware_devices()
 
-# Mock the device loading function
-with patch('src.tools.device_loader.load_device', side_effect=mock_load_device):
+# Mock the device loading function only for specific devices
+def enhanced_load_device(device_name, config=None):
+    """Enhanced device loader that uses mocks for testing but allows real hardware."""
+    # Use mock for specific devices that we want to test
+    if device_name in ['stage', 'rf_generator']:
+        return mock_load_device(device_name, config)
+    else:
+        # For other devices, try to load normally
+        try:
+            from src.tools.device_loader import load_device as real_load_device
+            return real_load_device(device_name, config)
+        except:
+            # Fallback to mock if real device fails
+            return mock_load_device(device_name, config)
+
+with patch('src.tools.device_loader.load_device', side_effect=enhanced_load_device):
     # Now import and run the GUI
     try:
         from PyQt5.QtWidgets import QApplication
