@@ -166,7 +166,7 @@ Init:
   hb_div = 0
 
   Par_20 = 0
-  Par_21 = 0
+  Par_21 = n_points
   Par_22 = 0
   Par_23 = 0
   Par_24 = 0.0
