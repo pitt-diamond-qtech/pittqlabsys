@@ -135,7 +135,7 @@ def debug_odmr_arrays(use_real_hardware=False, config_path=None, tb1_filename='O
         
         # Wait for process to start and verify it's running
         print("⏳ Waiting for process to start...")
-        time.sleep(0.5)  # Give process time to start
+        time.sleep(0.1)  # Give process time to start
         
         process_status = adwin.get_process_status(1)
         print(f"   Process status: {process_status}")
@@ -326,9 +326,11 @@ def debug_odmr_arrays(use_real_hardware=False, config_path=None, tb1_filename='O
             par_20 = adwin.get_int_var(20)  # ready flag
             par_21 = adwin.get_int_var(21)  # points
             par_25 = adwin.get_int_var(25)  # heartbeat
+            par_26 = adwin.get_int_var(26)  # current state
             print(f"   Par_20 (ready): {par_20}")
             print(f"   Par_21 (points): {par_21}")
             print(f"   Par_25 (heartbeat): {par_25}")
+            print(f"   Par_26 (state): {par_26}")
             
             # Check if there are any ADwin errors
             try:

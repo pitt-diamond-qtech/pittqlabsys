@@ -86,10 +86,10 @@ Dim hb_div As Long ' heartbeat prescaler to avoid spamming
 Dim pd_us, pd_ticks As Long
   
 '--- result buffers (1-based indexing) ---
-Dim Data_1[200000]  As Long   ' counts per step
-Dim Data_2[200000]  As Long   ' DAC digits per step
-Dim FData_1[200000] As Float  ' volts per step
-Dim Data_3[200000]  As Long   ' triangle pos per step
+Dim Data_1[1000]  As Long   ' counts per step
+Dim Data_2[1000]  As Long   ' DAC digits per step
+Dim FData_1[1000] As Float  ' volts per step
+Dim Data_3[1000]  As Long   ' triangle pos per step
 
 Init:
   
@@ -155,17 +155,14 @@ Init:
   n_points = (2 * n_steps) - 2
   IF (n_points < 2) THEN n_points = 2
 
-  ' Counter 1: clk/dir, single-ended mode
-  Cnt_Enable(0)
-  Cnt_Clear(0001b)
+  ' Counter 1: clk/dir, single-ended mode (basic setup)
   Cnt_SE_Diff(0000b)
-  Cnt_Enable(0001b)
 
   ' Watchdog (debug): 5 s (units = 10 µs) - increased for longer dwell times
   Watchdog_Init(1, 500000, 1111b)
 
   ' Initialize state machine
-  state = 0
+  state = 255
   hb_div = 0
 
   Par_20 = 0
@@ -174,14 +171,10 @@ Init:
   Par_23 = 0
   Par_24 = 0.0
   Par_25 = 0
-  Par_71 = 0        ' Processdelay (set by SetProcessdelay)
   Par_80 = 7777     ' Signature to confirm script is loaded
   old_cnt = 0
 
 Event:
-  Rem tiny global yield so the PC can always grab the bus
-  IO_Sleep(50)   ' 0.5 µs in 10 ns units
-  
   ' ---- heartbeat ----
   hb_div = hb_div + 1
   IF (hb_div >= 10) THEN         ' update heartbeat every ~10 ticks
@@ -190,41 +183,71 @@ Event:
   ENDIF
 
   Par_26 = state                 ' live: which CASE we are in
+  Watchdog_Reset()  ' Reset watchdog in Event
 
-  ' ---- async stop: force state = 0 if Par_10 = 0 ----
+  ' ---- async stop: force state = 255 if Par_10 = 0 ----
   IF (Par_10 = 0) THEN
-    state = 0
+    state = 255
   ENDIF
 
   ' ---- run state machine unconditionally ----
+  Par_26 = state   ' Debug: current state
   SelectCase state
 
-      Case 0        ' IDLE: async start detection and housekeeping
+      Case 255     ' IDLE: async start detection and housekeeping
         Rem breathe and advertise that we are alive
         IO_Sleep(1000)   ' 10 µs yield
-        
+        Watchdog_Reset()   ' Reset watchdog in idle state
+        Par_26 = state
         ' Check for async start: Par_10 flipped to 1
         IF (Par_10 = 1) THEN
-          ' Start new sweep
-          Par_21 = n_points
-          k = 0
-          Par_22 = 0
-          Par_23 = 0
-          Par_24 = 0.0
-          state = 10   ' ARM state
-        ELSE
-          ' Stay in IDLE, check if sweep completed
-          IF (Par_20 <> 0) THEN
-            state = 90  ' Wait for PC to clear ready flag
-          ENDIF
+          state = 10   ' Start new sweep
         ENDIF
 
-      Case 10     ' ARM: prepare for first measurement
-        ' Move to first step preparation
+      
+      Case 0
+        Rem unused - kept for future compatibility
+        Par_26 = state
+        state = 10
+      Case 10     ' SNAPSHOT & PREP: initialize sweep variables
+        ' Reset sweep variables for new sweep
+        k = 0
+        Par_26 = state
+        Par_22 = 0
+        Par_23 = 0
+        Par_24 = 0.0
         state = 20
+        
 
-      Case 20     ' PREP STEP: compute DAC code; start settle window
+      Case 20     ' CONFIGURE COUNTER FOR THIS RUN
+        Par_26 = state
+        Cnt_Enable(0)
+        Cnt_Clear(0001b)
+        
+        edge_mode = Par_4  ' 0=rising, 1=falling
+        IF (edge_mode = 0) THEN
+          ' Rising edges
+          IF (Par_6 = 1) THEN
+            Cnt_Mode(1, 00000000b)   ' DIR high = count up
+          ELSE
+            Cnt_Mode(1, 00001000b)   ' invert DIR: DIR low = count up
+          ENDIF
+        ELSE
+          ' Falling edges
+          IF (Par_6 = 1) THEN
+            Cnt_Mode(1, 00000100b)   ' invert CLK, DIR high = count up
+          ELSE
+            Cnt_Mode(1, 00001100b)   ' invert CLK and DIR: DIR low = count up
+          ENDIF
+        ENDIF
+        
+        Cnt_Enable(0001b)
+        state = 30
+        
+
+      Case 30     ' ISSUE STEP, START SETTLE
         ' triangle index
+        Par_26 = state
         IF (k < n_steps) THEN
           pos = k
         ELSE
@@ -232,6 +255,7 @@ Event:
         ENDIF
         Par_22 = k
         Par_23 = pos
+        Data_3[k+1] = pos
 
         ' code for this step
         IF (n_steps > 1) THEN
@@ -241,78 +265,48 @@ Event:
         ENDIF
         Data_2[k+1] = vmin_dig + step_dig
         
-        ' bounds check for DAC digits (should be 0-65535)
-        IF (Data_2[k+1] < 0) THEN
-          Data_2[k+1] = 0
-        ENDIF
-        IF (Data_2[k+1] > 65535) THEN
-          Data_2[k+1] = 65535
-        ENDIF
-        
+        ' volts for debug
         FData_1[k+1] = DigitsToVolts(Data_2[k+1])
-        Data_3[k+1]  = pos
-        Par_24 = FData_1[k+1]  ' debug volts
+        Par_24 = FData_1[k+1]
 
-        ' output
+        ' Output DAC and start settle
         Write_DAC(dac_ch, Data_2[k+1])
         Start_DAC()
+        
+        settle_rem_us = Par_2
+        state = 31
 
-        ' configure counter mode for this measurement
-        Cnt_Enable(0)
-        Cnt_Clear(0001b)
-        IF (edge_mode = 0) THEN
-          Rem rising edges
-          IF (dir_sense = 1) THEN
-            Cnt_Mode(1, 00000000b)
-          ELSE
-            Cnt_Mode(1, 00001000b)
-          ENDIF
+      Case 31     ' SETTLE (time-sliced)
+        Watchdog_Reset()   ' Reset watchdog during long settle
+        Par_26 = state
+        IF (settle_rem_us > tick_us) THEN
+          settle_rem_us = settle_rem_us - tick_us
+          state = 31
         ELSE
-          Rem falling edges
-          IF (dir_sense = 1) THEN
-            Cnt_Mode(1, 00000100b)
-          ELSE
-            Cnt_Mode(1, 00001100b)
-          ENDIF
-        ENDIF
-        Cnt_Enable(0001b)
-
-        ' initialize timers
-        settle_rem_us = settle_us
-        dwell_rem_us  = dwell_us
-        state = 30
-
-      Case 30     ' SETTLE (excluded from counting)
-        IF (settle_rem_us > 0) THEN
-          IF (settle_rem_us > tick_us) THEN
-            settle_rem_us = settle_rem_us - tick_us
-          ELSE
-            settle_rem_us = 0
-          ENDIF
-        ELSE
-          state = 40
+          state = 32
         ENDIF
 
-      Case 40     ' LATCH BASELINE
+      Case 32     ' OPEN DWELL WINDOW (latch start)
         Cnt_Latch(0001b)
+        Par_26 = state
         old_cnt = Cnt_Read_Latch(1)
-        state = 50
+        dwell_rem_us = Par_3
+        state = 33
 
-      Case 50     ' DWELL (counting window)
-        IF (dwell_rem_us > 0) THEN
-          IF (dwell_rem_us > tick_us) THEN
-            dwell_rem_us = dwell_rem_us - tick_us
-          ELSE
-            dwell_rem_us = 0
-          ENDIF
+      Case 33     ' DWELL (time-sliced)
+        Watchdog_Reset()   ' Reset watchdog during long dwell
+        Par_26 = state
+        IF (dwell_rem_us > tick_us) THEN
+          dwell_rem_us = dwell_rem_us - tick_us
+          state = 33
         ELSE
-          state = 60
+          state = 34
         ENDIF
 
-      Case 60     ' LATCH END + STORE DELTA
+      Case 34     ' CLOSE WINDOW, READ, STORE
         Cnt_Latch(0001b)
         new_cnt = Cnt_Read_Latch(1)
-        
+        Par_26 = state
         Rem ---- compute delta with wrap handling using Float arithmetic ----
         fd = new_cnt - old_cnt
         
@@ -330,31 +324,39 @@ Event:
         ENDIF
         
         Data_1[k+1] = Round(fd)
+        state = 35
 
-        state = 70
-
-      Case 70     ' ADVANCE
+      Case 35     ' NEXT STEP OR FINISH
         k = k + 1
+        Par_26 = state
         IF (k >= n_points) THEN
-          Par_20 = 1     ' ready
-          state  = 90
+          state = 70
         ELSE
-          state = 20
+          state = 30
         ENDIF
 
-      Case 90     ' WAIT FOR PC
-        ' no sleeps; just yield this tick
-        ' allow PC to clear Par_20
-        IF (Par_20 = 0) THEN
-          state = 0
+      Case 70     ' READY HANDSHAKE (non-blocking)
+        Par_20 = 1
+        IO_Sleep(1000)            ' ~10 µs bus yield
+        Watchdog_Reset()
+        Par_26 = state
+        IF (Par_10 = 0) THEN 
+          state = 255
+        ELSE 
+          IF (Par_20 = 0) THEN 
+            state = 10              ' host cleared READY -> next sweep
+          ELSE 
+            state = 70
+          ENDIF
         ENDIF
 
       CaseElse
-        state = 0
+        Par_26 = 0
+        state = 255
 
     EndSelect
 
-End
+
 
 Finish:
   ' Mark stopped and clear handshake
@@ -385,5 +387,8 @@ Finish:
   Par_22 = 0
   Par_23 = 0
   Par_24 = 0.0
+  ' De-arm watchdog so nothing can fire after process stops
+  ' if 0 is not allowed as timeout on system, use 1 instead
+  Watchdog_Init(1,0,0000b)
 
   Exit
