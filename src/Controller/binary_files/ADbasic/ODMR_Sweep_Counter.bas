@@ -83,8 +83,8 @@ Dim hb_div As Long ' heartbeat prescaler to avoid spamming
 Dim pd_us, pd_ticks As Long
   
 '--- result buffers (1-based indexing) ---
-Dim Data_1[100000]  As Long   ' counts per step
-Dim Data_2[100000]  As Long   ' DAC digits per step
+Dim Data_1[1000]  As Long   ' counts per step
+Dim Data_2[1000]  As Long   ' DAC digits per step
 
 Init:
   
