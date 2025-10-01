@@ -88,8 +88,8 @@ class ODMRSweepContinuousExperiment(Experiment):
     
     _DEVICES = {
         'microwave': 'sg384',
-        'adwin': 'adwin',
-        'nanodrive': 'nanodrive'
+        'adwin': 'adwin'
+        # 'nanodrive': 'nanodrive'  # Optional - not needed for ODMR sweeps
     }
     
     _EXPERIMENTS = {}

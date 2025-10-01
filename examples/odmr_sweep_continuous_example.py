@@ -88,6 +88,19 @@ def create_devices(use_real_hardware=False, config_path=None, debug=False):
                     devices[device_name] = {'instance': device_instance}
             
             print(f"✅ Real hardware initialized successfully: {list(devices.keys())}")
+            print(f"🔍 Debug: Expected devices: {list(device_mapping.values())}")
+            print(f"🔍 Debug: Available devices: {list(loaded_devices.keys())}")
+            print(f"🔍 Debug: Final device keys: {list(devices.keys())}")
+            
+            # Check if all required devices are present
+            required_devices = ['microwave', 'adwin']  # nanodrive is optional
+            missing_devices = [d for d in required_devices if d not in devices]
+            if missing_devices:
+                print(f"⚠️  Missing required devices: {missing_devices}")
+                print("   This will cause the experiment to fail!")
+            else:
+                print("✅ All required devices are present")
+            
             return devices
             
         except Exception as e:
