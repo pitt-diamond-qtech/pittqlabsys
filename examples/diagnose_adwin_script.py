@@ -164,17 +164,6 @@ def diagnose_adwin_script(use_real_hardware=False, config_path=None, script_name
                 except Exception as e:
                     print(f"   ⚠️  Could not read signature/processdelay: {e}")
                 
-                # Check debug parameters (Par_22, Par_23, Par_24, Par_72, Par_73)
-                try:
-                    par_22 = adwin.get_int_var(22)  # Current step index
-                    par_23 = adwin.get_int_var(23)  # Current triangle position
-                    par_24 = adwin.get_float_var(24)  # Current volts
-                    par_72 = adwin.get_int_var(72)  # Calculated µs
-                    par_73 = adwin.get_int_var(73)  # Calculated ticks
-                    print(f"   Debug params - Step: {par_22}, Pos: {par_23}, Volts: {par_24:.3f}")
-                    print(f"   Debug params - µs: {par_72}, Ticks: {par_73}")
-                except Exception as e:
-                    print(f"   ⚠️  Could not read debug parameters: {e}")
                 
                 # Check heartbeat and state
                 try:
@@ -199,6 +188,81 @@ def diagnose_adwin_script(use_real_hardware=False, config_path=None, script_name
                         
                 except Exception as e:
                     print(f"   ⚠️  Could not check heartbeat/state: {e}")
+                
+                # Test actual counting functionality
+                print("\n🧪 Testing counting functionality...")
+                try:
+                    # Set up parameters for a simple test sweep
+                    adwin.set_int_var(1, 3)    # N_STEPS = 3 (will give 4 points: 0,1,2,1)
+                    adwin.set_int_var(2, 1000)  # SETTLE_US = 1000 µs
+                    adwin.set_int_var(3, 2000)  # DWELL_US = 2000 µs  
+                    adwin.set_int_var(4, 1)     # EDGE_MODE = falling edges
+                    adwin.set_int_var(5, 1)     # DAC_CH = 1
+                    adwin.set_int_var(6, 1)     # DIR_SENSE = DIR High=up
+                    adwin.set_int_var(8, 500)   # PROCESSDELAY_US = 500 µs
+                    adwin.set_int_var(9, 12)     # OVERHEAD_FACTOR = 1.2x
+                    adwin.set_float_var(1, -1.0) # Vmin = -1V
+                    adwin.set_float_var(2, 1.0)  # Vmax = +1V
+                    
+                    print("   ✅ Test parameters set")
+                    
+                    # Clear ready flag and start sweep
+                    adwin.set_int_var(20, 0)  # Clear ready flag
+                    adwin.set_int_var(10, 1)  # START = 1
+                    
+                    print("   ▶️  Started sweep...")
+                    
+                    # Wait for sweep to complete (ready flag = 1)
+                    max_wait = 10  # 10 seconds max
+                    wait_time = 0
+                    while wait_time < max_wait:
+                        time.sleep(0.5)
+                        wait_time += 0.5
+                        try:
+                            ready = adwin.get_int_var(20)
+                            state = adwin.get_int_var(26)
+                            print(f"   ⏳ Wait {wait_time:.1f}s: ready={ready}, state={state}")
+                            if ready == 1:
+                                break
+                        except Exception as e:
+                            print(f"   ⚠️  Error checking status: {e}")
+                    
+                    if wait_time >= max_wait:
+                        print("   ❌ Sweep timed out!")
+                        return False
+                    
+                    print("   ✅ Sweep completed!")
+                    
+                    # Read the results
+                    try:
+                        n_points = adwin.get_int_var(21)
+                        print(f"   📊 Points collected: {n_points}")
+                        
+                        # Read first few counts
+                        counts = []
+                        for i in range(min(4, n_points)):
+                            try:
+                                count = adwin.get_data_long(1, i+1)  # Data_1[i+1]
+                                counts.append(count)
+                            except Exception as e:
+                                print(f"   ⚠️  Could not read count {i+1}: {e}")
+                        
+                        if counts:
+                            print(f"   📈 First counts: {counts}")
+                            if any(c > 0 for c in counts):
+                                print("   ✅ Counting is working!")
+                            else:
+                                print("   ⚠️  All counts are zero - check signal generator")
+                        else:
+                            print("   ❌ Could not read any counts")
+                            
+                    except Exception as e:
+                        print(f"   ❌ Error reading results: {e}")
+                        return False
+                        
+                except Exception as e:
+                    print(f"   ❌ Error testing counting: {e}")
+                    return False
                 
             else:
                 print(f"❌ Process failed to start! Status: {process_status}")
