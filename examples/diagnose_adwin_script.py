@@ -193,7 +193,7 @@ def diagnose_adwin_script(use_real_hardware=False, config_path=None, script_name
                 print("\n🧪 Testing counting functionality...")
                 try:
                     # Set up parameters for a simple test sweep (matching debug script)
-                    adwin.set_int_var(1, 3)    # N_STEPS = 3 (will give 4 points: 0,1,2,1)
+                    adwin.set_int_var(1, 10)   # N_STEPS = 10 (will give 18 points, matching debug script)
                     adwin.set_int_var(2, 500)   # SETTLE_US = 500 µs (match debug script)
                     adwin.set_int_var(3, 2000)  # DWELL_US = 2000 µs  
                     adwin.set_int_var(4, 0)     # EDGE_MODE = rising edges (match debug script)
@@ -206,8 +206,7 @@ def diagnose_adwin_script(use_real_hardware=False, config_path=None, script_name
                     
                     print("   ✅ Test parameters set")
                     
-                    # Clear ready flag and start sweep
-                    adwin.set_int_var(20, 0)  # Clear ready flag
+                    # Start sweep (don't clear ready flag - let the script handle it)
                     adwin.set_int_var(10, 1)  # START = 1
                     
                     print("   ▶️  Started sweep...")
