@@ -83,6 +83,7 @@ This section contains detailed technical documentation for PittQLabSys.
 - **Debug modes** - Debug output and tracing
 - **Error reporting** - Detailed error information
 - **Performance profiling** - Performance analysis tools
+- [Debug ODMR Arrays Usage](debug-odmr-arrays-usage.md) - ADwin debugging tool
 
 ## 🔗 Related Resources
 
