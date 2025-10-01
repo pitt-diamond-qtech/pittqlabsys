@@ -236,40 +236,41 @@ def diagnose_adwin_script(use_real_hardware=False, config_path=None, script_name
                     except Exception as e:
                         print(f"   Warning: Could not clear ready flag: {e}")
                     
-                    print("   ▶️  Started sweep...")
+                    print("   ⏳ Waiting for Par_20 == 1 (sweep ready)…")
                     
-                    # Wait for sweep to complete (ready flag = 1)
-                    max_wait = 15  # 15 seconds max (increased for more steps)
-                    wait_time = 0
-                    last_state = -1
-                    last_heartbeat = -1
+                    # Wait for sweep to complete (ready flag = 1) - EXACTLY like debug script
+                    expected_points = max(2, 2 * 10 - 2)  # 18 points for 10 steps
+                    per_point_s = (500 + 2000) / 1e6  # settle + dwell time
+                    timeout = max(5.0, expected_points * per_point_s * 10)  # generous margin
                     
-                    while wait_time < max_wait:
-                        time.sleep(0.5)
-                        wait_time += 0.5
+                    t0 = time.time()
+                    last_hb = adwin.get_int_var(25)
+                    
+                    while True:
                         try:
-                            ready = adwin.get_int_var(20)
-                            state = adwin.get_int_var(26)
-                            heartbeat = adwin.get_int_var(25)
-                            n_points = adwin.get_int_var(21)
-                            
-                            # Show state changes
-                            state_change = f" (state changed: {last_state}→{state})" if state != last_state else ""
-                            heartbeat_change = f" (hb: {last_heartbeat}→{heartbeat})" if heartbeat != last_heartbeat else ""
-                            
-                            print(f"   ⏳ Wait {wait_time:.1f}s: ready={ready}, state={state}, points={n_points}{state_change}{heartbeat_change}")
-                            
-                            last_state = state
-                            last_heartbeat = heartbeat
+                            ready = adwin.get_int_var(20)  # ready flag
+                            hb    = adwin.get_int_var(25)  # heartbeat
+                            state = adwin.get_int_var(26)  # current state
+                            elapsed = time.time() - t0
+                            print(f"  {elapsed:5.2f}s | ready={ready} hb={hb} state={state}", end='\r')
                             
                             if ready == 1:
+                                print()
                                 break
+                                
+                            # Check if heartbeat is still advancing (after 100ms grace period)
+                            if hb <= last_hb and elapsed > 0.1:
+                                print(f"\n⚠️  Heartbeat stalled at {hb}!")
+                                
+                            last_hb = hb
+                            time.sleep(0.05)
                         except Exception as e:
-                            print(f"   ⚠️  Error checking status: {e}")
-                    
-                    if wait_time >= max_wait:
-                        print("   ❌ Sweep timed out!")
-                        return False
+                            print(f"\n⚠️  Transient Get_Par error (tolerated): {e}")
+                            time.sleep(0.05)  # Continue polling despite error
+
+                        if elapsed > timeout:
+                            print(f"\n❌ Timeout after {elapsed:.1f}s (expected ~{expected_points * per_point_s:.1f}s)")
+                            return False
                     
                     print("   ✅ Sweep completed!")
                     
