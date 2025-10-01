@@ -238,16 +238,36 @@ def diagnose_adwin_script(use_real_hardware=False, config_path=None, script_name
                         n_points = adwin.get_int_var(21)
                         print(f"   📊 Points collected: {n_points}")
                         
+                        # Check final state
+                        final_state = adwin.get_int_var(26)
+                        print(f"   🔄 Final state: {final_state}")
+                        
+                        # Check if ready flag is still set
+                        ready_flag = adwin.get_int_var(20)
+                        print(f"   🚩 Ready flag: {ready_flag}")
+                        
                         # Read counts array
                         try:
                             counts = adwin.read_probes('int_array', id=1, length=n_points)  # Data_1 array
-                            print(f"   📈 Counts: {counts}")
-                            if any(c > 0 for c in counts):
-                                print("   ✅ Counting is working!")
+                            print(f"   📈 Raw counts array: {counts}")
+                            print(f"   📊 Count values: {list(counts)}")
+                            print(f"   🔢 Number of points: {len(counts)}")
+                            
+                            if counts and len(counts) > 0:
+                                print(f"   📋 Individual counts:")
+                                for i, count in enumerate(counts):
+                                    print(f"      Point {i+1}: {count}")
+                                
+                                if any(c > 0 for c in counts):
+                                    print("   ✅ Counting is working! (Non-zero counts detected)")
+                                else:
+                                    print("   ⚠️  All counts are zero - check signal generator")
                             else:
-                                print("   ⚠️  All counts are zero - check signal generator")
+                                print("   ❌ Empty counts array")
                         except Exception as e:
                             print(f"   ❌ Could not read counts array: {e}")
+                            import traceback
+                            print(f"   🔍 Error details: {traceback.format_exc()}")
                             
                     except Exception as e:
                         print(f"   ❌ Error reading results: {e}")
