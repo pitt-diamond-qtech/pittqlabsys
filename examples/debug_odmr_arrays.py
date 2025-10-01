@@ -311,8 +311,15 @@ def debug_odmr_arrays(use_real_hardware=False, config_path=None, tb1_filename='O
             print(f"   ✅ Data_3 read successfully: {len(pos)} elements")
             print(f"   First few positions: {pos[:5] if len(pos) >= 5 else pos}")
         except Exception as e:
-            print(f"   ❌ Error reading Data_3: {e}")
+            print(f"   ⚠️  Data_3 not available (production script): {e}")
+            # Generate positions from triangle logic for production script
             pos = []
+            for i in range(n_points):
+                if i < n_points // 2:
+                    pos.append(i)  # Forward sweep
+                else:
+                    pos.append(n_points - 1 - i)  # Reverse sweep
+            print(f"   ✅ Generated positions: {pos[:5] if len(pos) >= 5 else pos}")
 
         print(f"✅ Got arrays: counts={len(counts)}, digits={len(dac_digits)}, volts={len(volts)}, pos={len(pos)}")
 
@@ -354,7 +361,15 @@ def debug_odmr_arrays(use_real_hardware=False, config_path=None, tb1_filename='O
             print(f"   max per step: {cmax} (at index {imax})")
             print(f"   average:      {avg:.3f}")
         except Exception:
-            print("\nℹ️  Summaries (Par_30..32 / FPar_33) not available — continuing.")
+            print("\nℹ️  Summaries (Par_30..32 / FPar_33) not available (production script) — computing manually.")
+            if counts:
+                total = sum(counts)
+                cmax = max(counts)
+                imax = counts.index(cmax)
+                avg = total / len(counts)
+                print(f"   total counts: {total}")
+                print(f"   max per step: {cmax} (at index {imax})")
+                print(f"   average:      {avg:.3f}")
 
         # ---------- quick sanity checks ----------
         print("\n🔍 Voltage progression checks:")
