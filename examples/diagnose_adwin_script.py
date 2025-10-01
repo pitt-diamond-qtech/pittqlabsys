@@ -229,12 +229,26 @@ def diagnose_adwin_script(use_real_hardware=False, config_path=None, script_name
                         print("   ❌ Heartbeat not advancing after 1s - process not running!")
                         return False
                     
+                    # Check ready flag status before clearing
+                    try:
+                        ready_before = adwin.get_int_var(20)
+                        print(f"   📊 Ready flag before clearing: {ready_before}")
+                    except Exception as e:
+                        print(f"   ⚠️  Could not read ready flag: {e}")
+                    
                     # Clear any stale ready flags first (like debug script)
                     print("   🧹 Clearing any stale ready flags...")
                     try:
                         adwin.set_int_var(20, 0)  # Clear Par_20 (ready flag)
+                        time.sleep(0.01)  # Give time for flag to clear
+                        ready_after = adwin.get_int_var(20)
+                        print(f"   📊 Ready flag after clearing: {ready_after}")
                     except Exception as e:
                         print(f"   Warning: Could not clear ready flag: {e}")
+                    
+                    # Give the sweep time to actually start (critical!)
+                    print("   ⏳ Giving sweep time to start...")
+                    time.sleep(0.1)  # 100ms delay to let sweep start
                     
                     print("   ⏳ Waiting for Par_20 == 1 (sweep ready)…")
                     
