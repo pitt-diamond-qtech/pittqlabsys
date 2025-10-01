@@ -193,7 +193,7 @@ def diagnose_adwin_script(use_real_hardware=False, config_path=None, script_name
                 print("\n🧪 Testing counting functionality...")
                 try:
                     # Set up parameters for a simple test sweep (matching debug script)
-                    adwin.set_int_var(1, 10)   # N_STEPS = 10 (will give 18 points, matching debug script)
+                    adwin.set_int_var(1, 20)    # N_STEPS = 20 (will give 38 points, more steps for better testing)
                     adwin.set_int_var(2, 500)   # SETTLE_US = 500 µs (match debug script)
                     adwin.set_int_var(3, 2000)  # DWELL_US = 2000 µs  
                     adwin.set_int_var(4, 0)     # EDGE_MODE = rising edges (match debug script)
@@ -206,21 +206,37 @@ def diagnose_adwin_script(use_real_hardware=False, config_path=None, script_name
                     
                     print("   ✅ Test parameters set")
                     
-                    # Start sweep (don't clear ready flag - let the script handle it)
+                    # Clear ready flag first, then start sweep
+                    adwin.set_int_var(20, 0)  # Clear ready flag
+                    time.sleep(0.1)  # Give time for flag to clear
                     adwin.set_int_var(10, 1)  # START = 1
                     
                     print("   ▶️  Started sweep...")
                     
                     # Wait for sweep to complete (ready flag = 1)
-                    max_wait = 10  # 10 seconds max
+                    max_wait = 15  # 15 seconds max (increased for more steps)
                     wait_time = 0
+                    last_state = -1
+                    last_heartbeat = -1
+                    
                     while wait_time < max_wait:
                         time.sleep(0.5)
                         wait_time += 0.5
                         try:
                             ready = adwin.get_int_var(20)
                             state = adwin.get_int_var(26)
-                            print(f"   ⏳ Wait {wait_time:.1f}s: ready={ready}, state={state}")
+                            heartbeat = adwin.get_int_var(25)
+                            n_points = adwin.get_int_var(21)
+                            
+                            # Show state changes
+                            state_change = f" (state changed: {last_state}→{state})" if state != last_state else ""
+                            heartbeat_change = f" (hb: {last_heartbeat}→{heartbeat})" if heartbeat != last_heartbeat else ""
+                            
+                            print(f"   ⏳ Wait {wait_time:.1f}s: ready={ready}, state={state}, points={n_points}{state_change}{heartbeat_change}")
+                            
+                            last_state = state
+                            last_heartbeat = heartbeat
+                            
                             if ready == 1:
                                 break
                         except Exception as e:
