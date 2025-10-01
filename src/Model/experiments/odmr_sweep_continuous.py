@@ -218,7 +218,7 @@ class ODMRSweepContinuousExperiment(Experiment):
         )
         
         # Start the process
-        self.adwin.start_process("Process_1")
+        self.adwin.start_process(1)
         
         # Verify the process started correctly by checking signature and heartbeat
         try:
@@ -343,8 +343,8 @@ class ODMRSweepContinuousExperiment(Experiment):
         """Cleanup experiment resources."""
         # Stop Adwin process
         if self.adwin and self.adwin.is_connected:
-            self.adwin.stop_process("Process_1")
-            self.adwin.clear_process("Process_1")
+            self.adwin.stop_process(1)
+            self.adwin.clear_process(1)
         
         # Disable microwave sweep and output
         if self.microwave and self.microwave.is_connected:
@@ -413,16 +413,40 @@ class ODMRSweepContinuousExperiment(Experiment):
     
     def _run_single_sweep(self):
         """Run a single frequency sweep."""
-        # Reset Adwin sweep
-        self.adwin.clear_process("Process_1")
-        self.adwin.start_process("Process_1")
+        # Reset Adwin sweep (following debug script pattern)
+        self.adwin.stop_process(1)
+        self.adwin.clear_process(1)
+        self.adwin.start_process(1)
         
-        # Debug: Check if Adwin process started successfully
+        # Wait for heartbeat to start advancing (like debug script)
+        self.log("⏳ Waiting for ADwin heartbeat to start...")
+        initial_hb = self.adwin.get_int_var(25)
+        start_time = time.time()
+        
+        while time.time() - start_time < 1.0:  # Wait up to 1 second
+            try:
+                current_hb = self.adwin.get_int_var(25)
+                if current_hb > initial_hb:
+                    self.log(f"✅ ADwin heartbeat advancing: {initial_hb} → {current_hb}")
+                    break
+                time.sleep(0.01)  # 10ms polling
+            except Exception as e:
+                self.log(f"⚠️  Transient Get_Par error (tolerated): {e}")
+                time.sleep(0.01)
+        else:
+            self.log("❌ ADwin heartbeat not advancing after 1s - process not running!")
+            return np.zeros(self.num_steps), np.zeros(self.num_steps), np.zeros(self.num_steps)
+        
+        # Clear any stale ready flags first (like debug script)
+        self.log("🧹 Clearing any stale ready flags...")
         try:
-            process_status = self.adwin.get_process_status("Process_1")
-            self.log(f"🔍 Adwin Process_1 status: {process_status}")
+            self.adwin.set_int_var(20, 0)  # Clear Par_20 (ready flag)
         except Exception as e:
-            self.log(f"⚠️  Could not check Adwin process status: {e}")
+            self.log(f"Warning: Could not clear ready flag: {e}")
+        
+        # Start the sweep (like debug script)
+        self.log("🚀 Starting ADwin sweep...")
+        self.adwin.set_int_var(10, 1)  # Par_10 = START
         
         # Start microwave sweep
         # The SG384 will automatically sweep when modulation is enabled
@@ -449,7 +473,7 @@ class ODMRSweepContinuousExperiment(Experiment):
             self.log(f"⚠️  Could not check Adwin status: {e}")
         
         # Stop the sweep
-        self.adwin.stop_process("Process_1")
+        self.adwin.stop_process(1)
         
         # Read sweep data from Adwin using helper function
         from src.core.adwin_helpers import read_adwin_sweep_odmr_data
