@@ -164,20 +164,41 @@ def diagnose_adwin_script(use_real_hardware=False, config_path=None, script_name
                 except Exception as e:
                     print(f"   ⚠️  Could not read signature/processdelay: {e}")
                 
-                # Check heartbeat
+                # Check debug parameters (Par_22, Par_23, Par_24, Par_72, Par_73)
+                try:
+                    par_22 = adwin.get_int_var(22)  # Current step index
+                    par_23 = adwin.get_int_var(23)  # Current triangle position
+                    par_24 = adwin.get_float_var(24)  # Current volts
+                    par_72 = adwin.get_int_var(72)  # Calculated µs
+                    par_73 = adwin.get_int_var(73)  # Calculated ticks
+                    print(f"   Debug params - Step: {par_22}, Pos: {par_23}, Volts: {par_24:.3f}")
+                    print(f"   Debug params - µs: {par_72}, Ticks: {par_73}")
+                except Exception as e:
+                    print(f"   ⚠️  Could not read debug parameters: {e}")
+                
+                # Check heartbeat and state
                 try:
                     heartbeat = adwin.get_int_var(25)
+                    state = adwin.get_int_var(26)
                     print(f"   Initial heartbeat: {heartbeat}")
+                    print(f"   Initial state: {state}")
                     
                     # Wait a bit and check if heartbeat advances
                     time.sleep(0.5)
                     new_heartbeat = adwin.get_int_var(25)
+                    new_state = adwin.get_int_var(26)
                     if new_heartbeat > heartbeat:
                         print(f"✅ Heartbeat advancing: {heartbeat} → {new_heartbeat}")
                     else:
                         print(f"⚠️  Heartbeat not advancing: {heartbeat}")
+                    
+                    if new_state != state:
+                        print(f"✅ State changing: {state} → {new_state}")
+                    else:
+                        print(f"ℹ️  State stable: {state}")
+                        
                 except Exception as e:
-                    print(f"   ⚠️  Could not check heartbeat: {e}")
+                    print(f"   ⚠️  Could not check heartbeat/state: {e}")
                 
             else:
                 print(f"❌ Process failed to start! Status: {process_status}")
