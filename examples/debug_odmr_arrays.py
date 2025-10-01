@@ -410,16 +410,33 @@ def main():
     p = argparse.ArgumentParser(description='Debug ODMR Arrays – Triangle Sweep (DEBUG ADbasic)')
     p.add_argument('--real-hardware', action='store_true', help='Use real ADwin hardware')
     p.add_argument('--config', type=str, default=None, help='Path to config.json (default: src/config.json)')
-    p.add_argument('--tb1', type=str, default='ODMR_Sweep_Counter_Debug.TB1', help='TB1 filename to load')
+    p.add_argument('--tb1', type=str, default='ODMR_Sweep_Counter_Debug.TB1', 
+                   help='TB1 filename to load (default: ODMR_Sweep_Counter_Debug.TB1)')
+    p.add_argument('--script', type=str, choices=['debug', 'production', 'test'], 
+                   help='Convenience option: debug=ODMR_Sweep_Counter_Debug.TB1, production=ODMR_Sweep_Counter.TB1, test=ODMR_Sweep_Counter_Test.TB1')
     p.add_argument('--dwell-us', type=int, default=5000, help='Dwell time in microseconds (default: 5000)')
     p.add_argument('--settle-us', type=int, default=1000, help='Settle time in microseconds (default: 1000)')
     p.add_argument('--overhead-factor', type=float, default=1.2, help='Event loop overhead correction factor (default: 1.2, calibrated for production)')
     args = p.parse_args()
 
+    # Handle convenience script option
+    script_map = {
+        'debug': 'ODMR_Sweep_Counter_Debug.TB1',
+        'production': 'ODMR_Sweep_Counter.TB1', 
+        'test': 'ODMR_Sweep_Counter_Test.TB1'
+    }
+    
+    if args.script:
+        tb1_filename = script_map[args.script]
+        print(f"🎯 Using convenience script: {args.script} -> {tb1_filename}")
+    else:
+        tb1_filename = args.tb1
+
     print("🎯 ODMR Arrays Debug Tool — Array Diagnostics")
     print(f"🔧 Hardware mode: {'Real' if args.real_hardware else 'Mock'}")
+    print(f"📄 Script: {tb1_filename}")
 
-    ok = debug_odmr_arrays(args.real_hardware, args.config, args.tb1, args.dwell_us, args.settle_us, args.overhead_factor)
+    ok = debug_odmr_arrays(args.real_hardware, args.config, tb1_filename, args.dwell_us, args.settle_us, args.overhead_factor)
     print("\n✅ Debug session completed!" if ok else "\n❌ Debug session failed!")
     return 0 if ok else 1
 

@@ -39,6 +39,7 @@
 '   Par_21    = number of points (2*N_STEPS-2)
 '   Par_25    = heartbeat
 '   Par_26    = current state (255=idle, 10=prep, 30=settle, etc.)
+'   Par_71    = Processdelay (ticks)
 '   Par_80    = signature (7777)
 '=============================================
 
@@ -81,8 +82,8 @@ Dim hb_div As Long ' heartbeat prescaler to avoid spamming
 Dim pd_us, pd_ticks As Long
   
 '--- result buffers (1-based indexing) ---
-Dim Data_1[5000]  As Long   ' counts per step
-Dim Data_2[5000]  As Long   ' DAC digits per step
+Dim Data_1[1000]  As Long   ' counts per step
+Dim Data_2[1000]  As Long   ' DAC digits per step
 
 Init:
   
