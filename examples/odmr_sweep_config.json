@@ -6,7 +6,7 @@
     },
     "microwave": {
       "power_dbm": -10.0,
-      "step_freq_mhz": 1.0,
+      "step_freq_mhz": 3.0,
       "sweep_function": "Triangle"
     },
     "acquisition": {
@@ -28,5 +28,9 @@
     }
   },
   "description": "ODMR Continuous Sweep Configuration File",
-  "usage": "python odmr_sweep_continuous_example.py --config odmr_sweep_config.json"
+  "usage": "python odmr_sweep_continuous_example.py --config odmr_sweep_config.json",
+  "notes": {
+    "number_of_points": "Calculated as (stop_ghz - start_ghz) / step_freq_mhz = (3.0 - 2.7) / 3.0 = 100 points",
+    "ramp_delay_ms": "Only used when sweep_function is 'Ramp' - adds delay between ramp cycles to avoid discontinuities. Not used with 'Triangle' waveform."
+  }
 }
