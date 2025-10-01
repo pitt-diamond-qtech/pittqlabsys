@@ -192,24 +192,49 @@ def diagnose_adwin_script(use_real_hardware=False, config_path=None, script_name
                 # Test actual counting functionality
                 print("\n🧪 Testing counting functionality...")
                 try:
-                    # Set up parameters for a simple test sweep (matching debug script)
-                    adwin.set_int_var(1, 20)    # N_STEPS = 20 (will give 38 points, more steps for better testing)
-                    adwin.set_int_var(2, 500)   # SETTLE_US = 500 µs (match debug script)
-                    adwin.set_int_var(3, 2000)  # DWELL_US = 2000 µs  
-                    adwin.set_int_var(4, 0)     # EDGE_MODE = rising edges (match debug script)
-                    adwin.set_int_var(5, 1)     # DAC_CH = 1
-                    adwin.set_int_var(6, 1)     # DIR_SENSE = DIR High=up
-                    adwin.set_int_var(8, 0)     # PROCESSDELAY_US = 0 (auto-calculate, match debug script)
-                    adwin.set_int_var(9, 12)     # OVERHEAD_FACTOR = 1.2x
-                    adwin.set_float_var(1, -1.0) # Vmin = -1V
-                    adwin.set_float_var(2, 1.0)  # Vmax = +1V
+                    # Set up parameters for a simple test sweep (EXACTLY matching debug script sequence)
+                    adwin.set_float_var(1, -1.0) # FPar_1 = VMIN (set FIRST, like debug script)
+                    adwin.set_float_var(2, 1.0)  # FPar_2 = VMAX (set SECOND, like debug script)
+                    adwin.set_int_var(1, 10)     # Par_1 = N_STEPS = 10 (match debug script exactly)
+                    adwin.set_int_var(2, 500)    # Par_2 = SETTLE_US = 500 µs (match debug script)
+                    adwin.set_int_var(3, 2000)   # Par_3 = DWELL_US = 2000 µs  
+                    adwin.set_int_var(4, 0)      # Par_4 = EDGE_MODE = rising edges (match debug script)
+                    adwin.set_int_var(5, 1)      # Par_5 = DAC_CH = 1
+                    adwin.set_int_var(6, 1)      # Par_6 = DIR_SENSE = DIR High=up
+                    adwin.set_int_var(8, 0)      # Par_8 = PROCESSDELAY_US = 0 (auto-calculate, match debug script)
+                    adwin.set_int_var(9, 12)     # Par_9 = OVERHEAD_FACTOR = 1.2x
                     
                     print("   ✅ Test parameters set")
                     
-                    # Clear ready flag first, then start sweep
-                    adwin.set_int_var(20, 0)  # Clear ready flag
-                    time.sleep(0.1)  # Give time for flag to clear
-                    adwin.set_int_var(10, 1)  # START = 1
+                    # Arm the sweep (like debug script)
+                    print("   🚀 Arming sweep...")
+                    adwin.set_int_var(10, 1)  # Par_10 = START
+                    
+                    # Wait for heartbeat to start advancing (like debug script)
+                    print("   ⏳ Waiting for heartbeat to start...")
+                    initial_hb = adwin.get_int_var(25)
+                    start_time = time.time()
+                    
+                    while time.time() - start_time < 1.0:  # Wait up to 1 second
+                        try:
+                            current_hb = adwin.get_int_var(25)
+                            if current_hb > initial_hb:
+                                print(f"   ✅ Heartbeat advancing: {initial_hb} → {current_hb}")
+                                break
+                            time.sleep(0.01)  # 10ms polling
+                        except Exception as e:
+                            print(f"   ⚠️  Transient Get_Par error (tolerated): {e}")
+                            time.sleep(0.01)
+                    else:
+                        print("   ❌ Heartbeat not advancing after 1s - process not running!")
+                        return False
+                    
+                    # Clear any stale ready flags first (like debug script)
+                    print("   🧹 Clearing any stale ready flags...")
+                    try:
+                        adwin.set_int_var(20, 0)  # Clear Par_20 (ready flag)
+                    except Exception as e:
+                        print(f"   Warning: Could not clear ready flag: {e}")
                     
                     print("   ▶️  Started sweep...")
                     
