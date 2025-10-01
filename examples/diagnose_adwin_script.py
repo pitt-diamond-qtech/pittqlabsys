@@ -246,6 +246,15 @@ def diagnose_adwin_script(use_real_hardware=False, config_path=None, script_name
                         ready_flag = adwin.get_int_var(20)
                         print(f"   🚩 Ready flag: {ready_flag}")
                         
+                        # Check timing parameters
+                        processdelay = adwin.get_int_var(71)
+                        print(f"   ⏱️  Processdelay: {processdelay}")
+                        
+                        # Check overhead factor
+                        overhead_raw = adwin.get_int_var(9)
+                        overhead_factor = overhead_raw / 10.0
+                        print(f"   🔧 Overhead factor: {overhead_factor} (raw: {overhead_raw})")
+                        
                         # Read counts array
                         try:
                             counts = adwin.read_probes('int_array', id=1, length=n_points)  # Data_1 array
