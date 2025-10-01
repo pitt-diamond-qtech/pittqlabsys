@@ -192,14 +192,14 @@ def diagnose_adwin_script(use_real_hardware=False, config_path=None, script_name
                 # Test actual counting functionality
                 print("\n🧪 Testing counting functionality...")
                 try:
-                    # Set up parameters for a simple test sweep
+                    # Set up parameters for a simple test sweep (matching debug script)
                     adwin.set_int_var(1, 3)    # N_STEPS = 3 (will give 4 points: 0,1,2,1)
-                    adwin.set_int_var(2, 1000)  # SETTLE_US = 1000 µs
+                    adwin.set_int_var(2, 500)   # SETTLE_US = 500 µs (match debug script)
                     adwin.set_int_var(3, 2000)  # DWELL_US = 2000 µs  
-                    adwin.set_int_var(4, 1)     # EDGE_MODE = falling edges
+                    adwin.set_int_var(4, 0)     # EDGE_MODE = rising edges (match debug script)
                     adwin.set_int_var(5, 1)     # DAC_CH = 1
                     adwin.set_int_var(6, 1)     # DIR_SENSE = DIR High=up
-                    adwin.set_int_var(8, 500)   # PROCESSDELAY_US = 500 µs
+                    adwin.set_int_var(8, 0)     # PROCESSDELAY_US = 0 (auto-calculate, match debug script)
                     adwin.set_int_var(9, 12)     # OVERHEAD_FACTOR = 1.2x
                     adwin.set_float_var(1, -1.0) # Vmin = -1V
                     adwin.set_float_var(2, 1.0)  # Vmax = +1V
