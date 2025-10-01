@@ -238,23 +238,16 @@ def diagnose_adwin_script(use_real_hardware=False, config_path=None, script_name
                         n_points = adwin.get_int_var(21)
                         print(f"   📊 Points collected: {n_points}")
                         
-                        # Read first few counts
-                        counts = []
-                        for i in range(min(4, n_points)):
-                            try:
-                                count = adwin.get_data_long(1, i+1)  # Data_1[i+1]
-                                counts.append(count)
-                            except Exception as e:
-                                print(f"   ⚠️  Could not read count {i+1}: {e}")
-                        
-                        if counts:
-                            print(f"   📈 First counts: {counts}")
+                        # Read counts array
+                        try:
+                            counts = adwin.read_probes('int_array', id=1, length=n_points)  # Data_1 array
+                            print(f"   📈 Counts: {counts}")
                             if any(c > 0 for c in counts):
                                 print("   ✅ Counting is working!")
                             else:
                                 print("   ⚠️  All counts are zero - check signal generator")
-                        else:
-                            print("   ❌ Could not read any counts")
+                        except Exception as e:
+                            print(f"   ❌ Could not read counts array: {e}")
                             
                     except Exception as e:
                         print(f"   ❌ Error reading results: {e}")
