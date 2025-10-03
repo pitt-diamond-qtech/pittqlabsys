@@ -386,7 +386,9 @@ class ODMRSweepContinuousExperiment(Experiment):
             self.log(f"ℹ️  Using {sweep_function.upper()} waveform")
         
         # Generate frequency array for data collection
-        self.frequencies = np.linspace(start_freq, stop_freq, self.num_steps)
+        # For bidirectional sweeps, we get (num_steps-1) points each direction
+        actual_steps = self.num_steps - 1
+        self.frequencies = np.linspace(start_freq, stop_freq, actual_steps)
         
         # Log calculation results
         self.log(f"Step frequency: {step_freq/1e6:.2f} MHz")
@@ -401,11 +403,12 @@ class ODMRSweepContinuousExperiment(Experiment):
         """Initialize data storage arrays."""
         averages = self.settings['acquisition']['averages']
         
-        # Main data arrays
-        self.counts_forward = np.zeros(self.num_steps)
-        self.counts_reverse = np.zeros(self.num_steps)
-        self.counts_averaged = np.zeros(self.num_steps)
-        self.voltages = np.zeros(self.num_steps)
+        # Main data arrays - bidirectional sweeps return (num_steps-1) points each direction
+        actual_steps = self.num_steps - 1  # 299 for bidirectional sweeps
+        self.counts_forward = np.zeros(actual_steps)
+        self.counts_reverse = np.zeros(actual_steps)
+        self.counts_averaged = np.zeros(actual_steps)
+        self.voltages = np.zeros(actual_steps)
         
         # Analysis arrays
         self.fit_parameters = None
@@ -460,9 +463,12 @@ class ODMRSweepContinuousExperiment(Experiment):
         self.log(f"Starting sweep averages: {averages} sweeps")
         
         # Arrays to store individual sweep data
-        all_forward = np.zeros((averages, self.num_steps))
-        all_reverse = np.zeros((averages, self.num_steps))
-        all_voltages = np.zeros((averages, self.num_steps))
+        # Note: bidirectional sweeps return 2*num_steps-2 points total
+        # Split into forward/reverse gives (num_steps-1) points each
+        actual_steps = self.num_steps - 1  # 299 for bidirectional sweeps
+        all_forward = np.zeros((averages, actual_steps))
+        all_reverse = np.zeros((averages, actual_steps))
+        all_voltages = np.zeros((averages, actual_steps))
         
         for avg in range(averages):
             self.log(f"Running sweep {avg + 1}/{averages}")
@@ -513,7 +519,8 @@ class ODMRSweepContinuousExperiment(Experiment):
                 time.sleep(0.01)
         else:
             self.log("❌ ADwin heartbeat not advancing after 1s - process not running!")
-            return np.zeros(self.num_steps), np.zeros(self.num_steps), np.zeros(self.num_steps)
+            actual_steps = self.num_steps - 1
+            return np.zeros(actual_steps), np.zeros(actual_steps), np.zeros(actual_steps)
         
         # Clear any stale ready flags first (like debug script)
         self.log("🧹 Clearing any stale ready flags...")
@@ -558,13 +565,15 @@ class ODMRSweepContinuousExperiment(Experiment):
 
             if elapsed > timeout:
                 self.log(f"❌ Timeout after {elapsed:.1f}s (expected ~{expected_points * per_point_s:.1f}s)")
-                return np.zeros(self.num_steps), np.zeros(self.num_steps), np.zeros(self.num_steps)
+                actual_steps = self.num_steps - 1
+            return np.zeros(actual_steps), np.zeros(actual_steps), np.zeros(actual_steps)
         
         # Read arrays (like debug script)
         n_points = self.adwin.get_int_var(21)
         if n_points <= 0:
             self.log("❌ n_points <= 0 — nothing to read.")
-            return np.zeros(self.num_steps), np.zeros(self.num_steps), np.zeros(self.num_steps)
+            actual_steps = self.num_steps - 1
+            return np.zeros(actual_steps), np.zeros(actual_steps), np.zeros(actual_steps)
         
         self.log(f"📊 Sweep reports n_points = {n_points}")
         
@@ -587,7 +596,8 @@ class ODMRSweepContinuousExperiment(Experiment):
             
         except Exception as e:
             self.log(f"❌ Error reading arrays: {e}")
-            return np.zeros(self.num_steps), np.zeros(self.num_steps), np.zeros(self.num_steps)
+            actual_steps = self.num_steps - 1
+            return np.zeros(actual_steps), np.zeros(actual_steps), np.zeros(actual_steps)
         
         # Sanity check: ensure n_points matches expected value
         if n_points != expected_points:
@@ -595,7 +605,8 @@ class ODMRSweepContinuousExperiment(Experiment):
             self.log(f"   Expected: {expected_points} points (2*{self.num_steps}-2)")
             self.log(f"   Received: {n_points} points")
             self.log(f"   This indicates ADwin sweep did not complete properly")
-            return np.zeros(self.num_steps), np.zeros(self.num_steps), np.zeros(self.num_steps)
+            actual_steps = self.num_steps - 1
+            return np.zeros(actual_steps), np.zeros(actual_steps), np.zeros(actual_steps)
         
         # Convert to numpy arrays and split forward/reverse
         counts = np.array(counts)
