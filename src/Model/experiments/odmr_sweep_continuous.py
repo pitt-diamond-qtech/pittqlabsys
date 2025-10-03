@@ -208,9 +208,17 @@ class ODMRSweepContinuousExperiment(Experiment):
         })
         
         # Store parameters for later use (after process starts)
-        self.integration_time_ms = self.settings['acquisition']['integration_time'] * 1000
-        self.settle_time_ms = self.settings['acquisition']['settle_time'] * 1000
+        # Convert directly from seconds to microseconds (no intermediate ms step)
+        self.integration_time_us = int(self.settings['acquisition']['integration_time'] * 1e6)
+        self.settle_time_us = int(self.settings['acquisition']['settle_time'] * 1e6)
         self.bidirectional = self.settings['acquisition'].get('bidirectional', True)
+        
+        # Debug: Print conversion details
+        self.log(f"🔍 DEBUG - Parameter conversions:")
+        self.log(f"   integration_time: {self.settings['acquisition']['integration_time']} s → {self.integration_time_us} µs")
+        self.log(f"   settle_time: {self.settings['acquisition']['settle_time']} s → {self.settle_time_us} µs")
+        self.log(f"   num_steps: {self.num_steps}")
+        self.log(f"   bidirectional: {self.bidirectional}")
         
         self.log(f"Adwin sweep setup: {self.num_steps} steps, {self.settings['acquisition']['integration_time']*1e3:.1f} ms per step")
         if self.bidirectional:
@@ -415,25 +423,91 @@ class ODMRSweepContinuousExperiment(Experiment):
         # Set parameters AFTER process starts (like debug script)
         self.log("⚙️  Setting ADwin parameters...")
         try:
-            # Par_2: Integration time per step in microseconds
-            integration_time_us = int(self.integration_time_ms * 1000)
-            self.adwin.set_int_var(2, integration_time_us)
+            # Par_1: Number of steps in sweep
+            self.log(f"🔍 Setting Par_1 (N_STEPS) = {self.num_steps}")
+            self.adwin.set_int_var(1, self.num_steps)
             
-            # Par_3: Number of steps in sweep
-            self.adwin.set_int_var(3, self.num_steps)
+            # Par_2: Settle time in microseconds
+            self.log(f"🔍 Setting Par_2 (SETTLE_US) = {self.settle_time_us}")
+            self.adwin.set_int_var(2, self.settle_time_us)
             
-            # Par_5: Sweep direction (0=unidirectional, 1=bidirectional)
-            sweep_direction = 1 if self.bidirectional else 0
-            self.adwin.set_int_var(5, sweep_direction)
+            # Par_3: Dwell/integration time in microseconds
+            self.log(f"🔍 Setting Par_3 (DWELL_US) = {self.integration_time_us}")
+            self.adwin.set_int_var(3, self.integration_time_us)
             
-            # Par_11: Settle time after voltage step in microseconds
-            settle_time_us = int(self.settle_time_ms * 1000)
-            self.adwin.set_int_var(11, settle_time_us)
+            # Par_4: Edge mode (0=rising, 1=falling) - use rising like debug script
+            edge_mode = 0  # Rising edges
+            self.log(f"🔍 Setting Par_4 (EDGE_MODE) = {edge_mode} (rising edges)")
+            self.adwin.set_int_var(4, edge_mode)
             
-            # Par_9: Overhead factor (already set in _setup_adwin_sweep)
-            self.adwin.set_int_var(9, int(1.2 * 10))  # Par_9 = 12 (1.2× scaled by 10)
+            # Par_5: DAC channel (1 or 2)
+            dac_channel = 1  # Use DAC channel 1
+            self.log(f"🔍 Setting Par_5 (DAC_CH) = {dac_channel}")
+            self.adwin.set_int_var(5, dac_channel)
             
-            self.log(f"✅ Parameters set: {self.num_steps} steps, {self.integration_time_ms:.1f}ms integration, {self.settle_time_ms:.1f}ms settle")
+            # Par_6: Direction sense (0=DIR Low=up, 1=DIR High=up) - use DIR High=up like debug script
+            dir_sense = 1  # DIR High=up
+            self.log(f"🔍 Setting Par_6 (DIR_SENSE) = {dir_sense} (DIR High=up)")
+            self.adwin.set_int_var(6, dir_sense)
+            
+            # Par_8: Processdelay_us (0 = auto-calculate, >0 = manual override)
+            processdelay_us = 0  # Auto-calculate based on dwell time
+            self.log(f"🔍 Setting Par_8 (PROCESSDELAY_US) = {processdelay_us} (auto-calculate)")
+            self.adwin.set_int_var(8, processdelay_us)
+            
+            # Par_9: Overhead factor (1.2× scaled by 10 for integer storage)
+            overhead_factor_scaled = int(1.2 * 10)
+            self.log(f"🔍 Setting Par_9 (OVERHEAD_FACTOR) = {overhead_factor_scaled} (1.2× scaled by 10)")
+            self.adwin.set_int_var(9, overhead_factor_scaled)
+            
+            self.log(f"✅ All parameters set successfully!")
+            self.log(f"   Par_1 (N_STEPS): {self.num_steps}")
+            self.log(f"   Par_2 (SETTLE_US): {self.settle_time_us} µs")
+            self.log(f"   Par_3 (DWELL_US): {self.integration_time_us} µs")
+            self.log(f"   Par_4 (EDGE_MODE): {edge_mode} (rising)")
+            self.log(f"   Par_5 (DAC_CH): {dac_channel}")
+            self.log(f"   Par_6 (DIR_SENSE): {dir_sense} (DIR High=up)")
+            self.log(f"   Par_8 (PROCESSDELAY_US): {processdelay_us} µs (auto)")
+            self.log(f"   Par_9 (OVERHEAD_FACTOR): {overhead_factor_scaled} (1.2×)")
+            
+            # Verify parameters were set correctly by reading them back
+            self.log("🔍 Verifying parameters by reading back from ADwin...")
+            try:
+                par_1_read = self.adwin.get_int_var(1)
+                par_2_read = self.adwin.get_int_var(2)
+                par_3_read = self.adwin.get_int_var(3)
+                par_4_read = self.adwin.get_int_var(4)
+                par_5_read = self.adwin.get_int_var(5)
+                par_6_read = self.adwin.get_int_var(6)
+                par_8_read = self.adwin.get_int_var(8)
+                par_9_read = self.adwin.get_int_var(9)
+                
+                self.log(f"   Par_1 read back: {par_1_read} (expected: {self.num_steps})")
+                self.log(f"   Par_2 read back: {par_2_read} (expected: {self.settle_time_us})")
+                self.log(f"   Par_3 read back: {par_3_read} (expected: {self.integration_time_us})")
+                self.log(f"   Par_4 read back: {par_4_read} (expected: {edge_mode})")
+                self.log(f"   Par_5 read back: {par_5_read} (expected: {dac_channel})")
+                self.log(f"   Par_6 read back: {par_6_read} (expected: {dir_sense})")
+                self.log(f"   Par_8 read back: {par_8_read} (expected: {processdelay_us})")
+                self.log(f"   Par_9 read back: {par_9_read} (expected: {overhead_factor_scaled})")
+                
+                # Check if all parameters match
+                all_match = (par_1_read == self.num_steps and 
+                           par_2_read == self.settle_time_us and 
+                           par_3_read == self.integration_time_us and 
+                           par_4_read == edge_mode and 
+                           par_5_read == dac_channel and 
+                           par_6_read == dir_sense and 
+                           par_8_read == processdelay_us and 
+                           par_9_read == overhead_factor_scaled)
+                
+                if all_match:
+                    self.log("✅ All parameters verified successfully!")
+                else:
+                    self.log("⚠️  Some parameters don't match - this could cause issues!")
+                    
+            except Exception as e:
+                self.log(f"⚠️  Could not verify parameters: {e}")
             
         except Exception as e:
             self.log(f"❌ Error setting ADwin parameters: {e}")
