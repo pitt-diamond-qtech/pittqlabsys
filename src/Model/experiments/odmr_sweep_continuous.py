@@ -194,31 +194,26 @@ class ODMRSweepContinuousExperiment(Experiment):
         if not self.adwin.is_connected:
             self.adwin.connect()
         
-        # Use existing helper function for sweep ODMR setup
-        from src.core.adwin_helpers import setup_adwin_for_sweep_odmr
+        # Load the ADbasic script but don't start it yet
+        from src.core.adwin_helpers import get_adwin_binary_path
         
-        # Use calculated parameters
-        integration_time = self.settings['acquisition']['integration_time']
-        settle_time = self.settings['acquisition']['settle_time']
+        # Load ODMR Sweep Counter script
+        sweep_binary_path = get_adwin_binary_path('ODMR_Sweep_Counter.TB1')
+        self.adwin.update({
+            'process_1': {
+                'load': str(sweep_binary_path),
+                'delay': 1000000,  # 1ms base delay
+                'running': False
+            }
+        })
         
-        # Setup using helper function
-        integration_time_ms = integration_time * 1000
-        settle_time_ms = settle_time * 1000
-        bidirectional = self.settings['acquisition'].get('bidirectional', True)  # Use configurable setting
+        # Store parameters for later use (after process starts)
+        self.integration_time_ms = self.settings['acquisition']['integration_time'] * 1000
+        self.settle_time_ms = self.settings['acquisition']['settle_time'] * 1000
+        self.bidirectional = self.settings['acquisition'].get('bidirectional', True)
         
-        # Set calibrated overhead factor for precise timing (1.2 = 20% correction)
-        self.adwin.set_int_var(9, int(1.2 * 10))  # Par_9 = 12 (1.2× scaled by 10)
-        
-        setup_adwin_for_sweep_odmr(
-            self.adwin, 
-            integration_time_ms, 
-            settle_time_ms, 
-            self.num_steps, 
-            bidirectional
-        )
-        
-        self.log(f"Adwin sweep setup: {self.num_steps} steps, {integration_time*1e3:.1f} ms per step")
-        if bidirectional:
+        self.log(f"Adwin sweep setup: {self.num_steps} steps, {self.settings['acquisition']['integration_time']*1e3:.1f} ms per step")
+        if self.bidirectional:
             self.log(f"✅ Bidirectional sweeps enabled - will collect data during both forward and reverse sweeps")
             self.log(f"   This doubles acquisition efficiency compared to unidirectional sweeps")
         else:
@@ -415,6 +410,33 @@ class ODMRSweepContinuousExperiment(Experiment):
                 self.log(f"✅ ADwin process started correctly (signature: {signature})")
         except Exception as e:
             self.log(f"❌ Cannot check ADwin process status: {e}")
+            return np.zeros(self.num_steps), np.zeros(self.num_steps), np.zeros(self.num_steps)
+        
+        # Set parameters AFTER process starts (like debug script)
+        self.log("⚙️  Setting ADwin parameters...")
+        try:
+            # Par_2: Integration time per step in microseconds
+            integration_time_us = int(self.integration_time_ms * 1000)
+            self.adwin.set_int_var(2, integration_time_us)
+            
+            # Par_3: Number of steps in sweep
+            self.adwin.set_int_var(3, self.num_steps)
+            
+            # Par_5: Sweep direction (0=unidirectional, 1=bidirectional)
+            sweep_direction = 1 if self.bidirectional else 0
+            self.adwin.set_int_var(5, sweep_direction)
+            
+            # Par_11: Settle time after voltage step in microseconds
+            settle_time_us = int(self.settle_time_ms * 1000)
+            self.adwin.set_int_var(11, settle_time_us)
+            
+            # Par_9: Overhead factor (already set in _setup_adwin_sweep)
+            self.adwin.set_int_var(9, int(1.2 * 10))  # Par_9 = 12 (1.2× scaled by 10)
+            
+            self.log(f"✅ Parameters set: {self.num_steps} steps, {self.integration_time_ms:.1f}ms integration, {self.settle_time_ms:.1f}ms settle")
+            
+        except Exception as e:
+            self.log(f"❌ Error setting ADwin parameters: {e}")
             return np.zeros(self.num_steps), np.zeros(self.num_steps), np.zeros(self.num_steps)
         
         # Arm the sweep (like debug script)
