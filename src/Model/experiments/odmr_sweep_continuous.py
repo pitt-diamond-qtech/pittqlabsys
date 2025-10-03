@@ -190,7 +190,7 @@ class ODMRSweepContinuousExperiment(Experiment):
         self.log(f"Sweep function: {sweep_func}, Rate: {self.sweep_rate:.2f} Hz")
     
     def _setup_adwin_sweep(self):
-        """Setup Adwin for sweep-synchronized counting."""
+        """Setup Adwin parameters (but don't start process yet)."""
         if not self.adwin.is_connected:
             self.adwin.connect()
         
@@ -216,25 +216,6 @@ class ODMRSweepContinuousExperiment(Experiment):
             self.num_steps, 
             bidirectional
         )
-        
-        # Start the process
-        self.adwin.start_process(1)
-        
-        # Verify the process started correctly by checking signature and heartbeat
-        try:
-            signature = self.adwin.get_int_var(80)
-            if signature != 7777:
-                self.log(f"⚠️  Warning: Unexpected signature {signature}, expected 7777")
-            else:
-                self.log(f"✅ ADwin process started correctly (signature: {signature})")
-            
-            # Wait a moment for heartbeat to start
-            time.sleep(0.1)
-            initial_heartbeat = self.adwin.get_int_var(25)
-            self.log(f"✅ ADwin heartbeat started: {initial_heartbeat}")
-            
-        except Exception as e:
-            self.log(f"⚠️  Could not verify ADwin process status: {e}")
         
         self.log(f"Adwin sweep setup: {self.num_steps} steps, {integration_time*1e3:.1f} ms per step")
         if bidirectional:
@@ -412,11 +393,33 @@ class ODMRSweepContinuousExperiment(Experiment):
         self.log("Sweep averages completed")
     
     def _run_single_sweep(self):
-        """Run a single frequency sweep."""
-        # Reset Adwin sweep (following debug script pattern)
-        self.adwin.stop_process(1)
-        self.adwin.clear_process(1)
+        """Run a single frequency sweep (following debug script pattern exactly)."""
+        # Start the process (like debug script)
+        self.log("▶️  Starting ADwin process...")
         self.adwin.start_process(1)
+        
+        # Wait for process to start and verify it's running
+        time.sleep(0.1)  # Give process time to start
+        process_status = self.adwin.get_process_status(1)
+        if process_status != "Running":
+            self.log(f"❌ Process failed to start! Status: {process_status}")
+            return np.zeros(self.num_steps), np.zeros(self.num_steps), np.zeros(self.num_steps)
+        
+        # Check signature to confirm correct script loaded
+        try:
+            signature = self.adwin.get_int_var(80)
+            if signature != 7777:
+                self.log(f"❌ Wrong signature! Expected 7777, got {signature}")
+                return np.zeros(self.num_steps), np.zeros(self.num_steps), np.zeros(self.num_steps)
+            else:
+                self.log(f"✅ ADwin process started correctly (signature: {signature})")
+        except Exception as e:
+            self.log(f"❌ Cannot check ADwin process status: {e}")
+            return np.zeros(self.num_steps), np.zeros(self.num_steps), np.zeros(self.num_steps)
+        
+        # Arm the sweep (like debug script)
+        self.log("🚀 Arming sweep...")
+        self.adwin.set_int_var(10, 1)  # Par_10 = START
         
         # Wait for heartbeat to start advancing (like debug script)
         self.log("⏳ Waiting for ADwin heartbeat to start...")
@@ -444,111 +447,88 @@ class ODMRSweepContinuousExperiment(Experiment):
         except Exception as e:
             self.log(f"Warning: Could not clear ready flag: {e}")
         
-        # Start the sweep (like debug script)
-        self.log("🚀 Starting ADwin sweep...")
-        self.adwin.set_int_var(10, 1)  # Par_10 = START
+        # Wait for sweep to complete (like debug script)
+        expected_points = max(2, 2 * self.num_steps - 2)  # Bidirectional sweep
+        integration_time = self.settings['acquisition']['integration_time']
+        settle_time = self.settings['acquisition']['settle_time']
+        per_point_s = (settle_time + integration_time) / 1e6
+        timeout = max(5.0, expected_points * per_point_s * 10)  # Very generous margin
         
-        # Start microwave sweep
-        # The SG384 will automatically sweep when modulation is enabled
+        self.log(f"⏳ Waiting for Par_20 == 1 (sweep ready)…")
+        self.log(f"   Expected {expected_points} points, timeout: {timeout:.1f}s")
         
-        # Wait for sweep to complete using calculated sweep time
-        # Add extra delay for ramp waveforms to avoid discontinuities
-        total_wait_time = self.sweep_time + 0.1 + self.ramp_delay  # Base buffer + ramp delay
+        t0 = time.time()
+        last_hb = self.adwin.get_int_var(25)
         
-        # Debug: Check Adwin status before waiting
-        self.log(f"⏱️  Waiting {total_wait_time:.3f}s for sweep completion...")
-        self.log(f"   SG384 sweep rate: {self.sweep_rate:.3f} Hz")
-        self.log(f"   Expected sweep time: {self.sweep_time:.3f} s")
+        while True:
+            try:
+                ready = self.adwin.get_int_var(20)  # ready flag
+                hb = self.adwin.get_int_var(25)     # heartbeat
+                state = self.adwin.get_int_var(26)  # current state
+                elapsed = time.time() - t0
+                
+                if ready == 1:
+                    self.log(f"✅ Sweep ready after {elapsed:.2f}s!")
+                    break
+                    
+                # Check if heartbeat is still advancing (after 100ms grace period)
+                if hb <= last_hb and elapsed > 0.1:
+                    self.log(f"⚠️  Heartbeat stalled at {hb}!")
+                    
+                last_hb = hb
+                time.sleep(0.05)
+            except Exception as e:
+                self.log(f"⚠️  Transient Get_Par error (tolerated): {e}")
+                time.sleep(0.05)  # Continue polling despite error
+
+            if elapsed > timeout:
+                self.log(f"❌ Timeout after {elapsed:.1f}s (expected ~{expected_points * per_point_s:.1f}s)")
+                return np.zeros(self.num_steps), np.zeros(self.num_steps), np.zeros(self.num_steps)
         
-        # Monitor ADwin state during sweep
-        self._monitor_sweep_progress(total_wait_time)
+        # Read arrays (like debug script)
+        n_points = self.adwin.get_int_var(21)
+        if n_points <= 0:
+            self.log("❌ n_points <= 0 — nothing to read.")
+            return np.zeros(self.num_steps), np.zeros(self.num_steps), np.zeros(self.num_steps)
         
-        # Debug: Check Adwin status after waiting
+        self.log(f"📊 Sweep reports n_points = {n_points}")
+        
+        # Read the data arrays
         try:
-            from src.core.adwin_helpers import read_adwin_sweep_odmr_data
-            status_data = read_adwin_sweep_odmr_data(self.adwin)
-            self.log(f"🔍 Adwin status after wait: sweep_complete={status_data.get('sweep_complete', 'Unknown')}, data_ready={status_data.get('data_ready', 'Unknown')}")
-            self.log(f"   Step index: {status_data.get('step_index', 'Unknown')}, Sweep cycle: {status_data.get('sweep_cycle', 'Unknown')}")
+            counts = self.adwin.read_probes('int_array', 1, n_points)  # Data_1
+            dac_digits = self.adwin.read_probes('int_array', 2, n_points)  # Data_2
+            
+            # Compute volts from DAC digits
+            volts = []
+            for d in dac_digits:
+                d_int = int(d)
+                if 0 <= d_int <= 65535:
+                    volt = (d_int * 20.0 / 65535.0) - 10.0
+                    volts.append(volt)
+                else:
+                    volts.append(0.0)  # Invalid digit
+            
+            self.log(f"✅ Read {len(counts)} counts, {len(volts)} volts")
+            
         except Exception as e:
-            self.log(f"⚠️  Could not check Adwin status: {e}")
+            self.log(f"❌ Error reading arrays: {e}")
+            return np.zeros(self.num_steps), np.zeros(self.num_steps), np.zeros(self.num_steps)
         
-        # Stop the sweep
-        self.adwin.stop_process(1)
+        # Convert to numpy arrays and split forward/reverse
+        counts = np.array(counts)
+        volts = np.array(volts)
         
-        # Read sweep data from Adwin using helper function
-        from src.core.adwin_helpers import read_adwin_sweep_odmr_data
-        sweep_data = read_adwin_sweep_odmr_data(self.adwin)
+        # Split into forward and reverse sweeps
+        mid_point = len(counts) // 2
+        counts_forward = counts[:mid_point]
+        counts_reverse = counts[mid_point:]
+        volts_forward = volts[:mid_point]
+        volts_reverse = volts[mid_point:]
         
-        # Debug: Log what we received from Adwin
-        self.log(f"🔍 Adwin data received: {sweep_data}")
+        # Clear ready flag for next sweep
+        self.adwin.set_int_var(20, 0)
         
-        # Check if data was successfully read
-        if sweep_data is None:
-            self.log("⚠️  No data received from Adwin, using mock data for testing")
-            # Generate mock data for testing
-            forward_counts = np.random.poisson(1000, self.num_steps)
-            reverse_counts = np.random.poisson(1000, self.num_steps)
-            forward_voltages = np.linspace(-1, 1, self.num_steps)
-            reverse_voltages = np.linspace(1, -1, self.num_steps)
-        else:
-            # Extract data with better error handling
-            forward_counts = sweep_data.get('forward_counts')
-            reverse_counts = sweep_data.get('reverse_counts')
-            forward_voltages = sweep_data.get('forward_voltages')
-            reverse_voltages = sweep_data.get('reverse_voltages')
-            
-            # Check if counts are None or empty
-            if forward_counts is None or len(forward_counts) == 0:
-                self.log("⚠️  No forward counts from Adwin, using zeros")
-                forward_counts = np.zeros(self.num_steps)
-            if reverse_counts is None or len(reverse_counts) == 0:
-                self.log("⚠️  No reverse counts from Adwin, using zeros")
-                reverse_counts = np.zeros(self.num_steps)
-            
-            # Check if voltages are None or empty
-            if forward_voltages is None or len(forward_voltages) == 0:
-                self.log("⚠️  No forward voltages from Adwin, using linear ramp")
-                forward_voltages = np.linspace(-1, 1, self.num_steps)
-            if reverse_voltages is None or len(reverse_voltages) == 0:
-                self.log("⚠️  No reverse voltages from Adwin, using reverse ramp")
-                reverse_voltages = np.linspace(1, -1, self.num_steps)
-            
-            # Log the actual data received
-            self.log(f"📊 Forward counts: {len(forward_counts)} points, range: {np.min(forward_counts):.1f} - {np.max(forward_counts):.1f}")
-            self.log(f"📊 Reverse counts: {len(reverse_counts)} points, range: {np.min(reverse_counts):.1f} - {np.max(reverse_counts):.1f}")
-            self.log(f"📊 Forward voltages: {len(forward_voltages)} points, range: {np.min(forward_voltages):.3f} - {np.max(forward_voltages):.3f} V")
-            self.log(f"📊 Reverse voltages: {len(reverse_voltages)} points, range: {np.min(reverse_voltages):.3f} - {np.max(reverse_voltages):.3f} V")
-            
-            # Log bidirectional sweep status
-            if len(forward_counts) > 0 and len(reverse_counts) > 0:
-                self.log(f"✅ Bidirectional sweep data collected: {len(forward_counts)} forward + {len(reverse_counts)} reverse points")
-                self.log(f"   This effectively doubles the acquisition efficiency!")
-            else:
-                self.log(f"⚠️  Unidirectional sweep data only: {len(forward_counts)} points")
-        
-        # Convert voltages to frequencies
-        # Voltage range is -1V to +1V, corresponding to frequency deviation
-        center_freq = (self.settings['frequency_range']['start'] + self.settings['frequency_range']['stop']) / 2
-        deviation = abs(self.settings['frequency_range']['stop'] - self.settings['frequency_range']['start']) / 2
-        
-        # Ensure voltages are not None before multiplication
-        if forward_voltages is not None and reverse_voltages is not None:
-            forward_freqs = center_freq + forward_voltages * deviation
-            reverse_freqs = center_freq + reverse_voltages * deviation
-        else:
-            # Fallback to using the frequency array directly
-            forward_freqs = self.frequencies
-            reverse_freqs = self.frequencies[::-1]  # Reverse for reverse sweep
-        
-        # For bidirectional sweeps, we need to flip the reverse data to match forward order
-        # This is because the reverse sweep goes from stop_freq to start_freq, but we want
-        # both sweeps to be ordered from start_freq to stop_freq for proper averaging
-        if reverse_counts is not None and len(reverse_counts) > 0:
-            reverse_counts = reverse_counts[::-1]  # Flip reverse counts
-        if reverse_freqs is not None and len(reverse_freqs) > 0:
-            reverse_freqs = reverse_freqs[::-1]  # Flip reverse frequencies to match forward order
-        
-        return forward_counts, reverse_counts, forward_freqs
+        return counts_forward, counts_reverse, volts_forward
     
     def _analyze_data(self):
         """Analyze the ODMR sweep data."""
