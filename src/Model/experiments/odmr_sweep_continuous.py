@@ -220,6 +220,25 @@ class ODMRSweepContinuousExperiment(Experiment):
             }
         })
         
+        # Start the process once (like debug script)
+        self.log("▶️  Starting ADwin process...")
+        self.adwin.start_process(1)
+        time.sleep(0.1)  # Give process time to start
+        
+        # Verify process started
+        process_status = self.adwin.get_process_status(1)
+        if process_status != "Running":
+            self.log(f"❌ Process failed to start! Status: {process_status}")
+            raise RuntimeError("ADwin process failed to start")
+        
+        # Check signature
+        signature = self.adwin.get_int_var(80)
+        if signature != 7777:
+            self.log(f"❌ Wrong signature! Expected 7777, got {signature}")
+            raise RuntimeError("Wrong ADwin script loaded")
+        
+        self.log(f"✅ ADwin process started correctly (signature: {signature})")
+        
         # Store parameters for later use (after process starts)
         # Convert directly from seconds to microseconds (no intermediate ms step)
         self.integration_time_us = int(self.settings['acquisition']['integration_time'] * 1e6)
@@ -410,28 +429,8 @@ class ODMRSweepContinuousExperiment(Experiment):
     
     def _run_single_sweep(self):
         """Run a single frequency sweep (following debug script pattern exactly)."""
-        # Start the process (like debug script)
-        self.log("▶️  Starting ADwin process...")
-        self.adwin.start_process(1)
-        
-        # Wait for process to start and verify it's running
-        time.sleep(0.1)  # Give process time to start
-        process_status = self.adwin.get_process_status(1)
-        if process_status != "Running":
-            self.log(f"❌ Process failed to start! Status: {process_status}")
-            return np.zeros(self.num_steps), np.zeros(self.num_steps), np.zeros(self.num_steps)
-        
-        # Check signature to confirm correct script loaded
-        try:
-            signature = self.adwin.get_int_var(80)
-            if signature != 7777:
-                self.log(f"❌ Wrong signature! Expected 7777, got {signature}")
-                return np.zeros(self.num_steps), np.zeros(self.num_steps), np.zeros(self.num_steps)
-            else:
-                self.log(f"✅ ADwin process started correctly (signature: {signature})")
-        except Exception as e:
-            self.log(f"❌ Cannot check ADwin process status: {e}")
-            return np.zeros(self.num_steps), np.zeros(self.num_steps), np.zeros(self.num_steps)
+        # Process should already be running from _setup_adwin_sweep
+        self.log("✅ Using already-running ADwin process")
         
         # Set parameters AFTER process starts (like debug script)
         self.log("⚙️  Setting ADwin parameters...")
