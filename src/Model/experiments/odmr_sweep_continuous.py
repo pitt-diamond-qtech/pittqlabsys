@@ -194,11 +194,24 @@ class ODMRSweepContinuousExperiment(Experiment):
         if not self.adwin.is_connected:
             self.adwin.connect()
         
+        # Proper cleanup like debug script (bring_up_process function)
+        self.log("🧹 Cleaning up any existing ADwin process...")
+        try:
+            self.adwin.stop_process(1)
+            time.sleep(0.1)
+        except Exception:
+            pass
+        try:
+            self.adwin.clear_process(1)
+        except Exception:
+            pass
+        
         # Load the ADbasic script but don't start it yet
         from src.core.adwin_helpers import get_adwin_binary_path
         
         # Load ODMR Sweep Counter script
         sweep_binary_path = get_adwin_binary_path('ODMR_Sweep_Counter.TB1')
+        self.log(f"📁 Loading TB1: {sweep_binary_path}")
         self.adwin.update({
             'process_1': {
                 'load': str(sweep_binary_path),
@@ -523,6 +536,10 @@ class ODMRSweepContinuousExperiment(Experiment):
             self.log(f"❌ Error setting ADwin parameters: {e}")
             return np.zeros(self.num_steps), np.zeros(self.num_steps), np.zeros(self.num_steps)
         
+        # Arm the sweep (like debug script)
+        self.log("🚀 Arming sweep...")
+        self.adwin.set_int_var(10, 1)  # Par_10 = START
+        
         # Wait for heartbeat to start advancing (like debug script)
         self.log("⏳ Waiting for ADwin heartbeat to start...")
         initial_hb = self.adwin.get_int_var(25)
@@ -548,10 +565,6 @@ class ODMRSweepContinuousExperiment(Experiment):
             self.adwin.set_int_var(20, 0)  # Clear Par_20 (ready flag)
         except Exception as e:
             self.log(f"Warning: Could not clear ready flag: {e}")
-        
-        # Arm the sweep (like debug script) - AFTER clearing ready flag
-        self.log("🚀 Arming sweep...")
-        self.adwin.set_int_var(10, 1)  # Par_10 = START
         
         # Wait for sweep to complete (like debug script)
         expected_points = max(2, 2 * self.num_steps - 2)  # Bidirectional sweep
