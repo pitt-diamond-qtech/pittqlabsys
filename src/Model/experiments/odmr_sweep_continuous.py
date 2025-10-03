@@ -166,6 +166,14 @@ class ODMRSweepContinuousExperiment(Experiment):
         center_freq = (start_freq + stop_freq) / 2
         deviation = abs(stop_freq - start_freq) / 2
         
+        # Validate sweep parameters using SG384 validation
+        try:
+            self.microwave.validate_sweep_parameters(center_freq, deviation)
+            self.log(f"✅ Sweep parameters validated: {center_freq/1e9:.3f} GHz ± {deviation/1e6:.1f} MHz")
+        except ValueError as e:
+            self.log(f"❌ Sweep parameter validation failed: {e}")
+            raise ValueError(f"Invalid sweep parameters: {e}")
+        
         # Set center frequency
         self.microwave.set_frequency(center_freq)
         
@@ -462,24 +470,36 @@ class ODMRSweepContinuousExperiment(Experiment):
         
         self.log(f"Starting sweep averages: {averages} sweeps")
         
-        # Arrays to store individual sweep data
-        # Note: bidirectional sweeps return 2*num_steps-2 points total
-        # Split into forward/reverse gives (num_steps-1) points each
-        actual_steps = self.num_steps - 1  # 299 for bidirectional sweeps
-        all_forward = np.zeros((averages, actual_steps))
-        all_reverse = np.zeros((averages, actual_steps))
-        all_voltages = np.zeros((averages, actual_steps))
+        # Preallocate arrays for bidirectional sweep data
+        n_steps = self.num_steps         # 300
+        half = n_steps - 1               # 299 (each direction)
+        
+        # Preallocate once (before the averages loop)
+        all_forward = np.empty((averages, half), dtype=np.int32)
+        all_reverse = np.empty((averages, half), dtype=np.int32)
+        all_v_fwd = np.empty((averages, half), dtype=np.float32)
+        all_v_rev = np.empty((averages, half), dtype=np.float32)
         
         for avg in range(averages):
             self.log(f"Running sweep {avg + 1}/{averages}")
             
-            # Run single sweep
-            forward, reverse, voltages = self._run_single_sweep()
+            # Run single sweep - get raw data
+            counts, volts = self._run_single_sweep()
+            
+            # Split into equal halves (299 + 299 = 598)
+            n_points = len(counts)
+            assert n_points == 2 * n_steps - 2, f"Expected {2 * n_steps - 2} points, got {n_points}"
+            
+            forward = counts[:half]
+            reverse = counts[half:]
+            v_fwd = volts[:half]
+            v_rev = volts[half:]
             
             # Store data
             all_forward[avg, :] = forward
             all_reverse[avg, :] = reverse
-            all_voltages[avg, :] = voltages
+            all_v_fwd[avg, :] = v_fwd
+            all_v_rev[avg, :] = v_rev
             
             # Settle time between sweeps
             if avg < averages - 1:
@@ -489,12 +509,19 @@ class ODMRSweepContinuousExperiment(Experiment):
         self.counts_forward = np.mean(all_forward, axis=0)
         self.counts_reverse = np.mean(all_reverse, axis=0)
         self.counts_averaged = (self.counts_forward + self.counts_reverse) / 2
-        self.voltages = np.mean(all_voltages, axis=0)
+        self.voltages = np.mean(all_v_fwd, axis=0)  # Use forward voltage for main voltage array
         
         self.log("Sweep averages completed")
     
     def _run_single_sweep(self):
-        """Run a single frequency sweep (following debug script pattern exactly)."""
+        """Run a single frequency sweep (following debug script pattern exactly).
+        
+        Returns:
+            tuple: (counts, volts) - Raw arrays with 2*num_steps-2 points total
+        """
+        # Define actual_steps for error returns
+        actual_steps = self.num_steps - 1
+        
         # Process should already be running from _setup_adwin_sweep
         self.log("✅ Using already-running ADwin process")
         
@@ -519,8 +546,7 @@ class ODMRSweepContinuousExperiment(Experiment):
                 time.sleep(0.01)
         else:
             self.log("❌ ADwin heartbeat not advancing after 1s - process not running!")
-            actual_steps = self.num_steps - 1
-            return np.zeros(actual_steps), np.zeros(actual_steps), np.zeros(actual_steps)
+            return np.zeros(2 * actual_steps), np.zeros(2 * actual_steps)
         
         # Clear any stale ready flags first (like debug script)
         self.log("🧹 Clearing any stale ready flags...")
@@ -565,15 +591,13 @@ class ODMRSweepContinuousExperiment(Experiment):
 
             if elapsed > timeout:
                 self.log(f"❌ Timeout after {elapsed:.1f}s (expected ~{expected_points * per_point_s:.1f}s)")
-                actual_steps = self.num_steps - 1
-            return np.zeros(actual_steps), np.zeros(actual_steps), np.zeros(actual_steps)
+                return np.zeros(2 * actual_steps), np.zeros(2 * actual_steps)
         
         # Read arrays (like debug script)
         n_points = self.adwin.get_int_var(21)
         if n_points <= 0:
             self.log("❌ n_points <= 0 — nothing to read.")
-            actual_steps = self.num_steps - 1
-            return np.zeros(actual_steps), np.zeros(actual_steps), np.zeros(actual_steps)
+            return np.zeros(2 * actual_steps), np.zeros(2 * actual_steps)
         
         self.log(f"📊 Sweep reports n_points = {n_points}")
         
@@ -596,8 +620,7 @@ class ODMRSweepContinuousExperiment(Experiment):
             
         except Exception as e:
             self.log(f"❌ Error reading arrays: {e}")
-            actual_steps = self.num_steps - 1
-            return np.zeros(actual_steps), np.zeros(actual_steps), np.zeros(actual_steps)
+            return np.zeros(2 * actual_steps), np.zeros(2 * actual_steps)
         
         # Sanity check: ensure n_points matches expected value
         if n_points != expected_points:
@@ -605,24 +628,16 @@ class ODMRSweepContinuousExperiment(Experiment):
             self.log(f"   Expected: {expected_points} points (2*{self.num_steps}-2)")
             self.log(f"   Received: {n_points} points")
             self.log(f"   This indicates ADwin sweep did not complete properly")
-            actual_steps = self.num_steps - 1
-            return np.zeros(actual_steps), np.zeros(actual_steps), np.zeros(actual_steps)
+            return np.zeros(2 * actual_steps), np.zeros(2 * actual_steps)
         
-        # Convert to numpy arrays and split forward/reverse
+        # Convert to numpy arrays
         counts = np.array(counts)
         volts = np.array(volts)
-        
-        # Split into forward and reverse sweeps
-        mid_point = len(counts) // 2
-        counts_forward = counts[:mid_point]
-        counts_reverse = counts[mid_point:]
-        volts_forward = volts[:mid_point]
-        volts_reverse = volts[mid_point:]
         
         # Clear ready flag for next sweep
         self.adwin.set_int_var(20, 0)
         
-        return counts_forward, counts_reverse, volts_forward
+        return counts, volts
     
     def _analyze_data(self):
         """Analyze the ODMR sweep data."""
