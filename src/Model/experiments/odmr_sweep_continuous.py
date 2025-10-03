@@ -460,6 +460,16 @@ class ODMRSweepContinuousExperiment(Experiment):
             self.log(f"🔍 Setting Par_9 (OVERHEAD_FACTOR) = {overhead_factor_scaled} (1.2× scaled by 10)")
             self.adwin.set_int_var(9, overhead_factor_scaled)
             
+            # FPar_1: Voltage minimum (-1.0V for triangle sweep)
+            vmin = -1.0
+            self.log(f"🔍 Setting FPar_1 (VMIN) = {vmin} V")
+            self.adwin.set_float_var(1, vmin)
+            
+            # FPar_2: Voltage maximum (+1.0V for triangle sweep)
+            vmax = 1.0
+            self.log(f"🔍 Setting FPar_2 (VMAX) = {vmax} V")
+            self.adwin.set_float_var(2, vmax)
+            
             self.log(f"✅ All parameters set successfully!")
             self.log(f"   Par_1 (N_STEPS): {self.num_steps}")
             self.log(f"   Par_2 (SETTLE_US): {self.settle_time_us} µs")
@@ -513,10 +523,6 @@ class ODMRSweepContinuousExperiment(Experiment):
             self.log(f"❌ Error setting ADwin parameters: {e}")
             return np.zeros(self.num_steps), np.zeros(self.num_steps), np.zeros(self.num_steps)
         
-        # Arm the sweep (like debug script)
-        self.log("🚀 Arming sweep...")
-        self.adwin.set_int_var(10, 1)  # Par_10 = START
-        
         # Wait for heartbeat to start advancing (like debug script)
         self.log("⏳ Waiting for ADwin heartbeat to start...")
         initial_hb = self.adwin.get_int_var(25)
@@ -542,6 +548,10 @@ class ODMRSweepContinuousExperiment(Experiment):
             self.adwin.set_int_var(20, 0)  # Clear Par_20 (ready flag)
         except Exception as e:
             self.log(f"Warning: Could not clear ready flag: {e}")
+        
+        # Arm the sweep (like debug script) - AFTER clearing ready flag
+        self.log("🚀 Arming sweep...")
+        self.adwin.set_int_var(10, 1)  # Par_10 = START
         
         # Wait for sweep to complete (like debug script)
         expected_points = max(2, 2 * self.num_steps - 2)  # Bidirectional sweep
