@@ -552,7 +552,7 @@ class ODMRSweepContinuousExperiment(Experiment):
                     
                 last_hb = hb
                 time.sleep(0.05)
-        except Exception as e:
+            except Exception as e:
                 self.log(f"⚠️  Transient Get_Par error (tolerated): {e}")
                 time.sleep(0.05)  # Continue polling despite error
 
