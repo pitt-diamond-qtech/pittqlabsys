@@ -181,14 +181,35 @@ class ODMRSweepContinuousExperiment(Experiment):
         self.microwave.set_sweep_deviation(deviation)
         
         # CRITICAL: Disable internal sweep - let ADwin DAC control frequency via FM input
-        self.microwave.set_modulation_type('FM')  # Use FM input, not internal sweep
-        self.microwave.disable_modulation()  # Don't enable internal modulation
-        
+        self.microwave.set_modulation_type('Freq sweep')  # Use FM input, not internal sweep
+        self.microwave.set_modulation_function("External")  # Don't enable internal modulation
+
+        try:
+            modfunc = self.microwave.read_probes('modulation_function')
+            modtype = self.microwave.read_probes("modulation_type")
+            if modtype == "Freq sweep":
+                print(f"SG384 setup for phase continuous sweep")
+                self.log(
+                    f"SG384 setup for phase continuous sweep")
+            else:
+                raise IOError(f"Unknown or Incorrect modulation type: {modtype}")
+            if modfunc == "External":
+                print(f"SG384 setup for external DAC control:{center_freq/1e9:.3f} GHz ± {deviation/1e6:.1f} MHz")
+                self.log(
+                    f"Microwave setup for external DAC control: {center_freq / 1e9:.3f} GHz ± {deviation / 1e6:.1f} MHz")
+                self.log(f"✅ SG384 internal sweep DISABLED - ADwin DAC will control frequency via FM input")
+            else:
+                raise IOError(f"Unknown or Incorrect modulation function : {modfunc}")
+        except Exception as e:
+            print("Issue with modulation function or type:",e)
+
+        # Enable modulation
+        self.microwave.enable_modulation()
         # Enable output
         self.microwave.enable_output()
+
         
-        self.log(f"Microwave setup for external DAC control: {center_freq/1e9:.3f} GHz ± {deviation/1e6:.1f} MHz")
-        self.log(f"✅ SG384 internal sweep DISABLED - ADwin DAC will control frequency via FM input")
+
     
     def _setup_adwin_sweep(self):
         """Setup Adwin parameters (but don't start process yet)."""
