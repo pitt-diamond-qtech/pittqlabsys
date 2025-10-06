@@ -554,7 +554,11 @@ class SG384Generator(MicrowaveGeneratorBase):
         self.settings['modulation_type'] = mtype
         mod_int = self._mod_type_to_internal(mtype)
         self._set_modulation_type(mod_int)
-
+    def set_modulation_function(self, mfunc: str):
+        """Set modulation function (public interface)."""
+        self.settings['modulation_function'] = mfunc
+        mod_func_int = self._mod_func_to_internal(mfunc)
+        self._set_modulation_function(mod_func_int)
     def enable_modulation(self):
         """Enable modulation (public interface)."""
         self.settings['enable_modulation'] = True
