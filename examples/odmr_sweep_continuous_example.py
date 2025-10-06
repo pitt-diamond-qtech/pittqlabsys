@@ -176,25 +176,34 @@ def run_odmr_sweep_scan(use_real_hardware=False, save_data=True, config_path=Non
             exp_config = config.get('experiment_settings', {})
             
             # Override command-line args with config file values
+            # Only use config values if command-line args are None (not provided)
             freq_range = exp_config.get('frequency_range', {})
-            start_freq = start_freq or freq_range.get('start_ghz', 2.7)
-            stop_freq = stop_freq or freq_range.get('stop_ghz', 3.0)
+            if start_freq is None:
+                start_freq = freq_range.get('start_ghz', 2.7)
+            if stop_freq is None:
+                stop_freq = freq_range.get('stop_ghz', 3.0)
             
             microwave = exp_config.get('microwave', {})
-            power = power or microwave.get('power_dbm', -10.0)
-            step_freq = step_freq or microwave.get('step_freq_mhz', 1.0)
-            sweep_function = sweep_function or microwave.get('sweep_function', 'Triangle')
+            if power is None:
+                power = microwave.get('power_dbm', -10.0)
+            if step_freq is None:
+                step_freq = microwave.get('step_freq_mhz', 1.0)
+            if sweep_function is None:
+                sweep_function = microwave.get('sweep_function', 'Triangle')
             
             acquisition = exp_config.get('acquisition', {})
-            integration_time = integration_time or acquisition.get('integration_time_ms', 5.0)
-            averages = averages or acquisition.get('averages', 10)
+            if integration_time is None:
+                integration_time = acquisition.get('integration_time_ms', 5.0)
+            if averages is None:
+                averages = acquisition.get('averages', 10)
             
             print(f"✅ Loaded experiment config from: {experiment_config_file}")
+            print(f"🔍 Config values: start={start_freq}GHz, stop={stop_freq}GHz, power={power}dBm, step={step_freq}MHz, int_time={integration_time}ms, avg={averages}, func={sweep_function}")
         except Exception as e:
             print(f"⚠️  Could not load experiment config file: {e}")
             print("   Using command-line arguments and defaults...")
     
-    # Set default values if not provided
+    # Set default values if not provided (fallback if no config file or missing values)
     start_freq = start_freq or 2.7  # GHz
     stop_freq = stop_freq or 3.0    # GHz
     power = power or -10.0           # dBm
@@ -472,21 +481,21 @@ def main():
                        help='Show detailed debug information during device loading')
     
     # Experiment parameter arguments
-    parser.add_argument('--start-freq', type=float, default=2.7,
-                       help='Start frequency in GHz (default: 2.7)')
-    parser.add_argument('--stop-freq', type=float, default=3.0,
-                       help='Stop frequency in GHz (default: 3.0)')
-    parser.add_argument('--power', type=float, default=-10.0,
-                       help='Microwave power in dBm (default: -10.0)')
-    parser.add_argument('--step-freq', type=float, default=1.0,
-                       help='Step frequency in MHz (default: 1.0)')
-    parser.add_argument('--integration-time', type=float, default=5.0,
-                       help='Integration time in ms (default: 5.0)')
-    parser.add_argument('--averages', type=int, default=10,
-                       help='Number of sweep averages (default: 10)')
-    parser.add_argument('--sweep-function', type=str, default='Triangle',
+    parser.add_argument('--start-freq', type=float, default=None,
+                       help='Start frequency in GHz (default: from config file or 2.7)')
+    parser.add_argument('--stop-freq', type=float, default=None,
+                       help='Stop frequency in GHz (default: from config file or 3.0)')
+    parser.add_argument('--power', type=float, default=None,
+                       help='Microwave power in dBm (default: from config file or -10.0)')
+    parser.add_argument('--step-freq', type=float, default=None,
+                       help='Step frequency in MHz (default: from config file or 1.0)')
+    parser.add_argument('--integration-time', type=float, default=None,
+                       help='Integration time in ms (default: from config file or 5.0)')
+    parser.add_argument('--averages', type=int, default=None,
+                       help='Number of sweep averages (default: from config file or 10)')
+    parser.add_argument('--sweep-function', type=str, default=None,
                        choices=['Sine', 'Ramp', 'Triangle', 'Square', 'Noise'],
-                       help='Sweep function (default: Triangle)')
+                       help='Sweep function (default: from config file or Triangle)')
     parser.add_argument('--experiment-config', type=str, default=None,
                        help='Path to experiment config JSON file (e.g., odmr_sweep_config.json)')
     
