@@ -33,6 +33,7 @@ The `ODMR_Sweep_Counter_Multi.bas` script provides the same robust state machine
 - **Par_8**: PROCESSDELAY_US (µs, 0=auto-calculate)
 - **Par_9**: OVERHEAD_FACTOR (1.0=no correction, 1.2=20% overhead)
 - **Par_10**: START (1=run, 0=idle)
+- **Par_11**: RNG_SEED (random number generator seed, default=12345)
 
 ### To Python (Output)
 - **Data_1[]**: Counts per step (LONG)

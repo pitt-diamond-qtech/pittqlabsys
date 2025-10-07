@@ -36,6 +36,7 @@
 '   Par_8  = PROCESSDELAY_US (µs, 0=auto-calculate from dwell time)
 '   Par_9  = OVERHEAD_FACTOR (1.0=no correction, 1.2=20% overhead, default=1.2)
 '   Par_10 = START     (1=run, 0=idle)
+'   Par_11 = RNG_SEED  (random number generator seed, default=12345)
 ' To Python:
 '   Data_1[]  = counts per step (LONG)
 '   Data_2[]  = DAC digits per step (LONG)
@@ -182,13 +183,14 @@ Init:
       n_points = (2 * n_steps) - 2  ' default triangle
   EndSelect
   IF (n_points < 2) THEN n_points = 2
+  IF (n_points > 1000) THEN n_points = 1000   ' prevent array overflow
 
   ' Initialize waveform-specific parameters
   square_setpoint = Clamp(FPar_5, -1.0, 1.0)
   square_dig = VoltsToDigits(square_setpoint)
   
-  ' Initialize RNG state (use Par_9 as seed if provided, otherwise use default)
-  rng_state = Par_9
+  ' Initialize RNG state (use Par_11 as seed if provided, otherwise use default)
+  rng_state = Par_11
   IF (rng_state <= 0) THEN rng_state = 12345  ' Default seed
 
   ' Counter 1: clk/dir, single-ended mode (basic setup)
@@ -289,10 +291,10 @@ Event:
           ELSE
             pos = (2 * n_steps) - 2 - k
           ENDIF
-          u = pos / (n_steps - 1)
+          u = pos / (n_steps - 1.0)
         ELSE
           ' simple forward index
-          u = k / (n_points - 1)
+          u = k / (n_points - 1.0)
         ENDIF
 
         ' Map u -> voltage by mode
@@ -318,7 +320,7 @@ Event:
             ENDIF
           Case 4 ' Noise (uniform in [Vmin, Vmax])
             ' simple LCG: X = (a*X + c) mod 2^31
-            rng_state = (1103515245 * rng_state + 12345) And &H7FFFFFFF
+            rng_state = (1103515245 * rng_state + 12345) AND &H7FFFFFFF
             v = vmin_clamped + ( (rng_state / 2147483647.0) * (vmax_clamped - vmin_clamped) )
           Case 100 ' Custom (use Data_3 buffer)
             ' v will be pulled from user-supplied array

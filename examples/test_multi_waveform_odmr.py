@@ -124,6 +124,7 @@ def test_waveform(adwin, waveform_type, n_steps=10, settle_us=500, dwell_us=2000
         adwin.set_int_var(8, 0)           # Par_8: PROCESSDELAY_US (auto)
         adwin.set_int_var(9, 12)          # Par_9: OVERHEAD_FACTOR (1.2x)
         adwin.set_int_var(10, 0)          # Par_10: START (idle)
+        adwin.set_int_var(11, noise_seed) # Par_11: RNG_SEED
         
         # For custom table (waveform 100), populate Data_3
         if waveform_type == 100:
