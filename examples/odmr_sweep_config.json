@@ -1,0 +1,36 @@
+{
+  "experiment_settings": {
+    "frequency_range": {
+      "start_ghz": 2.7,
+      "stop_ghz": 3.0
+    },
+    "microwave": {
+      "power_dbm": -10.0,
+      "step_freq_mhz": 3.0,
+      "sweep_function": "Triangle"
+    },
+    "acquisition": {
+      "integration_time_ms": 5.0,
+      "averages": 10,
+      "settle_time_ms": 1.0,
+      "ramp_delay_ms": 100.0,
+      "bidirectional": true
+    },
+    "laser": {
+      "power_mw": 1.0,
+      "wavelength_nm": 532.0
+    },
+    "analysis": {
+      "auto_fit": true,
+      "smoothing": true,
+      "smooth_window": 5,
+      "background_subtraction": true
+    }
+  },
+  "description": "ODMR Continuous Sweep Configuration File",
+  "usage": "python odmr_sweep_continuous_example.py --config odmr_sweep_config.json",
+  "notes": {
+    "number_of_points": "Calculated as (stop_ghz - start_ghz) / step_freq_mhz = (3.0 - 2.7) / 3.0 = 100 points",
+    "ramp_delay_ms": "Only used when sweep_function is 'Ramp' - adds delay between ramp cycles to avoid discontinuities. Not used with 'Triangle' waveform."
+  }
+}

@@ -1,9 +1,10 @@
 '<ADbasic Header, Headerversion 001.001>
 ' Process_Number                 = 1
-' Initial_Processdelay           = 3000000
+' Initial_Processdelay           = 300000
 ' Eventsource                    = Timer
 ' Control_long_Delays_for_Stop   = No
-' Priority                       = Normal
+' Priority                       = Low
+' Priority_Low_Level             = 1
 ' Version                        = 1
 ' ADbasic_Version                = 6.3.0
 ' Optimize                       = Yes
@@ -12,10 +13,11 @@
 ' Info_Last_Save                 = DUTTLAB8  Duttlab8\Duttlab
 '<Header End>
 '
-' ODMR Sweep Counter Script — DEBUG (state machine, chunked processing)
-' Triangle on DACx; counts falling edges on Counter 1.
+' ODMR Sweep Counter Script — MULTI-WAVEFORM (state machine, chunked processing)
+' Multiple waveforms on DACx; counts falling edges on Counter 1.
 ' Non-blocking handshake: Par_20=1 when ready; PC must clear to 0.
 ' State machine prevents Get_Par timeouts by doing small chunks per Event.
+' Supports: Triangle, Ramp, Sine, Square, Noise, Custom table waveforms.
 
 #Include ADwinGoldII.inc
 
@@ -23,29 +25,30 @@
 ' From Python:
 '   FPar_1 = Vmin [V] (clamped to [-1,+1])
 '   FPar_2 = Vmax [V] (clamped to [-1,+1])
+'   FPar_5 = Square setpoint [V] (optional, for Par_7=3)
 '   Par_1  = N_STEPS   (>=2)
 '   Par_2  = SETTLE_US (µs)
 '   Par_3  = DWELL_US  (µs)
 '   Par_4  = EDGE_MODE  (0=rising, 1=falling)
 '   Par_5  = DAC_CH    (1..2)
 '   Par_6  = DIR_SENSE (0=DIR Low=up, 1=DIR High=up)
+'   Par_7  = WAVEFORM  (0=Triangle, 1=Ramp, 2=Sine, 3=Square, 4=Noise, 100=Custom)
 '   Par_8  = PROCESSDELAY_US (µs, 0=auto-calculate from dwell time)
-'   Par_9  = OVERHEAD_FACTOR (1.0=no correction, 1.2=20% overhead, default=1.0)
+'   Par_9  = OVERHEAD_FACTOR (1.0=no correction, 1.2=20% overhead, default=1.2)
 '   Par_10 = START     (1=run, 0=idle)
+'   Par_11 = RNG_SEED  (random number generator seed, default=12345)
 ' To Python:
 '   Data_1[]  = counts per step (LONG)
 '   Data_2[]  = DAC digits per step (LONG)
-'   FData_1[] = volts per step (FLOAT)
-'   Data_3[]  = triangle pos per step (LONG)
+'   Data_3[]  = custom waveform table (LONG, for Par_7=100)
 '   Par_20    = ready flag (1=data ready)
-'   Par_21    = number of points (2*N_STEPS-2)
-'   Par_22    = current step index (0-based)
-'   Par_23    = current triangle position
-'   Par_24    = current volts (FLOAT)
+'   Par_21    = number of points (varies by waveform)
 '   Par_25    = heartbeat
-'   Par_26    = current state (0=idle, 20=prep, 30=settle, etc.)
+'   Par_26    = current state (255=idle, 10=prep, 30=settle, etc.)
 '   Par_71    = Processdelay (ticks)
 '   Par_80    = signature (7777)
+'   Par_81    = waveform type used (0-4, 100)
+'   Par_82    = actual n_points for this waveform
 '=============================================
 
 '--- helpers (typed return OK; no typed args) ---
@@ -68,6 +71,7 @@ Function Clamp(v, lo, hi) As Float
   Clamp = v
 EndFunction
 
+
 '--- working vars ---
 Dim n_steps, n_points, k As Long
 Dim dac_ch, edge_mode, dir_sense As Long
@@ -77,7 +81,13 @@ Dim fd As Float
 Dim vmin_dig, vmax_dig As Long
 Dim step_dig, pos As Long
 Dim vmin_clamped, vmax_clamped, t As Float
-Dim sum_counts, max_counts, max_idx As Long
+
+'--- waveform vars ---
+Dim waveform_type As Long
+Dim square_setpoint As Float
+Dim square_dig As Long
+Dim rng_state As Long
+Dim u, v, vmid, vamp As Float
 
 '--- state machine vars ---
 Dim state As Long
@@ -90,8 +100,7 @@ Dim pd_us, pd_ticks As Long
 '--- result buffers (1-based indexing) ---
 Dim Data_1[1000]  As Long   ' counts per step
 Dim Data_2[1000]  As Long   ' DAC digits per step
-Dim FData_1[1000] As Float  ' volts per step
-Dim Data_3[1000]  As Long   ' triangle pos per step
+Dim Data_3[1000]  As Long   ' custom waveform table (for Par_7=100)
 
 Init:
   
@@ -112,9 +121,6 @@ Init:
   IF (pd_ticks > 5000000) THEN pd_ticks = 5000000 ' max 16.7ms
   IF (pd_ticks <= 0) THEN pd_ticks = 300000      ' safety fallback
   
-  ' Debug: store calculation steps
-  Par_72 = pd_us      ' calculated µs
-  Par_73 = pd_ticks   ' calculated ticks
   
   ' Set Processdelay directly in Init
   Processdelay = pd_ticks
@@ -123,7 +129,7 @@ Init:
   ' Calculate tick_us once (constant for this session)
   ' Use Par_9 as overhead correction factor (scaled by 10: 10=1.0, 12=1.2, 20=2.0)
   overhead_factor = Par_9 / 10.0  ' Convert scaled integer back to float
-  IF (overhead_factor <= 0.0) THEN overhead_factor = 1.0
+  IF (overhead_factor <= 0.0) THEN overhead_factor = 1.2  ' Default to 1.2x for production
   ' Calculate base tick_us, then apply overhead correction
   tick_us = Round(Processdelay * 3.3 / 1000.0 * overhead_factor)   ' Apply overhead correction
   IF (tick_us <= 0) THEN
@@ -139,6 +145,7 @@ Init:
   edge_mode = Par_4
   dac_ch = Par_5
   dir_sense = Par_6
+  waveform_type = Par_7
   
   ' Clamp DAC channel
   IF (dac_ch < 1) THEN dac_ch = 1
@@ -158,8 +165,33 @@ Init:
   vmax_dig = VoltsToDigits(vmax_clamped)
   IF (vmin_dig = vmax_dig) THEN n_steps = 2
   
-  n_points = (2 * n_steps) - 2
+  ' Decide n_points by waveform mode (do this once when you start a sweep)
+  SelectCase waveform_type
+    Case 0  ' Triangle
+      n_points = (2 * n_steps) - 2
+    Case 1  ' Ramp/Saw
+      n_points = n_steps
+    Case 2  ' Sine
+      n_points = n_steps
+    Case 3  ' Square (constant)
+      n_points = n_steps
+    Case 4  ' Noise
+      n_points = n_steps
+    Case 100 ' Custom table
+      n_points = n_steps  ' Will be overridden by custom table size
+    Case Else
+      n_points = (2 * n_steps) - 2  ' default triangle
+  EndSelect
   IF (n_points < 2) THEN n_points = 2
+  IF (n_points > 1000) THEN n_points = 1000   ' prevent array overflow
+
+  ' Initialize waveform-specific parameters
+  square_setpoint = Clamp(FPar_5, -1.0, 1.0)
+  square_dig = VoltsToDigits(square_setpoint)
+  
+  ' Initialize RNG state (use Par_11 as seed if provided, otherwise use default)
+  rng_state = Par_11
+  IF (rng_state <= 0) THEN rng_state = 12345  ' Default seed
 
   ' Counter 1: clk/dir, single-ended mode (basic setup)
   Cnt_SE_Diff(0000b)
@@ -173,11 +205,10 @@ Init:
 
   Par_20 = 0
   Par_21 = n_points
-  Par_22 = 0
-  Par_23 = 0
-  Par_24 = 0.0
   Par_25 = 0
   Par_80 = 7777     ' Signature to confirm script is loaded
+  Par_81 = waveform_type  ' Report waveform type used
+  Par_82 = n_points      ' Report actual n_points
   old_cnt = 0
 
 Event:
@@ -219,9 +250,6 @@ Event:
         ' Reset sweep variables for new sweep
         k = 0
         Par_26 = state
-        Par_22 = 0
-        Par_23 = 0
-        Par_24 = 0.0
         
         ' Configure counter once for entire sweep
         Cnt_Enable(0)
@@ -253,28 +281,64 @@ Event:
         
 
       Case 30     ' ISSUE STEP, START SETTLE
-        ' triangle index
         Par_26 = state
-        IF (k < n_steps) THEN
-          pos = k
-        ELSE
-          pos = (2 * n_steps) - 2 - k
-        ENDIF
-        Par_22 = k
-        Par_23 = pos
-        Data_3[k+1] = pos
-
-        ' code for this step
-        IF (n_steps > 1) THEN
-          step_dig = ((vmax_dig - vmin_dig) * pos) / (n_steps - 1)
-        ELSE
-          step_dig = 0
-        ENDIF
-        Data_2[k+1] = vmin_dig + step_dig
         
-        ' volts for debug
-        FData_1[k+1] = DigitsToVolts(Data_2[k+1])
-        Par_24 = FData_1[k+1]
+        ' Compute step fraction u in [0..1]
+        IF (waveform_type = 0) THEN
+          ' triangle index (0..N-1..1)
+          IF (k < n_steps) THEN
+            pos = k
+          ELSE
+            pos = (2 * n_steps) - 2 - k
+          ENDIF
+          u = pos / (n_steps - 1.0)
+        ELSE
+          ' simple forward index
+          u = k / (n_points - 1.0)
+        ENDIF
+
+        ' Map u -> voltage by mode
+        vmid = 0.5 * (vmin_clamped + vmax_clamped)
+        vamp = 0.5 * (vmax_clamped - vmin_clamped)
+
+        SelectCase waveform_type
+          Case 0 ' Triangle
+            v = vmin_clamped + (vmax_clamped - vmin_clamped) * u
+          Case 1 ' Ramp/Saw
+            v = vmin_clamped + (vmax_clamped - vmin_clamped) * u
+          Case 2 ' Sine (one period, start at Vmin)
+            ' Use built-in Sin function with proper phase shift
+            v = vmid + vamp * Sin(6.2831853 * u - 1.5707963)  ' shift so u=0 near Vmin
+            ' Fallback: portable version using half-wave triangle-to-sine approx:
+            ' v = vmid + vamp * (1.27323954 * (2*u - 1) - 0.405284735 * (2*u - 1) * Abs(2*u - 1))
+          Case 3 ' Square (constant)
+            ' use Vmid or FPar_5 if provided
+            IF (FPar_5 <> 0.0) THEN
+              v = FPar_5
+            ELSE
+              v = vmid
+            ENDIF
+          Case 4 ' Noise (uniform in [Vmin, Vmax])
+            ' simple LCG: X = (a*X + c) mod 2^31
+            rng_state = (1103515245 * rng_state + 12345) AND &H7FFFFFFF
+            v = vmin_clamped + ( (rng_state / 2147483647.0) * (vmax_clamped - vmin_clamped) )
+          Case 100 ' Custom (use Data_3 buffer)
+            ' v will be pulled from user-supplied array
+            IF (k < 1000) THEN  ' Safety check
+              v = DigitsToVolts(Data_3[k+1])  ' Convert DAC digits back to volts
+            ELSE
+              v = vmin_clamped  ' Fallback to min
+            ENDIF
+          Case Else
+            v = vmin_clamped + (vmax_clamped - vmin_clamped) * u
+        EndSelect
+
+        ' clamp just in case
+        IF (v < -1.0) THEN v = -1.0 ENDIF
+        IF (v >  1.0) THEN v =  1.0 ENDIF
+
+        ' Convert to DAC digits and store
+        Data_2[k+1] = VoltsToDigits(v)
 
         ' Output DAC and start settle
         Write_DAC(dac_ch, Data_2[k+1])
@@ -399,9 +463,6 @@ Finish:
   state = 0
   k = 0
   Par_21 = 0
-  Par_22 = 0
-  Par_23 = 0
-  Par_24 = 0.0
   ' De-arm watchdog so nothing can fire after process stops
   ' if 0 is not allowed as timeout on system, use 1 instead
   Watchdog_Init(1,0,0000b)

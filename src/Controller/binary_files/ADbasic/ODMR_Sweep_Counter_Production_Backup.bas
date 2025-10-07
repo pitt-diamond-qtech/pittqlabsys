@@ -12,10 +12,12 @@
 ' Info_Last_Save                 = DUTTLAB8  Duttlab8\Duttlab
 '<Header End>
 '
-' ODMR Sweep Counter Script — DEBUG (state machine, chunked processing)
+' ODMR Sweep Counter Script — PRODUCTION (state machine, chunked processing)
 ' Triangle on DACx; counts falling edges on Counter 1.
 ' Non-blocking handshake: Par_20=1 when ready; PC must clear to 0.
 ' State machine prevents Get_Par timeouts by doing small chunks per Event.
+' Includes overhead factor calibration for precise timing.
+' Clean production version without debug parameters.
 
 #Include ADwinGoldII.inc
 
@@ -30,25 +32,19 @@
 '   Par_5  = DAC_CH    (1..2)
 '   Par_6  = DIR_SENSE (0=DIR Low=up, 1=DIR High=up)
 '   Par_8  = PROCESSDELAY_US (µs, 0=auto-calculate from dwell time)
-'   Par_9  = OVERHEAD_FACTOR (1.0=no correction, 1.2=20% overhead, default=1.0)
+'   Par_9  = OVERHEAD_FACTOR (1.0=no correction, 1.2=20% overhead, default=1.2)
 '   Par_10 = START     (1=run, 0=idle)
 ' To Python:
 '   Data_1[]  = counts per step (LONG)
 '   Data_2[]  = DAC digits per step (LONG)
-'   FData_1[] = volts per step (FLOAT)
-'   Data_3[]  = triangle pos per step (LONG)
 '   Par_20    = ready flag (1=data ready)
 '   Par_21    = number of points (2*N_STEPS-2)
-'   Par_22    = current step index (0-based)
-'   Par_23    = current triangle position
-'   Par_24    = current volts (FLOAT)
 '   Par_25    = heartbeat
-'   Par_26    = current state (0=idle, 20=prep, 30=settle, etc.)
-'   Par_71    = Processdelay (ticks)
+'   Par_26    = current state (255=idle, 10=prep, 30=settle, etc.)
 '   Par_80    = signature (7777)
 '=============================================
 
-'--- helpers (typed return OK; no typed args) ---
+' ---- helpers (typed return OK; no typed args) ----
 Function VoltsToDigits(v) As Long
   VoltsToDigits = Round((v + 10.0) * 65535.0 / 20.0)
 EndFunction
@@ -77,7 +73,6 @@ Dim fd As Float
 Dim vmin_dig, vmax_dig As Long
 Dim step_dig, pos As Long
 Dim vmin_clamped, vmax_clamped, t As Float
-Dim sum_counts, max_counts, max_idx As Long
 
 '--- state machine vars ---
 Dim state As Long
@@ -88,10 +83,8 @@ Dim hb_div As Long ' heartbeat prescaler to avoid spamming
 Dim pd_us, pd_ticks As Long
   
 '--- result buffers (1-based indexing) ---
-Dim Data_1[1000]  As Long   ' counts per step
-Dim Data_2[1000]  As Long   ' DAC digits per step
-Dim FData_1[1000] As Float  ' volts per step
-Dim Data_3[1000]  As Long   ' triangle pos per step
+Dim Data_1[5000]  As Long   ' counts per step
+Dim Data_2[5000]  As Long   ' DAC digits per step
 
 Init:
   
@@ -112,9 +105,6 @@ Init:
   IF (pd_ticks > 5000000) THEN pd_ticks = 5000000 ' max 16.7ms
   IF (pd_ticks <= 0) THEN pd_ticks = 300000      ' safety fallback
   
-  ' Debug: store calculation steps
-  Par_72 = pd_us      ' calculated µs
-  Par_73 = pd_ticks   ' calculated ticks
   
   ' Set Processdelay directly in Init
   Processdelay = pd_ticks
@@ -123,7 +113,7 @@ Init:
   ' Calculate tick_us once (constant for this session)
   ' Use Par_9 as overhead correction factor (scaled by 10: 10=1.0, 12=1.2, 20=2.0)
   overhead_factor = Par_9 / 10.0  ' Convert scaled integer back to float
-  IF (overhead_factor <= 0.0) THEN overhead_factor = 1.0
+  IF (overhead_factor <= 0.0) THEN overhead_factor = 1.2  ' Default to 1.2x for production
   ' Calculate base tick_us, then apply overhead correction
   tick_us = Round(Processdelay * 3.3 / 1000.0 * overhead_factor)   ' Apply overhead correction
   IF (tick_us <= 0) THEN
@@ -164,7 +154,7 @@ Init:
   ' Counter 1: clk/dir, single-ended mode (basic setup)
   Cnt_SE_Diff(0000b)
 
-  ' Watchdog (debug): 5 s (units = 10 µs) - increased for longer dwell times
+  ' Watchdog (production): 5 s (units = 10 µs) - increased for longer dwell times
   Watchdog_Init(1, 500000, 1111b)
 
   ' Initialize state machine
@@ -173,9 +163,6 @@ Init:
 
   Par_20 = 0
   Par_21 = n_points
-  Par_22 = 0
-  Par_23 = 0
-  Par_24 = 0.0
   Par_25 = 0
   Par_80 = 7777     ' Signature to confirm script is loaded
   old_cnt = 0
@@ -197,7 +184,6 @@ Event:
   ENDIF
 
   ' ---- run state machine unconditionally ----
-  Par_26 = state   ' Debug: current state
   SelectCase state
 
       Case 255     ' IDLE: async start detection and housekeeping
@@ -219,9 +205,6 @@ Event:
         ' Reset sweep variables for new sweep
         k = 0
         Par_26 = state
-        Par_22 = 0
-        Par_23 = 0
-        Par_24 = 0.0
         
         ' Configure counter once for entire sweep
         Cnt_Enable(0)
@@ -253,16 +236,13 @@ Event:
         
 
       Case 30     ' ISSUE STEP, START SETTLE
-        ' triangle index
         Par_26 = state
+        ' triangle index
         IF (k < n_steps) THEN
           pos = k
         ELSE
           pos = (2 * n_steps) - 2 - k
         ENDIF
-        Par_22 = k
-        Par_23 = pos
-        Data_3[k+1] = pos
 
         ' code for this step
         IF (n_steps > 1) THEN
@@ -271,10 +251,6 @@ Event:
           step_dig = 0
         ENDIF
         Data_2[k+1] = vmin_dig + step_dig
-        
-        ' volts for debug
-        FData_1[k+1] = DigitsToVolts(Data_2[k+1])
-        Par_24 = FData_1[k+1]
 
         ' Output DAC and start settle
         Write_DAC(dac_ch, Data_2[k+1])
@@ -294,6 +270,7 @@ Event:
         ENDIF
 
       Case 32     ' OPEN DWELL WINDOW (start fresh)
+        Par_26 = state
         ' Start a fresh window: clear -> enable -> dwell
         Cnt_Enable(0)
         Cnt_Clear(0001b)
@@ -303,7 +280,6 @@ Event:
         ' Cnt_Latch(0001b) : old_cnt = Cnt_Read_Latch(1)  ' should be 0
         ' But we simply treat baseline as 0:
         old_cnt = 0
-        Par_26 = state
         dwell_rem_us = Par_3
         state = 33
 
@@ -318,10 +294,10 @@ Event:
         ENDIF
 
       Case 34     ' CLOSE WINDOW, READ, STORE
+        Par_26 = state
         Cnt_Latch(0001b)
         new_cnt = Cnt_Read_Latch(1)
         Cnt_Enable(0)        ' Disable counter after dwell window
-        Par_26 = state
         Rem ---- compute delta with wrap handling using Float arithmetic ----
         fd = new_cnt - old_cnt
         
@@ -342,8 +318,8 @@ Event:
         state = 35
 
       Case 35     ' NEXT STEP OR FINISH
-        k = k + 1
         Par_26 = state
+        k = k + 1
         IF (k >= n_points) THEN
           state = 70
         ELSE
@@ -351,10 +327,10 @@ Event:
         ENDIF
 
       Case 70     ' READY HANDSHAKE (non-blocking)
+        Par_26 = state
         Par_20 = 1
         IO_Sleep(1000)            ' ~10 µs bus yield
         Watchdog_Reset()
-        Par_26 = state
         IF (Par_10 = 0) THEN 
           state = 255
         ELSE 
@@ -366,12 +342,12 @@ Event:
         ENDIF
 
       CaseElse
-        Par_26 = 0
+        Par_26 = state
         state = 255
 
     EndSelect
 
-
+End
 
 Finish:
   ' Mark stopped and clear handshake
@@ -399,9 +375,6 @@ Finish:
   state = 0
   k = 0
   Par_21 = 0
-  Par_22 = 0
-  Par_23 = 0
-  Par_24 = 0.0
   ' De-arm watchdog so nothing can fire after process stops
   ' if 0 is not allowed as timeout on system, use 1 instead
   Watchdog_Init(1,0,0000b)

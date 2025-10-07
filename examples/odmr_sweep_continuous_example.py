@@ -88,6 +88,19 @@ def create_devices(use_real_hardware=False, config_path=None, debug=False):
                     devices[device_name] = {'instance': device_instance}
             
             print(f"✅ Real hardware initialized successfully: {list(devices.keys())}")
+            print(f"🔍 Debug: Expected devices: {list(device_mapping.values())}")
+            print(f"🔍 Debug: Available devices: {list(loaded_devices.keys())}")
+            print(f"🔍 Debug: Final device keys: {list(devices.keys())}")
+            
+            # Check if all required devices are present
+            required_devices = ['microwave', 'adwin']  # nanodrive is optional
+            missing_devices = [d for d in required_devices if d not in devices]
+            if missing_devices:
+                print(f"⚠️  Missing required devices: {missing_devices}")
+                print("   This will cause the experiment to fail!")
+            else:
+                print("✅ All required devices are present")
+            
             return devices
             
         except Exception as e:
@@ -115,7 +128,10 @@ def create_mock_devices():
         raise
 
 
-def run_odmr_sweep_scan(use_real_hardware=False, save_data=True, config_path=None, debug=False):
+def run_odmr_sweep_scan(use_real_hardware=False, save_data=True, config_path=None, debug=False,
+                       start_freq=None, stop_freq=None, power=None, step_freq=None, 
+                       integration_time=None, averages=None, sweep_function=None,
+                       experiment_config_file=None):
     """
     Run an ODMR continuous sweep scan experiment.
     
@@ -124,6 +140,14 @@ def run_odmr_sweep_scan(use_real_hardware=False, save_data=True, config_path=Non
         save_data (bool): Whether to save the scan data
         config_path (str): Path to config.json file
         debug (bool): Whether to show debug information
+        start_freq (float): Start frequency in GHz (default: 2.7)
+        stop_freq (float): Stop frequency in GHz (default: 3.0)
+        power (float): Microwave power in dBm (default: -10.0)
+        step_freq (float): Step frequency in MHz (default: 1.0)
+        integration_time (float): Integration time in ms (default: 5.0)
+        averages (int): Number of averages (default: 10)
+        sweep_function (str): Sweep function (default: 'Triangle')
+        experiment_config_file (str): Path to experiment config JSON file
         
     Returns:
         dict: Scan results and data
@@ -143,26 +167,71 @@ def run_odmr_sweep_scan(use_real_hardware=False, save_data=True, config_path=Non
     # Create devices
     devices = create_devices(use_real_hardware, config_path, debug)
     
-    # Create experiment with optimized settings for continuous sweeping
+    # Load experiment config from file if provided
+    if experiment_config_file:
+        try:
+            import json
+            with open(experiment_config_file, 'r') as f:
+                config = json.load(f)
+            exp_config = config.get('experiment_settings', {})
+            
+            # Override command-line args with config file values
+            # Only use config values if command-line args are None (not provided)
+            freq_range = exp_config.get('frequency_range', {})
+            if start_freq is None:
+                start_freq = freq_range.get('start_ghz', 2.7)
+            if stop_freq is None:
+                stop_freq = freq_range.get('stop_ghz', 3.0)
+            
+            microwave = exp_config.get('microwave', {})
+            if power is None:
+                power = microwave.get('power_dbm', -10.0)
+            if step_freq is None:
+                step_freq = microwave.get('step_freq_mhz', 1.0)
+            if sweep_function is None:
+                sweep_function = microwave.get('sweep_function', 'Triangle')
+            
+            acquisition = exp_config.get('acquisition', {})
+            if integration_time is None:
+                integration_time = acquisition.get('integration_time_ms', 5.0)
+            if averages is None:
+                averages = acquisition.get('averages', 10)
+            
+            print(f"✅ Loaded experiment config from: {experiment_config_file}")
+            print(f"🔍 Config values: start={start_freq}GHz, stop={stop_freq}GHz, power={power}dBm, step={step_freq}MHz, int_time={integration_time}ms, avg={averages}, func={sweep_function}")
+        except Exception as e:
+            print(f"⚠️  Could not load experiment config file: {e}")
+            print("   Using command-line arguments and defaults...")
+    
+    # Set default values if not provided (fallback if no config file or missing values)
+    start_freq = start_freq or 2.7  # GHz
+    stop_freq = stop_freq or 3.0    # GHz
+    power = power or -10.0           # dBm
+    step_freq = step_freq or 1.0     # MHz
+    integration_time = integration_time or 5.0  # ms
+    averages = averages or 10
+    sweep_function = sweep_function or 'Triangle'
+    
+    # Create experiment with configurable settings
     experiment = ODMRSweepContinuousExperiment(
         devices=devices,
         name="ODMR_Continuous_Sweep_Scan",
         settings={
             'frequency_range': {
-                'start': 2.7e9,  # 2.7 GHz
-                'stop': 3.0e9    # 3.0 GHz
+                'start': start_freq * 1e9,  # Convert GHz to Hz
+                'stop': stop_freq * 1e9     # Convert GHz to Hz
             },
             'microwave': {
-                'power': -10.0,           # -10 dBm
-                'step_freq': 1e6,         # 1 MHz step frequency
-                'sweep_function': 'Triangle'  # Triangle sweep waveform
+                'power': power,                    # dBm
+                'step_freq': step_freq * 1e6,     # Convert MHz to Hz
+                'sweep_function': sweep_function   # Sweep waveform
             },
             'acquisition': {
-                'integration_time': 0.005,  # 5 ms per point
-                'averages': 10,             # 10 sweep averages
-                'settle_time': 0.001,       # 1 ms between sweeps
-                'ramp_delay': 0.1,          # 100 ms delay between ramp cycles
-                'bidirectional': True       # Enable bidirectional sweeps (doubles efficiency)
+                'integration_time': integration_time / 1000.0,  # Convert ms to s
+                'averages': averages,              # Number of sweep averages
+                'settle_time': 0.001,              # 1 ms between sweeps
+                'ramp_delay': 0.1,                 # 100 ms delay between ramp cycles
+                'bidirectional': True              # Enable bidirectional sweeps (doubles efficiency)
             },
             'laser': {
                 'power': 1.0,        # 1 mW
@@ -411,6 +480,25 @@ def main():
     parser.add_argument('--debug', action='store_true',
                        help='Show detailed debug information during device loading')
     
+    # Experiment parameter arguments
+    parser.add_argument('--start-freq', type=float, default=None,
+                       help='Start frequency in GHz (default: from config file or 2.7)')
+    parser.add_argument('--stop-freq', type=float, default=None,
+                       help='Stop frequency in GHz (default: from config file or 3.0)')
+    parser.add_argument('--power', type=float, default=None,
+                       help='Microwave power in dBm (default: from config file or -10.0)')
+    parser.add_argument('--step-freq', type=float, default=None,
+                       help='Step frequency in MHz (default: from config file or 1.0)')
+    parser.add_argument('--integration-time', type=float, default=None,
+                       help='Integration time in ms (default: from config file or 5.0)')
+    parser.add_argument('--averages', type=int, default=None,
+                       help='Number of sweep averages (default: from config file or 10)')
+    parser.add_argument('--sweep-function', type=str, default=None,
+                       choices=['Sine', 'Ramp', 'Triangle', 'Square', 'Noise'],
+                       help='Sweep function (default: from config file or Triangle)')
+    parser.add_argument('--experiment-config', type=str, default=None,
+                       help='Path to experiment config JSON file (e.g., odmr_sweep_config.json)')
+    
     args = parser.parse_args()
     
     # Determine hardware mode
@@ -430,8 +518,21 @@ def main():
         print("\n✅ Test completed successfully!")
         return 0
     
-    # Run the full scan
-    results = run_odmr_sweep_scan(use_real_hardware, save_data, args.config, args.debug)
+    # Run the full scan with command-line parameters
+    results = run_odmr_sweep_scan(
+        use_real_hardware=use_real_hardware, 
+        save_data=save_data, 
+        config_path=args.config, 
+        debug=args.debug,
+        start_freq=args.start_freq,
+        stop_freq=args.stop_freq,
+        power=args.power,
+        step_freq=args.step_freq,
+        integration_time=args.integration_time,
+        averages=args.averages,
+        sweep_function=args.sweep_function,
+        experiment_config_file=args.experiment_config
+    )
     
     if results:
         print("\n✅ Example completed successfully!")

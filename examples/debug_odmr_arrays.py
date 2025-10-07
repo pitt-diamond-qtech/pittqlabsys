@@ -69,7 +69,7 @@ def bring_up_process(adwin, tb1_filename: str):
     adwin.update({'process_1': {'load': str(script_path)}})
 
 
-def debug_odmr_arrays(use_real_hardware=False, config_path=None, tb1_filename='ODMR_Sweep_Counter_Debug.TB1'):
+def debug_odmr_arrays(use_real_hardware=False, config_path=None, tb1_filename='ODMR_Sweep_Counter_Debug.TB1', dwell_us=5000, settle_us=1000, overhead_factor=1.2):
     print("\n" + "=" * 60)
     print("ODMR ARRAYS DEBUG SESSION – new DEBUG ADbasic (non-blocking)")
     print("=" * 60)
@@ -112,8 +112,8 @@ def debug_odmr_arrays(use_real_hardware=False, config_path=None, tb1_filename='O
         # Parameters (adjust as needed)
         VMIN, VMAX = -1.0, 1.0
         N_STEPS    = 10
-        SETTLE_US  = 1000     # 1 ms
-        DWELL_US   = 5000     # 5 ms
+        SETTLE_US  = settle_us     # Settle time from command line
+        DWELL_US   = dwell_us      # Dwell time from command line
         DAC_CH     = 1
         CHUNK_US   = 0        # Use ADbasic auto-calculate (hybrid timing)
         # CHUNK_US = 0: Auto-calculate Processdelay based on dwell time
@@ -127,15 +127,16 @@ def debug_odmr_arrays(use_real_hardware=False, config_path=None, tb1_filename='O
         adwin.set_int_var(3, DWELL_US)   # Par_3
         adwin.set_int_var(4, 0)          # Par_4 = EDGE_MODE (0=rising)
         adwin.set_int_var(5, DAC_CH)     # Par_5 = DAC_CH
-        adwin.set_int_var(6, 0)          # Par_6 = DIR_SENSE (0=DIR Low=up)
+        adwin.set_int_var(6, 1)          # Par_6 = DIR_SENSE (1=DIR High=up)
         adwin.set_int_var(8, CHUNK_US)   # Par_8 = PROCESSDELAY_US (0 = auto-calculate)
+        adwin.set_int_var(9, int(overhead_factor * 10))  # Par_9 = OVERHEAD_FACTOR (scaled by 10 for integer)
 
         print("▶️  Starting process 1…")
         adwin.start_process(1)
         
         # Wait for process to start and verify it's running
         print("⏳ Waiting for process to start...")
-        time.sleep(0.5)  # Give process time to start
+        time.sleep(0.1)  # Give process time to start
         
         process_status = adwin.get_process_status(1)
         print(f"   Process status: {process_status}")
@@ -310,8 +311,15 @@ def debug_odmr_arrays(use_real_hardware=False, config_path=None, tb1_filename='O
             print(f"   ✅ Data_3 read successfully: {len(pos)} elements")
             print(f"   First few positions: {pos[:5] if len(pos) >= 5 else pos}")
         except Exception as e:
-            print(f"   ❌ Error reading Data_3: {e}")
+            print(f"   ⚠️  Data_3 not available (production script): {e}")
+            # Generate positions from triangle logic for production script
             pos = []
+            for i in range(n_points):
+                if i < n_points // 2:
+                    pos.append(i)  # Forward sweep
+                else:
+                    pos.append(n_points - 1 - i)  # Reverse sweep
+            print(f"   ✅ Generated positions: {pos[:5] if len(pos) >= 5 else pos}")
 
         print(f"✅ Got arrays: counts={len(counts)}, digits={len(dac_digits)}, volts={len(volts)}, pos={len(pos)}")
 
@@ -326,9 +334,11 @@ def debug_odmr_arrays(use_real_hardware=False, config_path=None, tb1_filename='O
             par_20 = adwin.get_int_var(20)  # ready flag
             par_21 = adwin.get_int_var(21)  # points
             par_25 = adwin.get_int_var(25)  # heartbeat
+            par_26 = adwin.get_int_var(26)  # current state
             print(f"   Par_20 (ready): {par_20}")
             print(f"   Par_21 (points): {par_21}")
             print(f"   Par_25 (heartbeat): {par_25}")
+            print(f"   Par_26 (state): {par_26}")
             
             # Check if there are any ADwin errors
             try:
@@ -351,7 +361,15 @@ def debug_odmr_arrays(use_real_hardware=False, config_path=None, tb1_filename='O
             print(f"   max per step: {cmax} (at index {imax})")
             print(f"   average:      {avg:.3f}")
         except Exception:
-            print("\nℹ️  Summaries (Par_30..32 / FPar_33) not available — continuing.")
+            print("\nℹ️  Summaries (Par_30..32 / FPar_33) not available (production script) — computing manually.")
+            if counts:
+                total = sum(counts)
+                cmax = max(counts)
+                imax = counts.index(cmax)
+                avg = total / len(counts)
+                print(f"   total counts: {total}")
+                print(f"   max per step: {cmax} (at index {imax})")
+                print(f"   average:      {avg:.3f}")
 
         # ---------- quick sanity checks ----------
         print("\n🔍 Voltage progression checks:")
@@ -407,13 +425,33 @@ def main():
     p = argparse.ArgumentParser(description='Debug ODMR Arrays – Triangle Sweep (DEBUG ADbasic)')
     p.add_argument('--real-hardware', action='store_true', help='Use real ADwin hardware')
     p.add_argument('--config', type=str, default=None, help='Path to config.json (default: src/config.json)')
-    p.add_argument('--tb1', type=str, default='ODMR_Sweep_Counter_Debug.TB1', help='TB1 filename to load')
+    p.add_argument('--tb1', type=str, default='ODMR_Sweep_Counter_Debug.TB1', 
+                   help='TB1 filename to load (default: ODMR_Sweep_Counter_Debug.TB1)')
+    p.add_argument('--script', type=str, choices=['debug', 'production', 'test'], 
+                   help='Convenience option: debug=ODMR_Sweep_Counter_Debug.TB1, production=ODMR_Sweep_Counter.TB1, test=ODMR_Sweep_Counter_Test.TB1')
+    p.add_argument('--dwell-us', type=int, default=5000, help='Dwell time in microseconds (default: 5000)')
+    p.add_argument('--settle-us', type=int, default=1000, help='Settle time in microseconds (default: 1000)')
+    p.add_argument('--overhead-factor', type=float, default=1.2, help='Event loop overhead correction factor (default: 1.2, calibrated for production)')
     args = p.parse_args()
+
+    # Handle convenience script option
+    script_map = {
+        'debug': 'ODMR_Sweep_Counter_Debug.TB1',
+        'production': 'ODMR_Sweep_Counter.TB1', 
+        'test': 'ODMR_Sweep_Counter_Test.TB1'
+    }
+    
+    if args.script:
+        tb1_filename = script_map[args.script]
+        print(f"🎯 Using convenience script: {args.script} -> {tb1_filename}")
+    else:
+        tb1_filename = args.tb1
 
     print("🎯 ODMR Arrays Debug Tool — Array Diagnostics")
     print(f"🔧 Hardware mode: {'Real' if args.real_hardware else 'Mock'}")
+    print(f"📄 Script: {tb1_filename}")
 
-    ok = debug_odmr_arrays(args.real_hardware, args.config, args.tb1)
+    ok = debug_odmr_arrays(args.real_hardware, args.config, tb1_filename, args.dwell_us, args.settle_us, args.overhead_factor)
     print("\n✅ Debug session completed!" if ok else "\n❌ Debug session failed!")
     return 0 if ok else 1
 
