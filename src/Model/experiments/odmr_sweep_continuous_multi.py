@@ -1,8 +1,16 @@
 """
-ODMR Phase Continuous Sweep Experiment
+ODMR Phase Continuous Sweep Experiment - Multi-Waveform
 
-This experiment performs ODMR measurements using the SG384 phase continuous sweep
-functions and the Adwin ODMR_Sweep_Counter for synchronized data collection.
+This experiment extends the basic ODMR sweep with support for multiple waveform types
+using the ODMR_Sweep_Counter_Multi.bas ADbasic script.
+
+Supported waveforms:
+- Triangle (bidirectional, original behavior)
+- Ramp/Saw (up only, sharp return)
+- Sine (one period)
+- Square (constant setpoint)
+- Noise (random step-to-step)
+- Custom table (user-defined)
 
 Author: Gurudev Dutt <gdutt@pitt.edu>
 Created: 2024
@@ -24,25 +32,28 @@ from src.Controller.nanodrive import MCLNanoDrive
 from src.core.adwin_helpers import setup_adwin_for_odmr, read_adwin_odmr_data
 
 
-class ODMRSweepContinuousExperiment(Experiment):
+class ODMRSweepContinuousMultiExperiment(Experiment):
     """
-    ODMR Experiment with Phase Continuous Sweep.
+    ODMR Experiment with Multi-Waveform Phase Continuous Sweep.
     
-    This experiment performs ODMR measurements by:
+    This experiment extends the basic ODMR sweep with support for multiple waveform types:
     1. Configuring SG384 for phase continuous frequency sweep
-    2. Using Adwin ODMR_Sweep_Counter for synchronized counting
+    2. Using Adwin ODMR_Sweep_Counter_Multi for synchronized counting with waveform selection
     3. Collecting data during the sweep for high-speed acquisition
     
-    This approach provides:
-    - Fast frequency sweeps with phase continuity
-    - Synchronized data collection
-    - High temporal resolution
-    - Efficient for large frequency ranges
+    Waveform Types:
+    - Triangle (0): Bidirectional sweep (original behavior)
+    - Ramp (1): Up only, sharp return
+    - Sine (2): One complete sine period
+    - Square (3): Constant setpoint
+    - Noise (4): Random step-to-step
+    - Custom (100): User-defined table
     
     Parameters:
         frequency_range: [start, stop] frequency range in Hz
         power: Microwave power in dBm
-        sweep_rate: Sweep rate in Hz/s
+        step_freq: Frequency step size in Hz
+        waveform: Waveform type (0-4, 100)
         integration_time: Integration time per frequency point
         averages: Number of sweep averages
         
@@ -59,13 +70,16 @@ class ODMRSweepContinuousExperiment(Experiment):
         ]),
         Parameter('microwave', [
             Parameter('power', -10.0, float, 'Microwave power in dBm', units='dBm'),
-            Parameter('step_freq', 1e6, float, 'Frequency step size in Hz', units='Hz')
+            Parameter('step_freq', 1e6, float, 'Frequency step size in Hz', units='Hz'),
+            Parameter('waveform', 0, [0, 1, 2, 3, 4, 100], 'Waveform type: 0=Triangle, 1=Ramp, 2=Sine, 3=Square, 4=Noise, 100=Custom'),
+            Parameter('square_setpoint', 0.0, float, 'Square wave setpoint in V (for waveform=3)', units='V'),
+            Parameter('noise_seed', 12345, int, 'Random seed for noise waveform (for waveform=4)')
         ]),
         Parameter('acquisition', [
             Parameter('integration_time', 0.001, float, 'Integration time per point in seconds', units='s'),
             Parameter('averages', 10, int, 'Number of sweep averages'),
             Parameter('settle_time', 0.01, float, 'Settle time between sweeps', units='s'),
-            Parameter('bidirectional', True, bool, 'Enable bidirectional sweeps (doubles acquisition efficiency)')
+            Parameter('bidirectional', True, bool, 'Enable bidirectional sweeps (only for Triangle waveform)')
         ]),
         Parameter('laser', [
             Parameter('power', 1.0, float, 'Laser power in mW', units='mW'),
@@ -95,7 +109,7 @@ class ODMRSweepContinuousExperiment(Experiment):
     def __init__(self, devices, experiments=None, name=None, settings=None, 
                  log_function=None, data_path=None):
         """
-        Initialize ODMR Phase Continuous Sweep Experiment.
+        Initialize ODMR Multi-Waveform Phase Continuous Sweep Experiment.
         
         Args:
             devices: Dictionary of available devices
@@ -148,7 +162,7 @@ class ODMRSweepContinuousExperiment(Experiment):
         # Initialize data arrays
         self._initialize_data_arrays()
         
-        self.log("ODMR Phase Continuous Sweep Experiment setup complete")
+        self.log("ODMR Multi-Waveform Phase Continuous Sweep Experiment setup complete")
     
     def _setup_microwave_sweep(self):
         """Setup the SG384 for external DAC-controlled frequency sweep."""
@@ -187,14 +201,12 @@ class ODMRSweepContinuousExperiment(Experiment):
             modtype = self.microwave.read_probes("modulation_type")
             if modtype == "Freq sweep":
                 print(f"SG384 setup for phase continuous sweep")
-                self.log(
-                    f"SG384 setup for phase continuous sweep")
+                self.log(f"SG384 setup for phase continuous sweep")
             else:
                 raise IOError(f"Unknown or Incorrect modulation type: {modtype}")
             if modfunc == "External":
                 print(f"SG384 setup for external DAC control:{center_freq/1e9:.3f} GHz ± {deviation/1e6:.1f} MHz")
-                self.log(
-                    f"Microwave setup for external DAC control: {center_freq / 1e9:.3f} GHz ± {deviation / 1e6:.1f} MHz")
+                self.log(f"Microwave setup for external DAC control: {center_freq / 1e9:.3f} GHz ± {deviation / 1e6:.1f} MHz")
                 self.log(f"✅ SG384 internal sweep DISABLED - ADwin DAC will control frequency via FM input")
             else:
                 raise IOError(f"Unknown or Incorrect modulation function : {modfunc}")
@@ -205,12 +217,9 @@ class ODMRSweepContinuousExperiment(Experiment):
         self.microwave.enable_modulation()
         # Enable output
         self.microwave.enable_output()
-
-        
-
     
     def _setup_adwin_sweep(self):
-        """Setup Adwin parameters (but don't start process yet)."""
+        """Setup Adwin parameters for multi-waveform sweep."""
         if not self.adwin.is_connected:
             self.adwin.connect()
         
@@ -226,23 +235,26 @@ class ODMRSweepContinuousExperiment(Experiment):
         except Exception:
             pass
         
-        # Load the ADbasic script but don't start it yet
-        from src.core.adwin_helpers import get_adwin_binary_path
-        
         # Store parameters for later use
         # Convert directly from seconds to microseconds (no intermediate ms step)
         self.integration_time_us = int(self.settings['acquisition']['integration_time'] * 1e6)
         self.settle_time_us = int(self.settings['acquisition']['settle_time'] * 1e6)
         self.bidirectional = self.settings['acquisition'].get('bidirectional', True)
         
+        # Get waveform parameters
+        waveform_type = self.settings['microwave']['waveform']
+        square_setpoint = self.settings['microwave']['square_setpoint']
+        noise_seed = self.settings['microwave']['noise_seed']
+        
         # Debug: Print conversion details
         self.log(f"🔍 DEBUG - Parameter conversions:")
         self.log(f"   integration_time: {self.settings['acquisition']['integration_time']} s → {self.integration_time_us} µs")
         self.log(f"   settle_time: {self.settings['acquisition']['settle_time']} s → {self.settle_time_us} µs")
         self.log(f"   num_steps: {self.num_steps}")
+        self.log(f"   waveform_type: {waveform_type}")
         self.log(f"   bidirectional: {self.bidirectional}")
         
-        # Set parameters BEFORE loading/starting process (like debug script)
+        # Set parameters BEFORE loading/starting process
         self.log("⚙️  Setting ADwin parameters...")
         try:
             # Par_1: Number of steps in sweep
@@ -272,6 +284,10 @@ class ODMRSweepContinuousExperiment(Experiment):
             self.log(f"🔍 Setting Par_6 (DIR_SENSE) = {dir_sense} (DIR High=up)")
             self.adwin.set_int_var(6, dir_sense)
             
+            # Par_7: Waveform type (0-4, 100)
+            self.log(f"🔍 Setting Par_7 (WAVEFORM) = {waveform_type}")
+            self.adwin.set_int_var(7, waveform_type)
+            
             # Par_8: Processdelay_us (0 = auto-calculate, >0 = manual override)
             processdelay_us = 0  # Auto-calculate like debug script
             self.log(f"🔍 Setting Par_8 (PROCESSDELAY_US) = {processdelay_us} (auto-calculate)")
@@ -281,6 +297,14 @@ class ODMRSweepContinuousExperiment(Experiment):
             overhead_factor_scaled = 12  # 1.2x overhead factor like debug script
             self.log(f"🔍 Setting Par_9 (OVERHEAD_FACTOR) = {overhead_factor_scaled} (1.2× scaled by 10)")
             self.adwin.set_int_var(9, overhead_factor_scaled)
+            
+            # Par_10: START (will be set to 1 when ready to run)
+            self.log(f"🔍 Setting Par_10 (START) = 0 (idle)")
+            self.adwin.set_int_var(10, 0)
+            
+            # Par_11: RNG seed for noise waveform
+            self.log(f"🔍 Setting Par_11 (RNG_SEED) = {noise_seed}")
+            self.adwin.set_int_var(11, noise_seed)
             
             # FPar_1: VMIN (voltage range minimum)
             vmin = -1.0  # -1.0V like debug script
@@ -292,22 +316,23 @@ class ODMRSweepContinuousExperiment(Experiment):
             self.log(f"🔍 Setting FPar_2 (VMAX) = {vmax} V")
             self.adwin.set_float_var(2, vmax)
             
+            # FPar_5: Square setpoint (for waveform=3)
+            self.log(f"🔍 Setting FPar_5 (SQUARE_SETPOINT) = {square_setpoint} V")
+            self.adwin.set_float_var(5, square_setpoint)
+            
+            # For custom waveform (waveform=100), populate Data_3
+            if waveform_type == 100:
+                self._setup_custom_waveform()
+            
             self.log("✅ All parameters set successfully!")
-            self.log(f"   Par_1 (N_STEPS): {self.num_steps}")
-            self.log(f"   Par_2 (SETTLE_US): {self.settle_time_us} µs")
-            self.log(f"   Par_3 (DWELL_US): {self.integration_time_us} µs")
-            self.log(f"   Par_4 (EDGE_MODE): {edge_mode} (rising)")
-            self.log(f"   Par_5 (DAC_CH): {dac_channel}")
-            self.log(f"   Par_6 (DIR_SENSE): {dir_sense} (DIR High=up)")
-            self.log(f"   Par_8 (PROCESSDELAY_US): {processdelay_us} µs (auto)")
-            self.log(f"   Par_9 (OVERHEAD_FACTOR): {overhead_factor_scaled} (1.2×)")
             
         except Exception as e:
             self.log(f"❌ Error setting ADwin parameters: {e}")
             raise RuntimeError(f"Failed to set ADwin parameters: {e}")
         
-        # Load ODMR Sweep Counter script (use debug version for now)
-        sweep_binary_path = get_adwin_binary_path('ODMR_Sweep_Counter_Debug.TB1')
+        # Load ODMR Sweep Counter Multi script
+        from src.core.adwin_helpers import get_adwin_binary_path
+        sweep_binary_path = get_adwin_binary_path('ODMR_Sweep_Counter_Multi.TB1')
         self.log(f"📁 Loading TB1: {sweep_binary_path}")
         self.adwin.update({
             'process_1': {
@@ -334,14 +359,49 @@ class ODMRSweepContinuousExperiment(Experiment):
             self.log(f"❌ Wrong signature! Expected 7777, got {signature}")
             raise RuntimeError("Wrong ADwin script loaded")
         
+        # Check waveform type used
+        waveform_used = self.adwin.get_int_var(81)
+        n_points = self.adwin.get_int_var(82)
+        
         self.log(f"✅ ADwin process started correctly (signature: {signature})")
+        self.log(f"✅ Waveform type: {waveform_used}, n_points: {n_points}")
         
         self.log(f"Adwin sweep setup: {self.num_steps} steps, {self.settings['acquisition']['integration_time']*1e3:.1f} ms per step")
-        if self.bidirectional:
+        if self.bidirectional and waveform_type == 0:
             self.log(f"✅ Bidirectional sweeps enabled - will collect data during both forward and reverse sweeps")
             self.log(f"   This doubles acquisition efficiency compared to unidirectional sweeps")
         else:
             self.log(f"ℹ️  Unidirectional sweeps enabled - will collect data during forward sweep only")
+    
+    def _setup_custom_waveform(self):
+        """Setup custom waveform table for waveform=100."""
+        self.log("📊 Setting up custom waveform table...")
+        
+        # Create a custom waveform (example: sawtooth with sine variation)
+        n_steps = self.num_steps
+        custom_volts = []
+        
+        for i in range(min(n_steps, 1000)):  # Safety limit
+            # Create sawtooth with sine variation
+            t = i / (n_steps - 1)  # 0 to 1
+            val = -1.0 + 2.0 * t  # Sawtooth from -1 to +1
+            val += 0.1 * np.sin(4 * np.pi * t)  # Add sine variation
+            val = np.clip(val, -1.0, 1.0)  # Clamp to ±1V
+            custom_volts.append(val)
+        
+        # Convert to DAC digits
+        custom_digits = []
+        for v in custom_volts:
+            digit = int((v + 10.0) * 65535.0 / 20.0)
+            custom_digits.append(digit)
+        
+        # Pad to 1000 elements
+        while len(custom_digits) < 1000:
+            custom_digits.append(custom_digits[-1] if custom_digits else 0)
+        
+        # Set Data_3 array
+        self.adwin.set_data_long(3, custom_digits)
+        self.log(f"✅ Custom waveform table set with {len(custom_volts)} points")
     
     def _setup_nanodrive(self):
         """Setup MCL nanodrive if available."""
@@ -375,44 +435,34 @@ class ODMRSweepContinuousExperiment(Experiment):
         step_freq = self.settings['microwave']['step_freq']
         integration_time = self.settings['acquisition']['integration_time']
         settle_time = self.settings['acquisition']['settle_time']
+        waveform_type = self.settings['microwave']['waveform']
         
         # Calculate number of steps based on frequency range and step size
         self.num_steps = int(abs(stop_freq - start_freq) / step_freq)
         
+        # Calculate n_points based on waveform type
+        if waveform_type == 0:  # Triangle (bidirectional)
+            self.n_points = 2 * self.num_steps - 2
+        else:  # All other waveforms (unidirectional)
+            self.n_points = self.num_steps
+        
         # Calculate sweep time based on integration time and settle time per step
         time_per_step = integration_time + settle_time
-        self.sweep_time = self.num_steps * time_per_step
-        
-        # For SG384 continuous sweep, we need to match the sweep rate to our desired timing
-        # The SG384 sweep rate should be calculated to match our integration requirements
-        # We want the SG384 to complete one full cycle in our calculated sweep_time
-        self.sweep_rate = 1.0 / self.sweep_time  # Hz - frequency of the waveform
-        
-        # Ensure we don't exceed SG384 maximum of 120 Hz
-        max_sg384_rate = 120.0  # Hz
-        if self.sweep_rate > max_sg384_rate:
-            self.log(f"⚠️  Calculated sweep rate {self.sweep_rate:.2f} Hz exceeds SG384 maximum {max_sg384_rate} Hz")
-            self.log(f"   Using SG384 maximum rate: {max_sg384_rate} Hz")
-            self.sweep_rate = max_sg384_rate
-            # Recalculate sweep time based on SG384 rate limit
-            self.sweep_time = 1.0 / self.sweep_rate
-            self.log(f"   New sweep time: {self.sweep_time:.3f} s")
-        
-        # Triangle waveform - smooth retrace, no delay needed
-        self.ramp_delay = 0.0
-            self.log(f"✅ Using TRIANGLE waveform - smooth retrace, no delay needed")
+        self.sweep_time = self.n_points * time_per_step
         
         # Generate frequency array for data collection
-        # For bidirectional sweeps, we get (num_steps-1) points each direction
-        actual_steps = self.num_steps - 1
-        self.frequencies = np.linspace(start_freq, stop_freq, actual_steps)
+        self.frequencies = np.linspace(start_freq, stop_freq, self.n_points)
         
         # Log calculation results
+        waveform_names = {0: "Triangle", 1: "Ramp", 2: "Sine", 3: "Square", 4: "Noise", 100: "Custom"}
+        waveform_name = waveform_names.get(waveform_type, "Unknown")
+        
         self.log(f"Step frequency: {step_freq/1e6:.2f} MHz")
         self.log(f"Number of steps: {self.num_steps}")
+        self.log(f"Number of points: {self.n_points}")
+        self.log(f"Waveform type: {waveform_type} ({waveform_name})")
         self.log(f"Time per step: {time_per_step*1e3:.1f} ms")
-        self.log(f"SG384 sweep rate: {self.sweep_rate:.2f} Hz (triangle waveform frequency)")
-        self.log(f"Sweep cycle time: {self.sweep_time:.3f} s")
+        self.log(f"Sweep time: {self.sweep_time:.3f} s")
         self.log(f"Frequency range: {start_freq/1e9:.3f} - {stop_freq/1e9:.3f} GHz")
         self.log(f"Frequency deviation: {abs(stop_freq - start_freq)/1e6:.1f} MHz")
     
@@ -420,12 +470,20 @@ class ODMRSweepContinuousExperiment(Experiment):
         """Initialize data storage arrays."""
         averages = self.settings['acquisition']['averages']
         
-        # Main data arrays - bidirectional sweeps return (num_steps-1) points each direction
-        actual_steps = self.num_steps - 1  # 299 for bidirectional sweeps
-        self.counts_forward = np.zeros(actual_steps)
-        self.counts_reverse = np.zeros(actual_steps)
-        self.counts_averaged = np.zeros(actual_steps)
-        self.voltages = np.zeros(actual_steps)
+        # Main data arrays - size depends on waveform type
+        self.counts_forward = np.zeros(self.n_points)
+        self.counts_reverse = np.zeros(self.n_points)
+        self.counts_averaged = np.zeros(self.n_points)
+        self.voltages = np.zeros(self.n_points)
+        
+        # For bidirectional waveforms, we'll split the data
+        if self.settings['microwave']['waveform'] == 0 and self.bidirectional:
+            # Triangle waveform with bidirectional - split into forward/reverse
+            half = self.n_points // 2
+            self.counts_forward = np.zeros(half)
+            self.counts_reverse = np.zeros(half)
+            self.counts_averaged = np.zeros(half)
+            self.voltages = np.zeros(half)
         
         # Analysis arrays
         self.fit_parameters = None
@@ -444,12 +502,12 @@ class ODMRSweepContinuousExperiment(Experiment):
             self.microwave.disable_modulation()
             self.microwave.disable_output()
         
-        self.log("ODMR Phase Continuous Sweep Experiment cleanup complete")
+        self.log("ODMR Multi-Waveform Phase Continuous Sweep Experiment cleanup complete")
     
     def _function(self):
         """Main experiment function."""
         try:
-            self.log("Starting ODMR Phase Continuous Sweep Experiment")
+            self.log("Starting ODMR Multi-Waveform Phase Continuous Sweep Experiment")
             
             # Setup experiment and devices first
             self.setup()
@@ -466,28 +524,23 @@ class ODMRSweepContinuousExperiment(Experiment):
             # Store results
             self._store_results_in_data()
             
-            self.log("ODMR Phase Continuous Sweep Experiment completed successfully")
+            self.log("ODMR Multi-Waveform Phase Continuous Sweep Experiment completed successfully")
             
         except Exception as e:
-            self.log(f"Error in ODMR sweep experiment: {e}")
+            self.log(f"Error in ODMR multi-waveform sweep experiment: {e}")
             raise
     
     def _run_sweep_averages(self):
         """Run multiple sweep averages."""
         averages = self.settings['acquisition']['averages']
         settle_time = self.settings['acquisition']['settle_time']
+        waveform_type = self.settings['microwave']['waveform']
         
         self.log(f"Starting sweep averages: {averages} sweeps")
         
-        # Preallocate arrays for bidirectional sweep data
-        n_steps = self.num_steps         # 300
-        half = n_steps - 1               # 299 (each direction)
-        
-        # Preallocate once (before the averages loop)
-        all_forward = np.empty((averages, half), dtype=np.int32)
-        all_reverse = np.empty((averages, half), dtype=np.int32)
-        all_v_fwd = np.empty((averages, half), dtype=np.float32)
-        all_v_rev = np.empty((averages, half), dtype=np.float32)
+        # Preallocate arrays for data
+        all_counts = np.empty((averages, self.n_points), dtype=np.int32)
+        all_volts = np.empty((averages, self.n_points), dtype=np.float32)
         
         for avg in range(averages):
             self.log(f"Running sweep {avg + 1}/{averages}")
@@ -495,50 +548,41 @@ class ODMRSweepContinuousExperiment(Experiment):
             # Run single sweep - get raw data
             counts, volts = self._run_single_sweep()
             
-            # Split into equal halves (299 + 299 = 598)
-            n_points = len(counts)
-            assert n_points == 2 * n_steps - 2, f"Expected {2 * n_steps - 2} points, got {n_points}"
-            
-            forward = counts[:half]
-            reverse = counts[half:]
-            v_fwd = volts[:half]
-            v_rev = volts[half:]
-            
             # Store data
-            all_forward[avg, :] = forward
-            all_reverse[avg, :] = reverse
-            all_v_fwd[avg, :] = v_fwd
-            all_v_rev[avg, :] = v_rev
+            all_counts[avg, :] = counts
+            all_volts[avg, :] = volts
             
             # Settle time between sweeps
             if avg < averages - 1:
                 time.sleep(settle_time)
         
         # Average the data
-        self.counts_forward = np.mean(all_forward, axis=0)
-        self.counts_reverse = np.mean(all_reverse, axis=0)
-        self.counts_averaged = (self.counts_forward + self.counts_reverse) / 2
-        self.voltages = np.mean(all_v_fwd, axis=0)  # Use forward voltage for main voltage array
+        self.counts_averaged = np.mean(all_counts, axis=0)
+        self.voltages = np.mean(all_volts, axis=0)
+        
+        # For bidirectional Triangle waveform, split into forward/reverse
+        if waveform_type == 0 and self.bidirectional and self.n_points > 1:
+            half = self.n_points // 2
+            self.counts_forward = self.counts_averaged[:half]
+            self.counts_reverse = self.counts_averaged[half:]
+            self.counts_averaged = (self.counts_forward + self.counts_reverse) / 2
+        else:
+            # For unidirectional waveforms, forward and reverse are the same
+            self.counts_forward = self.counts_averaged.copy()
+            self.counts_reverse = self.counts_averaged.copy()
         
         self.log("Sweep averages completed")
     
     def _run_single_sweep(self):
-        """Run a single frequency sweep (following debug script pattern exactly).
-        
-        Returns:
-            tuple: (counts, volts) - Raw arrays with 2*num_steps-2 points total
-        """
-        # Define actual_steps for error returns
-        actual_steps = self.num_steps - 1
-        
+        """Run a single frequency sweep."""
         # Process should already be running from _setup_adwin_sweep
         self.log("✅ Using already-running ADwin process")
         
-        # Arm the sweep (like debug script)
+        # Arm the sweep
         self.log("🚀 Arming sweep...")
         self.adwin.set_int_var(10, 1)  # Par_10 = START
         
-        # Wait for heartbeat to start advancing (like debug script)
+        # Wait for heartbeat to start advancing
         self.log("⏳ Waiting for ADwin heartbeat to start...")
         initial_hb = self.adwin.get_int_var(25)
         start_time = time.time()
@@ -555,24 +599,23 @@ class ODMRSweepContinuousExperiment(Experiment):
                 time.sleep(0.01)
         else:
             self.log("❌ ADwin heartbeat not advancing after 1s - process not running!")
-            return np.zeros(2 * actual_steps), np.zeros(2 * actual_steps)
+            return np.zeros(self.n_points), np.zeros(self.n_points)
         
-        # Clear any stale ready flags first (like debug script)
+        # Clear any stale ready flags first
         self.log("🧹 Clearing any stale ready flags...")
         try:
             self.adwin.set_int_var(20, 0)  # Clear Par_20 (ready flag)
         except Exception as e:
             self.log(f"Warning: Could not clear ready flag: {e}")
         
-        # Wait for sweep to complete (like debug script)
-        expected_points = max(2, 2 * self.num_steps - 2)  # Bidirectional sweep
+        # Wait for sweep to complete
         integration_time = self.settings['acquisition']['integration_time']  # Already in seconds
         settle_time = self.settings['acquisition']['settle_time']  # Already in seconds
         per_point_s = settle_time + integration_time  # Both already in seconds
-        timeout = max(5.0, expected_points * per_point_s * 10)  # Very generous margin
+        timeout = max(5.0, self.n_points * per_point_s * 10)  # Very generous margin
         
         self.log(f"⏳ Waiting for Par_20 == 1 (sweep ready)…")
-        self.log(f"   Expected {expected_points} points, timeout: {timeout:.1f}s")
+        self.log(f"   Expected {self.n_points} points, timeout: {timeout:.1f}s")
         
         t0 = time.time()
         last_hb = self.adwin.get_int_var(25)
@@ -599,14 +642,14 @@ class ODMRSweepContinuousExperiment(Experiment):
                 time.sleep(0.05)  # Continue polling despite error
 
             if elapsed > timeout:
-                self.log(f"❌ Timeout after {elapsed:.1f}s (expected ~{expected_points * per_point_s:.1f}s)")
-                return np.zeros(2 * actual_steps), np.zeros(2 * actual_steps)
+                self.log(f"❌ Timeout after {elapsed:.1f}s (expected ~{self.n_points * per_point_s:.1f}s)")
+                return np.zeros(self.n_points), np.zeros(self.n_points)
         
-        # Read arrays (like debug script)
+        # Read arrays
         n_points = self.adwin.get_int_var(21)
         if n_points <= 0:
             self.log("❌ n_points <= 0 — nothing to read.")
-            return np.zeros(2 * actual_steps), np.zeros(2 * actual_steps)
+            return np.zeros(self.n_points), np.zeros(self.n_points)
         
         self.log(f"📊 Sweep reports n_points = {n_points}")
         
@@ -629,15 +672,15 @@ class ODMRSweepContinuousExperiment(Experiment):
             
         except Exception as e:
             self.log(f"❌ Error reading arrays: {e}")
-            return np.zeros(2 * actual_steps), np.zeros(2 * actual_steps)
+            return np.zeros(self.n_points), np.zeros(self.n_points)
         
         # Sanity check: ensure n_points matches expected value
-        if n_points != expected_points:
+        if n_points != self.n_points:
             self.log(f"❌ CRITICAL: n_points mismatch!")
-            self.log(f"   Expected: {expected_points} points (2*{self.num_steps}-2)")
+            self.log(f"   Expected: {self.n_points} points")
             self.log(f"   Received: {n_points} points")
             self.log(f"   This indicates ADwin sweep did not complete properly")
-            return np.zeros(2 * actual_steps), np.zeros(2 * actual_steps)
+            return np.zeros(self.n_points), np.zeros(self.n_points)
         
         # Convert to numpy arrays
         counts = np.array(counts)
@@ -668,56 +711,6 @@ class ODMRSweepContinuousExperiment(Experiment):
             self._fit_resonances()
         
         self.log("Data analysis completed")
-    
-    def _monitor_sweep_progress(self, total_wait_time: float):
-        """Monitor ADwin state during sweep execution."""
-        start_time = time.time()
-        last_heartbeat = None
-        last_state = None
-        check_interval = 0.5  # Check every 500ms
-        
-        self.log("🔍 Monitoring ADwin sweep progress...")
-        
-        while time.time() - start_time < total_wait_time:
-            try:
-                # Check heartbeat
-                current_heartbeat = self.adwin.get_int_var(25)
-                if last_heartbeat is not None and current_heartbeat == last_heartbeat:
-                    self.log(f"⚠️  Warning: ADwin heartbeat not advancing ({current_heartbeat})")
-                last_heartbeat = current_heartbeat
-                
-                # Check state
-                current_state = self.adwin.get_int_var(26)
-                if last_state is not None and current_state != last_state:
-                    state_names = {
-                        255: "IDLE", 10: "PREP", 20: "PREPARE", 30: "ISSUE_STEP",
-                        31: "SETTLE", 32: "OPEN_WINDOW", 33: "DWELL", 34: "CLOSE_WINDOW",
-                        35: "NEXT_STEP", 70: "READY"
-                    }
-                    state_name = state_names.get(current_state, f"UNKNOWN({current_state})")
-                    self.log(f"   State: {current_state} ({state_name})")
-                last_state = current_state
-                
-                # Check if ready (sweep complete)
-                ready_flag = self.adwin.get_int_var(20)
-                if ready_flag == 1:
-                    elapsed = time.time() - start_time
-                    self.log(f"✅ Sweep completed early at {elapsed:.2f}s (expected {total_wait_time:.2f}s)")
-                    break
-                    
-            except Exception as e:
-                self.log(f"⚠️  Error monitoring ADwin: {e}")
-            
-            time.sleep(check_interval)
-        
-        # Final status check
-        try:
-            final_heartbeat = self.adwin.get_int_var(25)
-            final_state = self.adwin.get_int_var(26)
-            final_ready = self.adwin.get_int_var(20)
-            self.log(f"🔍 Final status: heartbeat={final_heartbeat}, state={final_state}, ready={final_ready}")
-        except Exception as e:
-            self.log(f"⚠️  Could not get final ADwin status: {e}")
     
     def _smooth_data(self, data: np.ndarray) -> np.ndarray:
         """Apply Savitzky-Golay smoothing to the data."""
@@ -810,6 +803,7 @@ class ODMRSweepContinuousExperiment(Experiment):
         self.data['voltages'] = self.voltages
         self.data['sweep_time'] = self.sweep_time
         self.data['num_steps'] = self.num_steps
+        self.data['n_points'] = self.n_points
         self.data['fit_parameters'] = self.fit_parameters
         self.data['resonance_frequencies'] = self.resonance_frequencies
         self.data['settings'] = self.settings
@@ -827,15 +821,20 @@ class ODMRSweepContinuousExperiment(Experiment):
         if self.frequencies is not None and self.counts_averaged is not None:
             ax = axes_list[0]
             
-            # Plot forward and reverse sweeps
-            ax.plot(self.frequencies / 1e9, self.counts_forward, 'b-', linewidth=1, 
-                   label='Forward Sweep', alpha=0.7)
-            ax.plot(self.frequencies / 1e9, self.counts_reverse, 'g-', linewidth=1, 
-                   label='Reverse Sweep', alpha=0.7)
+            waveform_type = self.settings['microwave']['waveform']
+            waveform_names = {0: "Triangle", 1: "Ramp", 2: "Sine", 3: "Square", 4: "Noise", 100: "Custom"}
+            waveform_name = waveform_names.get(waveform_type, "Unknown")
+            
+            # Plot forward and reverse sweeps (if different)
+            if not np.array_equal(self.counts_forward, self.counts_reverse):
+                ax.plot(self.frequencies / 1e9, self.counts_forward, 'b-', linewidth=1, 
+                       label='Forward Sweep', alpha=0.7)
+                ax.plot(self.frequencies / 1e9, self.counts_reverse, 'g-', linewidth=1, 
+                       label='Reverse Sweep', alpha=0.7)
             
             # Plot averaged data
             ax.plot(self.frequencies / 1e9, self.counts_averaged, 'r-', linewidth=2, 
-                   label='Averaged Spectrum')
+                   label=f'{waveform_name} Spectrum')
             
             # Plot resonance frequencies if available
             if self.resonance_frequencies:
@@ -845,7 +844,7 @@ class ODMRSweepContinuousExperiment(Experiment):
             
             ax.set_xlabel('Frequency (GHz)')
             ax.set_ylabel('Photon Counts')
-            ax.set_title('ODMR Phase Continuous Sweep Spectrum')
+            ax.set_title(f'ODMR Multi-Waveform Spectrum ({waveform_name})')
             ax.legend()
             ax.grid(True)
     
@@ -859,15 +858,20 @@ class ODMRSweepContinuousExperiment(Experiment):
     
     def get_experiment_info(self) -> Dict[str, Any]:
         """Get information about the experiment."""
+        waveform_type = self.settings['microwave']['waveform']
+        waveform_names = {0: "Triangle", 1: "Ramp", 2: "Sine", 3: "Square", 4: "Noise", 100: "Custom"}
+        waveform_name = waveform_names.get(waveform_type, "Unknown")
+        
         return {
-            'name': 'ODMR Phase Continuous Sweep Experiment',
-            'description': 'ODMR with phase continuous frequency sweep using SG384 and synchronized Adwin counting',
+            'name': 'ODMR Multi-Waveform Phase Continuous Sweep Experiment',
+            'description': f'ODMR with {waveform_name} waveform using SG384 and synchronized Adwin counting',
             'devices': list(self._DEVICES.keys()),
             'frequency_range': f"{self.settings['frequency_range']['start']/1e9:.3f} - {self.settings['frequency_range']['stop']/1e9:.3f} GHz",
             'step_frequency': f"{self.settings['microwave']['step_freq']/1e6:.2f} MHz",
-            'calculated_sweep_rate': f"{self.sweep_rate/1e6:.2f} MHz/s",
+            'waveform': f"{waveform_type} ({waveform_name})",
             'sweep_time': f"{self.sweep_time:.3f} s",
             'num_steps': self.num_steps,
+            'n_points': self.n_points,
             'averages': self.settings['acquisition']['averages'],
             'integration_time': f"{self.settings['acquisition']['integration_time']*1e3:.1f} ms"
-        } 
+        }
