@@ -400,7 +400,7 @@ class ODMRSweepContinuousExperiment(Experiment):
         
         # Triangle waveform - smooth retrace, no delay needed
         self.ramp_delay = 0.0
-            self.log(f"✅ Using TRIANGLE waveform - smooth retrace, no delay needed")
+        self.log(f"✅ Using TRIANGLE waveform - smooth retrace, no delay needed")
         
         # Generate frequency array for data collection
         # For bidirectional sweeps, we get (num_steps-1) points each direction
