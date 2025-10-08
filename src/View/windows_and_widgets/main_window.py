@@ -1403,10 +1403,21 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             # Optional: Only react when the value actually changed
             new_text = changed_item.text(1)
             current_value = str(getattr(changed_item, "value", ""))
-            gui_logger.debug(f"Value change check - new_text: '{new_text}', current_value: '{current_value}'")
-            if current_value == new_text:
-                gui_logger.debug(f"Value unchanged for {changed_item.name}, skipping update")
-                return
+            
+            # Normalize both values to float for comparison to handle scientific notation
+            try:
+                new_value_float = float(new_text)
+                current_value_float = float(current_value)
+                gui_logger.debug(f"Value change check - new_text: '{new_text}' ({new_value_float}), current_value: '{current_value}' ({current_value_float})")
+                if abs(new_value_float - current_value_float) < 1e-10:  # Use small epsilon for float comparison
+                    gui_logger.debug(f"Value unchanged for {changed_item.name}, skipping update")
+                    return
+            except (ValueError, TypeError):
+                # If conversion fails, fall back to string comparison
+                gui_logger.debug(f"Value change check - new_text: '{new_text}', current_value: '{current_value}'")
+                if current_value == new_text:
+                    gui_logger.debug(f"Value unchanged for {changed_item.name}, skipping update")
+                    return
 
             gui_logger.debug(f"update_parameters called for tree: {type(treeWidget)}, item: {changed_item.name}, column: {changed_col}")
 
