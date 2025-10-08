@@ -1400,9 +1400,17 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 gui_logger.debug(f"update_parameters called for column {changed_col}, only column 1 triggers updates")
                 return
 
+            # Check if this item is already being processed for clamping
+            if getattr(changed_item, '_clamped_feedback', False):
+                gui_logger.debug(f"Skipping update for {changed_item.name} - already processing clamped value")
+                return
+
             # Parse the new value and validate against device ranges FIRST
             new_text = changed_item.text(1)
-            current_value = getattr(changed_item, "value", "")
+            # Get the current value from EditRole for proper numeric comparison
+            current_value = changed_item.data(1, Qt.EditRole)
+            if current_value is None:
+                current_value = getattr(changed_item, "value", "")
             value_was_clamped = False  # Track if value was clamped during validation
             
             gui_logger.debug(f"Value change check - new_text: '{new_text}', current_value: '{current_value}' (type: {type(current_value)})")
@@ -1457,6 +1465,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                             gui_logger.info(f"Parameter {changed_item.name} was clamped from {new_value} to {clamped_value}")
                             new_value = clamped_value
                             value_was_clamped = True
+                            # Set the clamped feedback flag immediately to prevent recursive calls
+                            changed_item._clamped_feedback = True
                         else:
                             # No clamped value available, show error and don't proceed
                             error_msg = validation_result.get('message', 'Parameter validation failed')
@@ -1470,12 +1480,14 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                             gui_logger.info(f"Parameter {changed_item.name} was clamped from {new_value} to {clamped_value}")
                             new_value = clamped_value
                             value_was_clamped = True
+                            # Set the clamped feedback flag immediately to prevent recursive calls
+                            changed_item._clamped_feedback = True
             
             # NOW check if the parsed/validated value is actually different from current value
-            # Use proper comparison based on type
+            # Use proper numeric comparison to avoid spurious work
             if isinstance(current_value, (int, float)) and isinstance(new_value, (int, float)):
                 # For numeric values, compare the actual numbers
-                if abs(current_value - new_value) < 1e-10:
+                if current_value == new_value:
                     gui_logger.debug(f"Value unchanged for {changed_item.name} (numeric comparison), skipping update")
                     return
             elif current_value == new_value:
@@ -1491,29 +1503,25 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             # If value was clamped, update the GUI display and show visual feedback
             if value_was_clamped:
                 gui_logger.info(f"Updating GUI display for clamped value: {new_value}")
-                # Update the text display to show the clamped value
+                
+                # Optional: End editing before writing the clamp to prevent stale text
                 tw = changed_item.treeWidget()
+                index = tw.indexFromItem(changed_item, 1)
+                if tw.state() == tw.EditingState and index == tw.currentIndex():
+                    gui_logger.debug(f"Force-committing current editor for {changed_item.name}")
+                    tw.setCurrentIndex(index)
+                    tw.clearFocus()
                 
-                # Close any active editor first to ensure our text update takes effect
-                tw.closePersistentEditor(changed_item, 1)
+                # Update the model using EditRole to notify active editor
+                # Do NOT block signals here - let Qt notify the editor properly
+                changed_item.setData(1, Qt.EditRole, new_value)
+                changed_item.value = new_value
                 
-                blocker = QSignalBlocker(tw)
-                try:
-                    # Force update both the display text and the internal value
-                    changed_item.setText(1, str(new_value))
-                    changed_item.value = new_value
-                    
-                    # Force refresh the display by emitting data changed signal
-                    changed_item.emitDataChanged()
-                    
-                    # Set orange background to indicate clamping
+                # Set visual feedback (background color) - block signals only for decoration
+                with QSignalBlocker(tw):
                     changed_item.setBackground(1, QtGui.QBrush(QtGui.QColor(255, 240, 200)))  # Orange for warning
-                    # Mark this item as having clamped feedback to prevent override
-                    changed_item._clamped_feedback = True
-                    
-                    gui_logger.info(f"GUI display updated - text: '{changed_item.text(1)}', value: {changed_item.value}")
-                finally:
-                    del blocker
+                
+                gui_logger.info(f"GUI display updated - text: '{changed_item.text(1)}', value: {changed_item.value}")
                 
                 # Show notification about clamping
                 self._show_parameter_notification(f"Parameter {changed_item.name} was clamped to {new_value}")
