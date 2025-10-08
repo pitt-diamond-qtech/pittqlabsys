@@ -229,8 +229,9 @@ class AQuISSQTreeItem(QtWidgets.QTreeWidgetItem):
             self.emitDataChanged()
         
         # Emit our custom signal only when user finishes editing
-        if user_editing:
-            self.editingFinished.emit(self)
+        # Note: Currently not connected anywhere, so commented out to avoid errors
+        # if user_editing:
+        #     self.editingFinished.emit(None)
 
     def cast_type(self, var, cast_type=None):
         """

@@ -1403,6 +1403,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             # Parse the new value and validate against device ranges FIRST
             new_text = changed_item.text(1)
             current_value = getattr(changed_item, "value", "")
+            value_was_clamped = False  # Track if value was clamped during validation
             
             gui_logger.debug(f"Value change check - new_text: '{new_text}', current_value: '{current_value}' (type: {type(current_value)})")
             
@@ -1449,17 +1450,26 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                     gui_logger.debug(f"Pre-validation result: {validation_result}")
                     
                     if not validation_result.get('valid', True):
-                        # Parameter is invalid, show error and don't proceed
-                        error_msg = validation_result.get('message', 'Parameter validation failed')
-                        gui_logger.warning(f"Pre-validation failed: {changed_item.name} on {device.name} - {error_msg}")
-                        self._handle_parameter_error(changed_item, error_msg, device.name)
-                        return
-                    
-                    # If validation passed but value was clamped, use the clamped value
-                    if validation_result.get('clamped_value') is not None:
+                        # Check if there's a clamped value available
                         clamped_value = validation_result.get('clamped_value')
-                        gui_logger.info(f"Parameter {changed_item.name} was clamped from {new_value} to {clamped_value}")
-                        new_value = clamped_value
+                        if clamped_value is not None:
+                            # Use the clamped value and show warning
+                            gui_logger.info(f"Parameter {changed_item.name} was clamped from {new_value} to {clamped_value}")
+                            new_value = clamped_value
+                            value_was_clamped = True
+                        else:
+                            # No clamped value available, show error and don't proceed
+                            error_msg = validation_result.get('message', 'Parameter validation failed')
+                            gui_logger.warning(f"Pre-validation failed: {changed_item.name} on {device.name} - {error_msg}")
+                            self._handle_parameter_error(changed_item, error_msg, device.name)
+                            return
+                    else:
+                        # Validation passed, check if value was clamped anyway
+                        if validation_result.get('clamped_value') is not None:
+                            clamped_value = validation_result.get('clamped_value')
+                            gui_logger.info(f"Parameter {changed_item.name} was clamped from {new_value} to {clamped_value}")
+                            new_value = clamped_value
+                            value_was_clamped = True
             
             # NOW check if the parsed/validated value is actually different from current value
             # Use proper comparison based on type
@@ -1477,6 +1487,25 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             
             # Update the item's value with the parsed/validated value
             changed_item.value = new_value
+            
+            # If value was clamped, update the GUI display and show visual feedback
+            if value_was_clamped:
+                gui_logger.info(f"Updating GUI display for clamped value: {new_value}")
+                # Update the text display to show the clamped value
+                tw = changed_item.treeWidget()
+                blocker = QSignalBlocker(tw)
+                try:
+                    changed_item.setText(1, str(new_value))
+                    # Set orange background to indicate clamping
+                    changed_item.setBackground(1, QtGui.QBrush(QtGui.QColor(255, 240, 200)))  # Orange for warning
+                finally:
+                    del blocker
+                
+                # Show notification about clamping
+                self._show_parameter_notification(f"Parameter {changed_item.name} was clamped to {new_value}")
+                
+                # Auto-clear the visual feedback after 3 seconds
+                self._clear_visual_feedback_after_delay(changed_item, 3000)
 
             gui_logger.debug(f"update_parameters called for tree: {type(treeWidget)}, item: {changed_item.name}, column: {changed_col}")
 
