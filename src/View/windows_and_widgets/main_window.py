@@ -1493,15 +1493,25 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 gui_logger.info(f"Updating GUI display for clamped value: {new_value}")
                 # Update the text display to show the clamped value
                 tw = changed_item.treeWidget()
+                
+                # Close any active editor first to ensure our text update takes effect
+                tw.closePersistentEditor(changed_item, 1)
+                
                 blocker = QSignalBlocker(tw)
                 try:
                     # Force update both the display text and the internal value
                     changed_item.setText(1, str(new_value))
                     changed_item.value = new_value
+                    
+                    # Force refresh the display by emitting data changed signal
+                    changed_item.emitDataChanged()
+                    
                     # Set orange background to indicate clamping
                     changed_item.setBackground(1, QtGui.QBrush(QtGui.QColor(255, 240, 200)))  # Orange for warning
                     # Mark this item as having clamped feedback to prevent override
                     changed_item._clamped_feedback = True
+                    
+                    gui_logger.info(f"GUI display updated - text: '{changed_item.text(1)}', value: {changed_item.value}")
                 finally:
                     del blocker
                 
