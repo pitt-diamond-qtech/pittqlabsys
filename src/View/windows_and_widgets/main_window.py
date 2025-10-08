@@ -1402,9 +1402,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
             # Parse and validate the new value before proceeding
             new_text = changed_item.text(1)
-            current_value = str(getattr(changed_item, "value", ""))
+            current_value = getattr(changed_item, "value", "")
             
-            gui_logger.debug(f"Value change check - new_text: '{new_text}', current_value: '{current_value}'")
+            gui_logger.debug(f"Value change check - new_text: '{new_text}', current_value: '{current_value}' (type: {type(current_value)})")
             
             # Try to parse the new value to check if it's valid
             try:
@@ -1435,10 +1435,19 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                     except ValueError:
                         new_value = str(new_text)
                 
-                # Check if the parsed value is actually different from current
-                if str(new_value) == current_value:
-                    gui_logger.debug(f"Value unchanged for {changed_item.name}, skipping update")
+                # Check if the parsed value is actually different from current value
+                # Use proper comparison based on type
+                if isinstance(current_value, (int, float)) and isinstance(new_value, (int, float)):
+                    # For numeric values, compare the actual numbers
+                    if abs(current_value - new_value) < 1e-10:
+                        gui_logger.debug(f"Value unchanged for {changed_item.name} (numeric comparison), skipping update")
+                        return
+                elif current_value == new_value:
+                    # For non-numeric values, use direct comparison
+                    gui_logger.debug(f"Value unchanged for {changed_item.name} (direct comparison), skipping update")
                     return
+                    
+                gui_logger.info(f"Value changed for {changed_item.name}: {current_value} -> {new_value}")
                     
                 # Update the item's value with the parsed value
                 changed_item.value = new_value
