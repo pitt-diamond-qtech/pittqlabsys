@@ -553,21 +553,14 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
         return editor
 
     def setEditorData(self, editor, index):
-        # show the exact current value
-        value = index.data(QtCore.Qt.EditRole)
-        if value is None:
-            # Fallback to DisplayRole if EditRole is None
-            value = index.data(QtCore.Qt.DisplayRole)
-        if value is None:
-            # Final fallback - get the value from the tree item directly
-            tree_widget = editor.parent()
-            while tree_widget and not isinstance(tree_widget, QtWidgets.QAbstractItemView):
-                tree_widget = tree_widget.parent()
-            if isinstance(tree_widget, QtWidgets.QAbstractItemView):
-                item = tree_widget.itemFromIndex(index)
-                if item and hasattr(item, 'value'):
-                    value = item.value
-        editor.setText(str(value) if value is not None else "")
+        # Prefer EditRole (numeric), then DisplayRole, then empty
+        val = index.data(QtCore.Qt.EditRole)
+        if val is None or val == "":
+            val = index.data(QtCore.Qt.DisplayRole)
+        if val is None:
+            val = ""
+        editor.setText(str(val))
+        editor.selectAll()  # UX nicety: select existing text on focus
 
     def setModelData(self, editor, model, index):
         raw = editor.text().strip()
@@ -602,8 +595,8 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
             model.setData(index, num, QtCore.Qt.EditRole)
             return
 
-        # Try device validation first (for SG384, nanodrive, etc.)
-        clamped_value = num
+        # Try device validation and actual value checking
+        final_value = num
         if hasattr(tw_item, 'get_device'):
             device, path_to_device = tw_item.get_device()
             if device and hasattr(device, 'validate_parameter'):
@@ -614,24 +607,50 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
                         # Value was clamped - update editor to show clamped value
                         editor.setText(str(clamped_value))
                         editor.setStyleSheet("background-color: rgb(255, 240, 200);")  # Orange for clamped
+                        final_value = clamped_value
                     else:
                         # No clamped value available - show error
                         editor.setStyleSheet("background-color: rgb(255, 200, 200);")  # Red for error
                         return  # Don't update the model
                 else:
-                    # Validation passed - clear any styling
-                    editor.setStyleSheet("")
+                    # Validation passed - now check if device reports different actual value
+                    if hasattr(device, 'update_and_get'):
+                        try:
+                            # Update the device and get actual values
+                            param_name = path_to_device[-1] if path_to_device else tw_item.name
+                            actual_values = device.update_and_get({param_name: num})
+                            actual_value = actual_values.get(param_name, num)
+                            
+                            if actual_value != num:
+                                # Device reported different value - show light blue background
+                                editor.setText(str(actual_value))
+                                editor.setStyleSheet("background-color: rgb(200, 240, 255);")  # Light blue for "device reported different"
+                                final_value = actual_value
+                                gui_logger.info(f"Device {device.name} reported {param_name} = {actual_value} (requested {num})")
+                            else:
+                                # Device reported same value - clear styling
+                                editor.setStyleSheet("")
+                        except Exception as e:
+                            gui_logger.warning(f"Could not get actual value from device: {e}")
+                            # Fallback to just setting the requested value
+                            editor.setStyleSheet("")
+                    else:
+                        # No update_and_get method - clear styling
+                        editor.setStyleSheet("")
         else:
             # Fallback to attribute-based validation
             min_v = getattr(tw_item, "min_value", None)
             max_v = getattr(tw_item, "max_value", None)
             
-            if min_v is not None: clamped_value = max(clamped_value, float(min_v))
-            if max_v is not None: clamped_value = min(clamped_value, float(max_v))
+            if min_v is not None: final_value = max(final_value, float(min_v))
+            if max_v is not None: final_value = min(final_value, float(max_v))
 
         # write via EditRole so the model/view/editor stay consistent
-        model.setData(index, clamped_value, QtCore.Qt.EditRole)
+        model.setData(index, final_value, QtCore.Qt.EditRole)
+        
+        # Optional: keep a consistent display string
+        model.setData(index, "{:.3g}".format(final_value), QtCore.Qt.DisplayRole)
 
         # Update the item's internal value
         if hasattr(tw_item, 'value'):
-            tw_item.value = clamped_value
+            tw_item.value = final_value

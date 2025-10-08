@@ -1493,6 +1493,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
             # Parse the new value and validate against device ranges FIRST
             raw_text = item.text(1).strip()
+            
+            # If editor just opened and gave us an empty string, ignore this emission
+            if raw_text == "" and isinstance(item.data(1, Qt.EditRole), (int, float)):
+                gui_logger.debug(f"Ignoring empty string emission for {item.name} - editor just opened")
+                return
+            
             # Get the current value from EditRole for proper numeric comparison
             current_value = item.data(1, Qt.EditRole)
             if current_value is None:
