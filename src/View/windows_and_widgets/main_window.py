@@ -364,6 +364,13 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         gui_logger.debug("About to call setup_trees()")
         setup_trees()
         gui_logger.debug("setup_trees() completed, about to call connect_controls()")
+        
+        # Install NumberClampDelegate for column 1 (Value column) on both trees
+        from src.View.windows_and_widgets.widgets import NumberClampDelegate
+        self.tree_settings.setItemDelegateForColumn(1, NumberClampDelegate(self.tree_settings))
+        self.tree_experiments.setItemDelegateForColumn(1, NumberClampDelegate(self.tree_experiments))
+        gui_logger.debug("Installed NumberClampDelegate for column 1 on both trees")
+        
         connect_controls()
         gui_logger.debug("connect_controls() completed")
 
@@ -1427,56 +1434,34 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     def _write_clamped_value_to_cell(self, item, clamped_value):
         """
-        Bulletproof method to write clamped value to cell, handling active editor vs. model desync.
+        Simplified method to write clamped value to cell.
         
         Args:
             item: Tree item to update
             clamped_value: The clamped value to write
         """
+        gui_logger.info(f"Writing clamped value {clamped_value} to item {item.name}")
+        
+        # Block signals to prevent recursion
         view = item.treeWidget()
-        index = view.indexFromItem(item, 1)
-
-        # prevent re-entry while we fix UI/model
-        if getattr(self, "_updating_parameters", False):
-            return
-        self._updating_parameters = True
+        view.blockSignals(True)
         try:
-            # If the user is currently editing this cell, update that editor's text
-            if view.state() == QtWidgets.QAbstractItemView.EditingState and index == view.currentIndex():
-                editor = view.focusWidget()
-                gui_logger.debug(f"Found active editor: {type(editor)}")
-                # Many delegates use QLineEdit; if so, update it so the user *sees* the clamp
-                if isinstance(editor, QtWidgets.QLineEdit):
-                    editor.setText(str(clamped_value))
-                    gui_logger.debug(f"Updated QLineEdit editor with clamped value: {clamped_value}")
-                    
-                    # Try to force-commit the editor back to the model
-                    try:
-                        view.closeEditor(editor, QtWidgets.QAbstractItemDelegate.SubmitModelCache)
-                        gui_logger.debug("Successfully closed editor with SubmitModelCache")
-                    except AttributeError:
-                        # Fallback if closeEditor is not available
-                        gui_logger.debug("closeEditor not available, using fallback")
-                        view.viewport().setFocus(QtCore.Qt.OtherFocusReason)
-                else:
-                    # Fallback: end editing by moving focus off the editor to commit it
-                    view.viewport().setFocus(QtCore.Qt.OtherFocusReason)
-                    gui_logger.debug(f"Ended editing for non-QLineEdit editor: {type(editor)}")
-
-            # Now update the model value explicitly (EditRole) so the view is in sync
-            # (do NOT wrap this in QSignalBlocker; we want dataChanged to propagate)
-            view.model().setData(index, clamped_value, QtCore.Qt.EditRole)
-            gui_logger.debug(f"Updated model with clamped value: {clamped_value}")
-
-            # Update the item's internal value as well
+            # Update the item's internal value
             item.value = clamped_value
             
-            # Force immediate display update
+            # Update the display text directly
             item.setText(1, str(clamped_value))
-            gui_logger.debug(f"Force updated display text to: {str(clamped_value)}")
-
+            
+            # Force a complete refresh of the tree widget
+            view.repaint()
+            
+            gui_logger.info(f"Successfully updated item {item.name} to display {clamped_value}")
+            
         finally:
-            self._updating_parameters = False
+            view.blockSignals(False)
+            # Clear the clamped feedback flag so future updates can proceed
+            if hasattr(item, '_clamped_feedback'):
+                delattr(item, '_clamped_feedback')
 
     def update_parameters(self, treeWidget, changed_item=None, changed_col=None):
         """

@@ -522,3 +522,92 @@ class PyQtCoordinatesBar(QtWidgets.QWidget):
         Returns: QSize object that specifies the size of widget
         """
         return QtCore.QSize(10, 10)
+
+# Number clamping delegate for tree widgets
+import re
+
+_NUM_RE = re.compile(r'[+\-]?\d+(?:\.\d+)?(?:[eE][+\-]?\d+)?$')
+
+def _parse_number(txt: str):
+    t = txt.strip()
+    if _NUM_RE.match(t):
+        return float(t) if ('.' in t or 'e' in t.lower()) else int(t)
+    return None
+
+class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
+    """
+    Validates/clamps numeric edits for column 1 *inside* the editor->model commit.
+    Reads min/max metadata from the item (if present) via UserRole or attributes.
+    Expected per-item metadata (optional):
+       - item.min_value / item.max_value   (python attrs)
+       - or data(UserRole+1) / data(UserRole+2)
+       - or a dict in data(UserRole) with keys 'min','max'
+    If no bounds are found, passes through unchanged.
+    """
+    def createEditor(self, parent, option, index):
+        # Use a QLineEdit so you keep your current UX (free typing + sci notation)
+        editor = QtWidgets.QLineEdit(parent)
+        editor.setFrame(False)
+        # commit on Enter, and when focus leaves
+        editor.editingFinished.connect(lambda: self.commitData.emit(editor))
+        return editor
+
+    def setEditorData(self, editor, index):
+        # show the exact current display text
+        editor.setText(index.data(QtCore.Qt.DisplayRole))
+
+    def setModelData(self, editor, model, index):
+        raw = editor.text()
+        num = _parse_number(raw)
+        if num is None:
+            # non-numeric → write back raw text
+            model.setData(index, raw, QtCore.Qt.EditRole)
+            return
+
+        # Get the tree item
+        view = editor.parent()
+        while view and not isinstance(view, QtWidgets.QAbstractItemView):
+            view = view.parent()
+        if isinstance(view, QtWidgets.QAbstractItemView):
+            tw_item = view.itemFromIndex(index)
+        else:
+            tw_item = None
+
+        if tw_item is None:
+            # Fallback: just write the number
+            model.setData(index, num, QtCore.Qt.EditRole)
+            return
+
+        # Try device validation first (for SG384, nanodrive, etc.)
+        clamped_value = num
+        if hasattr(tw_item, 'get_device'):
+            device, path_to_device = tw_item.get_device()
+            if device and hasattr(device, 'validate_parameter'):
+                validation_result = device.validate_parameter(path_to_device, num)
+                if not validation_result.get('valid', True):
+                    clamped_value = validation_result.get('clamped_value', num)
+                    if clamped_value != num:
+                        # Value was clamped - update editor to show clamped value
+                        editor.setText(str(clamped_value))
+                        editor.setStyleSheet("background-color: rgb(255, 240, 200);")  # Orange for clamped
+                    else:
+                        # No clamped value available - show error
+                        editor.setStyleSheet("background-color: rgb(255, 200, 200);")  # Red for error
+                        return  # Don't update the model
+                else:
+                    # Validation passed - clear any styling
+                    editor.setStyleSheet("")
+        else:
+            # Fallback to attribute-based validation
+            min_v = getattr(tw_item, "min_value", None)
+            max_v = getattr(tw_item, "max_value", None)
+            
+            if min_v is not None: clamped_value = max(clamped_value, float(min_v))
+            if max_v is not None: clamped_value = min(clamped_value, float(max_v))
+
+        # write via EditRole so the model/view/editor stay consistent
+        model.setData(index, clamped_value, QtCore.Qt.EditRole)
+
+        # Update the item's internal value
+        if hasattr(tw_item, 'value'):
+            tw_item.value = clamped_value
