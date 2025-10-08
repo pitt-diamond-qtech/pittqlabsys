@@ -372,10 +372,12 @@ class SG384Generator(MicrowaveGeneratorBase):
         # Get parameter ranges to avoid duplication
         ranges = self.get_parameter_ranges(path)
         if not ranges:
+            logger.debug(f"SG384 validate_parameter: No ranges found for path {path}, validation passes")
             return {'valid': True, 'message': 'SG384 parameter validation passed'}
         
         # Get the parameter name from the path
         param_name = path[-1] if path else None
+        logger.debug(f"SG384 validate_parameter: Validating {param_name} = {value} against ranges: {ranges}")
         
         # Validate against the ranges
         if 'min' in ranges and 'max' in ranges:
@@ -435,6 +437,9 @@ class SG384Generator(MicrowaveGeneratorBase):
             dict: Parameter range information
         """
         param_name = path[-1] if path else None
+        
+        # Debug logging to see what path is being passed
+        logger.debug(f"SG384 get_parameter_ranges called with path: {path}, param_name: {param_name}")
         
         ranges = {
             'frequency': {
