@@ -1404,20 +1404,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             new_text = changed_item.text(1)
             current_value = str(getattr(changed_item, "value", ""))
             
-            # Normalize both values to float for comparison to handle scientific notation
-            try:
-                new_value_float = float(new_text)
-                current_value_float = float(current_value)
-                gui_logger.debug(f"Value change check - new_text: '{new_text}' ({new_value_float}), current_value: '{current_value}' ({current_value_float})")
-                if abs(new_value_float - current_value_float) < 1e-10:  # Use small epsilon for float comparison
-                    gui_logger.debug(f"Value unchanged for {changed_item.name}, skipping update")
-                    return
-            except (ValueError, TypeError):
-                # If conversion fails, fall back to string comparison
-                gui_logger.debug(f"Value change check - new_text: '{new_text}', current_value: '{current_value}'")
-                if current_value == new_text:
-                    gui_logger.debug(f"Value unchanged for {changed_item.name}, skipping update")
-                    return
+            # Only skip if the display text exactly matches the current value text
+            # This prevents skipping legitimate user input changes
+            gui_logger.debug(f"Value change check - new_text: '{new_text}', current_value: '{current_value}'")
+            if current_value == new_text:
+                gui_logger.debug(f"Value unchanged for {changed_item.name}, skipping update")
+                return
 
             gui_logger.debug(f"update_parameters called for tree: {type(treeWidget)}, item: {changed_item.name}, column: {changed_col}")
 
@@ -1550,16 +1542,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             device_name: Name of the device
         """
         # Determine what happened and provide appropriate feedback
-        # Use float comparison for numerical values to handle precision issues
-        try:
-            actual_float = float(actual_value)
-            requested_float = float(requested_value)
-            values_match = abs(actual_float - requested_float) < 1e-10
-        except (ValueError, TypeError):
-            # Fall back to direct comparison for non-numeric values
-            values_match = actual_value == requested_value
-        
-        if values_match:
+        if actual_value == requested_value:
             # Value was accepted as-is
             if actual_value != old_value:
                 msg = f"✅ Parameter {item.name} changed from {old_value} to {actual_value} on {device_name}"
