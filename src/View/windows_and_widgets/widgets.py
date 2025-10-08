@@ -569,13 +569,16 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
         """Set transient visual feedback for an index"""
         view = self.parent()  # the QTreeWidget
         if not isinstance(view, QtWidgets.QAbstractItemView):
+            gui_logger.warning(f"DELEGATE: _set_feedback - parent is not QAbstractItemView: {type(view)}")
             return
         key = self._key(index)
         if status is None:
             self._feedback.pop(key, None)
+            gui_logger.debug(f"DELEGATE: Cleared feedback for {key}")
         else:
             deadline = QtCore.QDateTime.currentMSecsSinceEpoch() + self._feedback_ms
             self._feedback[key] = (status, deadline)
+            gui_logger.debug(f"DELEGATE: Set feedback for {key}: {status}")
         view.viewport().update()  # repaint with new state
     
     def setFeedback(self, index, status):
@@ -876,14 +879,20 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
         key = self._key(index)
         if key in self._feedback:
             status, _ = self._feedback[key]
+            gui_logger.debug(f"DELEGATE: paint - found feedback for {key}: {status}")
+        else:
+            gui_logger.debug(f"DELEGATE: paint - no feedback found for {key}")
         
         # Choose colors (subtle)
         if status == "success":
             opt.backgroundBrush = QtGui.QBrush(QtGui.QColor(210, 255, 210))  # light green
+            gui_logger.debug(f"DELEGATE: paint - setting green background")
         elif status == "clamped":
             opt.backgroundBrush = QtGui.QBrush(QtGui.QColor(255, 245, 210))  # light amber/orange
+            gui_logger.debug(f"DELEGATE: paint - setting orange background")
         elif status == "error":
             opt.backgroundBrush = QtGui.QBrush(QtGui.QColor(255, 220, 220))  # light red
+            gui_logger.debug(f"DELEGATE: paint - setting red background")
         
         # Let base class do the rest
         super().paint(painter, opt, index)
