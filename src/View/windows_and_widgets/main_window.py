@@ -1373,6 +1373,48 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.tree_experiments.setColumnWidth(1, 400)
         self.tree_experiments.setColumnWidth(2, 50)
 
+    def _write_clamped_value_to_cell(self, item, clamped_value):
+        """
+        Bulletproof method to write clamped value to cell, handling active editor vs. model desync.
+        
+        Args:
+            item: Tree item to update
+            clamped_value: The clamped value to write
+        """
+        view = item.treeWidget()
+        index = view.indexFromItem(item, 1)
+
+        # prevent re-entry while we fix UI/model
+        if getattr(self, "_updating_parameters", False):
+            return
+        self._updating_parameters = True
+        try:
+            # If the user is currently editing this cell, update that editor's text
+            if view.state() == QtWidgets.QAbstractItemView.EditingState and index == view.currentIndex():
+                editor = view.focusWidget()
+                gui_logger.debug(f"Found active editor: {type(editor)}")
+                # Many delegates use QLineEdit; if so, update it so the user *sees* the clamp
+                if isinstance(editor, QtWidgets.QLineEdit):
+                    editor.setText(str(clamped_value))
+                    # Force-commit the editor back to the model (emits itemChanged once)
+                    view.closeEditor(editor, QtWidgets.QAbstractItemDelegate.SubmitModelCache)
+                    gui_logger.debug(f"Updated QLineEdit editor with clamped value: {clamped_value}")
+                else:
+                    # Fallback: end editing by moving focus off the editor to commit it
+                    view.viewport().setFocus(QtCore.Qt.OtherFocusReason)
+                    gui_logger.debug(f"Ended editing for non-QLineEdit editor: {type(editor)}")
+
+            # Now update the model value explicitly (EditRole) so the view is in sync
+            # (do NOT wrap this in QSignalBlocker; we want dataChanged to propagate)
+            view.model().setData(index, clamped_value, QtCore.Qt.EditRole)
+            gui_logger.debug(f"Updated model with clamped value: {clamped_value}")
+
+            # Update the item's internal value as well
+            item.value = clamped_value
+
+        finally:
+            self._updating_parameters = False
+
     def update_parameters(self, treeWidget, changed_item=None, changed_col=None):
         """
         Enhanced parameter update with validation and user feedback.
@@ -1504,24 +1546,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             if value_was_clamped:
                 gui_logger.info(f"Updating GUI display for clamped value: {new_value}")
                 
-                # Optional: End editing before writing the clamp to prevent stale text
+                # Use bulletproof method to write clamped value to cell
+                self._write_clamped_value_to_cell(changed_item, new_value)
+                
+                # Apply background/feedback WITHOUT triggering itemChanged
                 tw = changed_item.treeWidget()
-                index = tw.indexFromItem(changed_item, 1)
-                if tw.state() == tw.EditingState and index == tw.currentIndex():
-                    gui_logger.debug(f"Force-committing current editor for {changed_item.name}")
-                    tw.setCurrentIndex(index)
-                    tw.clearFocus()
-                
-                # Update the model using EditRole to notify active editor
-                # Do NOT block signals here - let Qt notify the editor properly
-                changed_item.setData(1, Qt.EditRole, new_value)
-                changed_item.value = new_value
-                
-                # Force immediate GUI update
-                QtWidgets.QApplication.processEvents()
-                changed_item.setText(1, str(new_value))
-                
-                # Set visual feedback (background color) - block signals only for decoration
                 with QSignalBlocker(tw):
                     changed_item.setBackground(1, QtGui.QBrush(QtGui.QColor(255, 240, 200)))  # Orange for warning
                 
