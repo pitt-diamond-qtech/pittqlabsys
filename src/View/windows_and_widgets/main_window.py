@@ -14,7 +14,7 @@
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 from PyQt5 import QtGui, QtCore, QtWidgets
 from PyQt5.uic import loadUiType
-from PyQt5.QtCore import QThread, pyqtSlot, Qt, QTimer
+from PyQt5.QtCore import QThread, pyqtSlot, Qt, QTimer, QSignalBlocker
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 import pyqtgraph as pg
 
@@ -326,7 +326,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.tree_experiments.itemClicked.connect(
                 lambda: onExperimentParamClick(self.tree_experiments.currentItem(), self.tree_experiments.currentColumn()))
             # Connect to itemChanged signal for now - we'll handle recursion differently
-            self.tree_experiments.itemChanged.connect(lambda: self.update_parameters(self.tree_experiments))
+            self.tree_experiments.itemChanged.connect(
+                lambda item, col: self.update_parameters(self.tree_experiments, item, col)
+            )
             self.tree_experiments.itemClicked.connect(self.btn_clicked)
             # self.tree_experiments.installEventFilter(self)
             # QtWidgets.QTreeWidget.installEventFilter(self)
@@ -337,7 +339,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
             self.tree_settings.itemClicked.connect(
                 lambda: onExperimentParamClick(self.tree_settings.currentItem(), self.tree_settings.currentColumn()))
-            self.tree_settings.itemChanged.connect(lambda: self.update_parameters(self.tree_settings))
+            self.tree_settings.itemChanged.connect(
+                lambda item, col: self.update_parameters(self.tree_settings, item, col)
+            )
             self.tree_settings.itemExpanded.connect(lambda: self.refresh_devices())
 
 
@@ -1369,13 +1373,15 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.tree_experiments.setColumnWidth(1, 400)
         self.tree_experiments.setColumnWidth(2, 50)
 
-    def update_parameters(self, treeWidget):
+    def update_parameters(self, treeWidget, changed_item=None, changed_col=None):
         """
         Enhanced parameter update with validation and user feedback.
         Updates the internal dictionaries for experiments and devices with values from the respective trees.
         Provides visual feedback for parameter validation, clamping, and errors.
 
         treeWidget: the tree from which to update
+        changed_item: the specific item that changed (if called from signal)
+        changed_col: the column that changed (if called from signal)
 
         """
         # Recursion guard to prevent infinite loops
@@ -1383,15 +1389,32 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             gui_logger.debug("update_parameters called recursively, skipping to prevent infinite loop")
             return
         
+        # Only proceed if we actually got the changed item/column
+        if changed_item is None or changed_col is None:
+            gui_logger.debug("update_parameters called without item/column info, skipping")
+            return
+
+        # Only update on the value column (column 1)
+        if changed_col != 1:
+            gui_logger.debug(f"update_parameters called for column {changed_col}, only column 1 triggers updates")
+            return
+
+        # Optional: Only react when the value actually changed
+        new_text = changed_item.text(1)
+        if str(getattr(changed_item, "value", "")) == new_text:
+            gui_logger.debug(f"Value unchanged for {changed_item.name}, skipping update")
+            return
+
         self._updating_parameters = True
         try:
-            gui_logger.debug(f"update_parameters called for tree: {type(treeWidget)}")
+            gui_logger.debug(f"update_parameters called for tree: {type(treeWidget)}, item: {changed_item.name}, column: {changed_col}")
 
             if treeWidget == self.tree_settings:
                 gui_logger.debug("Updating parameters from tree_settings")
-                item = treeWidget.currentItem()
+                # Use the specific item that changed instead of currentItem()
+                item = changed_item
                 if item is None:
-                    gui_logger.debug("No current item in tree_settings")
+                    gui_logger.debug("No item provided")
                     return
 
                 device, path_to_device = item.get_device()
@@ -1440,9 +1463,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 
             elif treeWidget == self.tree_experiments:
                 gui_logger.debug("Updating parameters from tree_experiments")
-                item = treeWidget.currentItem()
+                # Use the specific item that changed instead of currentItem()
+                item = changed_item
                 if item is None:
-                    gui_logger.debug("No current item in tree_experiments")
+                    gui_logger.debug("No item provided")
                     return
                 experiment, path_to_experiment, _ = item.get_experiment()
                 gui_logger.debug(f"Updating experiment: {experiment.name}, path: {path_to_experiment}")
@@ -1531,8 +1555,13 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self._set_item_visual_feedback(item, 'warning')
             
             # Update the tree item to show the actual value
-            item.value = actual_value
-            item.setText(1, str(actual_value))
+            tw = item.treeWidget()
+            blocker = QSignalBlocker(tw)
+            try:
+                item.value = actual_value
+                item.setText(1, str(actual_value))
+            finally:
+                del blocker
             
             # Show notification to user
             self._show_parameter_notification(f"Parameter {item.name} was clamped to {actual_value}")
@@ -1593,9 +1622,14 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 if actual_value is not None:
                     gui_logger.info(f"Updating GUI item {item.name} from {item.value} to {actual_value}")
                     
-                    # Update GUI item with clamped value
-                    item.value = actual_value
-                    item.setText(1, str(actual_value))
+                    # Use QSignalBlocker to prevent itemChanged signal during programmatic update
+                    tw = item.treeWidget()
+                    blocker = QSignalBlocker(tw)
+                    try:
+                        item.value = actual_value
+                        item.setText(1, str(actual_value))
+                    finally:
+                        del blocker
                     
                     gui_logger.info(f"GUI item {item.name} updated successfully")
                     
@@ -1603,16 +1637,23 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 # Value was clamped by hardware limits
                 msg = f"⚠️ {device_name}: {message}"
                 gui_logger.warning(f"Parameter clamped: {item.name} on {device_name} - {message}")
-                self._set_item_visual_feedback(item, 'warning')
                 self._show_parameter_notification(f"Parameter clamped: {message}")
                 
                 # Update tree item to show actual value
                 if actual_value is not None:
                     gui_logger.info(f"Updating GUI item {item.name} from {item.value} to {actual_value}")
                     
-                    # Update GUI item with clamped value
-                    item.value = actual_value
-                    item.setText(1, str(actual_value))
+                    # Use QSignalBlocker to prevent itemChanged signal during programmatic update
+                    tw = item.treeWidget()
+                    blocker = QSignalBlocker(tw)
+                    try:
+                        item.value = actual_value
+                        item.setText(1, str(actual_value))
+                    finally:
+                        del blocker
+                    
+                    # Set visual feedback AFTER updating the text
+                    self._set_item_visual_feedback(item, 'warning')
                     
                     gui_logger.info(f"GUI item {item.name} updated successfully")
                     
@@ -1627,9 +1668,14 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 if actual_value is not None:
                     gui_logger.info(f"Updating GUI item {item.name} from {item.value} to {actual_value}")
                     
-                    # Update GUI item with clamped value
-                    item.value = actual_value
-                    item.setText(1, str(actual_value))
+                    # Use QSignalBlocker to prevent itemChanged signal during programmatic update
+                    tw = item.treeWidget()
+                    blocker = QSignalBlocker(tw)
+                    try:
+                        item.value = actual_value
+                        item.setText(1, str(actual_value))
+                    finally:
+                        del blocker
                     
                     gui_logger.info(f"GUI item {item.name} updated successfully")
         
@@ -1643,26 +1689,31 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             item: Tree item to update
             feedback_type: 'success', 'warning', 'error', or 'normal'
         """
-        # Reset any existing styling
-        item.setBackground(0, QtGui.QBrush())
-        item.setBackground(1, QtGui.QBrush())
-        
-        if feedback_type == 'success':
-            # Green background for successful updates
-            item.setBackground(1, QtGui.QBrush(QtGui.QColor(200, 255, 200)))
-            # Auto-clear after 2 seconds
-            self._clear_visual_feedback_after_delay(item, 2000)
-        elif feedback_type == 'warning':
-            # Yellow background for clamped values
-            item.setBackground(1, QtGui.QBrush(QtGui.QColor(255, 255, 200)))
-            # Auto-clear after 3 seconds (longer for warnings)
-            self._clear_visual_feedback_after_delay(item, 3000)
-        elif feedback_type == 'error':
-            # Red background for validation errors
-            item.setBackground(1, QtGui.QBrush(QtGui.QColor(255, 200, 200)))
-            # Auto-clear after 4 seconds (longer for errors)
-            self._clear_visual_feedback_after_delay(item, 4000)
-        # 'normal' doesn't change the background
+        tw = item.treeWidget()
+        blocker = QSignalBlocker(tw)  # prevents itemChanged while we paint
+        try:
+            # Reset any existing styling
+            item.setBackground(0, QtGui.QBrush())
+            item.setBackground(1, QtGui.QBrush())
+            
+            if feedback_type == 'success':
+                # Green background for successful updates
+                item.setBackground(1, QtGui.QBrush(QtGui.QColor(200, 255, 200)))
+                # Auto-clear after 2 seconds
+                self._clear_visual_feedback_after_delay(item, 2000)
+            elif feedback_type == 'warning':
+                # Yellow background for clamped values
+                item.setBackground(1, QtGui.QBrush(QtGui.QColor(255, 240, 200)))
+                # Auto-clear after 3 seconds (longer for warnings)
+                self._clear_visual_feedback_after_delay(item, 3000)
+            elif feedback_type == 'error':
+                # Red background for validation errors
+                item.setBackground(1, QtGui.QBrush(QtGui.QColor(255, 200, 200)))
+                # Auto-clear after 4 seconds (longer for errors)
+                self._clear_visual_feedback_after_delay(item, 4000)
+            # 'normal' doesn't change the background
+        finally:
+            del blocker
 
     def _show_parameter_notification(self, message, is_error=False):
         """
@@ -2073,7 +2124,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         if tree == self.tree_experiments or tree == self.tree_settings:
             tree.itemChanged.disconnect()
             self.fill_treewidget(tree, items)
-            tree.itemChanged.connect(lambda: self.update_parameters(tree))
+            tree.itemChanged.connect(
+                lambda item, col: self.update_parameters(tree, item, col)
+            )
         elif tree == self.tree_gui_settings:
             self.fill_treeview(tree, items)
 
