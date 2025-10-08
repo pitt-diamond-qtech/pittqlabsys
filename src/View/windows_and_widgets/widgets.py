@@ -553,15 +553,39 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
         return editor
 
     def setEditorData(self, editor, index):
-        # show the exact current display text
-        editor.setText(index.data(QtCore.Qt.DisplayRole))
+        # show the exact current value
+        value = index.data(QtCore.Qt.EditRole)
+        if value is None:
+            # Fallback to DisplayRole if EditRole is None
+            value = index.data(QtCore.Qt.DisplayRole)
+        if value is None:
+            # Final fallback - get the value from the tree item directly
+            tree_widget = editor.parent()
+            while tree_widget and not isinstance(tree_widget, QtWidgets.QAbstractItemView):
+                tree_widget = tree_widget.parent()
+            if isinstance(tree_widget, QtWidgets.QAbstractItemView):
+                item = tree_widget.itemFromIndex(index)
+                if item and hasattr(item, 'value'):
+                    value = item.value
+        editor.setText(str(value) if value is not None else "")
 
     def setModelData(self, editor, model, index):
-        raw = editor.text()
+        raw = editor.text().strip()
+        
+        # Handle empty string case - don't update the model
+        if not raw:
+            # Revert editor to current value
+            current_value = index.data(QtCore.Qt.EditRole)
+            if current_value is not None:
+                editor.setText(str(current_value))
+            return
+        
         num = _parse_number(raw)
         if num is None:
-            # non-numeric → write back raw text
-            model.setData(index, raw, QtCore.Qt.EditRole)
+            # Non-numeric input - revert to current value
+            current_value = index.data(QtCore.Qt.EditRole)
+            if current_value is not None:
+                editor.setText(str(current_value))
             return
 
         # Get the tree item
