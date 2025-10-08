@@ -404,6 +404,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             gui_logger.warning(f"Could not load devices from config: {e}")
             gui_logger.info("Starting with empty device list")
 
+        # Refresh the devices tree to show loaded devices
+        self.refresh_tree(self.tree_settings, self.devices)
+        gui_logger.info(f"Refreshed devices tree with {len(self.devices)} devices")
+
         #self.load_config(self.config_filepath)
 
         self.data_sets = {}  # todo: load datasets from tmp folder
