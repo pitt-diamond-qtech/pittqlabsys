@@ -1495,7 +1495,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 tw = changed_item.treeWidget()
                 blocker = QSignalBlocker(tw)
                 try:
+                    # Force update both the display text and the internal value
                     changed_item.setText(1, str(new_value))
+                    changed_item.value = new_value
                     # Set orange background to indicate clamping
                     changed_item.setBackground(1, QtGui.QBrush(QtGui.QColor(255, 240, 200)))  # Orange for warning
                 finally:
@@ -1506,6 +1508,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 
                 # Auto-clear the visual feedback after 3 seconds
                 self._clear_visual_feedback_after_delay(changed_item, 3000)
+                
+                # Continue with device update using the clamped value
 
             gui_logger.debug(f"update_parameters called for tree: {type(treeWidget)}, item: {changed_item.name}, column: {changed_col}")
 
