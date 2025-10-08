@@ -142,9 +142,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         """
         super().__init__(*args, **kwargs)
 
-        # Recursion guard to prevent infinite loops in parameter updates
-        self._updating_parameters = False
-
         # 1) Resolve your application folders from config_file:
         if config_file is None:
             # default to config.json in src directory
@@ -1440,14 +1437,14 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             if device is not None:
                 new_value = item.value
                 msg = "changed parameter {:s} to {:s} in {:s}".format(item.name,
-                                                                                str(new_value),
-                                                                                experiment.name)
+                                                                            str(new_value),
+                                                                            experiment.name)
                 gui_logger.info(f"Device parameter updated: {item.name} to {new_value} in {experiment.name}")
             else:
                 new_value = item.value
                 msg = "changed parameter {:s} to {:s} in {:s}".format(item.name,
-                                                                            str(new_value),
-                                                                            experiment.name)
+                                                                        str(new_value),
+                                                                        experiment.name)
                 gui_logger.info(f"Experiment parameter updated: {item.name} to {new_value} in {experiment.name}")
             self.log(msg)
         else:
@@ -1572,17 +1569,17 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 if actual_value is not None:
                     gui_logger.info(f"Updating GUI item {item.name} from {item.value} to {actual_value}")
                     
-                    # Block signals to prevent recursion during GUI update
+                    # Temporarily disconnect itemChanged signal to prevent recursion
                     tree_widget = item.treeWidget()
                     if tree_widget:
-                        tree_widget.blockSignals(True)
+                        tree_widget.itemChanged.disconnect()
                     
                     item.value = actual_value
                     item.setText(1, str(actual_value))
                     
-                    # Re-enable signals
+                    # Reconnect the signal
                     if tree_widget:
-                        tree_widget.blockSignals(False)
+                        tree_widget.itemChanged.connect(lambda: self.update_parameters(tree_widget))
                     
                     gui_logger.info(f"GUI item {item.name} updated successfully")
                     
@@ -1597,17 +1594,17 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 if actual_value is not None:
                     gui_logger.info(f"Updating GUI item {item.name} from {item.value} to {actual_value}")
                     
-                    # Block signals to prevent recursion during GUI update
+                    # Temporarily disconnect itemChanged signal to prevent recursion
                     tree_widget = item.treeWidget()
                     if tree_widget:
-                        tree_widget.blockSignals(True)
+                        tree_widget.itemChanged.disconnect()
                     
                     item.value = actual_value
                     item.setText(1, str(actual_value))
                     
-                    # Re-enable signals
+                    # Reconnect the signal
                     if tree_widget:
-                        tree_widget.blockSignals(False)
+                        tree_widget.itemChanged.connect(lambda: self.update_parameters(tree_widget))
                     
                     gui_logger.info(f"GUI item {item.name} updated successfully")
                     
@@ -1622,17 +1619,17 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 if actual_value is not None:
                     gui_logger.info(f"Updating GUI item {item.name} from {item.value} to {actual_value}")
                     
-                    # Block signals to prevent recursion during GUI update
+                    # Temporarily disconnect itemChanged signal to prevent recursion
                     tree_widget = item.treeWidget()
                     if tree_widget:
-                        tree_widget.blockSignals(True)
+                        tree_widget.itemChanged.disconnect()
                     
                     item.value = actual_value
                     item.setText(1, str(actual_value))
                     
-                    # Re-enable signals
+                    # Reconnect the signal
                     if tree_widget:
-                        tree_widget.blockSignals(False)
+                        tree_widget.itemChanged.connect(lambda: self.update_parameters(tree_widget))
                     
                     gui_logger.info(f"GUI item {item.name} updated successfully")
         
