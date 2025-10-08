@@ -18,6 +18,10 @@ from src.core import Parameter, Device, Experiment
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as Canvas
 from matplotlib.figure import Figure
 import pyqtgraph as pg
+import logging
+
+# Set up logging for GUI operations
+gui_logger = logging.getLogger('AQuISS_GUI')
 
 
 # ======== AQuISSQTreeItem ==========
