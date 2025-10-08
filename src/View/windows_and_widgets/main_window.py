@@ -1500,6 +1500,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                     changed_item.value = new_value
                     # Set orange background to indicate clamping
                     changed_item.setBackground(1, QtGui.QBrush(QtGui.QColor(255, 240, 200)))  # Orange for warning
+                    # Mark this item as having clamped feedback to prevent override
+                    changed_item._clamped_feedback = True
                 finally:
                     del blocker
                 
@@ -1706,7 +1708,13 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             # Parameter was set successfully without changes
             msg = f"✅ Parameter {item.name} set to {param_feedback['actual']} on {device_name}"
             gui_logger.info(f"Parameter set successfully: {item.name} on {device_name}")
-            self._set_item_visual_feedback(item, 'success')
+            
+            # Don't override clamped feedback with success feedback
+            if not getattr(item, '_clamped_feedback', False):
+                self._set_item_visual_feedback(item, 'success')
+            else:
+                gui_logger.debug(f"Skipping success feedback for {item.name} - clamped feedback active")
+            
             self._show_parameter_notification(f"Parameter {item.name} set successfully")
         else:
             # Parameter value changed - determine the reason
@@ -1955,6 +1963,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             # Reset background to normal
             item.setBackground(0, QtGui.QBrush())
             item.setBackground(1, QtGui.QBrush())
+            # Clear the clamped feedback flag
+            if hasattr(item, '_clamped_feedback'):
+                delattr(item, '_clamped_feedback')
 
     def plot_experiment(self, experiment):
         """
