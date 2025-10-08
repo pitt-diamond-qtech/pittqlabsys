@@ -1391,6 +1391,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
                 device, path_to_device = item.get_device()
                 gui_logger.debug(f"Updating device: {device.name}, path: {path_to_device}")
+                gui_logger.info(f"Device class: {type(device).__name__}, module: {type(device).__module__}")
 
                 # Store original values for comparison
                 requested_value = item.value
@@ -1483,9 +1484,13 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         try:
             # Check if device has validation method
             if hasattr(device, 'validate_parameter'):
+                gui_logger.info(f"Calling validate_parameter on {type(device).__name__} with path: {path_to_device}, value: {item.value}")
                 validation_result = device.validate_parameter(path_to_device, item.value)
+                gui_logger.info(f"Validation result: {validation_result}")
                 if not validation_result.get('valid', True):
                     raise ValueError(validation_result.get('message', 'Parameter validation failed'))
+            else:
+                gui_logger.warning(f"Device {type(device).__name__} does not have validate_parameter method")
             
             # Update the device
             device.update(settings_dict)
