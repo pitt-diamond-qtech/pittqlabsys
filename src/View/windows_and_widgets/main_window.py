@@ -144,7 +144,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         
         # Initialize recursion guard
         self._updating_parameters = False
-        self._programmatic_update = False
 
         # 1) Resolve your application folders from config_file:
         if config_file is None:
@@ -1380,8 +1379,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         """
         # Recursion guard to prevent infinite loops
-        if self._updating_parameters or self._programmatic_update:
-            gui_logger.debug("update_parameters called during programmatic update, skipping to prevent infinite loop")
+        if self._updating_parameters:
+            gui_logger.debug("update_parameters called recursively, skipping to prevent infinite loop")
             return
         
         self._updating_parameters = True
@@ -1594,14 +1593,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 if actual_value is not None:
                     gui_logger.info(f"Updating GUI item {item.name} from {item.value} to {actual_value}")
                     
-                    # Set flag to prevent recursion during programmatic update
-                    self._programmatic_update = True
-                    
+                    # Update GUI item with clamped value
                     item.value = actual_value
                     item.setText(1, str(actual_value))
-                    
-                    # Clear flag after update
-                    self._programmatic_update = False
                     
                     gui_logger.info(f"GUI item {item.name} updated successfully")
                     
@@ -1616,14 +1610,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 if actual_value is not None:
                     gui_logger.info(f"Updating GUI item {item.name} from {item.value} to {actual_value}")
                     
-                    # Set flag to prevent recursion during programmatic update
-                    self._programmatic_update = True
-                    
+                    # Update GUI item with clamped value
                     item.value = actual_value
                     item.setText(1, str(actual_value))
-                    
-                    # Clear flag after update
-                    self._programmatic_update = False
                     
                     gui_logger.info(f"GUI item {item.name} updated successfully")
                     
@@ -1638,14 +1627,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 if actual_value is not None:
                     gui_logger.info(f"Updating GUI item {item.name} from {item.value} to {actual_value}")
                     
-                    # Set flag to prevent recursion during programmatic update
-                    self._programmatic_update = True
-                    
+                    # Update GUI item with clamped value
                     item.value = actual_value
                     item.setText(1, str(actual_value))
-                    
-                    # Clear flag after update
-                    self._programmatic_update = False
                     
                     gui_logger.info(f"GUI item {item.name} updated successfully")
         
