@@ -364,8 +364,11 @@ class SG384Generator(MicrowaveGeneratorBase):
         Returns:
             dict: Validation result with 'valid', 'message', and optional 'clamped_value'
         """
+        logger.info(f"SG384 validate_parameter called with path: {path}, value: {value}")
+        
         # First, try the base class validation
         base_result = super().validate_parameter(path, value)
+        logger.info(f"SG384 base validation result: {base_result}")
         if not base_result['valid']:
             return base_result
         
@@ -425,6 +428,60 @@ class SG384Generator(MicrowaveGeneratorBase):
                 }
         
         return {'valid': True, 'message': 'SG384 parameter validation passed'}
+
+    def get_feedback_only(self, settings):
+        """Update device settings with validation and return only the feedback about changes.
+        
+        This method overrides the base class to include parameter validation before updating.
+        
+        Args:
+            settings: Dictionary of parameter values to update
+            
+        Returns:
+            Dictionary of feedback for each parameter
+        """
+        logger.info(f"SG384 get_feedback_only called with settings: {settings}")
+        
+        # Validate each parameter before updating
+        feedback = {}
+        validated_settings = {}
+        
+        for param_name, value in settings.items():
+            # Create path for validation (single parameter)
+            path = [param_name]
+            
+            # Validate the parameter
+            validation_result = self.validate_parameter(path, value)
+            logger.info(f"SG384 validation for {param_name} = {value}: {validation_result}")
+            
+            if validation_result.get('valid', True):
+                # Parameter is valid, use the original value
+                validated_settings[param_name] = value
+                feedback[param_name] = {
+                    'changed': False,
+                    'requested': value,
+                    'actual': value,
+                    'reason': 'success',
+                    'message': 'Parameter set successfully'
+                }
+            else:
+                # Parameter is invalid, use clamped value if available
+                clamped_value = validation_result.get('clamped_value', value)
+                validated_settings[param_name] = clamped_value
+                feedback[param_name] = {
+                    'changed': True,
+                    'requested': value,
+                    'actual': clamped_value,
+                    'reason': 'clamped',
+                    'message': validation_result.get('message', 'Parameter was clamped')
+                }
+        
+        # Update the device with validated settings
+        if validated_settings:
+            logger.info(f"SG384 updating with validated settings: {validated_settings}")
+            super().update(validated_settings)
+        
+        return feedback
 
     def get_parameter_ranges(self, path):
         """
