@@ -142,6 +142,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         """
         super().__init__(*args, **kwargs)
 
+        # Recursion guard to prevent infinite loops in parameter updates
+        self._updating_parameters = False
+
         # 1) Resolve your application folders from config_file:
         if config_file is None:
             # default to config.json in src directory
@@ -1370,14 +1373,21 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         treeWidget: the tree from which to update
 
         """
-        gui_logger.debug(f"update_parameters called for tree: {type(treeWidget)}")
+        # Recursion guard to prevent infinite loops
+        if self._updating_parameters:
+            gui_logger.debug("update_parameters called recursively, skipping to prevent infinite loop")
+            return
+        
+        self._updating_parameters = True
+        try:
+            gui_logger.debug(f"update_parameters called for tree: {type(treeWidget)}")
 
-        if treeWidget == self.tree_settings:
-            gui_logger.debug("Updating parameters from tree_settings")
-            item = treeWidget.currentItem()
-            if item is None:
-                gui_logger.debug("No current item in tree_settings")
-                return
+            if treeWidget == self.tree_settings:
+                gui_logger.debug("Updating parameters from tree_settings")
+                item = treeWidget.currentItem()
+                if item is None:
+                    gui_logger.debug("No current item in tree_settings")
+                    return
 
             device, path_to_device = item.get_device()
             gui_logger.debug(f"Updating device: {device.name}, path: {path_to_device}")
@@ -1449,6 +1459,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.log(msg)
         else:
             gui_logger.warning(f"Unknown tree widget type: {type(treeWidget)}")
+        
+        finally:
+            # Always reset the recursion guard
+            self._updating_parameters = False
 
     def _update_device_with_validation(self, device, settings_dict, item, path_to_device):
         """
