@@ -1384,29 +1384,30 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         changed_col: the column that changed (if called from signal)
 
         """
-        # Recursion guard to prevent infinite loops
-        if self._updating_parameters:
-            gui_logger.debug("update_parameters called recursively, skipping to prevent infinite loop")
+        # Prevent recursion
+        if getattr(self, "_updating_parameters", False):
             return
         
-        # Only proceed if we actually got the changed item/column
-        if changed_item is None or changed_col is None:
-            gui_logger.debug("update_parameters called without item/column info, skipping")
-            return
-
-        # Only update on the value column (column 1)
-        if changed_col != 1:
-            gui_logger.debug(f"update_parameters called for column {changed_col}, only column 1 triggers updates")
-            return
-
-        # Optional: Only react when the value actually changed
-        new_text = changed_item.text(1)
-        if str(getattr(changed_item, "value", "")) == new_text:
-            gui_logger.debug(f"Value unchanged for {changed_item.name}, skipping update")
-            return
-
         self._updating_parameters = True
         try:
+            # Only proceed if we actually got the changed item/column
+            if changed_item is None or changed_col is None:
+                gui_logger.debug("update_parameters called without item/column info, skipping")
+                return
+
+            # Only update on the value column (column 1)
+            if changed_col != 1:
+                gui_logger.debug(f"update_parameters called for column {changed_col}, only column 1 triggers updates")
+                return
+
+            # Optional: Only react when the value actually changed
+            new_text = changed_item.text(1)
+            current_value = str(getattr(changed_item, "value", ""))
+            gui_logger.debug(f"Value change check - new_text: '{new_text}', current_value: '{current_value}'")
+            if current_value == new_text:
+                gui_logger.debug(f"Value unchanged for {changed_item.name}, skipping update")
+                return
+
             gui_logger.debug(f"update_parameters called for tree: {type(treeWidget)}, item: {changed_item.name}, column: {changed_col}")
 
             if treeWidget == self.tree_settings:
@@ -1615,19 +1616,19 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 # Hardware error
                 msg = f"❌ {device_name}: {message}"
                 gui_logger.error(f"Hardware error: {item.name} on {device_name} - {message}")
-                self._set_item_visual_feedback(item, 'error')
                 self._show_parameter_notification(f"Hardware error: {message}", is_error=True)
                 
                 # Update tree item to show actual value
                 if actual_value is not None:
                     gui_logger.info(f"Updating GUI item {item.name} from {item.value} to {actual_value}")
                     
-                    # Use QSignalBlocker to prevent itemChanged signal during programmatic update
+                    # Block signals when changing the GUI item programmatically
                     tw = item.treeWidget()
                     blocker = QSignalBlocker(tw)
                     try:
                         item.value = actual_value
                         item.setText(1, str(actual_value))
+                        item.setBackground(1, QtGui.QBrush(QtGui.QColor(255, 200, 200)))  # Red for error
                     finally:
                         del blocker
                     
@@ -1643,17 +1644,15 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 if actual_value is not None:
                     gui_logger.info(f"Updating GUI item {item.name} from {item.value} to {actual_value}")
                     
-                    # Use QSignalBlocker to prevent itemChanged signal during programmatic update
+                    # Block signals when changing the GUI item programmatically
                     tw = item.treeWidget()
                     blocker = QSignalBlocker(tw)
                     try:
                         item.value = actual_value
                         item.setText(1, str(actual_value))
+                        item.setBackground(1, QtGui.QBrush(QtGui.QColor(255, 240, 200)))  # Orange for warning
                     finally:
                         del blocker
-                    
-                    # Set visual feedback AFTER updating the text
-                    self._set_item_visual_feedback(item, 'warning')
                     
                     gui_logger.info(f"GUI item {item.name} updated successfully")
                     
@@ -1661,19 +1660,19 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 # Unknown reason for change
                 msg = f"⚠️ {device_name}: {message}"
                 gui_logger.warning(f"Parameter changed: {item.name} on {device_name} - {message}")
-                self._set_item_visual_feedback(item, 'warning')
                 self._show_parameter_notification(f"Parameter changed: {message}")
                 
                 # Update tree item to show actual value
                 if actual_value is not None:
                     gui_logger.info(f"Updating GUI item {item.name} from {item.value} to {actual_value}")
                     
-                    # Use QSignalBlocker to prevent itemChanged signal during programmatic update
+                    # Block signals when changing the GUI item programmatically
                     tw = item.treeWidget()
                     blocker = QSignalBlocker(tw)
                     try:
                         item.value = actual_value
                         item.setText(1, str(actual_value))
+                        item.setBackground(1, QtGui.QBrush(QtGui.QColor(255, 240, 200)))  # Orange for warning
                     finally:
                         del blocker
                     
