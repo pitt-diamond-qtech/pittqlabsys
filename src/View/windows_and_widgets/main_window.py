@@ -1433,6 +1433,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 # Handle validation errors gracefully
                 self._handle_parameter_error(item, str(e), device.name)
                 return
+                
         elif treeWidget == self.tree_experiments:
             gui_logger.debug("Updating parameters from tree_experiments")
             item = treeWidget.currentItem()
