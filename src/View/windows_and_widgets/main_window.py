@@ -141,6 +141,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         """
         super().__init__(*args, **kwargs)
+        
+        # Initialize recursion guard
+        self._updating_parameters = False
+        self._programmatic_update = False
 
         # 1) Resolve your application folders from config_file:
         if config_file is None:
@@ -322,6 +326,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             # tree structures
             self.tree_experiments.itemClicked.connect(
                 lambda: onExperimentParamClick(self.tree_experiments.currentItem(), self.tree_experiments.currentColumn()))
+            # Connect to itemChanged signal for now - we'll handle recursion differently
             self.tree_experiments.itemChanged.connect(lambda: self.update_parameters(self.tree_experiments))
             self.tree_experiments.itemClicked.connect(self.btn_clicked)
             # self.tree_experiments.installEventFilter(self)
@@ -1374,85 +1379,101 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         treeWidget: the tree from which to update
 
         """
-        gui_logger.debug(f"update_parameters called for tree: {type(treeWidget)}")
+        # Recursion guard to prevent infinite loops
+        if self._updating_parameters or self._programmatic_update:
+            gui_logger.debug("update_parameters called during programmatic update, skipping to prevent infinite loop")
+            return
+        
+        self._updating_parameters = True
+        try:
+            gui_logger.debug(f"update_parameters called for tree: {type(treeWidget)}")
 
-        if treeWidget == self.tree_settings:
-            gui_logger.debug("Updating parameters from tree_settings")
-            item = treeWidget.currentItem()
-            if item is None:
-                gui_logger.debug("No current item in tree_settings")
-                return
+            if treeWidget == self.tree_settings:
+                gui_logger.debug("Updating parameters from tree_settings")
+                item = treeWidget.currentItem()
+                if item is None:
+                    gui_logger.debug("No current item in tree_settings")
+                    return
 
-            device, path_to_device = item.get_device()
-            gui_logger.debug(f"Updating device: {device.name}, path: {path_to_device}")
-            gui_logger.info(f"Device class: {type(device).__name__}, module: {type(device).__module__}")
+                device, path_to_device = item.get_device()
+                gui_logger.debug(f"Updating device: {device.name}, path: {path_to_device}")
+                gui_logger.info(f"Device class: {type(device).__name__}, module: {type(device).__module__}")
 
-            # Store original values for comparison
-            requested_value = item.value
-            old_value = device.settings
-            path_to_device_copy = path_to_device.copy()
-            path_to_device_copy.reverse()
-            for element in path_to_device_copy:
-                old_value = old_value[element]
+                # Store original values for comparison
+                requested_value = item.value
+                old_value = device.settings
+                path_to_device_copy = path_to_device.copy()
+                path_to_device_copy.reverse()
+                for element in path_to_device_copy:
+                    old_value = old_value[element]
 
-            # Build nested dictionary to update device
-            dictator = item.value
-            for element in path_to_device:
-                dictator = {element: dictator}
+                # Build nested dictionary to update device
+                dictator = item.value
+                for element in path_to_device:
+                    dictator = {element: dictator}
 
-            try:
-                # Use the enhanced feedback system if available
-                if hasattr(device, 'get_feedback_only'):
-                    # Get detailed feedback about the update
-                    # Note: get_feedback_only already updates the device internally
-                    feedback = device.get_feedback_only(dictator)
+                try:
+                    # Use the enhanced feedback system if available
+                    if hasattr(device, 'get_feedback_only'):
+                        # Get detailed feedback about the update
+                        # Note: get_feedback_only already updates the device internally
+                        feedback = device.get_feedback_only(dictator)
+                        
+                        # Process feedback for each parameter
+                        for param_name, param_feedback in feedback.items():
+                            self._process_parameter_feedback(item, param_feedback, device.name, path_to_device)
+                    else:
+                        # Fallback to old method for devices without enhanced feedback
+                        self._update_device_with_validation(device, dictator, item, path_to_device)
+                        
+                        # Get actual value after update (in case device clamped it)
+                        actual_value = device.settings
+                        for element in path_to_device_copy:
+                            actual_value = actual_value[element]
+                        
+                        # Provide user feedback based on what happened
+                        self._provide_parameter_feedback(item, requested_value, actual_value, old_value, device.name)
                     
-                    # Process feedback for each parameter
-                    for param_name, param_feedback in feedback.items():
-                        self._process_parameter_feedback(item, param_feedback, device.name, path_to_device)
-                else:
-                    # Fallback to old method for devices without enhanced feedback
-                    self._update_device_with_validation(device, dictator, item, path_to_device)
-                    
-                    # Get actual value after update (in case device clamped it)
-                    actual_value = device.settings
-                    for element in path_to_device_copy:
-                        actual_value = actual_value[element]
-                    
-                    # Provide user feedback based on what happened
-                    self._provide_parameter_feedback(item, requested_value, actual_value, old_value, device.name)
+                except Exception as e:
+                    # Handle validation errors gracefully
+                    self._handle_parameter_error(item, str(e), device.name)
+                    return
                 
-            except Exception as e:
-                # Handle validation errors gracefully
-                self._handle_parameter_error(item, str(e), device.name)
-                return
-            
-        elif treeWidget == self.tree_experiments:
-            gui_logger.debug("Updating parameters from tree_experiments")
-            item = treeWidget.currentItem()
-            if item is None:
-                gui_logger.debug("No current item in tree_experiments")
-                return
-            experiment, path_to_experiment, _ = item.get_experiment()
-            gui_logger.debug(f"Updating experiment: {experiment.name}, path: {path_to_experiment}")
+            elif treeWidget == self.tree_experiments:
+                gui_logger.debug("Updating parameters from tree_experiments")
+                item = treeWidget.currentItem()
+                if item is None:
+                    gui_logger.debug("No current item in tree_experiments")
+                    return
+                experiment, path_to_experiment, _ = item.get_experiment()
+                gui_logger.debug(f"Updating experiment: {experiment.name}, path: {path_to_experiment}")
 
-            # check if changes value is from an device
-            device, path_to_device = item.get_device()
-            if device is not None:
-                new_value = item.value
-                msg = "changed parameter {:s} to {:s} in {:s}".format(item.name,
+                # check if changes value is from an device
+                device, path_to_device = item.get_device()
+                if device is not None:
+                    new_value = item.value
+                    msg = "changed parameter {:s} to {:s} in {:s}".format(item.name,
+                                                                                str(new_value),
+                                                                                experiment.name)
+                    gui_logger.info(f"Device parameter updated: {item.name} to {new_value} in {experiment.name}")
+                else:
+                    new_value = item.value
+                    msg = "changed parameter {:s} to {:s} in {:s}".format(item.name,
                                                                             str(new_value),
                                                                             experiment.name)
-                gui_logger.info(f"Device parameter updated: {item.name} to {new_value} in {experiment.name}")
+                    gui_logger.info(f"Experiment parameter updated: {item.name} to {new_value} in {experiment.name}")
+                self.log(msg)
             else:
-                new_value = item.value
-                msg = "changed parameter {:s} to {:s} in {:s}".format(item.name,
-                                                                        str(new_value),
-                                                                        experiment.name)
-                gui_logger.info(f"Experiment parameter updated: {item.name} to {new_value} in {experiment.name}")
-            self.log(msg)
-        else:
-            gui_logger.warning(f"Unknown tree widget type: {type(treeWidget)}")
+                gui_logger.warning(f"Unknown tree widget type: {type(treeWidget)}")
+        
+        except Exception as e:
+            # Handle any unexpected errors in the parameter update process
+            gui_logger.error(f"Unexpected error in update_parameters: {e}")
+            self.log(f"Error updating parameters: {e}")
+        
+        finally:
+            # Always reset the recursion guard
+            self._updating_parameters = False
 
     def _update_device_with_validation(self, device, settings_dict, item, path_to_device):
         """
@@ -1573,17 +1594,14 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 if actual_value is not None:
                     gui_logger.info(f"Updating GUI item {item.name} from {item.value} to {actual_value}")
                     
-                    # Temporarily disconnect itemChanged signal to prevent recursion
-                    tree_widget = item.treeWidget()
-                    if tree_widget:
-                        tree_widget.itemChanged.disconnect()
+                    # Set flag to prevent recursion during programmatic update
+                    self._programmatic_update = True
                     
                     item.value = actual_value
                     item.setText(1, str(actual_value))
                     
-                    # Reconnect the signal
-                    if tree_widget:
-                        tree_widget.itemChanged.connect(lambda: self.update_parameters(tree_widget))
+                    # Clear flag after update
+                    self._programmatic_update = False
                     
                     gui_logger.info(f"GUI item {item.name} updated successfully")
                     
@@ -1598,17 +1616,14 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 if actual_value is not None:
                     gui_logger.info(f"Updating GUI item {item.name} from {item.value} to {actual_value}")
                     
-                    # Temporarily disconnect itemChanged signal to prevent recursion
-                    tree_widget = item.treeWidget()
-                    if tree_widget:
-                        tree_widget.itemChanged.disconnect()
+                    # Set flag to prevent recursion during programmatic update
+                    self._programmatic_update = True
                     
                     item.value = actual_value
                     item.setText(1, str(actual_value))
                     
-                    # Reconnect the signal
-                    if tree_widget:
-                        tree_widget.itemChanged.connect(lambda: self.update_parameters(tree_widget))
+                    # Clear flag after update
+                    self._programmatic_update = False
                     
                     gui_logger.info(f"GUI item {item.name} updated successfully")
                     
@@ -1623,17 +1638,14 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 if actual_value is not None:
                     gui_logger.info(f"Updating GUI item {item.name} from {item.value} to {actual_value}")
                     
-                    # Temporarily disconnect itemChanged signal to prevent recursion
-                    tree_widget = item.treeWidget()
-                    if tree_widget:
-                        tree_widget.itemChanged.disconnect()
+                    # Set flag to prevent recursion during programmatic update
+                    self._programmatic_update = True
                     
                     item.value = actual_value
                     item.setText(1, str(actual_value))
                     
-                    # Reconnect the signal
-                    if tree_widget:
-                        tree_widget.itemChanged.connect(lambda: self.update_parameters(tree_widget))
+                    # Clear flag after update
+                    self._programmatic_update = False
                     
                     gui_logger.info(f"GUI item {item.name} updated successfully")
         
@@ -1790,8 +1802,22 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         # Use QTimer to clear feedback after delay
         timer = QtCore.QTimer()
         timer.setSingleShot(True)
-        timer.timeout.connect(lambda: self._set_item_visual_feedback(item, 'normal'))
+        # Use a lambda that checks the recursion guard before clearing
+        timer.timeout.connect(lambda: self._safe_clear_visual_feedback(item))
         timer.start(delay_ms)
+    
+    def _safe_clear_visual_feedback(self, item):
+        """
+        Safely clear visual feedback, checking recursion guard first.
+        
+        Args:
+            item: Tree item to clear feedback from
+        """
+        # Only clear if we're not in the middle of updating parameters
+        if not self._updating_parameters:
+            # Reset background to normal
+            item.setBackground(0, QtGui.QBrush())
+            item.setBackground(1, QtGui.QBrush())
 
     def plot_experiment(self, experiment):
         """

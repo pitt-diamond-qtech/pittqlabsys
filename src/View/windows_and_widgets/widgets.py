@@ -25,6 +25,9 @@ class AQuISSQTreeItem(QtWidgets.QTreeWidgetItem):
     """
     Custom QTreeWidgetItem with Widgets
     """
+    
+    # Custom signal that only fires when user finishes editing
+    editingFinished = QtCore.pyqtSignal(object)  # emits the item itself
 
     def __init__(self, parent, name, value, valid_values, info, visible=None):
         """
@@ -190,6 +193,8 @@ class AQuISSQTreeItem(QtWidgets.QTreeWidgetItem):
 
         # if row 2 (editrole, value has been entered)
         if role == 2 and column == 1:
+            # This is user editing - emit our custom signal
+            user_editing = True
 
             if isinstance(value, str):
                 value = self.cast_type(value) # cast into same type as valid values
@@ -205,6 +210,8 @@ class AQuISSQTreeItem(QtWidgets.QTreeWidgetItem):
 
             # save value in internal variable
             self.value = value
+        else:
+            user_editing = False
 
         elif column == 0:
             # labels should not be changed so we set it back
@@ -220,6 +227,10 @@ class AQuISSQTreeItem(QtWidgets.QTreeWidgetItem):
 
         else:
             self.emitDataChanged()
+        
+        # Emit our custom signal only when user finishes editing
+        if user_editing:
+            self.editingFinished.emit(self)
 
     def cast_type(self, var, cast_type=None):
         """
