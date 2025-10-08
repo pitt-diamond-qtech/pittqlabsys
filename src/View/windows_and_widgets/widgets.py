@@ -563,7 +563,8 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
         self._timer.start()
     
     def _key(self, index):
-        return QtCore.QPersistentModelIndex(index)
+        """Create a stable key for the feedback dictionary using row/column"""
+        return (index.row(), index.column())
     
     def _set_feedback(self, index, status: str):
         """Set transient visual feedback for an index"""
