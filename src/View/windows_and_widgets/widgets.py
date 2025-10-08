@@ -210,12 +210,12 @@ class AQuISSQTreeItem(QtWidgets.QTreeWidgetItem):
 
             # save value in internal variable
             self.value = value
-        else:
-            user_editing = False
-
         elif column == 0:
             # labels should not be changed so we set it back
             value = self.name
+            user_editing = False
+        else:
+            user_editing = False
 
         if value is None:
             value = self.value
