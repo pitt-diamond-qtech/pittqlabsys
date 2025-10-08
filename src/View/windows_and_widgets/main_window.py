@@ -368,13 +368,13 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         # Install NumberClampDelegate for column 1 (Value column) on both trees
         from src.View.windows_and_widgets.widgets import NumberClampDelegate
         
-        self.number_clamp_delegate_settings = NumberClampDelegate(self.tree_settings)
-        self.tree_settings.setItemDelegateForColumn(1, self.number_clamp_delegate_settings)
-        self.number_clamp_delegate_settings.validation_result_signal.connect(self._handle_delegate_validation_result)
+        self.settings_delegate = NumberClampDelegate(self.tree_settings)
+        self.tree_settings.setItemDelegateForColumn(1, self.settings_delegate)
+        self.settings_delegate.validation_result_signal.connect(self._handle_delegate_validation_result)
         
-        self.number_clamp_delegate_experiments = NumberClampDelegate(self.tree_experiments)
-        self.tree_experiments.setItemDelegateForColumn(1, self.number_clamp_delegate_experiments)
-        self.number_clamp_delegate_experiments.validation_result_signal.connect(self._handle_delegate_validation_result)
+        self.experiments_delegate = NumberClampDelegate(self.tree_experiments)
+        self.tree_experiments.setItemDelegateForColumn(1, self.experiments_delegate)
+        self.experiments_delegate.validation_result_signal.connect(self._handle_delegate_validation_result)
         
         gui_logger.debug("Installed NumberClampDelegate for column 1 on both trees and connected validation signals")
         
@@ -1491,7 +1491,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         # If a delegate is installed for this column, skip processing entirely.
         # The delegate handles validation, clamping, and feedback via its own signals.
-        if changed_col == 1 and treeWidget.itemDelegateForColumn(changed_col) in [self.number_clamp_delegate_settings, self.number_clamp_delegate_experiments]:
+        if changed_col == 1 and treeWidget.itemDelegateForColumn(changed_col) in [self.settings_delegate, self.experiments_delegate]:
             gui_logger.debug(f"update_parameters: Skipping processing for {changed_item.name} - delegate handles it")
             return # Exit early for delegate-handled columns
 
@@ -1590,18 +1590,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 # Use bulletproof method to write clamped value to cell
                 self._write_clamped_value_to_cell(item, new_value)
                 
-                # Apply background/feedback WITHOUT triggering itemChanged
-                tw = item.treeWidget()
-                with QSignalBlocker(tw):
-                    item.setBackground(1, QtGui.QBrush(QtGui.QColor(255, 240, 200)))  # Orange for warning
-                
                 gui_logger.info(f"GUI display updated - text: '{item.text(1)}', value: {item.value}")
                 
                 # Show notification about clamping
                 self._show_parameter_notification(f"Parameter {item.name} was clamped to {new_value}")
-                
-                # Auto-clear the visual feedback after 3 seconds
-                self._clear_visual_feedback_after_delay(item, 3000)
                 
                 # Continue with device update using the clamped value
 
@@ -1843,10 +1835,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                     finally:
                         self._programmatic_update = False
                     
-                    # Set error background using QSignalBlocker for decoration only
-                    with QSignalBlocker(item.treeWidget()):
-                        item.setBackground(1, QtGui.QBrush(QtGui.QColor(255, 200, 200)))  # Red for error
-                    
                     gui_logger.info(f"GUI item {item.name} updated successfully")
                     
             elif reason == 'clamped':
@@ -1886,10 +1874,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
                     finally:
                         self._programmatic_update = False
-                    
-                    # Set warning background using QSignalBlocker for decoration only
-                    with QSignalBlocker(item.treeWidget()):
-                        item.setBackground(1, QtGui.QBrush(QtGui.QColor(255, 240, 200)))  # Orange for warning
                     
                     gui_logger.info(f"GUI item {item.name} updated successfully")
                     
@@ -1931,10 +1915,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                     finally:
                         self._programmatic_update = False
                     
-                    # Set warning background using QSignalBlocker for decoration only
-                    with QSignalBlocker(item.treeWidget()):
-                        item.setBackground(1, QtGui.QBrush(QtGui.QColor(255, 240, 200)))  # Orange for warning
-                    
                     gui_logger.info(f"GUI item {item.name} updated successfully")
         
         self.log(msg)
@@ -1952,26 +1932,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             item.setText(1, str(result['actual_value']))
             item.value = result['actual_value']
         
-        # Set visual feedback based on the result
+        # Visual feedback is now handled by the delegate's paint method
+        # We only need to handle logging and notifications here
         reason = result.get('reason', 'unknown')
         gui_logger.info(f"MAIN WINDOW: Processing delegate result for {item.name}, reason: {reason}")
-        if reason == 'clamped':
-            gui_logger.info(f"MAIN WINDOW: Setting warning (orange) background for {item.name}")
-            self._set_item_visual_feedback(item, 'warning')
-        elif reason == 'error':
-            gui_logger.info(f"MAIN WINDOW: Setting error (red) background for {item.name}")
-            self._set_item_visual_feedback(item, 'error')
-        elif reason == 'device_different':
-            # Light blue background for device reporting different value
-            gui_logger.info(f"MAIN WINDOW: Setting device_different (light blue) background for {item.name}")
-            tw = item.treeWidget()
-            with QSignalBlocker(tw):
-                item.setBackground(1, QtGui.QBrush(QtGui.QColor(200, 240, 255)))  # Light blue
-        elif reason == 'success':
-            gui_logger.info(f"MAIN WINDOW: Setting success (green) background for {item.name}")
-            self._set_item_visual_feedback(item, 'success')
-        else:
-            gui_logger.warning(f"MAIN WINDOW: Unknown reason '{reason}' for {item.name}")
         
         # Log the message to GUI history
         message = result.get('message', 'Parameter validation completed')
@@ -1980,45 +1944,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         # Show notification
         is_error = reason == 'error'
         self._show_parameter_notification(message, is_error=is_error)
-        
-        # Auto-clear visual feedback after delay
-        if reason in ['success', 'warning', 'device_different']:
-            delay_ms = 3000 if reason == 'device_different' else 2000
-            self._clear_visual_feedback_after_delay(item, delay_ms)
 
-    def _set_item_visual_feedback(self, item, feedback_type):
-        """
-        Set visual feedback on tree item based on validation result.
-        
-        Args:
-            item: Tree item to update
-            feedback_type: 'success', 'warning', 'error', or 'normal'
-        """
-        tw = item.treeWidget()
-        blocker = QSignalBlocker(tw)  # prevents itemChanged while we paint
-        try:
-            # Reset any existing styling
-            item.setBackground(0, QtGui.QBrush())
-            item.setBackground(1, QtGui.QBrush())
-            
-            if feedback_type == 'success':
-                # Green background for successful updates
-                item.setBackground(1, QtGui.QBrush(QtGui.QColor(200, 255, 200)))
-                # Auto-clear after 2 seconds
-                self._clear_visual_feedback_after_delay(item, 2000)
-            elif feedback_type == 'warning':
-                # Yellow background for clamped values
-                item.setBackground(1, QtGui.QBrush(QtGui.QColor(255, 240, 200)))
-                # Auto-clear after 3 seconds (longer for warnings)
-                self._clear_visual_feedback_after_delay(item, 3000)
-            elif feedback_type == 'error':
-                # Red background for validation errors
-                item.setBackground(1, QtGui.QBrush(QtGui.QColor(255, 200, 200)))
-                # Auto-clear after 4 seconds (longer for errors)
-                self._clear_visual_feedback_after_delay(item, 4000)
-            # 'normal' doesn't change the background
-        finally:
-            del blocker
 
     def _show_parameter_notification(self, message, is_error=False):
         """
@@ -2131,36 +2057,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         except Exception as e:
             gui_logger.debug(f"Could not add tooltip: {e}")
 
-    def _clear_visual_feedback_after_delay(self, item, delay_ms=2000):
-        """
-        Clear visual feedback after a delay to avoid permanent highlighting.
-        
-        Args:
-            item: Tree item to clear feedback from
-            delay_ms: Delay in milliseconds before clearing
-        """
-        # Use QTimer to clear feedback after delay
-        timer = QtCore.QTimer()
-        timer.setSingleShot(True)
-        # Use a lambda that checks the recursion guard before clearing
-        timer.timeout.connect(lambda: self._safe_clear_visual_feedback(item))
-        timer.start(delay_ms)
-    
-    def _safe_clear_visual_feedback(self, item):
-        """
-        Safely clear visual feedback, checking recursion guard first.
-        
-        Args:
-            item: Tree item to clear feedback from
-        """
-        # Only clear if we're not in the middle of updating parameters
-        if not self._updating_parameters:
-            # Reset background to normal
-            item.setBackground(0, QtGui.QBrush())
-            item.setBackground(1, QtGui.QBrush())
-            # Clear the clamped feedback flag
-            if hasattr(item, '_clamped_feedback'):
-                delattr(item, '_clamped_feedback')
 
     def plot_experiment(self, experiment):
         """

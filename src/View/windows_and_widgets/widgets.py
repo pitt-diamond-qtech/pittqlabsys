@@ -543,10 +543,154 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
        - or data(UserRole+1) / data(UserRole+2)
        - or a dict in data(UserRole) with keys 'min','max'
     If no bounds are found, passes through unchanged.
+    
+    Also handles visual feedback through transient painting instead of mutating item data.
     """
     parameter_feedback_signal = QtCore.pyqtSignal(object, dict) # item, feedback_dict
     validation_result_signal = QtCore.pyqtSignal(object, str, dict) # item, param_name, result_dict
+    
+    def __init__(self, parent=None, feedback_ms=2000):
+        super().__init__(parent)
+        self._feedback = {}  # QPersistentModelIndex -> ("success"/"clamped"/"error", deadline_ms)
+        self._feedback_ms = feedback_ms
+        self._timer = QtCore.QTimer(self)
+        self._timer.setInterval(150)
+        self._timer.timeout.connect(self._purge_feedback)
+        self._timer.start()
+    
+    def _key(self, index):
+        return QtCore.QPersistentModelIndex(index)
+    
+    def _set_feedback(self, index, status: str):
+        """Set transient visual feedback for an index"""
+        view = self.parent()  # the QTreeWidget
+        if not isinstance(view, QtWidgets.QAbstractItemView):
+            return
+        key = self._key(index)
+        if status is None:
+            self._feedback.pop(key, None)
+        else:
+            deadline = QtCore.QDateTime.currentMSecsSinceEpoch() + self._feedback_ms
+            self._feedback[key] = (status, deadline)
+        view.viewport().update()  # repaint with new state
+    
+    def setFeedback(self, index, status):
+        """
+        Public method to set visual feedback for an index.
+        
+        Args:
+            index: QModelIndex for the cell to highlight
+            status: "success", "clamped", "error", or None to clear
+        """
+        self._set_feedback(index, status)
+    
+    def _is_significantly_different(self, actual_value, requested_value, device, param_name):
+        """
+        Check if the difference between actual and requested values is significant
+        based on device-specific tolerances.
+        
+        Args:
+            actual_value: Value reported by device
+            requested_value: Value user requested
+            device: Device instance
+            param_name: Parameter name
+            
+        Returns:
+            bool: True if difference is significant enough to flag
+        """
+        # For non-numeric values, use exact comparison
+        if not isinstance(actual_value, (int, float)) or not isinstance(requested_value, (int, float)):
+            return actual_value != requested_value
+        
+        # Get device-specific tolerance
+        tolerance = self._get_device_tolerance(device, param_name)
+        
+        if tolerance is None:
+            # Fallback to default tolerance (0.1% relative)
+            if requested_value != 0:
+                relative_diff = abs(actual_value - requested_value) / abs(requested_value)
+                return relative_diff > 0.001
+            else:
+                return abs(actual_value - requested_value) > 1e-6
+        
+        # Use device-specific tolerance
+        if tolerance['type'] == 'relative':
+            if requested_value != 0:
+                relative_diff = abs(actual_value - requested_value) / abs(requested_value)
+                return relative_diff > tolerance['value']
+            else:
+                # For zero values, use absolute tolerance
+                return abs(actual_value - requested_value) > tolerance.get('absolute_fallback', 1e-6)
+        elif tolerance['type'] == 'absolute':
+            return abs(actual_value - requested_value) > tolerance['value']
+        else:
+            # Unknown tolerance type, use exact comparison
+            return actual_value != requested_value
+    
+    def _get_device_tolerance(self, device, param_name):
+        """
+        Get device-specific tolerance for parameter comparison.
+        
+        Args:
+            device: Device instance
+            param_name: Parameter name
+            
+        Returns:
+            dict: Tolerance configuration or None for default
+        """
+        device_name = device.__class__.__name__.lower()
+        
+        # Device-specific tolerances
+        tolerances = {
+            'mclnanodrive': {
+                'x_pos': {'type': 'absolute', 'value': 0.01},  # 0.01 microns
+                'y_pos': {'type': 'absolute', 'value': 0.01},  # 0.01 microns  
+                'z_pos': {'type': 'absolute', 'value': 0.01},  # 0.01 microns
+            },
+            'sg384generator': {
+                'frequency': {'type': 'relative', 'value': 0.0001},  # 0.01% (very precise for frequency)
+                'sweep_center_frequency': {'type': 'relative', 'value': 0.0001},
+                'sweep_max_frequency': {'type': 'relative', 'value': 0.0001},
+                'sweep_min_frequency': {'type': 'relative', 'value': 0.0001},
+                'power': {'type': 'absolute', 'value': 0.1},  # 0.1 dBm
+                'phase': {'type': 'absolute', 'value': 0.1},   # 0.1 degrees
+            },
+            'adwingolddevice': {
+                # ADwin parameters are typically very precise
+                'delay': {'type': 'absolute', 'value': 0.001},  # 0.001 seconds
+            }
+        }
+        
+        # Check if device has specific tolerance for this parameter
+        if device_name in tolerances and param_name in tolerances[device_name]:
+            return tolerances[device_name][param_name]
+        
+        # Check if device has a general tolerance method
+        if hasattr(device, 'get_parameter_tolerance'):
+            try:
+                return device.get_parameter_tolerance(param_name)
+            except:
+                pass
+        
+        # No specific tolerance found, use default
+        return None
+    
+    def _purge_feedback(self):
+        """Remove expired feedback entries"""
+        now = QtCore.QDateTime.currentMSecsSinceEpoch()
+        dirty = False
+        for key in list(self._feedback.keys()):
+            status, deadline = self._feedback[key]
+            if not key.isValid() or now >= deadline:
+                self._feedback.pop(key, None)
+                dirty = True
+        if dirty:
+            view = self.parent()
+            if isinstance(view, QtWidgets.QAbstractItemView):
+                view.viewport().update()
     def createEditor(self, parent, option, index):
+        # Clear previous color as soon as user starts editing
+        self._set_feedback(index, None)
         # Use a QLineEdit so you keep your current UX (free typing + sci notation)
         editor = QtWidgets.QLineEdit(parent)
         editor.setFrame(False)
@@ -640,8 +784,14 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
                             actual_values = device.update_and_get({param_name: num})
                             actual_value = actual_values.get(param_name, num)
                             
-                            if actual_value != num:
-                                # Device reported different value - emit signal
+                            # Check if device reported a significantly different value
+                            # Use device-specific tolerance to avoid flagging tiny differences
+                            is_significantly_different = self._is_significantly_different(
+                                actual_value, num, device, param_name
+                            )
+                            
+                            if is_significantly_different:
+                                # Device reported significantly different value - emit signal
                                 final_value = actual_value
                                 feedback = {
                                     'valid': True,
@@ -703,3 +853,33 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
         # Update the item's internal value
         if hasattr(tw_item, 'value'):
             tw_item.value = final_value
+        
+        # Set visual feedback based on what happened
+        if num != final_value:
+            # Value was clamped
+            self._set_feedback(index, "clamped")
+        else:
+            # Value was accepted as-is
+            self._set_feedback(index, "success")
+    
+    def paint(self, painter, option, index):
+        """Paint the item with transient visual feedback"""
+        # Copy option so we can tweak background without side-effects
+        opt = QtWidgets.QStyleOptionViewItem(option)
+        
+        # Check for transient feedback
+        status = None
+        key = self._key(index)
+        if key in self._feedback:
+            status, _ = self._feedback[key]
+        
+        # Choose colors (subtle)
+        if status == "success":
+            opt.backgroundBrush = QtGui.QBrush(QtGui.QColor(210, 255, 210))  # light green
+        elif status == "clamped":
+            opt.backgroundBrush = QtGui.QBrush(QtGui.QColor(255, 245, 210))  # light amber/orange
+        elif status == "error":
+            opt.backgroundBrush = QtGui.QBrush(QtGui.QColor(255, 220, 220))  # light red
+        
+        # Let base class do the rest
+        super().paint(painter, opt, index)
