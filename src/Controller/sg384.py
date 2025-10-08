@@ -476,6 +476,57 @@ class SG384Generator(MicrowaveGeneratorBase):
                 'type': float,
                 'units': 'degrees',
                 'info': 'Phase: 0 to 360 degrees'
+            },
+            # Add missing sweep frequency parameters
+            'sweep_center_frequency': {
+                'min': 1.9e9,
+                'max': 4.1e9,
+                'type': float,
+                'units': 'Hz',
+                'info': 'Sweep center frequency: 1.9-4.1 GHz'
+            },
+            'sweep_max_frequency': {
+                'min': 1.9e9,
+                'max': 4.1e9,
+                'type': float,
+                'units': 'Hz',
+                'info': 'Sweep maximum frequency: 1.9-4.1 GHz'
+            },
+            'sweep_min_frequency': {
+                'min': 1.9e9,
+                'max': 4.1e9,
+                'type': float,
+                'units': 'Hz',
+                'info': 'Sweep minimum frequency: 1.9-4.1 GHz'
+            },
+            'sweep_deviation': {
+                'min': 0.0,
+                'max': 1.1e9,  # Half of frequency range
+                'type': float,
+                'units': 'Hz',
+                'info': 'Sweep deviation: 0 to 1.1 GHz'
+            },
+            # Add other missing parameters
+            'amplitude': {
+                'min': -120.0,
+                'max': 13.0,
+                'type': float,
+                'units': 'dBm',
+                'info': 'Amplitude: -120 to +13 dBm'
+            },
+            'dev_width': {
+                'min': 0.0,
+                'max': 1e8,
+                'type': float,
+                'units': 'Hz',
+                'info': 'Deviation width: 0 to 100 MHz'
+            },
+            'mod_rate': {
+                'min': 0.001,
+                'max': 1e8,
+                'type': float,
+                'units': 'Hz',
+                'info': 'Modulation rate: 0.001 Hz to 100 MHz'
             }
         }
         
