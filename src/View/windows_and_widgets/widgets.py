@@ -618,6 +618,7 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
                             'actual_value': clamped_value,
                             'reason': 'clamped'
                         }
+                        gui_logger.info(f"DELEGATE: Emitting clamped signal for {param_name}: {feedback}")
                         self.validation_result_signal.emit(tw_item, param_name, feedback)
                     else:
                         # No clamped value available - emit error signal

@@ -1954,17 +1954,24 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         
         # Set visual feedback based on the result
         reason = result.get('reason', 'unknown')
+        gui_logger.info(f"MAIN WINDOW: Processing delegate result for {item.name}, reason: {reason}")
         if reason == 'clamped':
+            gui_logger.info(f"MAIN WINDOW: Setting warning (orange) background for {item.name}")
             self._set_item_visual_feedback(item, 'warning')
         elif reason == 'error':
+            gui_logger.info(f"MAIN WINDOW: Setting error (red) background for {item.name}")
             self._set_item_visual_feedback(item, 'error')
         elif reason == 'device_different':
             # Light blue background for device reporting different value
+            gui_logger.info(f"MAIN WINDOW: Setting device_different (light blue) background for {item.name}")
             tw = item.treeWidget()
             with QSignalBlocker(tw):
                 item.setBackground(1, QtGui.QBrush(QtGui.QColor(200, 240, 255)))  # Light blue
         elif reason == 'success':
+            gui_logger.info(f"MAIN WINDOW: Setting success (green) background for {item.name}")
             self._set_item_visual_feedback(item, 'success')
+        else:
+            gui_logger.warning(f"MAIN WINDOW: Unknown reason '{reason}' for {item.name}")
         
         # Log the message to GUI history
         message = result.get('message', 'Parameter validation completed')
