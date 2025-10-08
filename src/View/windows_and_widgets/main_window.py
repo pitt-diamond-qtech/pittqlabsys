@@ -1587,8 +1587,19 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 # Update tree item to show actual value
                 if actual_value is not None:
                     gui_logger.info(f"Updating GUI item {item.name} from {item.value} to {actual_value}")
+                    
+                    # Block signals to prevent recursion during GUI update
+                    tree_widget = item.treeWidget()
+                    if tree_widget:
+                        tree_widget.blockSignals(True)
+                    
                     item.value = actual_value
                     item.setText(1, str(actual_value))
+                    
+                    # Re-enable signals
+                    if tree_widget:
+                        tree_widget.blockSignals(False)
+                    
                     gui_logger.info(f"GUI item {item.name} updated successfully")
                     
             elif reason == 'clamped':
@@ -1601,8 +1612,19 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 # Update tree item to show actual value
                 if actual_value is not None:
                     gui_logger.info(f"Updating GUI item {item.name} from {item.value} to {actual_value}")
+                    
+                    # Block signals to prevent recursion during GUI update
+                    tree_widget = item.treeWidget()
+                    if tree_widget:
+                        tree_widget.blockSignals(True)
+                    
                     item.value = actual_value
                     item.setText(1, str(actual_value))
+                    
+                    # Re-enable signals
+                    if tree_widget:
+                        tree_widget.blockSignals(False)
+                    
                     gui_logger.info(f"GUI item {item.name} updated successfully")
                     
             else:
@@ -1615,8 +1637,19 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 # Update tree item to show actual value
                 if actual_value is not None:
                     gui_logger.info(f"Updating GUI item {item.name} from {item.value} to {actual_value}")
+                    
+                    # Block signals to prevent recursion during GUI update
+                    tree_widget = item.treeWidget()
+                    if tree_widget:
+                        tree_widget.blockSignals(True)
+                    
                     item.value = actual_value
                     item.setText(1, str(actual_value))
+                    
+                    # Re-enable signals
+                    if tree_widget:
+                        tree_widget.blockSignals(False)
+                    
                     gui_logger.info(f"GUI item {item.name} updated successfully")
         
         self.log(msg)
