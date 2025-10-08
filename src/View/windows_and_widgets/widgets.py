@@ -563,8 +563,7 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
         self._timer.start()
     
     def _key(self, index):
-        """Create a stable key for the feedback dictionary using row/column"""
-        return (index.row(), index.column())
+        return QtCore.QPersistentModelIndex(index)
     
     def _set_feedback(self, index, status: str):
         """Set transient visual feedback for an index"""
@@ -572,15 +571,23 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
         if not isinstance(view, QtWidgets.QAbstractItemView):
             gui_logger.warning(f"DELEGATE: _set_feedback - parent is not QAbstractItemView: {type(view)}")
             return
-        key = self._key(index)
+        
+        # Create persistent index immediately and store it
+        persistent_index = QtCore.QPersistentModelIndex(index)
         if status is None:
-            self._feedback.pop(key, None)
-            gui_logger.debug(f"DELEGATE: Cleared feedback for {key}")
+            # Remove any existing feedback for this index
+            keys_to_remove = [key for key in self._feedback.keys() if key.isValid() and key == persistent_index]
+            for key in keys_to_remove:
+                self._feedback.pop(key, None)
+            gui_logger.debug(f"DELEGATE: Cleared feedback for {persistent_index}")
         else:
             deadline = QtCore.QDateTime.currentMSecsSinceEpoch() + self._feedback_ms
-            self._feedback[key] = (status, deadline)
-            gui_logger.debug(f"DELEGATE: Set feedback for {key}: {status}")
-        view.viewport().update()  # repaint with new state
+            self._feedback[persistent_index] = (status, deadline)
+            gui_logger.debug(f"DELEGATE: Set feedback for {persistent_index}: {status}")
+        
+        # Force a repaint of the specific cell
+        if view and view.viewport():
+            view.viewport().update(view.visualRect(index))
     
     def setFeedback(self, index, status):
         """
@@ -870,30 +877,50 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
             # Value was accepted as-is
             self._set_feedback(index, "success")
     
-    def paint(self, painter, option, index):
-        """Paint the item with transient visual feedback"""
-        # Copy option so we can tweak background without side-effects
+    def paint(self, painter: QtGui.QPainter, option: QtWidgets.QStyleOptionViewItem, index: QtCore.QModelIndex):
+        """Paint the item with transient visual feedback - robust version that handles selection highlights"""
+        # Always start from a fresh copy and init style info
         opt = QtWidgets.QStyleOptionViewItem(option)
+        self.initStyleOption(opt, index)
+
+        # Look up feedback for THIS cell using the persistent index as key
+        persistent_key = QtCore.QPersistentModelIndex(index)
+        fb_status = None
         
-        # Check for transient feedback
-        status = None
-        key = self._key(index)
-        if key in self._feedback:
-            status, _ = self._feedback[key]
-            gui_logger.debug(f"DELEGATE: paint - found feedback for {key}: {status}")
-        else:
-            gui_logger.debug(f"DELEGATE: paint - no feedback found for {key}")
+        # Find matching feedback by comparing persistent indices
+        for stored_persistent, (feedback_status, deadline) in self._feedback.items():
+            if stored_persistent.isValid() and stored_persistent == persistent_key:
+                fb_status = feedback_status
+                gui_logger.debug(f"DELEGATE: paint - found feedback for {persistent_key}: {fb_status}")
+                break
         
-        # Choose colors (subtle)
-        if status == "success":
-            opt.backgroundBrush = QtGui.QBrush(QtGui.QColor(210, 255, 210))  # light green
-            gui_logger.debug(f"DELEGATE: paint - setting green background")
-        elif status == "clamped":
-            opt.backgroundBrush = QtGui.QBrush(QtGui.QColor(255, 245, 210))  # light amber/orange
+        if fb_status is None:
+            gui_logger.debug(f"DELEGATE: paint - no feedback found for {persistent_key}")
+
+        # Choose the background color based on feedback
+        bg_color = None
+        if fb_status == "clamped":
+            bg_color = QtGui.QColor(255, 230, 170)   # light orange
             gui_logger.debug(f"DELEGATE: paint - setting orange background")
-        elif status == "error":
-            opt.backgroundBrush = QtGui.QBrush(QtGui.QColor(255, 220, 220))  # light red
+        elif fb_status == "success":
+            bg_color = QtGui.QColor(208, 240, 192)   # light green
+            gui_logger.debug(f"DELEGATE: paint - setting green background")
+        elif fb_status == "error":
+            bg_color = QtGui.QColor(255, 204, 204)   # light red
             gui_logger.debug(f"DELEGATE: paint - setting red background")
-        
-        # Let base class do the rest
-        super().paint(painter, opt, index)
+
+        if bg_color is not None:
+            # If the item is selected, the selection highlight will override backgroundBrush,
+            # so we remap the selection highlight itself to our color to make it visible.
+            if opt.state & QtWidgets.QStyle.State_Selected:
+                pal = opt.palette
+                pal.setBrush(QtGui.QPalette.Highlight, QtGui.QBrush(bg_color))
+                # keep text readable when highlighted
+                pal.setColor(QtGui.QPalette.HighlightedText, pal.color(QtGui.QPalette.Text))
+                opt.palette = pal
+            else:
+                # Non-selected case: set the background brush
+                opt.backgroundBrush = QtGui.QBrush(bg_color)
+
+        style = opt.widget.style() if opt.widget else QtWidgets.QApplication.style()
+        style.drawControl(QtWidgets.QStyle.CE_ItemViewItem, opt, painter, opt.widget)
