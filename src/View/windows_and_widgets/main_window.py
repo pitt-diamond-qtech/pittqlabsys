@@ -1400,13 +1400,13 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 gui_logger.debug(f"update_parameters called for column {changed_col}, only column 1 triggers updates")
                 return
 
-            # Parse and validate the new value before proceeding
+            # Parse the new value and validate against device ranges FIRST
             new_text = changed_item.text(1)
             current_value = getattr(changed_item, "value", "")
             
             gui_logger.debug(f"Value change check - new_text: '{new_text}', current_value: '{current_value}' (type: {type(current_value)})")
             
-            # Try to parse the new value to check if it's valid
+            # Try to parse the new value
             try:
                 # Attempt to convert to the expected type
                 if hasattr(changed_item, 'valid_values'):
@@ -1435,27 +1435,48 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                     except ValueError:
                         new_value = str(new_text)
                 
-                # Check if the parsed value is actually different from current value
-                # Use proper comparison based on type
-                if isinstance(current_value, (int, float)) and isinstance(new_value, (int, float)):
-                    # For numeric values, compare the actual numbers
-                    if abs(current_value - new_value) < 1e-10:
-                        gui_logger.debug(f"Value unchanged for {changed_item.name} (numeric comparison), skipping update")
-                        return
-                elif current_value == new_value:
-                    # For non-numeric values, use direct comparison
-                    gui_logger.debug(f"Value unchanged for {changed_item.name} (direct comparison), skipping update")
-                    return
-                    
-                gui_logger.info(f"Value changed for {changed_item.name}: {current_value} -> {new_value}")
-                    
-                # Update the item's value with the parsed value
-                changed_item.value = new_value
-                
             except (ValueError, TypeError) as e:
                 gui_logger.warning(f"Invalid value '{new_text}' for {changed_item.name}: {e}")
                 self._handle_parameter_error(changed_item, f"Invalid value format: {e}", "GUI")
                 return
+            
+            # For device parameters, validate against device ranges BEFORE comparing to current value
+            if treeWidget == self.tree_settings:
+                device, path_to_device = changed_item.get_device()
+                if device and hasattr(device, 'validate_parameter'):
+                    gui_logger.debug(f"Pre-validating parameter {changed_item.name} = {new_value} on {device.name}")
+                    validation_result = device.validate_parameter(path_to_device, new_value)
+                    gui_logger.debug(f"Pre-validation result: {validation_result}")
+                    
+                    if not validation_result.get('valid', True):
+                        # Parameter is invalid, show error and don't proceed
+                        error_msg = validation_result.get('message', 'Parameter validation failed')
+                        gui_logger.warning(f"Pre-validation failed: {changed_item.name} on {device.name} - {error_msg}")
+                        self._handle_parameter_error(changed_item, error_msg, device.name)
+                        return
+                    
+                    # If validation passed but value was clamped, use the clamped value
+                    if validation_result.get('clamped_value') is not None:
+                        clamped_value = validation_result.get('clamped_value')
+                        gui_logger.info(f"Parameter {changed_item.name} was clamped from {new_value} to {clamped_value}")
+                        new_value = clamped_value
+            
+            # NOW check if the parsed/validated value is actually different from current value
+            # Use proper comparison based on type
+            if isinstance(current_value, (int, float)) and isinstance(new_value, (int, float)):
+                # For numeric values, compare the actual numbers
+                if abs(current_value - new_value) < 1e-10:
+                    gui_logger.debug(f"Value unchanged for {changed_item.name} (numeric comparison), skipping update")
+                    return
+            elif current_value == new_value:
+                # For non-numeric values, use direct comparison
+                gui_logger.debug(f"Value unchanged for {changed_item.name} (direct comparison), skipping update")
+                return
+                
+            gui_logger.info(f"Value changed for {changed_item.name}: {current_value} -> {new_value}")
+            
+            # Update the item's value with the parsed/validated value
+            changed_item.value = new_value
 
             gui_logger.debug(f"update_parameters called for tree: {type(treeWidget)}, item: {changed_item.name}, column: {changed_col}")
 
@@ -1485,19 +1506,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                     dictator = {element: dictator}
 
                 try:
-                    # Pre-validate the parameter before attempting device update
-                    if hasattr(device, 'validate_parameter'):
-                        gui_logger.debug(f"Pre-validating parameter {item.name} = {item.value} on {device.name}")
-                        validation_result = device.validate_parameter(path_to_device, item.value)
-                        gui_logger.debug(f"Pre-validation result: {validation_result}")
-                        
-                        if not validation_result.get('valid', True):
-                            # Parameter is invalid, show error and don't update device
-                            error_msg = validation_result.get('message', 'Parameter validation failed')
-                            gui_logger.warning(f"Pre-validation failed: {item.name} on {device.name} - {error_msg}")
-                            self._handle_parameter_error(item, error_msg, device.name)
-                            return
-                    
                     # Use the enhanced feedback system if available
                     if hasattr(device, 'get_feedback_only'):
                         # Get detailed feedback about the update
