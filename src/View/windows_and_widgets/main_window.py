@@ -1400,15 +1400,52 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 gui_logger.debug(f"update_parameters called for column {changed_col}, only column 1 triggers updates")
                 return
 
-            # Optional: Only react when the value actually changed
+            # Parse and validate the new value before proceeding
             new_text = changed_item.text(1)
             current_value = str(getattr(changed_item, "value", ""))
             
-            # Only skip if the display text exactly matches the current value text
-            # This prevents skipping legitimate user input changes
             gui_logger.debug(f"Value change check - new_text: '{new_text}', current_value: '{current_value}'")
-            if current_value == new_text:
-                gui_logger.debug(f"Value unchanged for {changed_item.name}, skipping update")
+            
+            # Try to parse the new value to check if it's valid
+            try:
+                # Attempt to convert to the expected type
+                if hasattr(changed_item, 'valid_values'):
+                    expected_type = changed_item.valid_values
+                    if expected_type == int:
+                        new_value = int(float(new_text))  # Handle "1.0" -> 1
+                    elif expected_type == float:
+                        new_value = float(new_text)
+                    elif expected_type == str:
+                        new_value = str(new_text)
+                    elif isinstance(expected_type, list):
+                        # For list types, check if the value is in the valid list
+                        if new_text not in expected_type:
+                            gui_logger.warning(f"Value '{new_text}' not in valid list {expected_type}")
+                            self._handle_parameter_error(changed_item, f"Value '{new_text}' not in valid options: {expected_type}", "GUI")
+                            return
+                        new_value = new_text
+                    else:
+                        new_value = new_text
+                else:
+                    # Fallback: try to parse as float, then int, then string
+                    try:
+                        new_value = float(new_text)
+                        if new_value.is_integer():
+                            new_value = int(new_value)
+                    except ValueError:
+                        new_value = str(new_text)
+                
+                # Check if the parsed value is actually different from current
+                if str(new_value) == current_value:
+                    gui_logger.debug(f"Value unchanged for {changed_item.name}, skipping update")
+                    return
+                    
+                # Update the item's value with the parsed value
+                changed_item.value = new_value
+                
+            except (ValueError, TypeError) as e:
+                gui_logger.warning(f"Invalid value '{new_text}' for {changed_item.name}: {e}")
+                self._handle_parameter_error(changed_item, f"Invalid value format: {e}", "GUI")
                 return
 
             gui_logger.debug(f"update_parameters called for tree: {type(treeWidget)}, item: {changed_item.name}, column: {changed_col}")
@@ -1439,6 +1476,19 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                     dictator = {element: dictator}
 
                 try:
+                    # Pre-validate the parameter before attempting device update
+                    if hasattr(device, 'validate_parameter'):
+                        gui_logger.debug(f"Pre-validating parameter {item.name} = {item.value} on {device.name}")
+                        validation_result = device.validate_parameter(path_to_device, item.value)
+                        gui_logger.debug(f"Pre-validation result: {validation_result}")
+                        
+                        if not validation_result.get('valid', True):
+                            # Parameter is invalid, show error and don't update device
+                            error_msg = validation_result.get('message', 'Parameter validation failed')
+                            gui_logger.warning(f"Pre-validation failed: {item.name} on {device.name} - {error_msg}")
+                            self._handle_parameter_error(item, error_msg, device.name)
+                            return
+                    
                     # Use the enhanced feedback system if available
                     if hasattr(device, 'get_feedback_only'):
                         # Get detailed feedback about the update
