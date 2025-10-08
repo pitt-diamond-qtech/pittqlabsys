@@ -1486,7 +1486,17 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             return
 
         # We only care about edits in the Value column (1)
-        if changed_item is None or changed_col is None or changed_col != 1:
+        if changed_item is None or changed_col is None:
+            return
+
+        # If a delegate is installed for this column, skip processing entirely.
+        # The delegate handles validation, clamping, and feedback via its own signals.
+        if changed_col == 1 and treeWidget.itemDelegateForColumn(changed_col) in [self.number_clamp_delegate_settings, self.number_clamp_delegate_experiments]:
+            gui_logger.debug(f"update_parameters: Skipping processing for {changed_item.name} - delegate handles it")
+            return # Exit early for delegate-handled columns
+
+        # If not column 1, or no delegate, proceed with original logic
+        if changed_col != 1:
             return
 
         item = changed_item
