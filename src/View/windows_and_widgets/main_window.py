@@ -1410,10 +1410,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                     # Use the enhanced feedback system if available
                     if hasattr(device, 'get_feedback_only'):
                         # Get detailed feedback about the update
+                        # Note: get_feedback_only already updates the device internally
                         feedback = device.get_feedback_only(dictator)
-                        
-                        # Update the device
-                        device.update(dictator)
                         
                         # Process feedback for each parameter
                         for param_name, param_feedback in feedback.items():
@@ -1588,8 +1586,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 
                 # Update tree item to show actual value
                 if actual_value is not None:
+                    gui_logger.info(f"Updating GUI item {item.name} from {item.value} to {actual_value}")
                     item.value = actual_value
                     item.setText(1, str(actual_value))
+                    gui_logger.info(f"GUI item {item.name} updated successfully")
                     
             elif reason == 'clamped':
                 # Value was clamped by hardware limits
@@ -1600,8 +1600,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 
                 # Update tree item to show actual value
                 if actual_value is not None:
+                    gui_logger.info(f"Updating GUI item {item.name} from {item.value} to {actual_value}")
                     item.value = actual_value
                     item.setText(1, str(actual_value))
+                    gui_logger.info(f"GUI item {item.name} updated successfully")
                     
             else:
                 # Unknown reason for change
@@ -1612,8 +1614,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 
                 # Update tree item to show actual value
                 if actual_value is not None:
+                    gui_logger.info(f"Updating GUI item {item.name} from {item.value} to {actual_value}")
                     item.value = actual_value
                     item.setText(1, str(actual_value))
+                    gui_logger.info(f"GUI item {item.name} updated successfully")
         
         self.log(msg)
 
