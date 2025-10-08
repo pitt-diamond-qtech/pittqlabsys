@@ -544,6 +544,8 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
        - or a dict in data(UserRole) with keys 'min','max'
     If no bounds are found, passes through unchanged.
     """
+    parameter_feedback_signal = QtCore.pyqtSignal(object, dict) # item, feedback_dict
+    validation_result_signal = QtCore.pyqtSignal(object, str, dict) # item, param_name, result_dict
     def createEditor(self, parent, option, index):
         # Use a QLineEdit so you keep your current UX (free typing + sci notation)
         editor = QtWidgets.QLineEdit(parent)
@@ -601,42 +603,88 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
             device, path_to_device = tw_item.get_device()
             if device and hasattr(device, 'validate_parameter'):
                 validation_result = device.validate_parameter(path_to_device, num)
+                param_name = path_to_device[-1] if path_to_device else tw_item.name
+                
                 if not validation_result.get('valid', True):
                     clamped_value = validation_result.get('clamped_value', num)
                     if clamped_value != num:
-                        # Value was clamped - update editor to show clamped value
-                        editor.setText(str(clamped_value))
-                        editor.setStyleSheet("background-color: rgb(255, 240, 200);")  # Orange for clamped
+                        # Value was clamped - emit signal for main window to handle
                         final_value = clamped_value
+                        feedback = {
+                            'valid': False,
+                            'message': f"Parameter {param_name} was clamped from {num} to {clamped_value}",
+                            'clamped_value': clamped_value,
+                            'requested_value': num,
+                            'actual_value': clamped_value,
+                            'reason': 'clamped'
+                        }
+                        self.validation_result_signal.emit(tw_item, param_name, feedback)
                     else:
-                        # No clamped value available - show error
-                        editor.setStyleSheet("background-color: rgb(255, 200, 200);")  # Red for error
+                        # No clamped value available - emit error signal
+                        feedback = {
+                            'valid': False,
+                            'message': validation_result.get('message', 'Parameter validation failed'),
+                            'clamped_value': None,
+                            'requested_value': num,
+                            'actual_value': None,
+                            'reason': 'error'
+                        }
+                        self.validation_result_signal.emit(tw_item, param_name, feedback)
                         return  # Don't update the model
                 else:
                     # Validation passed - now check if device reports different actual value
                     if hasattr(device, 'update_and_get'):
                         try:
                             # Update the device and get actual values
-                            param_name = path_to_device[-1] if path_to_device else tw_item.name
                             actual_values = device.update_and_get({param_name: num})
                             actual_value = actual_values.get(param_name, num)
                             
                             if actual_value != num:
-                                # Device reported different value - show light blue background
-                                editor.setText(str(actual_value))
-                                editor.setStyleSheet("background-color: rgb(200, 240, 255);")  # Light blue for "device reported different"
+                                # Device reported different value - emit signal
                                 final_value = actual_value
-                                gui_logger.info(f"Device {device.name} reported {param_name} = {actual_value} (requested {num})")
+                                feedback = {
+                                    'valid': True,
+                                    'message': f"Device reported {param_name} = {actual_value} (requested {num})",
+                                    'clamped_value': None,
+                                    'requested_value': num,
+                                    'actual_value': actual_value,
+                                    'reason': 'device_different'
+                                }
+                                self.validation_result_signal.emit(tw_item, param_name, feedback)
                             else:
-                                # Device reported same value - clear styling
-                                editor.setStyleSheet("")
+                                # Device reported same value - emit success signal
+                                feedback = {
+                                    'valid': True,
+                                    'message': f"Parameter {param_name} set successfully",
+                                    'clamped_value': None,
+                                    'requested_value': num,
+                                    'actual_value': num,
+                                    'reason': 'success'
+                                }
+                                self.validation_result_signal.emit(tw_item, param_name, feedback)
                         except Exception as e:
                             gui_logger.warning(f"Could not get actual value from device: {e}")
                             # Fallback to just setting the requested value
-                            editor.setStyleSheet("")
+                            feedback = {
+                                'valid': True,
+                                'message': f"Parameter {param_name} set successfully (no actual value check)",
+                                'clamped_value': None,
+                                'requested_value': num,
+                                'actual_value': num,
+                                'reason': 'success'
+                            }
+                            self.validation_result_signal.emit(tw_item, param_name, feedback)
                     else:
-                        # No update_and_get method - clear styling
-                        editor.setStyleSheet("")
+                        # No update_and_get method - emit success signal
+                        feedback = {
+                            'valid': True,
+                            'message': f"Parameter {param_name} set successfully",
+                            'clamped_value': None,
+                            'requested_value': num,
+                            'actual_value': num,
+                            'reason': 'success'
+                        }
+                        self.validation_result_signal.emit(tw_item, param_name, feedback)
         else:
             # Fallback to attribute-based validation
             min_v = getattr(tw_item, "min_value", None)

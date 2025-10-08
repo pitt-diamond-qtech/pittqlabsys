@@ -367,9 +367,16 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         
         # Install NumberClampDelegate for column 1 (Value column) on both trees
         from src.View.windows_and_widgets.widgets import NumberClampDelegate
-        self.tree_settings.setItemDelegateForColumn(1, NumberClampDelegate(self.tree_settings))
-        self.tree_experiments.setItemDelegateForColumn(1, NumberClampDelegate(self.tree_experiments))
-        gui_logger.debug("Installed NumberClampDelegate for column 1 on both trees")
+        
+        self.number_clamp_delegate_settings = NumberClampDelegate(self.tree_settings)
+        self.tree_settings.setItemDelegateForColumn(1, self.number_clamp_delegate_settings)
+        self.number_clamp_delegate_settings.validation_result_signal.connect(self._handle_delegate_validation_result)
+        
+        self.number_clamp_delegate_experiments = NumberClampDelegate(self.tree_experiments)
+        self.tree_experiments.setItemDelegateForColumn(1, self.number_clamp_delegate_experiments)
+        self.number_clamp_delegate_experiments.validation_result_signal.connect(self._handle_delegate_validation_result)
+        
+        gui_logger.debug("Installed NumberClampDelegate for column 1 on both trees and connected validation signals")
         
         connect_controls()
         gui_logger.debug("connect_controls() completed")
@@ -1921,6 +1928,46 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                     gui_logger.info(f"GUI item {item.name} updated successfully")
         
         self.log(msg)
+
+    def _handle_delegate_validation_result(self, item, param_name, result):
+        """
+        Handles validation results from the NumberClampDelegate.
+        This provides visual feedback, logging, and GUI history updates.
+        """
+        gui_logger.debug(f"Received delegate validation result for {item.name}: {result}")
+        
+        # Update the item's display text if the actual value is different
+        if result.get('actual_value') is not None and result.get('actual_value') != result.get('requested_value'):
+            # Update the display text to show the actual value
+            item.setText(1, str(result['actual_value']))
+            item.value = result['actual_value']
+        
+        # Set visual feedback based on the result
+        reason = result.get('reason', 'unknown')
+        if reason == 'clamped':
+            self._set_item_visual_feedback(item, 'warning')
+        elif reason == 'error':
+            self._set_item_visual_feedback(item, 'error')
+        elif reason == 'device_different':
+            # Light blue background for device reporting different value
+            tw = item.treeWidget()
+            with QSignalBlocker(tw):
+                item.setBackground(1, QtGui.QBrush(QtGui.QColor(200, 240, 255)))  # Light blue
+        elif reason == 'success':
+            self._set_item_visual_feedback(item, 'success')
+        
+        # Log the message to GUI history
+        message = result.get('message', 'Parameter validation completed')
+        self.log(message)
+        
+        # Show notification
+        is_error = reason == 'error'
+        self._show_parameter_notification(message, is_error=is_error)
+        
+        # Auto-clear visual feedback after delay
+        if reason in ['success', 'warning', 'device_different']:
+            delay_ms = 3000 if reason == 'device_different' else 2000
+            self._clear_visual_feedback_after_delay(item, delay_ms)
 
     def _set_item_visual_feedback(self, item, feedback_type):
         """
