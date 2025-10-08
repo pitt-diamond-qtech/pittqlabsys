@@ -1517,6 +1517,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 changed_item.setData(1, Qt.EditRole, new_value)
                 changed_item.value = new_value
                 
+                # Force immediate GUI update
+                QtWidgets.QApplication.processEvents()
+                changed_item.setText(1, str(new_value))
+                
                 # Set visual feedback (background color) - block signals only for decoration
                 with QSignalBlocker(tw):
                     changed_item.setBackground(1, QtGui.QBrush(QtGui.QColor(255, 240, 200)))  # Orange for warning
