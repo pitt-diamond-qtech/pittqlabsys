@@ -875,3 +875,4 @@ class ODMRSweepContinuousMultiExperiment(Experiment):
             'averages': self.settings['acquisition']['averages'],
             'integration_time': f"{self.settings['acquisition']['integration_time']*1e3:.1f} ms"
         }
+
