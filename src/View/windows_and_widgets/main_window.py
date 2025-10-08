@@ -1373,101 +1373,85 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         treeWidget: the tree from which to update
 
         """
-        # Recursion guard to prevent infinite loops
-        if self._updating_parameters:
-            gui_logger.debug("update_parameters called recursively, skipping to prevent infinite loop")
-            return
-        
-        self._updating_parameters = True
-        try:
-            gui_logger.debug(f"update_parameters called for tree: {type(treeWidget)}")
+        gui_logger.debug(f"update_parameters called for tree: {type(treeWidget)}")
 
-            if treeWidget == self.tree_settings:
-                gui_logger.debug("Updating parameters from tree_settings")
-                item = treeWidget.currentItem()
-                if item is None:
-                    gui_logger.debug("No current item in tree_settings")
-                    return
+        if treeWidget == self.tree_settings:
+            gui_logger.debug("Updating parameters from tree_settings")
+            item = treeWidget.currentItem()
+            if item is None:
+                gui_logger.debug("No current item in tree_settings")
+                return
 
-                device, path_to_device = item.get_device()
-                gui_logger.debug(f"Updating device: {device.name}, path: {path_to_device}")
-                gui_logger.info(f"Device class: {type(device).__name__}, module: {type(device).__module__}")
+            device, path_to_device = item.get_device()
+            gui_logger.debug(f"Updating device: {device.name}, path: {path_to_device}")
+            gui_logger.info(f"Device class: {type(device).__name__}, module: {type(device).__module__}")
 
-                # Store original values for comparison
-                requested_value = item.value
-                old_value = device.settings
-                path_to_device_copy = path_to_device.copy()
-                path_to_device_copy.reverse()
-                for element in path_to_device_copy:
-                    old_value = old_value[element]
+            # Store original values for comparison
+            requested_value = item.value
+            old_value = device.settings
+            path_to_device_copy = path_to_device.copy()
+            path_to_device_copy.reverse()
+            for element in path_to_device_copy:
+                old_value = old_value[element]
 
-                # Build nested dictionary to update device
-                dictator = item.value
-                for element in path_to_device:
-                    dictator = {element: dictator}
+            # Build nested dictionary to update device
+            dictator = item.value
+            for element in path_to_device:
+                dictator = {element: dictator}
 
-                try:
-                    # Use the enhanced feedback system if available
-                    if hasattr(device, 'get_feedback_only'):
-                        # Get detailed feedback about the update
-                        # Note: get_feedback_only already updates the device internally
-                        feedback = device.get_feedback_only(dictator)
-                        
-                        # Process feedback for each parameter
-                        for param_name, param_feedback in feedback.items():
-                            self._process_parameter_feedback(item, param_feedback, device.name, path_to_device)
-                    else:
-                        # Fallback to old method for devices without enhanced feedback
-                        self._update_device_with_validation(device, dictator, item, path_to_device)
-                        
-                        # Get actual value after update (in case device clamped it)
-                        actual_value = device.settings
-                        for element in path_to_device_copy:
-                            actual_value = actual_value[element]
-                        
-                        # Provide user feedback based on what happened
-                        self._provide_parameter_feedback(item, requested_value, actual_value, old_value, device.name)
+            try:
+                # Use the enhanced feedback system if available
+                if hasattr(device, 'get_feedback_only'):
+                    # Get detailed feedback about the update
+                    # Note: get_feedback_only already updates the device internally
+                    feedback = device.get_feedback_only(dictator)
                     
-                except Exception as e:
-                    # Handle validation errors gracefully
-                    self._handle_parameter_error(item, str(e), device.name)
-                    return
-                
-            elif treeWidget == self.tree_experiments:
-                gui_logger.debug("Updating parameters from tree_experiments")
-                item = treeWidget.currentItem()
-                if item is None:
-                    gui_logger.debug("No current item in tree_experiments")
-                    return
-                experiment, path_to_experiment, _ = item.get_experiment()
-                gui_logger.debug(f"Updating experiment: {experiment.name}, path: {path_to_experiment}")
-
-                # check if changes value is from an device
-                device, path_to_device = item.get_device()
-                if device is not None:
-                    new_value = item.value
-                    msg = "changed parameter {:s} to {:s} in {:s}".format(item.name,
-                                                                                    str(new_value),
-                                                                                    experiment.name)
-                    gui_logger.info(f"Device parameter updated: {item.name} to {new_value} in {experiment.name}")
+                    # Process feedback for each parameter
+                    for param_name, param_feedback in feedback.items():
+                        self._process_parameter_feedback(item, param_feedback, device.name, path_to_device)
                 else:
-                    new_value = item.value
-                    msg = "changed parameter {:s} to {:s} in {:s}".format(item.name,
+                    # Fallback to old method for devices without enhanced feedback
+                    self._update_device_with_validation(device, dictator, item, path_to_device)
+                    
+                    # Get actual value after update (in case device clamped it)
+                    actual_value = device.settings
+                    for element in path_to_device_copy:
+                        actual_value = actual_value[element]
+                    
+                    # Provide user feedback based on what happened
+                    self._provide_parameter_feedback(item, requested_value, actual_value, old_value, device.name)
+                
+            except Exception as e:
+                # Handle validation errors gracefully
+                self._handle_parameter_error(item, str(e), device.name)
+                return
+            
+        elif treeWidget == self.tree_experiments:
+            gui_logger.debug("Updating parameters from tree_experiments")
+            item = treeWidget.currentItem()
+            if item is None:
+                gui_logger.debug("No current item in tree_experiments")
+                return
+            experiment, path_to_experiment, _ = item.get_experiment()
+            gui_logger.debug(f"Updating experiment: {experiment.name}, path: {path_to_experiment}")
+
+            # check if changes value is from an device
+            device, path_to_device = item.get_device()
+            if device is not None:
+                new_value = item.value
+                msg = "changed parameter {:s} to {:s} in {:s}".format(item.name,
                                                                                 str(new_value),
                                                                                 experiment.name)
-                    gui_logger.info(f"Experiment parameter updated: {item.name} to {new_value} in {experiment.name}")
-                self.log(msg)
+                gui_logger.info(f"Device parameter updated: {item.name} to {new_value} in {experiment.name}")
             else:
-                gui_logger.warning(f"Unknown tree widget type: {type(treeWidget)}")
-        
-        except Exception as e:
-            # Handle any unexpected errors in the parameter update process
-            gui_logger.error(f"Unexpected error in update_parameters: {e}")
-            self.log(f"Error updating parameters: {e}")
-        
-        finally:
-            # Always reset the recursion guard
-            self._updating_parameters = False
+                new_value = item.value
+                msg = "changed parameter {:s} to {:s} in {:s}".format(item.name,
+                                                                            str(new_value),
+                                                                            experiment.name)
+                gui_logger.info(f"Experiment parameter updated: {item.name} to {new_value} in {experiment.name}")
+            self.log(msg)
+        else:
+            gui_logger.warning(f"Unknown tree widget type: {type(treeWidget)}")
 
     def _update_device_with_validation(self, device, settings_dict, item, path_to_device):
         """
