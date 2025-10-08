@@ -1550,7 +1550,16 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             device_name: Name of the device
         """
         # Determine what happened and provide appropriate feedback
-        if actual_value == requested_value:
+        # Use float comparison for numerical values to handle precision issues
+        try:
+            actual_float = float(actual_value)
+            requested_float = float(requested_value)
+            values_match = abs(actual_float - requested_float) < 1e-10
+        except (ValueError, TypeError):
+            # Fall back to direct comparison for non-numeric values
+            values_match = actual_value == requested_value
+        
+        if values_match:
             # Value was accepted as-is
             if actual_value != old_value:
                 msg = f"✅ Parameter {item.name} changed from {old_value} to {actual_value} on {device_name}"
