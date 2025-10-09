@@ -548,56 +548,69 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
        - or a dict in data(UserRole) with keys 'min','max'
     If no bounds are found, passes through unchanged.
     
-    Also handles visual feedback through transient painting instead of mutating item data.
+    Uses model-based visual feedback through BackgroundRole instead of custom painting.
     """
     parameter_feedback_signal = QtCore.pyqtSignal(object, dict) # item, feedback_dict
     validation_result_signal = QtCore.pyqtSignal(object, str, dict) # item, param_name, result_dict
     
-    def __init__(self, parent=None, feedback_ms=2000):
+    # Custom role for storing feedback state
+    FEEDBACK_ROLE = QtCore.Qt.UserRole + 42
+    
+    def __init__(self, parent=None):
         super().__init__(parent)
-        self._feedback = {}  # QPersistentModelIndex -> ("success"/"clamped"/"error", deadline_ms)
-        self._feedback_ms = feedback_ms
-        self._timer = QtCore.QTimer(self)
-        self._timer.setInterval(150)
-        self._timer.timeout.connect(self._purge_feedback)
-        self._timer.start()
     
-    def _key(self, index):
-        return QtCore.QPersistentModelIndex(index)
-    
-    def _set_feedback(self, index, status: str):
-        """Set transient visual feedback for an index"""
-        view = self.parent()  # the QTreeWidget
-        if not isinstance(view, QtWidgets.QAbstractItemView):
-            gui_logger.warning(f"DELEGATE: _set_feedback - parent is not QAbstractItemView: {type(view)}")
-            return
+    def _color_index(self, view, index, reason):
+        """Set visual feedback on an index using model-based approach"""
+        model = index.model()
         
-        # Create persistent index immediately and store it
-        persistent_index = QtCore.QPersistentModelIndex(index)
-        if status is None:
-            # Remove any existing feedback for this index
-            keys_to_remove = [key for key in self._feedback.keys() if key.isValid() and key == persistent_index]
-            for key in keys_to_remove:
-                self._feedback.pop(key, None)
-            gui_logger.debug(f"DELEGATE: Cleared feedback for {persistent_index}")
+        # Remember state in custom role
+        model.setData(index, reason, self.FEEDBACK_ROLE)
+        
+        # Choose brush color
+        if reason == "success":
+            brush = QtGui.QBrush(QtGui.QColor(208, 240, 192))  # light green
+        elif reason == "clamped":
+            brush = QtGui.QBrush(QtGui.QColor(255, 230, 170))  # light orange
+        elif reason == "error":
+            brush = QtGui.QBrush(QtGui.QColor(255, 204, 204))  # light red
         else:
-            deadline = QtCore.QDateTime.currentMSecsSinceEpoch() + self._feedback_ms
-            self._feedback[persistent_index] = (status, deadline)
-            gui_logger.debug(f"DELEGATE: Set feedback for {persistent_index}: {status}")
+            brush = None
         
-        # Force a repaint of the specific cell
-        if view and view.viewport():
-            view.viewport().update(view.visualRect(index))
+        # Set background through model
+        if brush:
+            model.setData(index, brush, QtCore.Qt.BackgroundRole)
+        
+        # Make it visible now
+        view.update(view.visualRect(index))
+        
+        # Auto-clear after delay
+        QtCore.QTimer.singleShot(1500, lambda: self._clear_feedback(view, index))
+    
+    def _clear_feedback(self, view, index):
+        """Clear visual feedback from an index"""
+        model = index.model()
+        model.setData(index, None, self.FEEDBACK_ROLE)
+        model.setData(index, None, QtCore.Qt.BackgroundRole)
+        view.update(view.visualRect(index))
     
     def setFeedback(self, index, status):
         """
         Public method to set visual feedback for an index.
+        Uses the new model-based approach.
         
         Args:
             index: QModelIndex for the cell to highlight
             status: "success", "clamped", "error", or None to clear
         """
-        self._set_feedback(index, status)
+        view = self.parent()  # the QTreeWidget
+        if not isinstance(view, QtWidgets.QAbstractItemView):
+            gui_logger.warning(f"DELEGATE: setFeedback - parent is not QAbstractItemView: {type(view)}")
+            return
+        
+        if status is None:
+            self._clear_feedback(view, index)
+        else:
+            self._color_index(view, index, status)
     
     def _is_significantly_different(self, actual_value, requested_value, device, param_name):
         """
@@ -690,22 +703,9 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
         # No specific tolerance found, use default
         return None
     
-    def _purge_feedback(self):
-        """Remove expired feedback entries"""
-        now = QtCore.QDateTime.currentMSecsSinceEpoch()
-        dirty = False
-        for key in list(self._feedback.keys()):
-            status, deadline = self._feedback[key]
-            if not key.isValid() or now >= deadline:
-                self._feedback.pop(key, None)
-                dirty = True
-        if dirty:
-            view = self.parent()
-            if isinstance(view, QtWidgets.QAbstractItemView):
-                view.viewport().update()
     def createEditor(self, parent, option, index):
         # Clear previous color as soon as user starts editing
-        self._set_feedback(index, None)
+        self.setFeedback(index, None)
         # Use a QLineEdit so you keep your current UX (free typing + sci notation)
         editor = QtWidgets.QLineEdit(parent)
         editor.setFrame(False)
@@ -869,58 +869,15 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
         if hasattr(tw_item, 'value'):
             tw_item.value = final_value
         
-        # Set visual feedback based on what happened
-        if num != final_value:
-            # Value was clamped
-            self._set_feedback(index, "clamped")
-        else:
-            # Value was accepted as-is
-            self._set_feedback(index, "success")
+        # Visual feedback is now handled by the main window through the validation_result_signal
+        # No need to set feedback here as it's handled by _handle_delegate_validation_result
     
     def paint(self, painter: QtGui.QPainter, option: QtWidgets.QStyleOptionViewItem, index: QtCore.QModelIndex):
-        """Paint the item with transient visual feedback - robust version that handles selection highlights"""
-        # Always start from a fresh copy and init style info
+        """Paint the item using the standard style system with model-based background"""
+        # Create a copy of the option and initialize it
         opt = QtWidgets.QStyleOptionViewItem(option)
         self.initStyleOption(opt, index)
-
-        # Look up feedback for THIS cell using the persistent index as key
-        persistent_key = QtCore.QPersistentModelIndex(index)
-        fb_status = None
         
-        # Find matching feedback by comparing persistent indices
-        for stored_persistent, (feedback_status, deadline) in self._feedback.items():
-            if stored_persistent.isValid() and stored_persistent == persistent_key:
-                fb_status = feedback_status
-                gui_logger.debug(f"DELEGATE: paint - found feedback for {persistent_key}: {fb_status}")
-                break
-        
-        if fb_status is None:
-            gui_logger.debug(f"DELEGATE: paint - no feedback found for {persistent_key}")
-
-        # Choose the background color based on feedback
-        bg_color = None
-        if fb_status == "clamped":
-            bg_color = QtGui.QColor(255, 230, 170)   # light orange
-            gui_logger.debug(f"DELEGATE: paint - setting orange background")
-        elif fb_status == "success":
-            bg_color = QtGui.QColor(208, 240, 192)   # light green
-            gui_logger.debug(f"DELEGATE: paint - setting green background")
-        elif fb_status == "error":
-            bg_color = QtGui.QColor(255, 204, 204)   # light red
-            gui_logger.debug(f"DELEGATE: paint - setting red background")
-
-        if bg_color is not None:
-            # If the item is selected, the selection highlight will override backgroundBrush,
-            # so we remap the selection highlight itself to our color to make it visible.
-            if opt.state & QtWidgets.QStyle.State_Selected:
-                pal = opt.palette
-                pal.setBrush(QtGui.QPalette.Highlight, QtGui.QBrush(bg_color))
-                # keep text readable when highlighted
-                pal.setColor(QtGui.QPalette.HighlightedText, pal.color(QtGui.QPalette.Text))
-                opt.palette = pal
-            else:
-                # Non-selected case: set the background brush
-                opt.backgroundBrush = QtGui.QBrush(bg_color)
-
+        # Let the style system handle the painting with any background set via BackgroundRole
         style = opt.widget.style() if opt.widget else QtWidgets.QApplication.style()
         style.drawControl(QtWidgets.QStyle.CE_ItemViewItem, opt, painter, opt.widget)

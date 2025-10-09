@@ -1932,10 +1932,37 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             item.setText(1, str(result['actual_value']))
             item.value = result['actual_value']
         
-        # Visual feedback is now handled by the delegate's paint method
-        # We only need to handle logging and notifications here
+        # Set visual feedback using the new model-based approach
         reason = result.get('reason', 'unknown')
         gui_logger.info(f"MAIN WINDOW: Processing delegate result for {item.name}, reason: {reason}")
+        
+        # Map reason to visual feedback status
+        if reason == 'clamped':
+            feedback_status = 'clamped'
+        elif reason == 'error':
+            feedback_status = 'error'
+        elif reason in ['success', 'device_different']:
+            feedback_status = 'success'
+        else:
+            feedback_status = None
+        
+        # Apply visual feedback if we have a status
+        if feedback_status:
+            # Find the index for this item
+            tree_widget = None
+            for tree in [self.tree_settings, self.tree_experiments]:
+                if tree.itemFromIndex(tree.model().index(0, 0)) == item or tree.indexOfTopLevelItem(item) >= 0:
+                    tree_widget = tree
+                    break
+            
+            if tree_widget:
+                # Find the index for the value column (column 1)
+                item_index = tree_widget.indexFromItem(item, 1)
+                if item_index.isValid():
+                    # Get the delegate and use its _color_index method
+                    delegate = tree_widget.itemDelegateForColumn(1)
+                    if hasattr(delegate, '_color_index'):
+                        delegate._color_index(tree_widget, item_index, feedback_status)
         
         # Log the message to GUI history
         message = result.get('message', 'Parameter validation completed')
