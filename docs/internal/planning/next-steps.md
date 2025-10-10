@@ -2,7 +2,28 @@
 
 ## 🎯 **Immediate Next Steps** (This Weekend/Next Week)
 
-### 1. **Enhanced GUI Input Formatting** (High Priority)
+### 1. **Device Actual Value Reporting** (HIGH PRIORITY - After Weekend)
+**Why**: Critical for precision devices like nanodrives where actual position differs from requested
+**Effort**: Medium
+**Impact**: High
+
+**Problem**: Current system only shows green "success" even when device reports different actual value
+**Example**: User requests 50.0 μm, device moves to 49.5 μm → Currently shows green (misleading!)
+
+**Tasks**:
+- [ ] Add `'device_different'` visual state (yellow background?)
+- [ ] Implement device tolerance system to avoid flagging tiny differences
+- [ ] Add actual value checking after validation passes
+- [ ] Call `device.update_and_get()` to get real device values
+- [ ] Show both requested and actual values in GUI history
+- [ ] Update feedback messages to be honest about what happened
+
+**Files to Modify**:
+- `src/View/windows_and_widgets/widgets.py` (NumberClampDelegate)
+- `src/core/device.py` (base device class)
+- Device implementations (add tolerance methods)
+
+### 2. **Enhanced GUI Input Formatting** (High Priority)
 **Why**: Most user-friendly improvement, builds on current validation system
 **Effort**: Medium
 **Impact**: High

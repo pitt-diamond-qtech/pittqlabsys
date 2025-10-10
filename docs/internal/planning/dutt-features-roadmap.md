@@ -21,21 +21,28 @@ This document outlines the planned features and improvements for the `dutt-featu
 - Create GUI components for experiment composition and data flow visualization
 - Add persistence backend pattern to separate storage logic from data
 
-### 2. **Parameter Tolerance System**
-**Status**: Planning Phase  
-**Description**: Implement device-specific tolerance handling for parameter validation to avoid flagging insignificant differences.
+### 2. **Device Actual Value Reporting** (HIGH PRIORITY)
+**Status**: Ready for Implementation  
+**Description**: Implement actual value checking to show when devices report different values than requested, with device-specific tolerance handling.
 
 **Key Components**:
+- **Actual Value Checking**: Call `device.update_and_get()` after validation
 - **Device-Specific Tolerances**: Different tolerance levels for different device types
-- **Tolerance Types**: Absolute and relative tolerance support
-- **Smart Comparison**: Avoid false positives for "device_different" feedback
-- **Configuration**: Easy tolerance adjustment per device/parameter
+- **Visual Feedback**: New `'device_different'` state (yellow background?)
+- **Honest Reporting**: Show both requested and actual values in GUI history
 
 **Technical Approach**:
-- Extend device validation to include tolerance-aware comparison
-- Add tolerance configuration to device JSON files
-- Implement tolerance-based "device_different" detection
-- Update GUI to show tolerance-aware feedback
+- Add `'device_different'` visual state to NumberClampDelegate
+- Implement tolerance-based comparison to avoid flagging tiny differences
+- Add actual value checking after validation passes
+- Update feedback messages to show requested vs actual values
+- Add tolerance configuration to device implementations
+
+**Example**:
+- User requests: 50.0 μm
+- Device reports: 49.5 μm  
+- Current: Shows green "success" (misleading!)
+- New: Shows yellow "device_different" with message "Requested 50.0 μm, device reported 49.5 μm"
 
 ### 3. **Enhanced GUI Input Formatting**
 **Status**: Planning Phase  
@@ -90,15 +97,16 @@ This document outlines the planned features and improvements for the `dutt-featu
 - ✅ Auto-clear timers
 - ✅ GUI history integration
 
-### **Phase 2: Enhanced Input** (Next)
+### **Phase 2: Device Actual Value Reporting** (Next - After Weekend)
+- 🔄 Actual value checking after validation
+- 🔄 Device-specific tolerance system
+- 🔄 "device_different" visual state (yellow background)
+- 🔄 Honest reporting of requested vs actual values
+
+### **Phase 3: Enhanced Input**
 - 🔄 Unit parsing and scientific notation
 - 🔄 Smart input formatting
 - 🔄 Context-aware validation
-
-### **Phase 3: Tolerance System**
-- 🔄 Device-specific tolerance configuration
-- 🔄 Tolerance-aware validation
-- 🔄 Smart "device_different" detection
 
 ### **Phase 4: Sub-Experiments**
 - 🔄 ExperimentIterator framework
