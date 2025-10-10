@@ -752,7 +752,10 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
             # BUG FIX: If the feedback is a number instead of a string, clear it and continue with validation
             if isinstance(existing_feedback, (int, float)):
                 gui_logger.warning(f"DELEGATE: FEEDBACK_ROLE contains numeric value {existing_feedback} instead of reason string - clearing and continuing with validation")
-                model.setData(index, None, self.FEEDBACK_ROLE)
+                # Clear both FEEDBACK_ROLE and BackgroundRole to prevent corruption
+                with QtCore.QSignalBlocker(model):
+                    model.setData(index, None, self.FEEDBACK_ROLE)
+                    model.setData(index, None, QtCore.Qt.BackgroundRole)
                 # Don't skip - fall through to continue with validation
             else:
                 # Valid string feedback exists, skip validation and just write the value
@@ -942,10 +945,11 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
             self.validation_result_signal.emit(tw_item, tw_item.name, feedback)
 
         # write via EditRole so the model/view/editor stay consistent
-        model.setData(index, final_value, QtCore.Qt.EditRole)
-        
-        # Optional: keep a consistent display string
-        model.setData(index, "{:.3g}".format(final_value), QtCore.Qt.DisplayRole)
+        # Use QSignalBlocker to prevent role corruption
+        with QtCore.QSignalBlocker(model):
+            model.setData(index, final_value, QtCore.Qt.EditRole)
+            # Optional: keep a consistent display string
+            model.setData(index, "{:.3g}".format(final_value), QtCore.Qt.DisplayRole)
 
         # Update the item's internal value
         if hasattr(tw_item, 'value'):
