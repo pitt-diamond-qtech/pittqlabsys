@@ -744,24 +744,31 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
         # Check if we already have feedback for this index to prevent double validation
         existing_feedback = index.data(self.FEEDBACK_ROLE)
         if existing_feedback:
-            gui_logger.debug(f"DELEGATE: Already have feedback '{existing_feedback}', skipping validation")
-            # Just write the value without validation
-            try:
-                num = float(raw)
-                model.setData(index, num, QtCore.Qt.EditRole)
-                model.setData(index, "{:.3g}".format(num), QtCore.Qt.DisplayRole)
-                # Update the item's internal value
-                view = editor.parent()
-                while view and not isinstance(view, QtWidgets.QAbstractItemView):
-                    view = view.parent()
-                if isinstance(view, QtWidgets.QAbstractItemView):
-                    tw_item = view.itemFromIndex(index)
-                    if tw_item and hasattr(tw_item, 'value'):
-                        tw_item.value = num
-                gui_logger.debug(f"DELEGATE: Wrote value {num} without validation")
-            except ValueError:
-                gui_logger.debug("DELEGATE: Invalid number in second call, ignoring")
-            return
+            gui_logger.debug(f"DELEGATE: Already have feedback '{existing_feedback}' (type: {type(existing_feedback)})")
+            # BUG FIX: If the feedback is a number instead of a string, clear it and continue with validation
+            if isinstance(existing_feedback, (int, float)):
+                gui_logger.warning(f"DELEGATE: FEEDBACK_ROLE contains numeric value {existing_feedback} instead of reason string - clearing and continuing with validation")
+                model.setData(index, None, self.FEEDBACK_ROLE)
+                # Don't skip - fall through to continue with validation
+            else:
+                # Valid string feedback exists, skip validation and just write the value
+                gui_logger.debug(f"DELEGATE: Valid feedback exists, skipping validation")
+                try:
+                    num = float(raw)
+                    model.setData(index, num, QtCore.Qt.EditRole)
+                    model.setData(index, "{:.3g}".format(num), QtCore.Qt.DisplayRole)
+                    # Update the item's internal value
+                    view = editor.parent()
+                    while view and not isinstance(view, QtWidgets.QAbstractItemView):
+                        view = view.parent()
+                    if isinstance(view, QtWidgets.QAbstractItemView):
+                        tw_item = view.itemFromIndex(index)
+                        if tw_item and hasattr(tw_item, 'value'):
+                            tw_item.value = num
+                    gui_logger.debug(f"DELEGATE: Wrote value {num} without validation")
+                except ValueError:
+                    gui_logger.debug("DELEGATE: Invalid number in second call, ignoring")
+                return
         
         # Handle empty string case - don't update the model
         if not raw:
