@@ -1948,21 +1948,36 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         
         # Apply visual feedback if we have a status
         if feedback_status:
+            gui_logger.debug(f"MAIN WINDOW: Applying visual feedback '{feedback_status}' for item {item.name}")
+            
             # Find the index for this item
             tree_widget = None
             for tree in [self.tree_settings, self.tree_experiments]:
-                if tree.itemFromIndex(tree.model().index(0, 0)) == item or tree.indexOfTopLevelItem(item) >= 0:
+                # Check if this item belongs to this tree
+                if tree.indexOfTopLevelItem(item) >= 0:
                     tree_widget = tree
+                    gui_logger.debug(f"MAIN WINDOW: Found item {item.name} in tree {tree.objectName()}")
                     break
             
             if tree_widget:
                 # Find the index for the value column (column 1)
                 item_index = tree_widget.indexFromItem(item, 1)
+                gui_logger.debug(f"MAIN WINDOW: Item index for {item.name}: {item_index.isValid()}")
+                
                 if item_index.isValid():
                     # Get the delegate and use its _color_index method
                     delegate = tree_widget.itemDelegateForColumn(1)
+                    gui_logger.debug(f"MAIN WINDOW: Delegate type: {type(delegate)}")
+                    
                     if hasattr(delegate, '_color_index'):
+                        gui_logger.debug(f"MAIN WINDOW: Calling _color_index for {item.name} with status '{feedback_status}'")
                         delegate._color_index(tree_widget, item_index, feedback_status)
+                    else:
+                        gui_logger.warning(f"MAIN WINDOW: Delegate {type(delegate)} does not have _color_index method")
+                else:
+                    gui_logger.warning(f"MAIN WINDOW: Invalid index for item {item.name}")
+            else:
+                gui_logger.warning(f"MAIN WINDOW: Could not find tree widget for item {item.name}")
         
         # Log the message to GUI history
         message = result.get('message', 'Parameter validation completed')

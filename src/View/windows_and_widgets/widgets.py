@@ -561,10 +561,13 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
     
     def _color_index(self, view, index, reason):
         """Set visual feedback on an index using model-based approach"""
+        gui_logger.debug(f"DELEGATE: _color_index called with reason '{reason}' for index {index.row()},{index.column()}")
+        
         model = index.model()
         
         # Remember state in custom role
         model.setData(index, reason, self.FEEDBACK_ROLE)
+        gui_logger.debug(f"DELEGATE: Set FEEDBACK_ROLE to '{reason}'")
         
         # Choose brush color
         if reason == "success":
@@ -579,12 +582,15 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
         # Set background through model
         if brush:
             model.setData(index, brush, QtCore.Qt.BackgroundRole)
+            gui_logger.debug(f"DELEGATE: Set BackgroundRole to {brush.color().name()}")
         
         # Make it visible now - use viewport().update() for QTreeWidget
         if hasattr(view, 'viewport'):
             view.viewport().update(view.visualRect(index))
         else:
             view.update(view.visualRect(index))
+        
+        gui_logger.debug(f"DELEGATE: Called viewport().update() for visual rect")
         
         # Auto-clear after delay
         QtCore.QTimer.singleShot(1500, lambda: self._clear_feedback(view, index))
