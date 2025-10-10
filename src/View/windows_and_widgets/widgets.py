@@ -227,7 +227,6 @@ class AQuISSQTreeItem(QtWidgets.QTreeWidgetItem):
         # 180327(asafira) --- why do we need to do the following lines? Why not just always call super or always
         # emitDataChanged()?
         if not isinstance(value, bool):
-            gui_logger.debug(f"AQuISSQTreeItem.setData: column={column}, role={role}, value={value} (type: {type(value)})")
             super(AQuISSQTreeItem, self).setData(column, role, value)
 
         else:
@@ -561,55 +560,52 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
         super().__init__(parent)
     
     def _color_index(self, view, index, reason):
-        """Set visual feedback on an index using model-based approach"""
+        """Set visual feedback on an index using direct item styling (bypasses Qt model corruption)"""
         gui_logger.debug(f"DELEGATE: _color_index called with reason '{reason}' for index {index.row()},{index.column()}")
         
-        model = index.model()
+        # Get the tree item directly
+        item = view.itemFromIndex(index)
+        if not item:
+            gui_logger.warning("DELEGATE: Could not get tree item from index")
+            return
         
-        # Remember state in custom role
-        model.setData(index, reason, self.FEEDBACK_ROLE)
-        gui_logger.debug(f"DELEGATE: Set FEEDBACK_ROLE to '{reason}'")
+        # Store feedback reason in item attribute (bypasses Qt model)
+        item._feedback_reason = reason
+        gui_logger.debug(f"DELEGATE: Set item._feedback_reason to '{reason}'")
         
-        # Choose brush color
+        # Choose background color
         if reason == "success":
-            brush = QtGui.QBrush(QtGui.QColor(208, 240, 192))  # light green
+            color = QtGui.QColor(208, 240, 192)  # light green
         elif reason == "clamped":
-            brush = QtGui.QBrush(QtGui.QColor(255, 230, 170))  # light orange
+            color = QtGui.QColor(255, 230, 170)  # light orange
         elif reason == "error":
-            brush = QtGui.QBrush(QtGui.QColor(255, 204, 204))  # light red
+            color = QtGui.QColor(255, 204, 204)  # light red
         else:
-            brush = None
+            color = None
         
-        # Set background through model
-        if brush:
-            model.setData(index, brush, QtCore.Qt.BackgroundRole)
-            gui_logger.debug(f"DELEGATE: Set BackgroundRole to {brush.color().name()}")
-            # Verify what was actually set
-            verify_bg = index.data(QtCore.Qt.BackgroundRole)
-            gui_logger.debug(f"DELEGATE: Verification - BackgroundRole now contains: {verify_bg} (type: {type(verify_bg)})")
-        
-        # Make it visible now - use viewport().update() for QTreeWidget
-        if hasattr(view, 'viewport'):
-            view.viewport().update(view.visualRect(index))
-        else:
-            view.update(view.visualRect(index))
-        
-        gui_logger.debug(f"DELEGATE: Called viewport().update() for visual rect")
+        # Set background directly on the item (bypasses Qt model)
+        if color:
+            item.setBackground(1, QtGui.QBrush(color))
+            gui_logger.debug(f"DELEGATE: Set item background to {color.name()}")
         
         # Auto-clear after delay
         QtCore.QTimer.singleShot(1500, lambda: self._clear_feedback(view, index))
     
     def _clear_feedback(self, view, index):
-        """Clear visual feedback from an index"""
-        model = index.model()
-        model.setData(index, None, self.FEEDBACK_ROLE)
-        model.setData(index, None, QtCore.Qt.BackgroundRole)
+        """Clear visual feedback from an index using direct item styling"""
+        # Get the tree item directly
+        item = view.itemFromIndex(index)
+        if not item:
+            return
         
-        # Make it visible now - use viewport().update() for QTreeWidget
-        if hasattr(view, 'viewport'):
-            view.viewport().update(view.visualRect(index))
-        else:
-            view.update(view.visualRect(index))
+        # Clear feedback reason from item attribute
+        if hasattr(item, '_feedback_reason'):
+            delattr(item, '_feedback_reason')
+            gui_logger.debug(f"DELEGATE: Cleared item._feedback_reason")
+        
+        # Clear background directly on the item
+        item.setBackground(1, QtGui.QBrush())  # Empty brush clears background
+        gui_logger.debug(f"DELEGATE: Cleared item background")
     
     def setFeedback(self, index, status):
         """
@@ -746,36 +742,30 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
         gui_logger.debug(f"DELEGATE: setModelData called with text '{raw}'")
         
         # Check if we already have feedback for this index to prevent double validation
-        existing_feedback = index.data(self.FEEDBACK_ROLE)
-        if existing_feedback:
+        # Use item attribute instead of Qt model to avoid role corruption
+        tw_item = None
+        view = editor.parent()
+        while view and not isinstance(view, QtWidgets.QAbstractItemView):
+            view = view.parent()
+        if isinstance(view, QtWidgets.QAbstractItemView):
+            tw_item = view.itemFromIndex(index)
+        
+        if tw_item and hasattr(tw_item, '_feedback_reason'):
+            existing_feedback = tw_item._feedback_reason
             gui_logger.debug(f"DELEGATE: Already have feedback '{existing_feedback}' (type: {type(existing_feedback)})")
-            # BUG FIX: If the feedback is a number instead of a string, clear it and continue with validation
-            if isinstance(existing_feedback, (int, float)):
-                gui_logger.warning(f"DELEGATE: FEEDBACK_ROLE contains numeric value {existing_feedback} instead of reason string - clearing and continuing with validation")
-                # Clear both FEEDBACK_ROLE and BackgroundRole to prevent corruption
-                with QtCore.QSignalBlocker(model):
-                    model.setData(index, None, self.FEEDBACK_ROLE)
-                    model.setData(index, None, QtCore.Qt.BackgroundRole)
-                # Don't skip - fall through to continue with validation
-            else:
-                # Valid string feedback exists, skip validation and just write the value
-                gui_logger.debug(f"DELEGATE: Valid feedback exists, skipping validation")
-                try:
-                    num = float(raw)
-                    model.setData(index, num, QtCore.Qt.EditRole)
-                    model.setData(index, "{:.3g}".format(num), QtCore.Qt.DisplayRole)
-                    # Update the item's internal value
-                    view = editor.parent()
-                    while view and not isinstance(view, QtWidgets.QAbstractItemView):
-                        view = view.parent()
-                    if isinstance(view, QtWidgets.QAbstractItemView):
-                        tw_item = view.itemFromIndex(index)
-                        if tw_item and hasattr(tw_item, 'value'):
-                            tw_item.value = num
-                    gui_logger.debug(f"DELEGATE: Wrote value {num} without validation")
-                except ValueError:
-                    gui_logger.debug("DELEGATE: Invalid number in second call, ignoring")
-                return
+            # Valid string feedback exists, skip validation and just write the value
+            gui_logger.debug(f"DELEGATE: Valid feedback exists, skipping validation")
+            try:
+                num = float(raw)
+                model.setData(index, num, QtCore.Qt.EditRole)
+                model.setData(index, "{:.3g}".format(num), QtCore.Qt.DisplayRole)
+                # Update the item's internal value
+                if tw_item and hasattr(tw_item, 'value'):
+                    tw_item.value = num
+                gui_logger.debug(f"DELEGATE: Wrote value {num} without validation")
+            except ValueError:
+                gui_logger.debug("DELEGATE: Invalid number in second call, ignoring")
+            return
         
         # Handle empty string case - don't update the model
         if not raw:
@@ -945,11 +935,9 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
             self.validation_result_signal.emit(tw_item, tw_item.name, feedback)
 
         # write via EditRole so the model/view/editor stay consistent
-        # Use QSignalBlocker to prevent role corruption
-        with QtCore.QSignalBlocker(model):
-            model.setData(index, final_value, QtCore.Qt.EditRole)
-            # Optional: keep a consistent display string
-            model.setData(index, "{:.3g}".format(final_value), QtCore.Qt.DisplayRole)
+        model.setData(index, final_value, QtCore.Qt.EditRole)
+        # Optional: keep a consistent display string
+        model.setData(index, "{:.3g}".format(final_value), QtCore.Qt.DisplayRole)
 
         # Update the item's internal value
         if hasattr(tw_item, 'value'):
@@ -958,42 +946,10 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
         gui_logger.debug(f"DELEGATE: Final value set to {final_value}")
     
     def paint(self, painter: QtGui.QPainter, option: QtWidgets.QStyleOptionViewItem, index: QtCore.QModelIndex):
-        """Paint the item with manual background handling"""
-        
-        # Check if there's a background color set
-        bg_data = index.data(QtCore.Qt.BackgroundRole)
-        if bg_data:
-            gui_logger.debug(f"DELEGATE: paint found BackgroundRole data: {bg_data} (type: {type(bg_data)})")
-            
-            # Convert to QBrush if needed
-            if isinstance(bg_data, QtGui.QBrush):
-                bg_brush = bg_data
-            elif isinstance(bg_data, QtGui.QColor):
-                bg_brush = QtGui.QBrush(bg_data)
-            elif isinstance(bg_data, (int, float)):
-                # Numeric values don't make sense as background colors
-                # This is likely a bug - clear the invalid background data
-                gui_logger.warning(f"DELEGATE: Invalid numeric background value: {bg_data}, clearing it")
-                model = index.model()
-                if model:
-                    model.setData(index, None, QtCore.Qt.BackgroundRole)
-                bg_brush = None
-            else:
-                gui_logger.warning(f"DELEGATE: Unknown background data type: {type(bg_data)}")
-                bg_brush = None
-            
-            if bg_brush:
-                # Fill the background manually first
-                painter.fillRect(option.rect, bg_brush)
-        
-        # Create a copy of the option and initialize it
+        """Paint the item using standard Qt styling (no custom background handling)"""
+        # Use standard Qt painting - background colors are handled by item.setBackground()
         opt = QtWidgets.QStyleOptionViewItem(option)
         self.initStyleOption(opt, index)
         
-        # Clear the background brush so the style doesn't override our manual fill
-        if bg_data:
-            opt.backgroundBrush = QtGui.QBrush()
-        
-        # Let the style system handle the text and other elements
         style = opt.widget.style() if opt.widget else QtWidgets.QApplication.style()
         style.drawControl(QtWidgets.QStyle.CE_ItemViewItem, opt, painter, opt.widget)
