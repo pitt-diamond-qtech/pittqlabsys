@@ -944,12 +944,10 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
     
     def paint(self, painter: QtGui.QPainter, option: QtWidgets.QStyleOptionViewItem, index: QtCore.QModelIndex):
         """Paint the item with manual background handling"""
-        gui_logger.debug(f"DELEGATE: paint called for index {index.row()},{index.column()}")
         
         # Check if there's a background color set
         bg_data = index.data(QtCore.Qt.BackgroundRole)
         if bg_data:
-            gui_logger.debug(f"DELEGATE: Found background data: {bg_data} (type: {type(bg_data)})")
             
             # Convert to QBrush if needed
             if isinstance(bg_data, QtGui.QBrush):
@@ -957,23 +955,20 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
             elif isinstance(bg_data, QtGui.QColor):
                 bg_brush = QtGui.QBrush(bg_data)
             elif isinstance(bg_data, (int, float)):
-                # Handle numeric values - convert to color
-                if isinstance(bg_data, int):
-                    # Assume it's a color value
-                    bg_brush = QtGui.QBrush(QtGui.QColor(bg_data))
-                else:
-                    # Skip float values that don't make sense as colors
-                    gui_logger.warning(f"DELEGATE: Skipping float background value: {bg_data}")
-                    bg_brush = None
+                # Numeric values don't make sense as background colors
+                # This is likely a bug - clear the invalid background data
+                gui_logger.warning(f"DELEGATE: Invalid numeric background value: {bg_data}, clearing it")
+                model = index.model()
+                if model:
+                    model.setData(index, None, QtCore.Qt.BackgroundRole)
+                bg_brush = None
             else:
                 gui_logger.warning(f"DELEGATE: Unknown background data type: {type(bg_data)}")
                 bg_brush = None
             
             if bg_brush:
-                gui_logger.debug(f"DELEGATE: Using brush: {bg_brush}")
                 # Fill the background manually first
                 painter.fillRect(option.rect, bg_brush)
-                gui_logger.debug(f"DELEGATE: Manually filled background with {bg_brush.color().name()}")
         
         # Create a copy of the option and initialize it
         opt = QtWidgets.QStyleOptionViewItem(option)
