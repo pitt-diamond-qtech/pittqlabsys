@@ -583,6 +583,9 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
         if brush:
             model.setData(index, brush, QtCore.Qt.BackgroundRole)
             gui_logger.debug(f"DELEGATE: Set BackgroundRole to {brush.color().name()}")
+            # Verify what was actually set
+            verify_bg = index.data(QtCore.Qt.BackgroundRole)
+            gui_logger.debug(f"DELEGATE: Verification - BackgroundRole now contains: {verify_bg} (type: {type(verify_bg)})")
         
         # Make it visible now - use viewport().update() for QTreeWidget
         if hasattr(view, 'viewport'):
@@ -955,6 +958,7 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
         # Check if there's a background color set
         bg_data = index.data(QtCore.Qt.BackgroundRole)
         if bg_data:
+            gui_logger.debug(f"DELEGATE: paint found BackgroundRole data: {bg_data} (type: {type(bg_data)})")
             
             # Convert to QBrush if needed
             if isinstance(bg_data, QtGui.QBrush):
