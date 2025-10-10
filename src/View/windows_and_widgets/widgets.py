@@ -580,8 +580,11 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
         if brush:
             model.setData(index, brush, QtCore.Qt.BackgroundRole)
         
-        # Make it visible now
-        view.update(view.visualRect(index))
+        # Make it visible now - use viewport().update() for QTreeWidget
+        if hasattr(view, 'viewport'):
+            view.viewport().update(view.visualRect(index))
+        else:
+            view.update(view.visualRect(index))
         
         # Auto-clear after delay
         QtCore.QTimer.singleShot(1500, lambda: self._clear_feedback(view, index))
@@ -591,7 +594,12 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
         model = index.model()
         model.setData(index, None, self.FEEDBACK_ROLE)
         model.setData(index, None, QtCore.Qt.BackgroundRole)
-        view.update(view.visualRect(index))
+        
+        # Make it visible now - use viewport().update() for QTreeWidget
+        if hasattr(view, 'viewport'):
+            view.viewport().update(view.visualRect(index))
+        else:
+            view.update(view.visualRect(index))
     
     def setFeedback(self, index, status):
         """
