@@ -566,6 +566,8 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
             'clamped': QtGui.QBrush(QtGui.QColor(255, 179, 0, 110)),   # orange
             'success': QtGui.QBrush(QtGui.QColor(76, 175, 80, 90)),    # green
             'error':   QtGui.QBrush(QtGui.QColor(244, 67, 54, 110)),   # red
+            'no_validation': QtGui.QBrush(QtGui.QColor(255, 193, 7, 110)),  # yellow - warning
+            'no_device': QtGui.QBrush(QtGui.QColor(158, 158, 158, 110)),    # gray - info
         }
         
         if state in brushes:
@@ -832,6 +834,15 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
                 else:
                     gui_logger.debug("DELEGATE: Validation passed - setting state to 'success'")
                     state = 'success'
+            elif device:
+                # Device exists but doesn't have validate_parameter method
+                param_name = path_to_device[-1] if path_to_device else tw_item.name
+                gui_logger.warning(f"DELEGATE: Device {device.__class__.__name__} does not have validate_parameter method - no validation performed")
+                state = 'no_validation'
+            else:
+                # No device found
+                gui_logger.debug("DELEGATE: No device found for parameter")
+                state = 'no_device'
         
         # Write final value back to the model
         model.setData(index, final_value, QtCore.Qt.EditRole)
@@ -847,10 +858,21 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
         
         # Emit signal so MainWindow can append to History/notifications
         param_name = tw_item.name
+        if state == 'clamped':
+            message = f"Parameter {param_name} was clamped from {num} to {final_value}"
+        elif state == 'success':
+            message = f"Parameter {param_name} set successfully"
+        elif state == 'no_validation':
+            device_name = device.__class__.__name__ if device else "Unknown"
+            message = f"Parameter {param_name} set (no validation - {device_name} missing validate_parameter method)"
+        elif state == 'no_device':
+            message = f"Parameter {param_name} set (no device validation available)"
+        else:
+            message = f"Parameter {param_name} set"
+        
         feedback = {
-            'valid': state != 'error',
-            'message': (f"Parameter {param_name} was clamped from {num} to {final_value}"
-                       if state == 'clamped' else f"Parameter {param_name} set successfully"),
+            'valid': state not in ['error'],
+            'message': message,
             'clamped_value': final_value if state == 'clamped' else None,
             'requested_value': num,
             'actual_value': final_value,
