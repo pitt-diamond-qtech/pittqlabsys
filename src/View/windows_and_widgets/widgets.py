@@ -751,6 +751,32 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
         raw = editor.text().strip()
         gui_logger.debug(f"DELEGATE: setModelData called with text '{raw}'")
         
+        # Get the tree item to check for existing feedback
+        view = editor.parent()
+        while view and not isinstance(view, QtWidgets.QAbstractItemView):
+            view = view.parent()
+        if isinstance(view, QtWidgets.QAbstractItemView):
+            tw_item = view.itemFromIndex(index)
+        else:
+            tw_item = None
+        
+        # Check if we already have feedback for this index to prevent double validation
+        if tw_item and hasattr(tw_item, '_feedback_reason'):
+            existing_feedback = tw_item._feedback_reason
+            gui_logger.debug(f"DELEGATE: Already have feedback '{existing_feedback}', skipping validation")
+            # Just write the value without validation
+            try:
+                num = float(raw)
+                model.setData(index, num, QtCore.Qt.EditRole)
+                model.setData(index, "{:.3g}".format(num), QtCore.Qt.DisplayRole)
+                # Update the item's internal value
+                if tw_item and hasattr(tw_item, 'value'):
+                    tw_item.value = num
+                gui_logger.debug(f"DELEGATE: Wrote value {num} without validation")
+            except ValueError:
+                gui_logger.debug("DELEGATE: Invalid number in second call, ignoring")
+            return
+        
         # Handle empty string case - don't update the model
         if not raw:
             gui_logger.debug("DELEGATE: Empty string, reverting editor")
@@ -768,16 +794,6 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
             return
 
         gui_logger.debug(f"DELEGATE: Parsed number: {num}")
-
-        # Get the tree item
-        view = editor.parent()
-        while view and not isinstance(view, QtWidgets.QAbstractItemView):
-            view = view.parent()
-        if isinstance(view, QtWidgets.QAbstractItemView):
-            tw_item = view.itemFromIndex(index)
-            gui_logger.debug(f"DELEGATE: Found tree item: {tw_item}")
-        else:
-            tw_item = None
 
         if tw_item is None:
             gui_logger.debug("DELEGATE: No tree item found, fallback write")
@@ -802,17 +818,19 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
                 is_valid = validation_result.get('valid', True)
                 clamped_value = validation_result.get('clamped_value')
                 
+                gui_logger.debug(f"DELEGATE: is_valid={is_valid}, clamped_value={clamped_value}, original_value={num}")
+                
                 if not is_valid and clamped_value is not None:
                     final_value = clamped_value
                     state = 'clamped'
-                    gui_logger.debug(f"DELEGATE: Value clamped from {num} to {clamped_value}")
+                    gui_logger.debug(f"DELEGATE: Value clamped from {num} to {clamped_value} - setting state to 'clamped'")
                 elif not is_valid:
-                    gui_logger.debug("DELEGATE: Validation failed, no clamped value")
+                    gui_logger.debug("DELEGATE: Validation failed, no clamped value - setting state to 'error'")
                     state = 'error'
                     # Don't update the model for errors
                     return
                 else:
-                    gui_logger.debug("DELEGATE: Validation passed")
+                    gui_logger.debug("DELEGATE: Validation passed - setting state to 'success'")
                     state = 'success'
         
         # Write final value back to the model
@@ -824,6 +842,7 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
             tw_item.value = final_value
         
         # Flash the background on the VALUE column
+        gui_logger.debug(f"DELEGATE: About to flash background with state='{state}' for final_value={final_value}")
         self._flash_background(tw_item, index.column(), state)
         
         # Emit signal so MainWindow can append to History/notifications
