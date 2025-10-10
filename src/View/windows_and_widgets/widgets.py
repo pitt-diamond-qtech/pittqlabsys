@@ -558,38 +558,46 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
     
     def __init__(self, parent=None):
         super().__init__(parent)
+        self._clear_timers = {}  # Track timers for clearing backgrounds
     
-    def _color_index(self, view, index, reason):
-        """Set visual feedback on an index using direct item styling (bypasses Qt model corruption)"""
-        gui_logger.debug(f"DELEGATE: _color_index called with reason '{reason}' for index {index.row()},{index.column()}")
+    def _flash_background(self, item, column, state):
+        """Flash background color on item and auto-clear after 1.5 seconds"""
+        brushes = {
+            'clamped': QtGui.QBrush(QtGui.QColor(255, 179, 0, 110)),   # orange
+            'success': QtGui.QBrush(QtGui.QColor(76, 175, 80, 90)),    # green
+            'error':   QtGui.QBrush(QtGui.QColor(244, 67, 54, 110)),   # red
+        }
         
-        # Get the tree item directly
-        item = view.itemFromIndex(index)
-        if not item:
-            gui_logger.warning("DELEGATE: Could not get tree item from index")
-            return
+        if state in brushes:
+            item.setBackground(column, brushes[state])
+            gui_logger.debug(f"DELEGATE: Set item background to {state} color")
+            
+            # Store feedback reason in item attribute
+            item._feedback_reason = state
+            
+            # Clear after 1.5 s
+            if item in self._clear_timers:
+                self._clear_timers[item].stop()
+            t = QtCore.QTimer(self)
+            t.setSingleShot(True)
+            t.timeout.connect(lambda it=item, col=column: self._clear_item_background(it, col))
+            t.start(1500)
+            self._clear_timers[item] = t
+    
+    def _clear_item_background(self, item, column):
+        """Clear background color from item"""
+        item.setBackground(column, QtGui.QBrush())  # Empty brush clears background
         
-        # Store feedback reason in item attribute (bypasses Qt model)
-        item._feedback_reason = reason
-        gui_logger.debug(f"DELEGATE: Set item._feedback_reason to '{reason}'")
+        # Clear feedback reason from item attribute
+        if hasattr(item, '_feedback_reason'):
+            delattr(item, '_feedback_reason')
+            gui_logger.debug(f"DELEGATE: Cleared item._feedback_reason")
         
-        # Choose background color
-        if reason == "success":
-            color = QtGui.QColor(208, 240, 192)  # light green
-        elif reason == "clamped":
-            color = QtGui.QColor(255, 230, 170)  # light orange
-        elif reason == "error":
-            color = QtGui.QColor(255, 204, 204)  # light red
-        else:
-            color = None
+        # Remove timer from tracking
+        if item in self._clear_timers:
+            del self._clear_timers[item]
         
-        # Set background directly on the item (bypasses Qt model)
-        if color:
-            item.setBackground(1, QtGui.QBrush(color))
-            gui_logger.debug(f"DELEGATE: Set item background to {color.name()}")
-        
-        # Auto-clear after delay
-        QtCore.QTimer.singleShot(1500, lambda: self._clear_feedback(view, index))
+        gui_logger.debug(f"DELEGATE: Cleared item background")
     
     def _clear_feedback(self, view, index):
         """Clear visual feedback from an index using direct item styling"""
@@ -598,19 +606,12 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
         if not item:
             return
         
-        # Clear feedback reason from item attribute
-        if hasattr(item, '_feedback_reason'):
-            delattr(item, '_feedback_reason')
-            gui_logger.debug(f"DELEGATE: Cleared item._feedback_reason")
-        
-        # Clear background directly on the item
-        item.setBackground(1, QtGui.QBrush())  # Empty brush clears background
-        gui_logger.debug(f"DELEGATE: Cleared item background")
+        self._clear_item_background(item, 1)
     
     def setFeedback(self, index, status):
         """
         Public method to set visual feedback for an index.
-        Uses the new model-based approach.
+        Uses direct item background styling.
         
         Args:
             index: QModelIndex for the cell to highlight
@@ -621,10 +622,15 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
             gui_logger.warning(f"DELEGATE: setFeedback - parent is not QAbstractItemView: {type(view)}")
             return
         
+        item = view.itemFromIndex(index)
+        if not item:
+            gui_logger.warning(f"DELEGATE: setFeedback - could not get item from index")
+            return
+        
         if status is None:
-            self._clear_feedback(view, index)
+            self._clear_item_background(item, 1)
         else:
-            self._color_index(view, index, status)
+            self._flash_background(item, 1, status)
     
     def _is_significantly_different(self, actual_value, requested_value, device, param_name):
         """
@@ -741,32 +747,6 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
         raw = editor.text().strip()
         gui_logger.debug(f"DELEGATE: setModelData called with text '{raw}'")
         
-        # Check if we already have feedback for this index to prevent double validation
-        # Use item attribute instead of Qt model to avoid role corruption
-        tw_item = None
-        view = editor.parent()
-        while view and not isinstance(view, QtWidgets.QAbstractItemView):
-            view = view.parent()
-        if isinstance(view, QtWidgets.QAbstractItemView):
-            tw_item = view.itemFromIndex(index)
-        
-        if tw_item and hasattr(tw_item, '_feedback_reason'):
-            existing_feedback = tw_item._feedback_reason
-            gui_logger.debug(f"DELEGATE: Already have feedback '{existing_feedback}' (type: {type(existing_feedback)})")
-            # Valid string feedback exists, skip validation and just write the value
-            gui_logger.debug(f"DELEGATE: Valid feedback exists, skipping validation")
-            try:
-                num = float(raw)
-                model.setData(index, num, QtCore.Qt.EditRole)
-                model.setData(index, "{:.3g}".format(num), QtCore.Qt.DisplayRole)
-                # Update the item's internal value
-                if tw_item and hasattr(tw_item, 'value'):
-                    tw_item.value = num
-                gui_logger.debug(f"DELEGATE: Wrote value {num} without validation")
-            except ValueError:
-                gui_logger.debug("DELEGATE: Invalid number in second call, ignoring")
-            return
-        
         # Handle empty string case - don't update the model
         if not raw:
             gui_logger.debug("DELEGATE: Empty string, reverting editor")
@@ -801,9 +781,9 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
             model.setData(index, num, QtCore.Qt.EditRole)
             return
 
-        # Try device validation and actual value checking
+        # Do validation, then write final value, then flash color
         final_value = num
-        feedback_applied = False
+        state = 'success'
         
         if hasattr(tw_item, 'get_device'):
             device, path_to_device = tw_item.get_device()
@@ -814,142 +794,49 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
                 param_name = path_to_device[-1] if path_to_device else tw_item.name
                 gui_logger.debug(f"DELEGATE: Validation result: {validation_result}")
                 
-                if not validation_result.get('valid', True):
-                    clamped_value = validation_result.get('clamped_value', num)
-                    if clamped_value != num:
-                        gui_logger.debug(f"DELEGATE: Value clamped from {num} to {clamped_value}")
-                        # Value was clamped - apply visual feedback and emit signal
-                        final_value = clamped_value
-                        feedback = {
-                            'valid': False,
-                            'message': f"Parameter {param_name} was clamped from {num} to {clamped_value}",
-                            'clamped_value': clamped_value,
-                            'requested_value': num,
-                            'actual_value': clamped_value,
-                            'reason': 'clamped'
-                        }
-                        gui_logger.info(f"DELEGATE: Emitting clamped signal for {param_name}: {feedback}")
-                        self.validation_result_signal.emit(tw_item, param_name, feedback)
-                        feedback_applied = True
-                    else:
-                        gui_logger.debug("DELEGATE: Validation failed, no clamped value")
-                        # No clamped value available - emit error signal
-                        feedback = {
-                            'valid': False,
-                            'message': validation_result.get('message', 'Parameter validation failed'),
-                            'clamped_value': None,
-                            'requested_value': num,
-                            'actual_value': None,
-                            'reason': 'error'
-                        }
-                        self.validation_result_signal.emit(tw_item, param_name, feedback)
-                        feedback_applied = True
-                        return  # Don't update the model
+                # Ask the device to validate/clamp
+                is_valid = validation_result.get('valid', True)
+                clamped_value = validation_result.get('clamped_value')
+                
+                if not is_valid and clamped_value is not None:
+                    final_value = clamped_value
+                    state = 'clamped'
+                    gui_logger.debug(f"DELEGATE: Value clamped from {num} to {clamped_value}")
+                elif not is_valid:
+                    gui_logger.debug("DELEGATE: Validation failed, no clamped value")
+                    state = 'error'
+                    # Don't update the model for errors
+                    return
                 else:
-                    # Validation passed - now check if device reports different actual value
-                    if hasattr(device, 'update_and_get'):
-                        try:
-                            # Update the device and get actual values
-                            actual_values = device.update_and_get({param_name: num})
-                            actual_value = actual_values.get(param_name, num)
-                            
-                            # Check if device reported a significantly different value
-                            # Use device-specific tolerance to avoid flagging tiny differences
-                            is_significantly_different = self._is_significantly_different(
-                                actual_value, num, device, param_name
-                            )
-                            
-                            if is_significantly_different:
-                                gui_logger.debug(f"DELEGATE: Device reported different value: {actual_value} vs {num}")
-                                # Device reported significantly different value - emit signal
-                                final_value = actual_value
-                                feedback = {
-                                    'valid': True,
-                                    'message': f"Device reported {param_name} = {actual_value} (requested {num})",
-                                    'clamped_value': None,
-                                    'requested_value': num,
-                                    'actual_value': actual_value,
-                                    'reason': 'device_different'
-                                }
-                                self.validation_result_signal.emit(tw_item, param_name, feedback)
-                                feedback_applied = True
-                            else:
-                                gui_logger.debug("DELEGATE: Device reported same value")
-                                # Device reported same value - emit success signal
-                                feedback = {
-                                    'valid': True,
-                                    'message': f"Parameter {param_name} set successfully",
-                                    'clamped_value': None,
-                                    'requested_value': num,
-                                    'actual_value': num,
-                                    'reason': 'success'
-                                }
-                                self.validation_result_signal.emit(tw_item, param_name, feedback)
-                                feedback_applied = True
-                        except Exception as e:
-                            gui_logger.warning(f"Could not get actual value from device: {e}")
-                            # Fallback to just setting the requested value
-                            feedback = {
-                                'valid': True,
-                                'message': f"Parameter {param_name} set successfully (no actual value check)",
-                                'clamped_value': None,
-                                'requested_value': num,
-                                'actual_value': num,
-                                'reason': 'success'
-                            }
-                            self.validation_result_signal.emit(tw_item, param_name, feedback)
-                            feedback_applied = True
-                    else:
-                        gui_logger.debug("DELEGATE: No update_and_get method, emitting success")
-                        # No update_and_get method - emit success signal
-                        feedback = {
-                            'valid': True,
-                            'message': f"Parameter {param_name} set successfully",
-                            'clamped_value': None,
-                            'requested_value': num,
-                            'actual_value': num,
-                            'reason': 'success'
-                        }
-                        self.validation_result_signal.emit(tw_item, param_name, feedback)
-                        feedback_applied = True
-        else:
-            gui_logger.debug("DELEGATE: No device validation, using attribute-based")
-            # Fallback to attribute-based validation
-            min_v = getattr(tw_item, "min_value", None)
-            max_v = getattr(tw_item, "max_value", None)
-            
-            if min_v is not None: final_value = max(final_value, float(min_v))
-            if max_v is not None: final_value = min(final_value, float(max_v))
-
-        # Only apply success feedback if no other feedback was applied
-        if not feedback_applied:
-            gui_logger.debug("DELEGATE: No device validation, emitting success")
-            feedback = {
-                'valid': True,
-                'message': f"Parameter set successfully",
-                'clamped_value': None,
-                'requested_value': num,
-                'actual_value': final_value,
-                'reason': 'success'
-            }
-            self.validation_result_signal.emit(tw_item, tw_item.name, feedback)
-
-        # write via EditRole so the model/view/editor stay consistent
+                    gui_logger.debug("DELEGATE: Validation passed")
+                    state = 'success'
+        
+        # Write final value back to the model
         model.setData(index, final_value, QtCore.Qt.EditRole)
-        # Optional: keep a consistent display string
         model.setData(index, "{:.3g}".format(final_value), QtCore.Qt.DisplayRole)
-
+        
         # Update the item's internal value
         if hasattr(tw_item, 'value'):
             tw_item.value = final_value
         
-        gui_logger.debug(f"DELEGATE: Final value set to {final_value}")
-    
-    def paint(self, painter: QtGui.QPainter, option: QtWidgets.QStyleOptionViewItem, index: QtCore.QModelIndex):
-        """Paint the item using standard Qt styling (no custom background handling)"""
-        # Use standard Qt painting - background colors are handled by item.setBackground()
-        opt = QtWidgets.QStyleOptionViewItem(option)
-        self.initStyleOption(opt, index)
+        # Flash the background on the VALUE column
+        self._flash_background(tw_item, index.column(), state)
         
-        style = opt.widget.style() if opt.widget else QtWidgets.QApplication.style()
-        style.drawControl(QtWidgets.QStyle.CE_ItemViewItem, opt, painter, opt.widget)
+        # Emit signal so MainWindow can append to History/notifications
+        param_name = tw_item.name
+        feedback = {
+            'valid': state != 'error',
+            'message': (f"Parameter {param_name} was clamped from {num} to {final_value}"
+                       if state == 'clamped' else f"Parameter {param_name} set successfully"),
+            'clamped_value': final_value if state == 'clamped' else None,
+            'requested_value': num,
+            'actual_value': final_value,
+            'reason': state
+        }
+        self.validation_result_signal.emit(tw_item, param_name, feedback)
+        
+        gui_logger.debug(f"DELEGATE: Final value set to {final_value}, state: {state}")
+    
+    def paint(self, painter, option, index):
+        """Keep paint() default - item.setBackground() handles backgrounds correctly"""
+        super().paint(painter, option, index)
