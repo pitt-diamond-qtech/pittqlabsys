@@ -227,6 +227,7 @@ class AQuISSQTreeItem(QtWidgets.QTreeWidgetItem):
         # 180327(asafira) --- why do we need to do the following lines? Why not just always call super or always
         # emitDataChanged()?
         if not isinstance(value, bool):
+            gui_logger.debug(f"AQuISSQTreeItem.setData: column={column}, role={role}, value={value} (type: {type(value)})")
             super(AQuISSQTreeItem, self).setData(column, role, value)
 
         else:
