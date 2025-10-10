@@ -947,19 +947,40 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
         gui_logger.debug(f"DELEGATE: paint called for index {index.row()},{index.column()}")
         
         # Check if there's a background color set
-        bg_brush = index.data(QtCore.Qt.BackgroundRole)
-        if bg_brush:
-            gui_logger.debug(f"DELEGATE: Found background brush: {bg_brush}")
-            # Fill the background manually first
-            painter.fillRect(option.rect, bg_brush)
-            gui_logger.debug(f"DELEGATE: Manually filled background with {bg_brush.color().name()}")
+        bg_data = index.data(QtCore.Qt.BackgroundRole)
+        if bg_data:
+            gui_logger.debug(f"DELEGATE: Found background data: {bg_data} (type: {type(bg_data)})")
+            
+            # Convert to QBrush if needed
+            if isinstance(bg_data, QtGui.QBrush):
+                bg_brush = bg_data
+            elif isinstance(bg_data, QtGui.QColor):
+                bg_brush = QtGui.QBrush(bg_data)
+            elif isinstance(bg_data, (int, float)):
+                # Handle numeric values - convert to color
+                if isinstance(bg_data, int):
+                    # Assume it's a color value
+                    bg_brush = QtGui.QBrush(QtGui.QColor(bg_data))
+                else:
+                    # Skip float values that don't make sense as colors
+                    gui_logger.warning(f"DELEGATE: Skipping float background value: {bg_data}")
+                    bg_brush = None
+            else:
+                gui_logger.warning(f"DELEGATE: Unknown background data type: {type(bg_data)}")
+                bg_brush = None
+            
+            if bg_brush:
+                gui_logger.debug(f"DELEGATE: Using brush: {bg_brush}")
+                # Fill the background manually first
+                painter.fillRect(option.rect, bg_brush)
+                gui_logger.debug(f"DELEGATE: Manually filled background with {bg_brush.color().name()}")
         
         # Create a copy of the option and initialize it
         opt = QtWidgets.QStyleOptionViewItem(option)
         self.initStyleOption(opt, index)
         
         # Clear the background brush so the style doesn't override our manual fill
-        if bg_brush:
+        if bg_data:
             opt.backgroundBrush = QtGui.QBrush()
         
         # Let the style system handle the text and other elements
