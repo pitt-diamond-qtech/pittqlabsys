@@ -739,10 +739,33 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
 
     def setModelData(self, editor, model, index):
         raw = editor.text().strip()
+        gui_logger.debug(f"DELEGATE: setModelData called with text '{raw}'")
+        
+        # Check if we already have feedback for this index to prevent double validation
+        existing_feedback = index.data(self.FEEDBACK_ROLE)
+        if existing_feedback:
+            gui_logger.debug(f"DELEGATE: Already have feedback '{existing_feedback}', skipping validation")
+            # Just write the value without validation
+            try:
+                num = float(raw)
+                model.setData(index, num, QtCore.Qt.EditRole)
+                model.setData(index, "{:.3g}".format(num), QtCore.Qt.DisplayRole)
+                # Update the item's internal value
+                view = editor.parent()
+                while view and not isinstance(view, QtWidgets.QAbstractItemView):
+                    view = view.parent()
+                if isinstance(view, QtWidgets.QAbstractItemView):
+                    tw_item = view.itemFromIndex(index)
+                    if tw_item and hasattr(tw_item, 'value'):
+                        tw_item.value = num
+                gui_logger.debug(f"DELEGATE: Wrote value {num} without validation")
+            except ValueError:
+                gui_logger.debug("DELEGATE: Invalid number in second call, ignoring")
+            return
         
         # Handle empty string case - don't update the model
         if not raw:
-            # Revert editor to current value
+            gui_logger.debug("DELEGATE: Empty string, reverting editor")
             current_value = index.data(QtCore.Qt.EditRole)
             if current_value is not None:
                 editor.setText(str(current_value))
@@ -750,11 +773,13 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
         
         num = _parse_number(raw)
         if num is None:
-            # Non-numeric input - revert to current value
+            gui_logger.debug("DELEGATE: Invalid number, reverting editor")
             current_value = index.data(QtCore.Qt.EditRole)
             if current_value is not None:
                 editor.setText(str(current_value))
             return
+
+        gui_logger.debug(f"DELEGATE: Parsed number: {num}")
 
         # Get the tree item
         view = editor.parent()
@@ -762,26 +787,34 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
             view = view.parent()
         if isinstance(view, QtWidgets.QAbstractItemView):
             tw_item = view.itemFromIndex(index)
+            gui_logger.debug(f"DELEGATE: Found tree item: {tw_item}")
         else:
             tw_item = None
 
         if tw_item is None:
+            gui_logger.debug("DELEGATE: No tree item found, fallback write")
             # Fallback: just write the number
             model.setData(index, num, QtCore.Qt.EditRole)
             return
 
         # Try device validation and actual value checking
         final_value = num
+        feedback_applied = False
+        
         if hasattr(tw_item, 'get_device'):
             device, path_to_device = tw_item.get_device()
+            gui_logger.debug(f"DELEGATE: Got device {device} and path {path_to_device}")
+            
             if device and hasattr(device, 'validate_parameter'):
                 validation_result = device.validate_parameter(path_to_device, num)
                 param_name = path_to_device[-1] if path_to_device else tw_item.name
+                gui_logger.debug(f"DELEGATE: Validation result: {validation_result}")
                 
                 if not validation_result.get('valid', True):
                     clamped_value = validation_result.get('clamped_value', num)
                     if clamped_value != num:
-                        # Value was clamped - emit signal for main window to handle
+                        gui_logger.debug(f"DELEGATE: Value clamped from {num} to {clamped_value}")
+                        # Value was clamped - apply visual feedback and emit signal
                         final_value = clamped_value
                         feedback = {
                             'valid': False,
@@ -793,7 +826,9 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
                         }
                         gui_logger.info(f"DELEGATE: Emitting clamped signal for {param_name}: {feedback}")
                         self.validation_result_signal.emit(tw_item, param_name, feedback)
+                        feedback_applied = True
                     else:
+                        gui_logger.debug("DELEGATE: Validation failed, no clamped value")
                         # No clamped value available - emit error signal
                         feedback = {
                             'valid': False,
@@ -804,6 +839,7 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
                             'reason': 'error'
                         }
                         self.validation_result_signal.emit(tw_item, param_name, feedback)
+                        feedback_applied = True
                         return  # Don't update the model
                 else:
                     # Validation passed - now check if device reports different actual value
@@ -820,6 +856,7 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
                             )
                             
                             if is_significantly_different:
+                                gui_logger.debug(f"DELEGATE: Device reported different value: {actual_value} vs {num}")
                                 # Device reported significantly different value - emit signal
                                 final_value = actual_value
                                 feedback = {
@@ -831,7 +868,9 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
                                     'reason': 'device_different'
                                 }
                                 self.validation_result_signal.emit(tw_item, param_name, feedback)
+                                feedback_applied = True
                             else:
+                                gui_logger.debug("DELEGATE: Device reported same value")
                                 # Device reported same value - emit success signal
                                 feedback = {
                                     'valid': True,
@@ -842,6 +881,7 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
                                     'reason': 'success'
                                 }
                                 self.validation_result_signal.emit(tw_item, param_name, feedback)
+                                feedback_applied = True
                         except Exception as e:
                             gui_logger.warning(f"Could not get actual value from device: {e}")
                             # Fallback to just setting the requested value
@@ -854,7 +894,9 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
                                 'reason': 'success'
                             }
                             self.validation_result_signal.emit(tw_item, param_name, feedback)
+                            feedback_applied = True
                     else:
+                        gui_logger.debug("DELEGATE: No update_and_get method, emitting success")
                         # No update_and_get method - emit success signal
                         feedback = {
                             'valid': True,
@@ -865,13 +907,28 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
                             'reason': 'success'
                         }
                         self.validation_result_signal.emit(tw_item, param_name, feedback)
+                        feedback_applied = True
         else:
+            gui_logger.debug("DELEGATE: No device validation, using attribute-based")
             # Fallback to attribute-based validation
             min_v = getattr(tw_item, "min_value", None)
             max_v = getattr(tw_item, "max_value", None)
             
             if min_v is not None: final_value = max(final_value, float(min_v))
             if max_v is not None: final_value = min(final_value, float(max_v))
+
+        # Only apply success feedback if no other feedback was applied
+        if not feedback_applied:
+            gui_logger.debug("DELEGATE: No device validation, emitting success")
+            feedback = {
+                'valid': True,
+                'message': f"Parameter set successfully",
+                'clamped_value': None,
+                'requested_value': num,
+                'actual_value': final_value,
+                'reason': 'success'
+            }
+            self.validation_result_signal.emit(tw_item, tw_item.name, feedback)
 
         # write via EditRole so the model/view/editor stay consistent
         model.setData(index, final_value, QtCore.Qt.EditRole)
@@ -883,15 +940,28 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
         if hasattr(tw_item, 'value'):
             tw_item.value = final_value
         
-        # Visual feedback is now handled by the main window through the validation_result_signal
-        # No need to set feedback here as it's handled by _handle_delegate_validation_result
+        gui_logger.debug(f"DELEGATE: Final value set to {final_value}")
     
     def paint(self, painter: QtGui.QPainter, option: QtWidgets.QStyleOptionViewItem, index: QtCore.QModelIndex):
-        """Paint the item using the standard style system with model-based background"""
+        """Paint the item with manual background handling"""
+        gui_logger.debug(f"DELEGATE: paint called for index {index.row()},{index.column()}")
+        
+        # Check if there's a background color set
+        bg_brush = index.data(QtCore.Qt.BackgroundRole)
+        if bg_brush:
+            gui_logger.debug(f"DELEGATE: Found background brush: {bg_brush}")
+            # Fill the background manually first
+            painter.fillRect(option.rect, bg_brush)
+            gui_logger.debug(f"DELEGATE: Manually filled background with {bg_brush.color().name()}")
+        
         # Create a copy of the option and initialize it
         opt = QtWidgets.QStyleOptionViewItem(option)
         self.initStyleOption(opt, index)
         
-        # Let the style system handle the painting with any background set via BackgroundRole
+        # Clear the background brush so the style doesn't override our manual fill
+        if bg_brush:
+            opt.backgroundBrush = QtGui.QBrush()
+        
+        # Let the style system handle the text and other elements
         style = opt.widget.style() if opt.widget else QtWidgets.QApplication.style()
         style.drawControl(QtWidgets.QStyle.CE_ItemViewItem, opt, painter, opt.widget)
