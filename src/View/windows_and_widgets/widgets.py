@@ -558,7 +558,7 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
     
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._clear_timers = {}  # Track timers for clearing backgrounds
+        self._clear_timers = {}  # Track timers for clearing backgrounds using (row, column) tuples
     
     def _flash_background(self, item, column, state):
         """Flash background color on item and auto-clear after 1.5 seconds"""
@@ -575,14 +575,17 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
             # Store feedback reason in item attribute
             item._feedback_reason = state
             
+            # Create a hashable key for timer tracking
+            timer_key = (id(item), column)
+            
             # Clear after 1.5 s
-            if item in self._clear_timers:
-                self._clear_timers[item].stop()
+            if timer_key in self._clear_timers:
+                self._clear_timers[timer_key].stop()
             t = QtCore.QTimer(self)
             t.setSingleShot(True)
             t.timeout.connect(lambda it=item, col=column: self._clear_item_background(it, col))
             t.start(1500)
-            self._clear_timers[item] = t
+            self._clear_timers[timer_key] = t
     
     def _clear_item_background(self, item, column):
         """Clear background color from item"""
@@ -593,9 +596,10 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
             delattr(item, '_feedback_reason')
             gui_logger.debug(f"DELEGATE: Cleared item._feedback_reason")
         
-        # Remove timer from tracking
-        if item in self._clear_timers:
-            del self._clear_timers[item]
+        # Remove timer from tracking using hashable key
+        timer_key = (id(item), column)
+        if timer_key in self._clear_timers:
+            del self._clear_timers[timer_key]
         
         gui_logger.debug(f"DELEGATE: Cleared item background")
     
