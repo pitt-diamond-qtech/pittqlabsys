@@ -2,26 +2,62 @@
 
 ## 🎯 **Immediate Next Steps** (This Weekend/Next Week)
 
-### 1. **Device Actual Value Reporting** (HIGH PRIORITY - After Weekend)
-**Why**: Critical for precision devices like nanodrives where actual position differs from requested
-**Effort**: Medium
+### 1. **Device Parameter Tolerance and Validation System** (HIGH PRIORITY - After Weekend)
+**Why**: Critical for precision devices like nanodrives where actual position differs from requested. Provides honest feedback about device behavior and ensures parameters are within acceptable tolerances.
+**Effort**: Medium-High
 **Impact**: High
 
-**Problem**: Current system only shows green "success" even when device reports different actual value
-**Example**: User requests 50.0 μm, device moves to 49.5 μm → Currently shows green (misleading!)
+**Problem**: Current system only shows green "success" even when device reports different actual value. No tolerance checking or honest reporting of device behavior.
 
-**Tasks**:
-- [ ] Add `'device_different'` visual state (yellow background?)
-- [ ] Implement device tolerance system to avoid flagging tiny differences
-- [ ] Add actual value checking after validation passes
-- [ ] Call `device.update_and_get()` to get real device values
-- [ ] Show both requested and actual values in GUI history
-- [ ] Update feedback messages to be honest about what happened
+**Core Tasks**:
+
+#### **Phase 1: Configuration System**
+- [ ] Design and implement `tolerance_settings` structure in device JSON configs
+- [ ] Add tolerance configuration to existing device configs (sg384, awg520, nanodrive, etc.)
+- [ ] Create tolerance configuration validation and loading system
+
+#### **Phase 2: Base Framework**
+- [ ] Extend `Parameter` class with tolerance support (`tolerance_percent`, `tolerance_absolute`, `validation_enabled`)
+- [ ] Add `validate_parameter_tolerance()` method to base `Device` class
+- [ ] Add `check_all_parameters_tolerance()` method to base `Device` class
+- [ ] Implement tolerance comparison logic (percentage and absolute)
+
+#### **Phase 3: Device Integration**
+- [ ] Update device classes to load tolerance settings from config
+- [ ] Implement device-specific tolerance validation methods
+- [ ] Add actual value checking using `device.update_and_get()`
+- [ ] Test with precision devices (nanodrive, sg384)
+
+#### **Phase 4: GUI Integration**
+- [ ] Add `'device_different'` visual state (yellow background) to NumberClampDelegate
+- [ ] Update feedback messages to show requested vs actual values
+- [ ] Add tolerance information to GUI history
+- [ ] Implement warning thresholds for near-tolerance values
 
 **Files to Modify**:
-- `src/View/windows_and_widgets/widgets.py` (NumberClampDelegate)
-- `src/core/device.py` (base device class)
-- Device implementations (add tolerance methods)
+- `src/core/device.py` (base device class - tolerance methods)
+- `src/core/parameter.py` (tolerance support)
+- `src/View/windows_and_widgets/widgets.py` (NumberClampDelegate - visual states)
+- `config.sample.json` and `src/config.template.json` (tolerance settings)
+- Device implementations (sg384.py, nanodrive.py, awg520.py, etc.)
+
+**Configuration Example**:
+```json
+{
+    "devices": {
+        "sg384": {
+            "tolerance_settings": {
+                "frequency": {
+                    "tolerance_percent": 0.1,
+                    "tolerance_absolute": 1000,
+                    "validation_enabled": true,
+                    "warning_threshold": 0.05
+                }
+            }
+        }
+    }
+}
+```
 
 ### 2. **Enhanced GUI Input Formatting** (High Priority)
 **Why**: Most user-friendly improvement, builds on current validation system

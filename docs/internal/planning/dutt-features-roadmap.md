@@ -21,28 +21,65 @@ This document outlines the planned features and improvements for the `dutt-featu
 - Create GUI components for experiment composition and data flow visualization
 - Add persistence backend pattern to separate storage logic from data
 
-### 2. **Device Actual Value Reporting** (HIGH PRIORITY)
+### 2. **Device Parameter Tolerance and Validation System** (HIGH PRIORITY)
 **Status**: Ready for Implementation  
-**Description**: Implement actual value checking to show when devices report different values than requested, with device-specific tolerance handling.
+**Description**: Comprehensive device parameter tolerance and validation system to ensure device values are within acceptable ranges and provide honest feedback about actual vs requested values.
 
 **Key Components**:
+- **Tolerance Configuration**: JSON-based tolerance settings per device and parameter
+- **Base Validation Framework**: Enhanced Device class with tolerance validation methods
 - **Actual Value Checking**: Call `device.update_and_get()` after validation
-- **Device-Specific Tolerances**: Different tolerance levels for different device types
-- **Visual Feedback**: New `'device_different'` state (yellow background?)
+- **Device-Specific Tolerances**: Different tolerance levels for different device types and parameters
+- **Visual Feedback**: New `'device_different'` state (yellow background) for out-of-tolerance values
 - **Honest Reporting**: Show both requested and actual values in GUI history
+- **Parameter Enhancement**: Extended Parameter class with tolerance support
 
 **Technical Approach**:
-- Add `'device_different'` visual state to NumberClampDelegate
-- Implement tolerance-based comparison to avoid flagging tiny differences
-- Add actual value checking after validation passes
-- Update feedback messages to show requested vs actual values
-- Add tolerance configuration to device implementations
+- **Config Structure**: Add `tolerance_settings` section to device JSON configs
+- **Base Device Class**: Add `validate_parameter_tolerance()` and `check_all_parameters_tolerance()` methods
+- **Parameter Class**: Extend with `tolerance_percent`, `tolerance_absolute`, `validation_enabled` parameters
+- **Device Integration**: Update specific device classes to use tolerance validation
+- **GUI Integration**: Add `'device_different'` visual state to NumberClampDelegate
+- **Tolerance Logic**: Implement both percentage and absolute tolerance checking
+
+**Configuration Example**:
+```json
+{
+    "devices": {
+        "sg384": {
+            "tolerance_settings": {
+                "frequency": {
+                    "tolerance_percent": 0.1,
+                    "tolerance_absolute": 1000,
+                    "validation_enabled": true,
+                    "warning_threshold": 0.05
+                },
+                "power": {
+                    "tolerance_percent": 2.0,
+                    "tolerance_absolute": 0.5,
+                    "validation_enabled": true,
+                    "warning_threshold": 1.0
+                }
+            }
+        }
+    }
+}
+```
+
+**Validation Flow**:
+1. User sets parameter value
+2. Device applies value to hardware
+3. Device reads back actual value using `update_and_get()`
+4. Compare target vs actual using tolerance settings
+5. Flag if outside tolerance with appropriate visual feedback
+6. Provide detailed user feedback about requested vs actual values
 
 **Example**:
 - User requests: 50.0 μm
 - Device reports: 49.5 μm  
+- Tolerance: ±1% (0.5 μm)
 - Current: Shows green "success" (misleading!)
-- New: Shows yellow "device_different" with message "Requested 50.0 μm, device reported 49.5 μm"
+- New: Shows yellow "device_different" with message "Requested 50.0 μm, device reported 49.5 μm (within 1% tolerance)"
 
 ### 3. **Enhanced GUI Input Formatting**
 **Status**: Planning Phase  
