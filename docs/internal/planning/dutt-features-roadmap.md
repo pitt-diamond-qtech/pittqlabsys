@@ -75,6 +75,17 @@ This document outlines the planned features and improvements for the `dutt-featu
 }
 ```
 
+**Future Enhancement (Phase 2 - Modular Files)**:
+```json
+{
+    "devices": {
+        "sg384": {
+            "tolerance_settings_file": "device_tolerances/sg384_tolerance.json"
+        }
+    }
+}
+```
+
 **Configuration Strategy**:
 - **Phase 1**: Inline tolerance settings in main config.json (recommended for initial implementation)
 - **Phase 2**: Support for external device-specific tolerance files (future enhancement)
