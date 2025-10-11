@@ -12,9 +12,11 @@
 **Core Tasks**:
 
 #### **Phase 1: Configuration System**
-- [ ] Design and implement `tolerance_settings` structure in device JSON configs
+- [ ] Design and implement `tolerance_settings` structure in main device JSON configs
 - [ ] Add tolerance configuration to existing device configs (sg384, awg520, nanodrive, etc.)
 - [ ] Create tolerance configuration validation and loading system
+- [ ] Implement inline tolerance settings approach (Phase 1)
+- [ ] Design extensible architecture for future modular file support (Phase 2)
 
 #### **Phase 2: Base Framework**
 - [ ] Extend `Parameter` class with tolerance support (`tolerance_percent`, `tolerance_absolute`, `validation_enabled`)
@@ -57,6 +59,17 @@
                     "warning_threshold": 0.05
                 }
             }
+        }
+    }
+}
+```
+
+**Future Enhancement (Phase 2 - Modular Files)**:
+```json
+{
+    "devices": {
+        "sg384": {
+            "tolerance_settings_file": "device_tolerances/sg384_tolerance.json"
         }
     }
 }
