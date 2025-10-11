@@ -26,7 +26,8 @@ This document outlines the comprehensive implementation plan for the Device Para
 
 ### **Configuration Structure**
 
-Add `tolerance_settings` section to device JSON configs:
+**Phase 1: Main Config Approach (Recommended)**
+Add `tolerance_settings` section directly to device JSON configs:
 
 ```json
 {
@@ -53,6 +54,28 @@ Add `tolerance_settings` section to device JSON configs:
     }
 }
 ```
+
+**Phase 2: Modular Support (Future Enhancement)**
+For future extensibility, support external tolerance files:
+
+```json
+{
+    "devices": {
+        "sg384": {
+            "class": "SG384Generator",
+            "filepath": "src/Controller/sg384.py",
+            "settings": { /* existing settings */ },
+            "tolerance_settings_file": "device_tolerances/sg384_tolerance.json"
+        }
+    }
+}
+```
+
+**Configuration Strategy Rationale:**
+- **Start Simple**: Begin with main config.json for faster implementation and consistency
+- **Easier Maintenance**: Single file to manage initially
+- **Consistent Architecture**: Follows existing device configuration patterns
+- **Future Extensible**: Can add modular file support later without breaking changes
 
 ### **Base Framework Components**
 
@@ -93,6 +116,17 @@ class Device:
     def load_tolerance_settings(self):
         """
         Load tolerance settings from device configuration.
+        Supports both inline (Phase 1) and external file (Phase 2) configurations.
+        """
+        
+    def _load_tolerance_file(self, tolerance_file_path):
+        """
+        Load tolerance settings from external file (Phase 2).
+        """
+        
+    def _get_default_tolerance_settings(self, device_name):
+        """
+        Get default tolerance settings for a device when none are specified.
         """
 ```
 
@@ -110,19 +144,24 @@ VALIDATION_STATES = {
 ## 📋 **Implementation Plan**
 
 ### **Phase 1: Configuration System** (Week 1)
-**Goal**: Set up tolerance configuration structure
+**Goal**: Set up tolerance configuration structure using main config.json approach
 
 **Tasks**:
-- [ ] Design `tolerance_settings` JSON structure
+- [ ] Design `tolerance_settings` JSON structure for main config
 - [ ] Update `config.sample.json` with example tolerance settings
 - [ ] Update `src/config.template.json` with tolerance template
 - [ ] Create tolerance configuration validation system
 - [ ] Add tolerance loading to device initialization
+- [ ] Implement `load_tolerance_settings()` method with inline config support
 
 **Files**:
 - `config.sample.json`
 - `src/config.template.json`
 - `src/core/device.py` (tolerance loading)
+
+**Configuration Approach**:
+- **Phase 1**: Inline tolerance settings in main config.json
+- **Phase 2**: Add support for external tolerance files (future enhancement)
 
 ### **Phase 2: Base Framework** (Week 1-2)
 **Goal**: Implement core tolerance validation logic
@@ -296,11 +335,43 @@ Add tolerance information to parameter history:
 
 ## 🔄 **Future Enhancements**
 
-1. **Adaptive Tolerances**: Learn from device behavior to adjust tolerances
-2. **Tolerance Calibration**: Automatic tolerance determination based on device characteristics
-3. **Advanced Analytics**: Track device accuracy over time
-4. **Custom Validation Rules**: Device-specific validation logic
-5. **Tolerance Templates**: Pre-configured tolerance sets for common device types
+1. **Modular Tolerance Files**: Support for external device-specific tolerance files
+2. **Adaptive Tolerances**: Learn from device behavior to adjust tolerances
+3. **Tolerance Calibration**: Automatic tolerance determination based on device characteristics
+4. **Advanced Analytics**: Track device accuracy over time
+5. **Custom Validation Rules**: Device-specific validation logic
+6. **Tolerance Templates**: Pre-configured tolerance sets for common device types
+
+## 📁 **Configuration Strategy**
+
+### **Phase 1: Main Config Approach (Current)**
+- **Single File**: All tolerance settings in main `config.json`
+- **Pros**: Simple, consistent with existing architecture, easier maintenance
+- **Cons**: Larger config files, potential merge conflicts with multiple developers
+
+### **Phase 2: Modular Files (Future)**
+- **External Files**: Device-specific tolerance files in `device_tolerances/` directory
+- **Pros**: Modular, reusable, cleaner separation, better for version control
+- **Cons**: More complex configuration loading, multiple files to manage
+
+### **Implementation Strategy**
+```python
+def load_device_tolerance_settings(self, device_name, device_config):
+    """
+    Load tolerance settings for a device.
+    Supports both inline and external file configurations.
+    """
+    if 'tolerance_settings' in device_config:
+        # Phase 1: Inline configuration
+        return device_config['tolerance_settings']
+    elif 'tolerance_settings_file' in device_config:
+        # Phase 2: External file configuration
+        tolerance_file = device_config['tolerance_settings_file']
+        return self._load_tolerance_file(tolerance_file)
+    else:
+        # Default tolerance settings
+        return self._get_default_tolerance_settings(device_name)
+```
 
 ---
 

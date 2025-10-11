@@ -35,18 +35,27 @@ This document outlines the planned features and improvements for the `dutt-featu
 - **Parameter Enhancement**: Extended Parameter class with tolerance support
 
 **Technical Approach**:
-- **Config Structure**: Add `tolerance_settings` section to device JSON configs
+- **Config Structure**: Add `tolerance_settings` section to main device JSON configs (Phase 1)
+- **Modular Support**: Future support for external tolerance files (Phase 2)
 - **Base Device Class**: Add `validate_parameter_tolerance()` and `check_all_parameters_tolerance()` methods
 - **Parameter Class**: Extend with `tolerance_percent`, `tolerance_absolute`, `validation_enabled` parameters
 - **Device Integration**: Update specific device classes to use tolerance validation
 - **GUI Integration**: Add `'device_different'` visual state to NumberClampDelegate
 - **Tolerance Logic**: Implement both percentage and absolute tolerance checking
 
-**Configuration Example**:
+**Configuration Strategy**:
+- **Start Simple**: Begin with inline tolerance settings in main config.json
+- **Consistent Architecture**: Follows existing device configuration patterns
+- **Future Extensible**: Can add modular file support later without breaking changes
+
+**Configuration Example (Phase 1 - Main Config)**:
 ```json
 {
     "devices": {
         "sg384": {
+            "class": "SG384Generator",
+            "filepath": "src/Controller/sg384.py",
+            "settings": { /* existing settings */ },
             "tolerance_settings": {
                 "frequency": {
                     "tolerance_percent": 0.1,
@@ -65,6 +74,10 @@ This document outlines the planned features and improvements for the `dutt-featu
     }
 }
 ```
+
+**Configuration Strategy**:
+- **Phase 1**: Inline tolerance settings in main config.json (recommended for initial implementation)
+- **Phase 2**: Support for external device-specific tolerance files (future enhancement)
 
 **Validation Flow**:
 1. User sets parameter value

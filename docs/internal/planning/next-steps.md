@@ -41,11 +41,14 @@
 - `config.sample.json` and `src/config.template.json` (tolerance settings)
 - Device implementations (sg384.py, nanodrive.py, awg520.py, etc.)
 
-**Configuration Example**:
+**Configuration Example (Phase 1 - Main Config)**:
 ```json
 {
     "devices": {
         "sg384": {
+            "class": "SG384Generator",
+            "filepath": "src/Controller/sg384.py",
+            "settings": { /* existing settings */ },
             "tolerance_settings": {
                 "frequency": {
                     "tolerance_percent": 0.1,
@@ -58,6 +61,10 @@
     }
 }
 ```
+
+**Configuration Strategy**:
+- **Phase 1**: Inline tolerance settings in main config.json (recommended for initial implementation)
+- **Phase 2**: Support for external device-specific tolerance files (future enhancement)
 
 ### 2. **Enhanced GUI Input Formatting** (High Priority)
 **Why**: Most user-friendly improvement, builds on current validation system
