@@ -23,7 +23,8 @@ class ValidationError(Exception):
 
 class Parameter(dict):
     def __init__(self, name, value=None, valid_values=None, info=None, visible=False, units=None,
-                 min_value=None, max_value=None, pattern=None, validator=None):
+                 min_value=None, max_value=None, pattern=None, validator=None,
+                 tolerance_percent=None, tolerance_absolute=None, validation_enabled=True):
         """
         Parameter class for managing experiment parameters with validation and units.
 
@@ -43,6 +44,9 @@ class Parameter(dict):
             max_value: Maximum allowed value (for numeric parameters)
             pattern: Regex pattern for string validation
             validator: Custom validation function
+            tolerance_percent: Percentage tolerance for validation (float)
+            tolerance_absolute: Absolute tolerance for validation (float)
+            validation_enabled: Whether tolerance validation is enabled (bool)
         """
         super().__init__()
 
@@ -53,14 +57,16 @@ class Parameter(dict):
 
         if isinstance(name, str):
             self._init_single_parameter(name, value, valid_values, info, visible, units,
-                                      min_value, max_value, pattern, validator)
+                                      min_value, max_value, pattern, validator,
+                                      tolerance_percent, tolerance_absolute, validation_enabled)
         elif isinstance(name, (list, dict)):
             self._init_multiple_parameters(name, visible)
         else:
             raise TypeError(f"Invalid name type: {type(name)}")
 
     def _init_single_parameter(self, name, value, valid_values, info, visible, units,
-                              min_value=None, max_value=None, pattern=None, validator=None):
+                              min_value=None, max_value=None, pattern=None, validator=None,
+                              tolerance_percent=None, tolerance_absolute=None, validation_enabled=True):
         """Initialize a single parameter."""
         if valid_values is None:
             valid_values = type(value)
@@ -99,6 +105,11 @@ class Parameter(dict):
             self._visible = {name: nested_param.visible}
             self._units = {name: nested_param.units}
             self.update({name: nested_param})
+            
+            # Copy tolerance attributes from nested parameters
+            self._tolerance_percent = nested_param._tolerance_percent.copy()
+            self._tolerance_absolute = nested_param._tolerance_absolute.copy()
+            self._validation_enabled = nested_param._validation_enabled.copy()
         else:
             self.name = name
             self._valid_values = {name: valid_values}
@@ -106,6 +117,11 @@ class Parameter(dict):
             self._visible = {name: visible}
             self._units = {name: units}
             self.update({name: value})
+            
+            # Initialize tolerance attributes
+            self._tolerance_percent = {name: tolerance_percent}
+            self._tolerance_absolute = {name: tolerance_absolute}
+            self._validation_enabled = {name: validation_enabled}
             
             # Handle pint Quantity objects
             self._pint_quantity = {name: False}
@@ -125,6 +141,9 @@ class Parameter(dict):
         self._info = {}
         self._visible = {}
         self._units = {}
+        self._tolerance_percent = {}
+        self._tolerance_absolute = {}
+        self._validation_enabled = {}
         self._pint_quantity = {}
         self._original_units = {}
         self._original_magnitude = {}
@@ -150,6 +169,11 @@ class Parameter(dict):
         self._units[name] = ''
         self.update({name: value})
         
+        # Initialize tolerance attributes with defaults
+        self._tolerance_percent[name] = None
+        self._tolerance_absolute[name] = None
+        self._validation_enabled[name] = True
+        
         # Handle pint Quantity objects
         self._pint_quantity[name] = False
         self._original_units[name] = None
@@ -170,6 +194,22 @@ class Parameter(dict):
             self._visible[k] = param.visible[k]
             self._units[k] = param.units[k]
             self.update({k: v})
+            
+            # Handle tolerance attributes from nested parameters
+            if hasattr(param, '_tolerance_percent') and k in param._tolerance_percent:
+                self._tolerance_percent[k] = param._tolerance_percent[k]
+            else:
+                self._tolerance_percent[k] = None
+                
+            if hasattr(param, '_tolerance_absolute') and k in param._tolerance_absolute:
+                self._tolerance_absolute[k] = param._tolerance_absolute[k]
+            else:
+                self._tolerance_absolute[k] = None
+                
+            if hasattr(param, '_validation_enabled') and k in param._validation_enabled:
+                self._validation_enabled[k] = param._validation_enabled[k]
+            else:
+                self._validation_enabled[k] = True
             
             # Handle pint Quantity objects from nested parameters
             if hasattr(param, '_pint_quantity') and k in param._pint_quantity:
@@ -583,6 +623,157 @@ class Parameter(dict):
             'max_cache_size': self._cache_max_size
         }
     
+    def validate_tolerance(self, param_name, target_value, actual_value):
+        """
+        Validate if actual value is within tolerance of target value.
+        
+        Args:
+            param_name: Name of the parameter to validate
+            target_value: Target/requested value
+            actual_value: Actual value from device
+            
+        Returns:
+            dict: Validation result with keys:
+                - 'within_tolerance' (bool): Whether value is within tolerance
+                - 'deviation_percent' (float): Percentage deviation
+                - 'deviation_absolute' (float): Absolute deviation
+                - 'warning_threshold_exceeded' (bool): Whether warning threshold exceeded
+                - 'tolerance_percent' (float): Percentage tolerance used
+                - 'tolerance_absolute' (float): Absolute tolerance used
+            None: If validation is disabled for this parameter
+        """
+        import numpy as np
+        
+        # Check if validation is enabled for this parameter
+        if not self._validation_enabled.get(param_name, True):
+            return None
+            
+        # Check if parameter exists
+        if param_name not in self._tolerance_percent and param_name not in self._tolerance_absolute:
+            raise KeyError(f"Parameter '{param_name}' not found")
+        
+        # Get tolerance settings
+        tolerance_percent = self._tolerance_percent.get(param_name)
+        tolerance_absolute = self._tolerance_absolute.get(param_name)
+        
+        # If no tolerance is set, consider it within tolerance
+        if tolerance_percent is None and tolerance_absolute is None:
+            return {
+                'within_tolerance': True,
+                'deviation_percent': 0.0,
+                'deviation_absolute': 0.0,
+                'warning_threshold_exceeded': False,
+                'tolerance_percent': None,
+                'tolerance_absolute': None
+            }
+        
+        # Convert to float for calculations
+        try:
+            target_val = float(target_value)
+            actual_val = float(actual_value)
+        except (ValueError, TypeError):
+            # Handle non-numeric values
+            return {
+                'within_tolerance': target_value == actual_value,
+                'deviation_percent': 0.0 if target_value == actual_value else float('inf'),
+                'deviation_absolute': 0.0 if target_value == actual_value else float('inf'),
+                'warning_threshold_exceeded': False,
+                'tolerance_percent': tolerance_percent,
+                'tolerance_absolute': tolerance_absolute
+            }
+        
+        # Handle special cases
+        if np.isnan(target_val) or np.isnan(actual_val):
+            return {
+                'within_tolerance': False,
+                'deviation_percent': float('nan'),
+                'deviation_absolute': float('nan'),
+                'warning_threshold_exceeded': False,
+                'tolerance_percent': tolerance_percent,
+                'tolerance_absolute': tolerance_absolute
+            }
+        
+        if np.isinf(target_val) or np.isinf(actual_val):
+            return {
+                'within_tolerance': target_val == actual_val,
+                'deviation_percent': float('inf') if target_val != actual_val else 0.0,
+                'deviation_absolute': float('inf') if target_val != actual_val else 0.0,
+                'warning_threshold_exceeded': False,
+                'tolerance_percent': tolerance_percent,
+                'tolerance_absolute': tolerance_absolute
+            }
+        
+        # Calculate deviations
+        deviation_absolute = abs(actual_val - target_val)
+        
+        # Calculate percentage deviation
+        if target_val == 0:
+            # Special case: if target is zero, use absolute deviation only
+            deviation_percent = 0.0
+        else:
+            deviation_percent = (deviation_absolute / abs(target_val)) * 100.0
+        
+        # Check tolerances
+        within_tolerance = True
+        
+        # Check percentage tolerance
+        if tolerance_percent is not None:
+            if deviation_percent > tolerance_percent:
+                within_tolerance = False
+        
+        # Check absolute tolerance
+        if tolerance_absolute is not None:
+            if deviation_absolute > tolerance_absolute:
+                within_tolerance = False
+        
+        # Check warning threshold (80% of tolerance)
+        warning_threshold_exceeded = False
+        if tolerance_percent is not None:
+            warning_threshold = tolerance_percent * 0.8
+            if deviation_percent >= warning_threshold:
+                warning_threshold_exceeded = True
+        
+        return {
+            'within_tolerance': within_tolerance,
+            'deviation_percent': deviation_percent,
+            'deviation_absolute': deviation_absolute,
+            'warning_threshold_exceeded': warning_threshold_exceeded,
+            'tolerance_percent': tolerance_percent,
+            'tolerance_absolute': tolerance_absolute
+        }
+    
+    def validate_all_parameters_tolerance(self, target_values, actual_values):
+        """
+        Validate tolerance for all parameters at once.
+        
+        Args:
+            target_values: Dict of {param_name: target_value}
+            actual_values: Dict of {param_name: actual_value}
+            
+        Returns:
+            dict: Dict of {param_name: validation_result} for parameters with tolerance enabled
+        """
+        results = {}
+        
+        for param_name in self._validation_enabled:
+            if not self._validation_enabled[param_name]:
+                continue  # Skip disabled parameters
+                
+            if param_name in target_values and param_name in actual_values:
+                try:
+                    result = self.validate_tolerance(
+                        param_name, 
+                        target_values[param_name], 
+                        actual_values[param_name]
+                    )
+                    if result is not None:
+                        results[param_name] = result
+                except KeyError:
+                    # Parameter not found, skip
+                    continue
+        
+        return results
+    
     def to_json(self):
         """
         Serialize Parameter to JSON with unit preservation.
@@ -616,7 +807,10 @@ class Parameter(dict):
             'valid_values': self._valid_values,
             'info': self._info,
             'visible': self._visible,
-            'validation_rules': getattr(self, '_validation_rules', {})
+            'validation_rules': getattr(self, '_validation_rules', {}),
+            'tolerance_percent': getattr(self, '_tolerance_percent', {}),
+            'tolerance_absolute': getattr(self, '_tolerance_absolute', {}),
+            'validation_enabled': getattr(self, '_validation_enabled', {})
         }
         
         return data
@@ -640,6 +834,9 @@ class Parameter(dict):
         info = metadata.get('info', {})
         visible = metadata.get('visible', {})
         validation_rules = metadata.get('validation_rules', {})
+        tolerance_percent = metadata.get('tolerance_percent', {})
+        tolerance_absolute = metadata.get('tolerance_absolute', {})
+        validation_enabled = metadata.get('validation_enabled', {})
         
         # Create parameter
         param = cls({})
@@ -679,6 +876,9 @@ class Parameter(dict):
         param._info = info
         param._visible = visible
         param._validation_rules = validation_rules
+        param._tolerance_percent = tolerance_percent
+        param._tolerance_absolute = tolerance_absolute
+        param._validation_enabled = validation_enabled
         
         return param
     

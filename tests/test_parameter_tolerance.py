@@ -267,7 +267,7 @@ class TestToleranceEdgeCases:
         
         result = p.validate_tolerance('small_value', 1e-9, 1.1e-9)
         assert result['within_tolerance'] is False
-        assert result['deviation_percent'] == 10.0
+        assert abs(result['deviation_percent'] - 10.0) < 1e-10  # Use tolerance for floating point comparison
     
     def test_tolerance_very_large_values(self):
         """Test tolerance validation with very large values."""
@@ -350,8 +350,8 @@ class TestToleranceMultipleParameters:
                      validation_enabled=False)
         ])
         
-        # Test frequency parameter
-        result = p.validate_tolerance('frequency', 2.85e9, 2.86e9)
+        # Test frequency parameter (within 0.1% tolerance)
+        result = p.validate_tolerance('frequency', 2.85e9, 2.85e9 * 1.0005)  # 0.05% deviation
         assert result['within_tolerance'] is True
         
         # Test power parameter
