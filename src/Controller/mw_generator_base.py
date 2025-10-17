@@ -24,10 +24,14 @@ class MicrowaveGeneratorBase(Device, ABC):
         # optional RS232 baud:
         Parameter('baud_rate',   115200,int, 'Baud for RS232'),
         # Common parameters that might be used by subclasses
-        Parameter('frequency', 1e9, float, 'Frequency in Hz'),
-        Parameter('power', -10, float, 'Power in dBm'),
-        Parameter('phase', 0, float, 'Phase in degrees'),
-        Parameter('amplitude', -10, float, 'Amplitude in dBm'),
+        Parameter('frequency', 1e9, float, 'Frequency in Hz',
+                 min_value=1e6, max_value=6e9, tolerance_percent=0.01, tolerance_absolute=1000),
+        Parameter('power', -10, float, 'Power in dBm',
+                 min_value=-120, max_value=20, tolerance_percent=0.1, tolerance_absolute=0.1),
+        Parameter('phase', 0, float, 'Phase in degrees',
+                 min_value=-180, max_value=180, tolerance_percent=0.1, tolerance_absolute=0.1),
+        Parameter('amplitude', -10, float, 'Amplitude in dBm',
+                 min_value=-120, max_value=20, tolerance_percent=0.1, tolerance_absolute=0.1),
     ])
 
     @classmethod

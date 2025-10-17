@@ -17,9 +17,12 @@ class MCLNanoDrive(Device):
     This class implements the Mad City Labs NanoDrive. The class loads the madlib.dll library to communicate with the device.
     """
     _DEFAULT_SETTINGS = Parameter([Parameter('serial',2850,[2850,2849],'serial of specific Nano Drive. Dutt labs LP100:2849 & HS3:2850 (20 bit systems)'),
-                                   Parameter('x_pos',0,float,'position of x axis in microns'),
-                                   Parameter('y_pos', 0, float, 'position of y axis in microns'),
-                                   Parameter('z_pos', 0, float, 'position of z axis in microns'),
+                                   Parameter('x_pos',0,float,'position of x axis in microns',
+                                            min_value=0, max_value=100, tolerance_percent=0.01, tolerance_absolute=0.001),
+                                   Parameter('y_pos', 0, float, 'position of y axis in microns',
+                                            min_value=0, max_value=100, tolerance_percent=0.01, tolerance_absolute=0.001),
+                                   Parameter('z_pos', 0, float, 'position of z axis in microns',
+                                            min_value=0, max_value=100, tolerance_percent=0.01, tolerance_absolute=0.001),
                                    Parameter('read_rate',2.0,[0.267,0.5,1.0,2.0,10.0,17.0,20.0],'value in ms'),
                                    Parameter('load_rate',2.0,float,'ms/point load rate. Valid values 1/6-5 ms'),
                                    Parameter('num_datapoints',1,list(range(1,6667)),'number of data points used for waveforms'),

@@ -113,7 +113,7 @@ class Device:
         """Update device settings and return detailed feedback about changes.
         
         This enhanced version provides context about why values changed,
-        distinguishing between clamping, errors, and successful updates.
+        distinguishing between clamping, errors, successful updates, and tolerance violations.
         
         Note: This is an internal method. update_and_get() calls this method internally 
         and returns only actual_values. Users should not call this method directly.
@@ -151,18 +151,66 @@ class Device:
                 if hasattr(requested_value, 'magnitude') and hasattr(actual_value, 'magnitude'):
                     # Pint quantities
                     changed = requested_value.magnitude != actual_value.magnitude
+                    requested_mag = requested_value.magnitude
+                    actual_mag = actual_value.magnitude
                 else:
                     # Regular values
                     changed = requested_value != actual_value
+                    requested_mag = requested_value
+                    actual_mag = actual_value
+                
+                # Check tolerance if values are numeric
+                tolerance_violation = False
+                tolerance_message = ""
+                if isinstance(requested_mag, (int, float)) and isinstance(actual_mag, (int, float)):
+                    # Get parameter tolerance settings
+                    param_obj = self._get_parameter_object(key)
+                    if param_obj and hasattr(param_obj, 'tolerance_percent') and hasattr(param_obj, 'tolerance_absolute'):
+                        tolerance_percent = getattr(param_obj, 'tolerance_percent', None)
+                        tolerance_absolute = getattr(param_obj, 'tolerance_absolute', None)
+                        
+                        if tolerance_percent is not None or tolerance_absolute is not None:
+                            # Calculate tolerance bounds
+                            percent_tolerance = abs(requested_mag * tolerance_percent) if tolerance_percent else 0
+                            absolute_tolerance = tolerance_absolute if tolerance_absolute else 0
+                            total_tolerance = max(percent_tolerance, absolute_tolerance)
+                            
+                            # Check if actual value is within tolerance
+                            if abs(actual_mag - requested_mag) > total_tolerance:
+                                tolerance_violation = True
+                                tolerance_message = f"Tolerance violation: requested {requested_mag}, actual {actual_mag}, tolerance ±{total_tolerance:.2e}"
                 
                 if changed:
                     # Value changed - need to determine why
+                    reason = 'unknown'
+                    message = f'Value changed from {requested_value} to {actual_value}'
+                    
+                    if tolerance_violation:
+                        reason = 'tolerance_violation'
+                        message = tolerance_message
+                    elif isinstance(requested_mag, (int, float)) and isinstance(actual_mag, (int, float)):
+                        # Check if it's likely clamping (actual value is at a boundary)
+                        param_obj = self._get_parameter_object(key)
+                        if param_obj:
+                            min_val = getattr(param_obj, 'min_value', None)
+                            max_val = getattr(param_obj, 'max_value', None)
+                            if min_val is not None and abs(actual_mag - min_val) < 1e-10:
+                                reason = 'clamped_to_min'
+                                message = f'Value clamped to minimum {min_val}'
+                            elif max_val is not None and abs(actual_mag - max_val) < 1e-10:
+                                reason = 'clamped_to_max'
+                                message = f'Value clamped to maximum {max_val}'
+                            else:
+                                reason = 'hardware_drift'
+                                message = f'Hardware drifted from {requested_value} to {actual_value}'
+                    
                     feedback[key] = {
                         'changed': True,
                         'requested': requested_value,
                         'actual': actual_value,
-                        'reason': 'unknown',  # Subclasses should override to provide specific reasons
-                        'message': f'Value changed from {requested_value} to {actual_value}'
+                        'reason': reason,
+                        'message': message,
+                        'tolerance_violation': tolerance_violation
                     }
                 else:
                     # Value unchanged
@@ -171,8 +219,14 @@ class Device:
                         'requested': requested_value,
                         'actual': actual_value,
                         'reason': 'success',
-                        'message': 'Value set successfully'
+                        'message': 'Value set successfully',
+                        'tolerance_violation': tolerance_violation
                     }
+                    
+                    # Even if unchanged, check for tolerance violation
+                    if tolerance_violation:
+                        feedback[key]['reason'] = 'tolerance_violation'
+                        feedback[key]['message'] = tolerance_message
             else:
                 # Parameter not found
                 feedback[key] = {
@@ -180,7 +234,8 @@ class Device:
                     'requested': requested_value,
                     'actual': None,
                     'reason': 'not_found',
-                    'message': f'Parameter {key} not found in device'
+                    'message': f'Parameter {key} not found in device',
+                    'tolerance_violation': False
                 }
         
         return {
@@ -322,6 +377,23 @@ class Device:
                 'valid': False,
                 'message': f"Pint validation error: {str(e)}"
             }
+
+    def _get_parameter_object(self, param_name):
+        """
+        Get the Parameter object for a given parameter name.
+        
+        Args:
+            param_name: Name of the parameter
+            
+        Returns:
+            Parameter object or None if not found
+        """
+        try:
+            if hasattr(self._settings, param_name):
+                return getattr(self._settings, param_name)
+            return None
+        except Exception:
+            return None
 
     def get_parameter_ranges(self, path):
         """

@@ -105,22 +105,30 @@ class SG384Generator(MicrowaveGeneratorBase):
         MicrowaveGeneratorBase._get_base_settings() + [
         # SG384-specific overrides (these will override base class defaults)
         Parameter('ip_address', '192.168.2.217', str, 'IP for LAN'),
-        # SG384-specific settings
+        # SG384-specific settings with validation ranges and tolerances
         Parameter('enable_output', False, bool, 'Enable output'),
         Parameter('enable_modulation', True, bool, 'Enable modulation'),
         Parameter('modulation_type', 'FM', ['AM','FM','PM','Freq sweep'], 'Modulation type'),
         Parameter('modulation_function', 'Sine', ['Sine','Ramp','Triangle','Square','Noise','External'], 'Modulation function'),
         Parameter('pulse_modulation_function', 'Square', ['Square','Noise(PRBS)','External'], 'Pulse modulation function'),
-        Parameter('modulation_depth', 1e6, float, 'Deviation in Hz'),
-        Parameter('dev_width', 1e6, float, 'Deviation width in Hz'),
-        Parameter('mod_rate', 1e7, float, 'Modulation rate in Hz'),
+        Parameter('modulation_depth', 1e6, float, 'Deviation in Hz', 
+                 min_value=0, max_value=1e9, tolerance_percent=0.1, tolerance_absolute=1000),
+        Parameter('dev_width', 1e6, float, 'Deviation width in Hz',
+                 min_value=0, max_value=1e9, tolerance_percent=0.1, tolerance_absolute=1000),
+        Parameter('mod_rate', 1e7, float, 'Modulation rate in Hz',
+                 min_value=0, max_value=1e8, tolerance_percent=0.1, tolerance_absolute=10000),
         # Sweep parameters
         Parameter('sweep_function', 'Triangle', ['Sine','Ramp','Triangle','Square','Noise','External'], 'Sweep function'),
-        Parameter('sweep_rate', 1.0, float, 'Sweep rate in Hz (must be < 120 Hz)'),
-        Parameter('sweep_deviation', 1e6, float, 'Sweep deviation in Hz'),
-        Parameter('sweep_center_frequency', 2.87e9, float, 'Sweep center frequency in Hz'),
-        Parameter('sweep_max_frequency', 4.1e9, float, 'Sweep maximum frequency in Hz'),
-        Parameter('sweep_min_frequency', 1.9e9, float, 'Sweep minimum frequency in Hz'),
+        Parameter('sweep_rate', 1.0, float, 'Sweep rate in Hz (must be < 120 Hz)',
+                 min_value=0, max_value=120, tolerance_percent=0.1, tolerance_absolute=0.1),
+        Parameter('sweep_deviation', 1e6, float, 'Sweep deviation in Hz',
+                 min_value=0, max_value=1e9, tolerance_percent=0.1, tolerance_absolute=1000),
+        Parameter('sweep_center_frequency', 2.87e9, float, 'Sweep center frequency in Hz',
+                 min_value=1.9e9, max_value=4.1e9, tolerance_percent=0.01, tolerance_absolute=10000),
+        Parameter('sweep_max_frequency', 4.1e9, float, 'Sweep maximum frequency in Hz',
+                 min_value=1.9e9, max_value=4.1e9, tolerance_percent=0.01, tolerance_absolute=10000),
+        Parameter('sweep_min_frequency', 1.9e9, float, 'Sweep minimum frequency in Hz',
+                 min_value=1.9e9, max_value=4.1e9, tolerance_percent=0.01, tolerance_absolute=10000),
         # add more SG384-only knobs here...
     ])
 

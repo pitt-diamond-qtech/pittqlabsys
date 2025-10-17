@@ -40,10 +40,14 @@ class MockSG384Generator(Device):
         Parameter('port', 5025, int, 'Port for LAN'),
         Parameter('visa_resource', '', str, 'PyVISA resource string'),
         Parameter('baud_rate', 115200, int, 'Baud for RS232'),
-        Parameter('frequency', 2.87e9, float, 'Frequency in Hz'),  # No validation constraints
-        Parameter('power', -10.0, float, 'Power in dBm'),  # No validation constraints
-        Parameter('phase', 0.0, float, 'Phase in degrees'),  # No validation constraints
-        Parameter('amplitude', -10.0, float, 'Amplitude in dBm'),  # No validation constraints
+        Parameter('frequency', 2.87e9, float, 'Frequency in Hz',
+                 min_value=1.9e9, max_value=4.1e9, tolerance_percent=0.01, tolerance_absolute=10000),
+        Parameter('power', -10.0, float, 'Power in dBm',
+                 min_value=-120, max_value=20, tolerance_percent=0.1, tolerance_absolute=0.1),
+        Parameter('phase', 0.0, float, 'Phase in degrees',
+                 min_value=-180, max_value=180, tolerance_percent=0.1, tolerance_absolute=0.1),
+        Parameter('amplitude', -10.0, float, 'Amplitude in dBm',
+                 min_value=-120, max_value=20, tolerance_percent=0.1, tolerance_absolute=0.1),
         Parameter('enable_output', False, bool, 'Enable output'),
         Parameter('enable_modulation', False, bool, 'Enable modulation'),
         Parameter('modulation_type', 'FM', ['AM','FM','PM','Sweep'], 'Modulation type'),
@@ -550,7 +554,13 @@ class MockMCLNanoDrive(Device):
     _DEFAULT_SETTINGS = Parameter([
         Parameter('serial', 2849, int, 'Serial number of the device'),
         Parameter('step_size', 1.0, float, 'Step size in microns'),
-        Parameter('max_velocity', 1000.0, float, 'Maximum velocity in microns/s')
+        Parameter('max_velocity', 1000.0, float, 'Maximum velocity in microns/s'),
+        Parameter('x_pos', 0.0, float, 'X position in microns',
+                 min_value=0, max_value=100, tolerance_percent=0.01, tolerance_absolute=0.001),
+        Parameter('y_pos', 0.0, float, 'Y position in microns',
+                 min_value=0, max_value=100, tolerance_percent=0.01, tolerance_absolute=0.001),
+        Parameter('z_pos', 0.0, float, 'Z position in microns',
+                 min_value=0, max_value=100, tolerance_percent=0.01, tolerance_absolute=0.001)
     ])
     
     _PROBES = {

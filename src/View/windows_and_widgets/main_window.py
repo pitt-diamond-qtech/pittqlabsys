@@ -1837,6 +1837,126 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                     
                     gui_logger.info(f"GUI item {item.name} updated successfully")
                     
+            elif reason == 'tolerance_violation':
+                # Value is outside tolerance - hardware drift or precision issue
+                msg = f"⚠️ {device_name}: {message}"
+                gui_logger.warning(f"Tolerance violation: {item.name} on {device_name} - {message}")
+                self._show_parameter_notification(f"Tolerance violation: {message}", is_error=True)
+                
+                # Update tree item to show actual value
+                if actual_value is not None:
+                    gui_logger.info(f"Updating GUI item {item.name} from {item.value} to {actual_value}")
+                    
+                    # Use improved GUI update logic
+                    view = item.treeWidget()
+                    index = view.indexFromItem(item, 1)
+
+                    # Prevent re-entry while we sync editor/model
+                    self._programmatic_update = True
+                    try:
+                        # If the cell is being edited, update the editor widget text and commit it
+                        if view.state() == QtWidgets.QAbstractItemView.EditingState and index == view.currentIndex():
+                            editor = view.focusWidget()
+                            if editor is not None and hasattr(editor, "setText"):
+                                editor.setText(str(actual_value))
+                                # commit editor back to model to avoid stale overwrite
+                                try:
+                                    view.closeEditor(editor, QtWidgets.QAbstractItemDelegate.SubmitModelCache)
+                                except AttributeError:
+                                    # Fallback if closeEditor is not available
+                                    view.viewport().setFocus(QtCore.Qt.OtherFocusReason)
+
+                        # Update the model value via EditRole so the view/editor stay in sync
+                        view.model().setData(index, actual_value, QtCore.Qt.EditRole)
+
+                        # Keep your internal mirror
+                        item.value = actual_value
+
+                    finally:
+                        self._programmatic_update = False
+                    
+                    gui_logger.info(f"GUI item {item.name} updated successfully")
+                    
+            elif reason == 'clamped_to_min' or reason == 'clamped_to_max':
+                # Value was clamped by hardware limits
+                msg = f"⚠️ {device_name}: {message}"
+                gui_logger.warning(f"Parameter clamped: {item.name} on {device_name} - {message}")
+                self._show_parameter_notification(f"Parameter clamped: {message}")
+                
+                # Update tree item to show actual value
+                if actual_value is not None:
+                    gui_logger.info(f"Updating GUI item {item.name} from {item.value} to {actual_value}")
+                    
+                    # Use improved GUI update logic
+                    view = item.treeWidget()
+                    index = view.indexFromItem(item, 1)
+
+                    # Prevent re-entry while we sync editor/model
+                    self._programmatic_update = True
+                    try:
+                        # If the cell is being edited, update the editor widget text and commit it
+                        if view.state() == QtWidgets.QAbstractItemView.EditingState and index == view.currentIndex():
+                            editor = view.focusWidget()
+                            if editor is not None and hasattr(editor, "setText"):
+                                editor.setText(str(actual_value))
+                                # commit editor back to model to avoid stale overwrite
+                                try:
+                                    view.closeEditor(editor, QtWidgets.QAbstractItemDelegate.SubmitModelCache)
+                                except AttributeError:
+                                    # Fallback if closeEditor is not available
+                                    view.viewport().setFocus(QtCore.Qt.OtherFocusReason)
+
+                        # Update the model value via EditRole so the view/editor stay in sync
+                        view.model().setData(index, actual_value, QtCore.Qt.EditRole)
+
+                        # Keep your internal mirror
+                        item.value = actual_value
+
+                    finally:
+                        self._programmatic_update = False
+                    
+                    gui_logger.info(f"GUI item {item.name} updated successfully")
+                    
+            elif reason == 'hardware_drift':
+                # Hardware drifted from requested value
+                msg = f"⚠️ {device_name}: {message}"
+                gui_logger.warning(f"Hardware drift: {item.name} on {device_name} - {message}")
+                self._show_parameter_notification(f"Hardware drift: {message}")
+                
+                # Update tree item to show actual value
+                if actual_value is not None:
+                    gui_logger.info(f"Updating GUI item {item.name} from {item.value} to {actual_value}")
+                    
+                    # Use improved GUI update logic
+                    view = item.treeWidget()
+                    index = view.indexFromItem(item, 1)
+
+                    # Prevent re-entry while we sync editor/model
+                    self._programmatic_update = True
+                    try:
+                        # If the cell is being edited, update the editor widget text and commit it
+                        if view.state() == QtWidgets.QAbstractItemView.EditingState and index == view.currentIndex():
+                            editor = view.focusWidget()
+                            if editor is not None and hasattr(editor, "setText"):
+                                editor.setText(str(actual_value))
+                                # commit editor back to model to avoid stale overwrite
+                                try:
+                                    view.closeEditor(editor, QtWidgets.QAbstractItemDelegate.SubmitModelCache)
+                                except AttributeError:
+                                    # Fallback if closeEditor is not available
+                                    view.viewport().setFocus(QtCore.Qt.OtherFocusReason)
+
+                        # Update the model value via EditRole so the view/editor stay in sync
+                        view.model().setData(index, actual_value, QtCore.Qt.EditRole)
+
+                        # Keep your internal mirror
+                        item.value = actual_value
+
+                    finally:
+                        self._programmatic_update = False
+                    
+                    gui_logger.info(f"GUI item {item.name} updated successfully")
+                    
             elif reason == 'clamped':
                 # Value was clamped by hardware limits
                 msg = f"⚠️ {device_name}: {message}"
