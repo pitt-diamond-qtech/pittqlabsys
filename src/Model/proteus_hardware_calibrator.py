@@ -39,7 +39,7 @@ class ProteusHardwareCalibrator:
         self.connection_file = connection_file
         self.connection_map = {}
         self.calibration_delays = {}
-        experiment_types = {}
+        self.experiment_types = {}
         
         # Load connection and calibration data
         self._load_connection_map()
@@ -116,7 +116,7 @@ class ProteusHardwareCalibrator:
               "3": {
                 "connection": "Dye_Laser_AOM",
                 "type": "analog",
-                "calibration_delays": ["laser_delay"],
+                "calibration_delays": ["orange_laser_delay"],
                 "description": "Dye Laser AOM",
                 "voltage_range": "±1V",
                 "impedance": "50Ω"
@@ -134,7 +134,7 @@ class ProteusHardwareCalibrator:
               "ch1_marker1": {
                 "connection": "green laser AOM",
                 "type": "digital",
-                "calibration_delays": ["laser_delay"],
+                "calibration_delays": ["green_laser_delay"],
                 "description": "Available for future use",
                 "voltage": "3.3V",
                 "impedance": "50Ω"
@@ -170,7 +170,8 @@ class ProteusHardwareCalibrator:
     def _set_default_calibration_delays(self) -> None:
         """Set default calibration delay values."""
         self.calibration_delays = {
-            "laser_delay": 50.0,
+            "green_laser_delay": 50.0,
+            "orange_laser_delay": 10.0,
             "mw_delay": 25.0,
             "iq_delay": 30.0,
             "counter_delay": 15.0,
@@ -379,3 +380,7 @@ class ProteusHardwareCalibrator:
             "available": available_connections,
             "experiment_type": experiment_type
         }
+
+    def update_calibration_delays(self, delays: dict):
+        self.calibration_delays = delays
+        logger.info("Updating calibration delays")

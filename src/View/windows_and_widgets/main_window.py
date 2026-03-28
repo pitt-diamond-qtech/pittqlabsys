@@ -488,6 +488,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             # Save to default location
             default_config_path = get_project_root() / "src" / "gui_config.json"
             self.save_config(str(default_config_path))
+
+        try:
+            self.positioning_tab.close()
+        except Exception as e:
+            print(f"Error closing positioning device: {e}")
         
         self.experiment_thread.quit()
         self.read_probes.quit()
@@ -871,6 +876,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                     log_function=self.log,
                     data_path=data_folder_name,
                     raise_errors=False)
+                print(f"experiments {self.experiments} loaded_failed {loaded_failed} devices {self.devices}")
 
                 # delete instances of new devices/experiments that have been deselected
                 for name in removed_experiments:

@@ -1,6 +1,7 @@
 import os
 import sys
 import struct
+import matplotlib.pyplot as plt
 srcpath = os.path.realpath(r'C:\Users\Duttlab\Downloads\PythonExamples\Examples\SourceFiles')
 sys.path.append(srcpath)
 from teproteus import TEProteusAdmin as TepAdmin
@@ -19,10 +20,10 @@ print('connected to: ' + resp) # Print *IDN
 inst.send_scpi_cmd('*CLS; *RST')
 
 #AWG channel
-ch = 1 # everything after relates to CH 3
+ch = 3 # everything after relates to CH 3
 cmd = ':INST:CHAN {0}'.format(ch)
 inst.send_scpi_cmd(cmd)
-cmd = ':VOLT MAX'
+cmd = ':VOLT 1.0'
 rc = inst.send_scpi_cmd(cmd)
 #cmd = ':VOLT {0}'.format(1)
 #inst.send_scpi_cmd(cmd)
@@ -95,16 +96,19 @@ segnum = 4
 amp = 0
 segLen = 1280  # must be a multiple of 64 (corresponds to 1 us)
 dacWaveDC = amp * np.zeros(segLen)
+print(f"voltage: {inst.send_scpi_query(":VOLT?")}")
 dacWaveDC = np.clip(dacWaveDC, -1.0, 1.0)
-dacWaveDC = ((dacWaveDC + 1.0) * half_dac).astype(data_type)
+dacWaveDC = ((dacWaveDC) * half_dac).astype(data_type) # +1.0
 cmd = ':TRAC:DEF {0}, {1}'.format(segnum, len(dacWaveDC)) # memory location and length
 inst.send_scpi_cmd(cmd)
 cmd = ':TRAC:SEL {0}'.format(segnum)
 inst.send_scpi_cmd(cmd)
-print(inst.send_scpi_query(":VOLT:OFFS?"))
 inst.timeout = 30000 #increase
 inst.write_binary_data('*OPC?; :TRAC:DATA', dacWaveDC) # write, and wait while *OPC completes
 inst.timeout = 10000 # return to normal
+cmd = ':VOLT:OFFS 0'
+rc = inst.send_scpi_cmd(cmd)
+print(f"offset: {inst.send_scpi_query(":VOLT:OFFS?")}")
 #Create a Task Table
 cmd = ':TASK:COMP:LENG 4' # set task table length
 inst.send_scpi_cmd(cmd)

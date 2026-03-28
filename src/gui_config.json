@@ -5,6 +5,20 @@
     },
     "experiments_hidden_parameters": {},
     "devices": {
+        "awg520": {
+            "class": "AWG520Device",
+            "filepath": "D:\\PyCharmProjects\\pittqlabsys-single-NV\\src\\Controller\\awg520.py",
+            "info": "Device wrapper for Tektronix AWG520 using your Device framework.",
+            "settings": {
+                "ip_address": "192.168.2.51",
+                "scpi_port": 4000,
+                "ftp_port": 21,
+                "ftp_user": "usr",
+                "ftp_pass": "pw",
+                "seq_file": "scan.seq",
+                "enable_iq": false
+            }
+        },
         "sg384": {
             "class": "SG384Generator",
             "filepath": "D:\\PyCharmProjects\\pittqlabsys-single-NV\\src\\Controller\\sg384.py",
@@ -35,6 +49,32 @@
                 "sweep_center_frequency": 2870000000.0,
                 "sweep_max_frequency": 4100000000.0,
                 "sweep_min_frequency": 1900000000.0
+            }
+        },
+        "proteus": {
+            "class": "ProteusDevice",
+            "filepath": "D:\\PyCharmProjects\\pittqlabsys-single-NV\\src\\Controller\\Proteus_device.py",
+            "info": "Device wrapper for Proteus awg using Device framework.",
+            "settings": {
+                "ip_address": "192.168.2.4",
+                "slot_id": 6
+            }
+        },
+        "spectrum_analyzer": {
+            "class": "Agilent8596E",
+            "filepath": "D:\\PyCharmProjects\\pittqlabsys-single-NV\\src\\Controller\\Agilent8596E.py",
+            "info": null,
+            "settings": {
+                "connection_type": "GPIB",
+                "port": 18,
+                "GPIB_num": 0,
+                "center frequency": 300,
+                "span": 0.2,
+                "sweep time": 256000,
+                "resolution band width": 0.1,
+                "video band width": 1,
+                "video average": 100,
+                "server_port": 5001
             }
         },
         "adwin": {
@@ -94,21 +134,6 @@
                 }
             }
         },
-        "microdrive": {
-            "class": "Newport_CONEX_CC_xy_stage",
-            "filepath": "D:\\PyCharmProjects\\pittqlabsys-single-NV\\src\\Controller\\newport_conex_cc.py",
-            "info": null,
-            "settings": {
-                "connection_type": "SERIAL",
-                "xport": 14,
-                "x-address": 1,
-                "yport": 15,
-                "y-address": 1,
-                "x-position": 0,
-                "y-position": 0,
-                "server_port": 5004
-            }
-        },
         "amscope_camera": {
             "class": "Amscope_MU_Camera",
             "filepath": "D:\\PyCharmProjects\\pittqlabsys-single-NV\\src\\Controller\\Amscope_MU_Camera.py",
@@ -132,9 +157,9 @@
             "info": "\n    This class implements the Mad City Labs NanoDrive. The class loads the madlib.dll library to communicate with the device.\n    ",
             "settings": {
                 "serial": 2849,
-                "x_pos": 42.01242240395073,
-                "y_pos": 30.00062531709447,
-                "z_pos": 90.43100466238909,
+                "x_pos": 82.76341717612094,
+                "y_pos": 43.228210357097666,
+                "z_pos": 44.971508770869264,
                 "read_rate": 2.0,
                 "load_rate": 2.0,
                 "num_datapoints": 1,
@@ -187,18 +212,19 @@
                 "server_port": 5001
             }
         },
-        "awg520": {
-            "class": "AWG520Device",
-            "filepath": "D:\\PyCharmProjects\\pittqlabsys-single-NV\\src\\Controller\\awg520.py",
-            "info": "Device wrapper for Tektronix AWG520 using your Device framework.",
+        "microdrive": {
+            "class": "Newport_CONEX_CC_xy_stage",
+            "filepath": "D:\\PyCharmProjects\\pittqlabsys-single-NV\\src\\Controller\\newport_conex_cc.py",
+            "info": null,
             "settings": {
-                "ip_address": "192.168.2.51",
-                "scpi_port": 4000,
-                "ftp_port": 21,
-                "ftp_user": "usr",
-                "ftp_pass": "pw",
-                "seq_file": "scan.seq",
-                "enable_iq": false
+                "connection_type": "SERIAL",
+                "xport": 14,
+                "x-address": 1,
+                "yport": 15,
+                "y-address": 1,
+                "x-position": 0,
+                "y-position": 0,
+                "server_port": 5004
             }
         },
         "mux_control": {

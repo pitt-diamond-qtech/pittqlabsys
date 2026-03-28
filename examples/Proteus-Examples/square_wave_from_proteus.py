@@ -18,11 +18,11 @@ print('connected to: ' + resp) # Print *IDN
 inst.send_scpi_cmd('*CLS; *RST')
 
 #AWG channel
-ch = 1 # everything after relates to CH 1
+ch = 3 # everything after relates to CH 3
 cmd = ':INST:CHAN {0}'.format(ch)
 inst.send_scpi_cmd(cmd)
-cmd = ':VOLT {0}'.format(1)
-inst.send_scpi_cmd(cmd)
+cmd = ':VOLT MAX'
+rc = inst.send_scpi_cmd(cmd)
 
 sampleRateDAC = 1.25E9
 cmd = ':FREQ:RAST {0}'.format(sampleRateDAC)

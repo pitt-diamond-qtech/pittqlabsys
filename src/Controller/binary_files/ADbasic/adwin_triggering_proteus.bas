@@ -19,7 +19,7 @@
 ' - ADwin Digital Output -> Proteus TRIG 1 IN (front panel)
 ' - Proteus configured for external trigger with Wait Trigger enabled
 ' - Computer controls JUMP_MODE software for sequence advancement
-'
+' for this file, we use cpu_sleep for wait
 ' Operation:
 ' - Process generates trigger pulses at specified intervals
 ' - Each trigger causes Proteus to advance to next sequence line
@@ -36,12 +36,13 @@
 ' Data_1: signal counts
 ' Data_2: reference counts
 ' Par_9: sequence_duration (with calibration offset): Time of the awg sequence
+' Par_10: proteus response delay
 
 #Include ADwinGoldII.inc
 DIM signal_count, ref_count, number_of_signal_events AS LONG
 DIM iteration_number, i as LONG
 DIM count_time, reset_time, sequence_duration, sleep_duration AS FLOAT
-DIM trigger_duration, delay AS FLOAT
+DIM trigger_duration, delay, proteus_response AS FLOAT
 DIM Data_1[20] AS LONG ' 100000 is the maximum number of iterations
 DIM Data_2[20] AS LONG ' 100000 is the maximum number of iterations
 
@@ -65,11 +66,18 @@ init:
   count_time = (Par_3-10)/10 'added on 2/6/20 to allow passing parameter from Python
   reset_time = (Par_4-30)/10  'added on 2/6/20 to allow passing parameter from Python
   sequence_duration = Par_9/10 ' since Par_9 is given in ns and CPU_Sleep accepts params in 10ns, we divide by 10
-  sleep_duration = sequence_duration - trigger_duration
+  proteus_response = Par_10/10
+  'old
+  'sleep_duration = sequence_duration + proteus_response - trigger_duration 
+  'new
+  sleep_duration = sequence_duration + proteus_response - trigger_duration - count_time*2 - reset_time
   Conf_DIO(1100b) ' configure 0 - 15 as DIGIN, and 16 - 31 as DIGOUT
   ' Set digital output 21 to low (no trigger)
   DIGOUT(21, 0)
-  delay = (sequence_duration + count_time + reset_time + count_time + 10) * 3 ' * 10 since the variables are in 10 ns and /(10/3) as the value has to be in number or clock ticks which is 10/3 for T11 processor
+  DIGOUT(16, 0)
+  'old
+  'delay = (sequence_duration + proteus_response+ count_time + reset_time + count_time + 10) * 3 ' * 10 since the variables are in 10 ns and /(10/3) as the value has to be in number or clock ticks which is 10/3 for T11 processor
+  delay = (sequence_duration + proteus_response + 10) * 3
   Processdelay = delay
   i = 1
   DO
@@ -77,30 +85,38 @@ init:
     Data_2[i] = 0
     i = i +1
   UNTIL (i = 21)
+  Write_DAC(1, 33010)
 event:
   Cnt_Enable(0)
   Cnt_Clear(1)
   Par_8 = Par_8 + 1          ' current event number (increase for signal count)
   iteration_number = iteration_number + 1 ' Since Data_1 and Data_2 start at index 1
   DIGOUT(21, 1)              ' Set trigger high
+  Write_DAC(1, 34880)
+  Start_DAC()
   CPU_Sleep(trigger_duration)
   DIGOUT(21, 0)              ' Set trigger low
   CPU_Sleep(sleep_duration)
   Cnt_Enable(1)            ' enable counter 1
+  DIGOUT(16, 1)
   CPU_Sleep(count_time)      ' count time 300 ns
   Cnt_Enable(0)            ' disable counter 1
+  DIGOUT(16, 0)
   signal_count=Cnt_Read(1)    ' accumulate signal counts
   Cnt_Clear(1)
   Data_1[iteration_number] = Data_1[iteration_number] + signal_count
   CPU_Sleep(reset_time)
   Cnt_Enable(1)              ' enable counter 1
+  DIGOUT(16, 1)
   CPU_Sleep(count_time)  ' count time 300 ns
   Cnt_Enable(0)        ' disable counter 1
+  DIGOUT(16, 0)
   ref_count=Cnt_Read(1)         ' accumulate reference counts
   Cnt_Clear(1)             ' Clear counter 1
   Data_2[iteration_number] = Data_2[iteration_number] + ref_count
   signal_count = 0
   ref_count = 0
+  Write_DAC(1, 33010)
   IF (iteration_number = Par_6) THEN 'if we did all of our iterations for a given sequence, then go back to iteration 0
     iteration_number = 0
   ENDIF

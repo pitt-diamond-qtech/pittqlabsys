@@ -3,6 +3,7 @@ from src.core import Device, Parameter
 from ctypes import *
 import os
 import platform
+import time
 
 if platform.system() == 'Windows':
     from ctypes import windll
@@ -12,7 +13,10 @@ else:
 from pathlib import Path
 
 _MAX_POSITION = 25000 # um
+_MIN_POSITION = -25000 # um
 _MAX_SPEED = 2000 # um/s
+_FILENAME = r"D:\PyCharmProjects\pittqlabsys-single-NV\src\Controller\MCL_Z_MICRODRIVE_POSITION.h5"
+from src.core.struct_hdf5 import save_data, load_data, MyStruct
 
 class MCL_Microdrive:
 
@@ -1052,7 +1056,7 @@ class MCL_MD_Exceptions(Exception):
         message = error_messages.get(err, f"Unknown error with code {err}")
         super().__init__(message)
 
-class MCMicroDrive(Device):
+class MCLZMicroDrive(Device):
     """program for MCL microdrive ud1800
         Please note that this unit does not have any encoders
         Therefore, we cannot set and get absolute positions we
@@ -1063,14 +1067,19 @@ class MCMicroDrive(Device):
                                    ])
     def __init__(self, name=None, settings=None):
         try:
+            self._closed = True
             self.md = MCL_Microdrive()
             self.handle = self.md.init_handle()
-            print(self.md.status(self.handle))
-            print(self.md.move_status(self.handle))
+            self._closed = False
+            self.home_pos = 0
+            self.homed = True # this is for software control: we cannot home twice in a row
+            self.state = load_data(_FILENAME)
+            self.position = self.state.position # this position is what the user knows and cares about. 0 is the middle, 25000 is top, and -25000 is the bottom
+            print(f"MCLZMicroDrive move status is: {self.md.move_status(self.handle)}")
         except Exception as error:
             print('Unable to connect to Mad City Labs Microdrive')
             raise RuntimeError(f'Unable to connect to Mad City Labs Microdrive: {error}')
-        super(MCMicroDrive, self).__init__(name, settings)
+        super(MCLZMicroDrive, self).__init__(name, settings)
 
     def move(self, velocity, distance):
         # input units: um
@@ -1079,17 +1088,14 @@ class MCMicroDrive(Device):
         distance_in_mm = distance/1000.0
         self.md.move(2, velocity, distance_in_mm, self.handle) # input units: mm
 
-    def __del__(self):
-        self.md.release_handle(self.handle)
-
     def update(self, settings):
-        super(MCMicroDrive, self).update(settings)  # updates settings as per entered with method
+        super(MCLZMicroDrive, self).update(settings)  # updates settings as per entered with method
         for key, value in settings.items():
             if self.settings.valid_values[
                 key] == bool:  # converts booleans, which are more natural to store for on/off, to
                 value = int(value)
                 if key == 'z_pos':
-                    self.set_position(value)
+                    self.set_position('z', value)
             # future users: add more here
 
     def read_probes(self, key, axis=None):
@@ -1106,18 +1112,47 @@ class MCMicroDrive(Device):
             'z_pos': 'current position of z axis',
         }
 
-    def set_position(self, position):
-        current_position = self.get_position()
-        distance = position - current_position
+    def set_position(self, axis, position):
+        print("inside set_position")
+        print(f" position {position}")
+        print(f"self.position {self.position}")
+        if position == self.position:
+            raise ValueError("position must be different")
+        if position < _MIN_POSITION:
+            raise ValueError(f'Position must be higher than min position {_MIN_POSITION}')
+        elif position > _MAX_POSITION:
+            raise ValueError(f'Position must be less than {_MAX_POSITION}')
+        if position == 0:
+            self.homed = True
+        else:
+            self.homed = False
+        distance = position - self.position
         self.move(1, distance)
+        while self.get_moving_status() != 0:
+            time.sleep(1)
+        self.position = position
         
     def home_axis(self):
-        self.move(1, 0)
+        import time
+        if self.position != _MAX_POSITION:
+            self.set_position('z', _MAX_POSITION) # go to max position from any point
+            time.sleep(60)
+        self.move(1, -25000) # Move a distance of -25000 from top to get to the actual zero position
+        self.position = 0
 
-    def get_position(self):
-        return self.md.current_position_m(2, self.handle)
+    def get_position(self, axis = 'z'):
+        return self.position
 
     def close(self):
+        if not self._closed:
+            self.state.position = self.position
+            save_data(
+                filename=_FILENAME,
+                obj=self.state,
+                mode="r+",
+                swmr=False  # snapshot, not live
+            )
+            self._closed = True
         self.md.release_handle(self.handle)
 
     def get_moving_status(self):
@@ -1153,12 +1188,15 @@ class MCMicroDrive(Device):
     def find_home(self):
         return self.md.find_home(2, self.handle)
 if __name__ == '__main__':
-    md = MCMicroDrive()
-    #md.move(1, 10000)
-    #md.reset_encoder()
-
-    print("get_position is")
-    print(md.get_position())
-    print(f"md.axis_information(): {md.axis_information()}")
+    import time
+    md = MCLZMicroDrive()
+    #md.move(1, 25000)
+    #md.set_position('z', 25000)
+    #time.sleep(120)
+    #print(f"position: {md.get_position()}")
+    #md.stop()
+    #print("get_position is")
+    #print(md.get_position())
+    #print(f"md.axis_information(): {md.axis_information()}")
     #print(f"md.find_home {md.find_home()}")
 

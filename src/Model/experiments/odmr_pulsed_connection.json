@@ -21,7 +21,7 @@
       "3": {
         "connection": "Dye_Laser_AOM",
         "type": "analog",
-        "calibration_delays": ["laser_delay"],
+        "calibration_delays": ["orange_laser_delay"],
         "description": "Dye Laser AOM",
         "voltage_range": "±1V",
         "impedance": "50Ω"
@@ -39,7 +39,7 @@
       "ch1_marker1": {
         "connection": "green laser AOM",
         "type": "digital",
-        "calibration_delays": ["laser_delay"],
+        "calibration_delays": ["green_laser_delay"],
         "description": "Available for future use",
         "voltage": "3.3V",
         "impedance": "50Ω"
@@ -72,7 +72,8 @@
   },
   "calibration_delays": {
     "description": "Calibration delays for ODMR pulsed experiments",
-    "laser_delay": 50.0,
+    "green_laser_delay": 50.0,
+    "orange_laser_delay": 10.0,
     "mw_delay": 25.0,
     "iq_delay": 30.0,
     "counter_delay": 15.0,

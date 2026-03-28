@@ -103,14 +103,7 @@
                 "serial": 2849
             }
         },
-        "MCL_z_microdrive": {
-            "class": "MCMicroDrive",
-            "filepath": "src/Controller/MCL_z_microdrive.py",
-            "settings": {
-                "z_pos": 0.0,
-                "server_port": 5006
-            }
-        },
+
         "microdrive": {
             "class": "Newport_CONEX_CC_xy_stage",
             "filepath": "src/Controller/newport_conex_cc.py",

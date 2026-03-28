@@ -33,7 +33,6 @@ dacWave1 = np.concatenate([dacWaveOn, dacWaveOff])
 
 # Connect to instrument(PXI)
 sid = 6 #PXI slot of AWT on chassis <------------ SLOT NUMBER HERE
-from teproteus import TEProteusAdmin as TepAdmin
 admin = TepAdmin() #required to control PXI module
 inst = admin.open_instrument(slot_id=sid) 
 resp = inst.send_scpi_query("*IDN?") # Get the instrument's *IDN
@@ -118,7 +117,13 @@ inst.send_scpi_cmd(cmd)
 cmd = ':VOLT MAX'
 rc = inst.send_scpi_cmd(cmd)
 
-cmd = ':VOLT:OFFS 0'
+cmd = ':VOLT:OFFS 0.0'
+rc = inst.send_scpi_cmd(cmd)
+
+cmd = ":MARK:VOLT:PTOP 1.2"
+rc = inst.send_scpi_cmd(cmd)
+
+cmd = ":MARK:VOLT:OFFS 0.5"
 rc = inst.send_scpi_cmd(cmd)
     
 cmd = ':OUTP ON'
@@ -127,35 +132,3 @@ rc = inst.send_scpi_cmd(cmd)
 resp = inst.send_scpi_query(':SYST:ERR?')
 print("End of CH1, Gen Error = ")
 print(resp)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -4,6 +4,7 @@ import time
 from PyQt5.QtWidgets import QMessageBox, QWidget
 from src.Controller.newport_conex_cc import Newport_CONEX_CC_xy_stage
 from src.Controller.nanodrive import MCLNanoDrive
+from src.Controller.MCL_z_microdrive import MCLZMicroDrive
 from .positioning_stages_design import Ui_Form
 from datetime import datetime
 import os
@@ -30,12 +31,16 @@ _MAX_Y_2 = 100
 _MIN_Y_2 = 0
 _MAX_Z_2 = 100
 _MIN_Z_2 = 0
+_MAX_Z_3 = 25000
+_MIN_Z_3 = -25000
 _MAX_MCL_nanodrive_X = 100
 _MIN_MCL_nanodrive_X = 0
 _MAX_MCL_nanodrive_Y = 100
 _MIN_MCL_nanodrive_Y = 0
 _MAX_MCL_nanodrive_Z =100
 _MIN_MCL_nanodrive_Z = 0
+_MAX_MCL_microdrive_Z = 50000
+_MIN_MCL_microdrive_Z = 0
 from PyQt5.QtCore import pyqtSignal
 
 class positioning_stages_view(QWidget, Ui_Form):
@@ -51,10 +56,11 @@ class positioning_stages_view(QWidget, Ui_Form):
         self.setupUi(self)
         self.stage_1 = None
         self.stage_2 = None
+        self.stage_3 = None
 
-        self.xlineEdit_1.setEnabled(True)
-        self.ylineEdit_1.setEnabled(True)
-        self.zlineEdit_1.setEnabled(True)
+        self.xlineEdit_1.setEnabled(False)
+        self.ylineEdit_1.setEnabled(False)
+        self.zlineEdit_1.setEnabled(False)
         self.x_y_inc_lineEdit_1.setEnabled(False)
         self.z_inc_lineEdit_1.setEnabled(False)
         self.x_y_inc_lineEdit_2.setEnabled(False)
@@ -66,9 +72,9 @@ class positioning_stages_view(QWidget, Ui_Form):
         self.y_dec_1.setEnabled(False)
         self.z_dec_1.setEnabled(False)
 
-        self.xlineEdit_2.setEnabled(True)
-        self.ylineEdit_2.setEnabled(True)
-        self.zlineEdit_2.setEnabled(True)
+        self.xlineEdit_2.setEnabled(False)
+        self.ylineEdit_2.setEnabled(False)
+        self.zlineEdit_2.setEnabled(False)
         self.x_inc_2.setEnabled(False)
         self.y_inc_2.setEnabled(False)
         self.z_inc_2.setEnabled(False)
@@ -81,30 +87,41 @@ class positioning_stages_view(QWidget, Ui_Form):
         self.confirm_x_button_2.setEnabled(False)
         self.confirm_y_button_2.setEnabled(False)
         self.confirm_z_button_2.setEnabled(False)
+        self.home_button_3.setEnabled(False)
+
+        self.zlineEdit_3.setEnabled(False)
+        self.z_inc_3.setEnabled(False)
+        self.z_dec_3.setEnabled(False)
+        self.comfirm_z_3.setEnabled(False)
 
         # Connect buttons to functions
         self.connectButton_1.clicked.connect(self.connect_to_instrument_1)
         self.connectButton_2.clicked.connect(self.connect_to_instrument_2)
-        self.confirm_x_button_1.clicked.connect(self.set_x_position_1)
-        self.confirm_y_button_1.clicked.connect(self.set_y_position_1)
-        self.confirm_z_button_1.clicked.connect(self.set_z_position_1)
-        self.confirm_x_button_2.clicked.connect(self.set_x_position_2)
-        self.confirm_y_button_2.clicked.connect(self.set_y_position_2)
-        self.confirm_z_button_2.clicked.connect(self.set_z_position_2)
-        self.x_inc_1.clicked.connect(self.inc_x_position_1)
-        self.x_inc_2.clicked.connect(self.inc_x_position_2)
-        self.x_dec_1.clicked.connect(self.dec_x_position_1)
-        self.x_dec_2.clicked.connect(self.dec_x_position_2)
-        self.y_inc_1.clicked.connect(self.inc_y_position_1)
-        self.y_inc_2.clicked.connect(self.inc_y_position_2)
-        self.y_dec_1.clicked.connect(self.dec_y_position_1)
-        self.y_dec_2.clicked.connect(self.dec_y_position_2)
-        self.z_inc_1.clicked.connect(self.inc_z_position_1)
-        self.z_inc_2.clicked.connect(self.inc_z_position_2)
-        self.z_dec_1.clicked.connect(self.dec_z_position_1)
-        self.z_dec_2.clicked.connect(self.dec_z_position_2)
-        self.save_button.clicked.connect(self.save)
-        self.Find_NV_Button.clicked.connect(self.find_NV)
+        self.connectButton_3.clicked.connect(self.connect_to_instrument_3)
+        self.confirm_x_button_1.clicked.connect(lambda: self.set_position("x", 1))
+        self.confirm_y_button_1.clicked.connect(lambda: self.set_position("y", 1))
+        self.confirm_z_button_1.clicked.connect(lambda: self.set_position("z", 1))
+        self.confirm_x_button_2.clicked.connect(lambda: self.set_position("x", 2))
+        self.confirm_y_button_2.clicked.connect(lambda: self.set_position("y", 2))
+        self.confirm_z_button_2.clicked.connect(lambda: self.set_position("z", 2))
+        self.comfirm_z_3.clicked.connect(lambda: self.set_position("z", 3))
+        self.home_button_3.clicked.connect(lambda: self.set_position("home", 3))
+        self.x_inc_1.clicked.connect(lambda: self.change_position("x", 1, 1)) # 1 for inc 0 for dec
+        self.x_inc_2.clicked.connect(lambda: self.change_position("x", 2, 1))
+        self.x_dec_1.clicked.connect(lambda: self.change_position("x", 1, 0))
+        self.x_dec_2.clicked.connect(lambda: self.change_position("x", 2, 0))
+        self.y_inc_1.clicked.connect(lambda: self.change_position("y", 1, 1))
+        self.y_inc_2.clicked.connect(lambda: self.change_position("y", 2, 1))
+        self.y_dec_1.clicked.connect(lambda: self.change_position("y", 1, 0))
+        self.y_dec_2.clicked.connect(lambda: self.change_position("y", 2, 0))
+        self.z_inc_1.clicked.connect(lambda: self.change_position("z", 1, 1))
+        self.z_inc_2.clicked.connect(lambda: self.change_position("z", 2, 1))
+        self.z_dec_1.clicked.connect(lambda: self.change_position("z", 1, 0))
+        self.z_dec_2.clicked.connect(lambda: self.change_position("z", 2, 0))
+        self.z_inc_3.clicked.connect(lambda: self.change_position("z", 3, 1))
+        self.z_dec_3.clicked.connect(lambda: self.change_position("z", 3, 0))
+        self.save_button.clicked.connect(lambda: self.save)
+        self.Find_NV_Button.clicked.connect(lambda: self.find_NV)
         # Connect combobox signals to emitters
         self.display_option.currentTextChanged.connect(self.on_display_choice_changed)
         self.snapshot_live_comboBox.currentTextChanged.connect(self.on_snapshot_or_live_changed)
@@ -206,306 +223,170 @@ class positioning_stages_view(QWidget, Ui_Form):
         self.x_dec_2.setEnabled(True)
         self.y_dec_2.setEnabled(True)
 
-    def set_x_position_1(self):
-        x_pos = self.xlineEdit_1.text()
-        if isinstance(x_pos, str) or isinstance(x_pos, int) or isinstance(x_pos, float):
+    def connect_to_instrument_3(self):
+        stage_name = self.comboBox_3.currentText()
+        if stage_name == 'MCL_z_microdrive':
+            _MAX_Z_3 = _MAX_MCL_microdrive_Z
+            _MIN_Z_3 = _MIN_MCL_microdrive_Z
             try:
-                x_pos = float(x_pos)
-                if x_pos < _MAX_X_1 and x_pos > _MIN_X_1:
-                    self.stage_1.set_position('x',x_pos)
-                    time.sleep(2)
-                    self.xlineEdit_1.setText(str(self.stage_1.get_position('x')))
-            except ValueError:
-                self.xlineEdit_1.setText(str(self.stage_1.get_position('x')))
-                return
+                self.stage_3 = MCLZMicroDrive()
+                self.zlineEdit_3.setEnabled(True)
+                self.comfirm_z_3.setEnabled(True)
+                self.zlineEdit_3.setText(str(self.stage_3.get_position('z')))
+                self.z_inc_3.setEnabled(True)
+                self.z_dec_3.setEnabled(True)
+                self.z_inc_lineEdit_3.setEnabled(True)
+                self.home_button_3.setEnabled(True)
+                QMessageBox.information(self, 'Success', f'Connected to MCL_z_microdrive')
+
+            except Exception as e:
+                QMessageBox.critical(self, 'Error', str(e))
         else:
-            self.xlineEdit_1.setText(str(self.stage_1.get_position('x')))
             return
 
-    def set_x_position_2(self):
-        x_pos = self.xlineEdit_2.text()
-        if isinstance(x_pos, str) or isinstance(x_pos, int) or isinstance(x_pos, float):
-            try:
-                x_pos = float(x_pos)
-                if x_pos < _MAX_X_2 and x_pos > _MIN_X_2:
-                    self.stage_2.set_position('x',x_pos)
-                    time.sleep(2)
-                    print(f"position x: {self.stage_2.get_position('x')}")
-                    self.xlineEdit_2.setText(str(self.stage_2.get_position('x')))
-            except ValueError:
-                self.xlineEdit_2.setText(str(self.stage_2.get_position('x')))
-                return
-        else:
-            self.xlineEdit_2.setText(str(self.stage_2.get_position('x')))
-            return
+    def close(self):
+        if self.stage_1 is not None:
+            print("closing stage_1")
+            self.stage_1.close()
+        if self.stage_2 is not None:
+            print("closing stage_2")
+            self.stage_2.close()
+        if self.stage_3 is not None:
+            print("closing stage_3")
+            self.stage_3.close()
 
-    def set_y_position_1(self):
-        y_pos = self.ylineEdit_1.text()
-        if isinstance(y_pos, str) or isinstance(y_pos, int) or isinstance(y_pos, float):
-            try:
-                y_pos = float(y_pos)
-                if y_pos < _MAX_Y_1 and y_pos > _MIN_Y_1:
-                    self.stage_1.set_position('y',y_pos)
-                    time.sleep(2)
-                    self.ylineEdit_1.setText(str(self.stage_1.get_position('y')))
-            except ValueError:
-                self.ylineEdit_1.setText(str(self.stage_1.get_position('y')))
-                return
+    def set_position(self, axis, instrument_id):
+        if axis == "home" and instrument_id == 3:
+            self.stage_3.home_axis() # please note this is specific for the z microdrive as it doesn't have encoders
+            #time.sleep(15)
+            self.stage_3.homed = True
+            self.zlineEdit_3.setText(str(self.stage_3.get_position()))
         else:
-            self.ylineEdit_1.setText(str(self.stage_1.get_position('y')))
-            return
-
-    def set_y_position_2(self):
-        y_pos = self.ylineEdit_2.text()
-        if isinstance(y_pos, str) or isinstance(y_pos, int) or isinstance(y_pos, float):
-            try:
-                y_pos = float(y_pos)
-                if y_pos < _MAX_Y_2 and y_pos > _MIN_Y_2:
-                    self.stage_2.set_position('y', y_pos)
-                    time.sleep(2)
-                    print(f"position y: {self.stage_2.get_position('y')}")
-                    self.ylineEdit_2.setText(str(self.stage_2.get_position('y')))
-            except ValueError:
-                self.ylineEdit_2.setText(str(self.stage_2.get_position('y')))
+            stage, pos, max, min, line_edit, inc = self.selector(axis, instrument_id)
+            if isinstance(pos, str) or isinstance(pos, int) or isinstance(pos, float):
+                try:
+                    if pos:
+                        pos = float(pos)
+                        if min<=pos<=max:
+                            print("inside set_position in positioning GUI")
+                            stage.set_position(axis, pos)
+                            #time.sleep(15)
+                            line_edit.setText(str(stage.get_position(axis)))
+                        else:
+                            self.error_box(
+                                "OUT OF RANGE!",
+                                "Please provide a position within the range"
+                            )
+                            return
+                    else:
+                        self.error_box(
+                            "INVALID POSITION!",
+                            "Please provide a valid position"
+                        )
+                        return
+                except ValueError:
+                    line_edit.setText(str(stage.get_position(axis)))
+                    return
+            else:
+                self.error_box(
+                    "INVALID POSITION!",
+                    "Please provide a valid position"
+                )
                 return
-        else:
-            self.ylineEdit_2.setText(str(self.stage_2.get_position('y')))
-            return
 
-    def set_z_position_1(self):
-        z_pos = self.zlineEdit_1.text()
-        if isinstance(z_pos, str) or isinstance(z_pos, int) or isinstance(z_pos, float):
-            try:
-                z_pos = float(z_pos)
-                if z_pos < _MAX_Z_1 and z_pos > _MAX_Z_1:
-                    self.stage_1.set_position('z', z_pos)
-                    time.sleep(2)
-                    self.zlineEdit_1.setText(str(self.stage_1.get_position('z')))
-            except ValueError:
-                self.zlineEdit_1.setText(str(self.stage_1.get_position('z')))
-                return
+    def selector(self, axis, instrument_id):
+        if instrument_id == 1:
+            stage = self.stage_1
+        elif instrument_id == 2:
+            stage = self.stage_2
+        elif instrument_id == 3:
+            stage = self.stage_3
         else:
-            self.zlineEdit_1.setText(str(self.stage_1.get_position('z')))
-            return
+            raise Exception
+        if axis == 'x':
+            if instrument_id == 1:
+                pos = self.xlineEdit_1.text()
+                max = _MAX_X_1
+                min = _MIN_X_1
+                line_edit = self.xlineEdit_1
+                inc_line_edit = self.x_y_inc_lineEdit_1
 
-    def set_z_position_2(self):
-        z_pos = self.zlineEdit_2.text()
-        if isinstance(z_pos, str) or isinstance(z_pos, int) or isinstance(z_pos, float):
-            try:
-                z_pos = float(z_pos)
-                if z_pos < _MAX_Z_2 and z_pos > _MAX_Z_2:
-                    self.stage_2.set_position('z', z_pos)
-                    time.sleep(2)
-                    self.zlineEdit_2.setText(str(self.stage_2.get_position('z')))
-            except ValueError:
-                self.zlineEdit_2.setText(str(self.stage_2.get_position('z')))
-                return
+            elif instrument_id == 2:
+                pos = self.xlineEdit_2.text()
+                max = _MAX_X_2
+                min = _MIN_X_2
+                line_edit = self.xlineEdit_2
+                inc_line_edit = self.x_y_inc_lineEdit_2
+            else:
+                raise Exception
+        elif axis == 'y':
+            if instrument_id == 1:
+                pos = self.ylineEdit_1.text()
+                max = _MAX_Y_1
+                min = _MIN_Y_1
+                line_edit = self.ylineEdit_1
+                inc_line_edit = self.x_y_inc_lineEdit_1
+            elif instrument_id == 2:
+                pos = self.ylineEdit_2.text()
+                max = _MAX_Y_2
+                min = _MIN_Y_2
+                line_edit = self.ylineEdit_2
+                inc_line_edit = self.x_y_inc_lineEdit_2
+            else:
+                raise Exception
+        elif axis == 'z':
+            if instrument_id == 1:
+                pos = self.zlineEdit_1.text()
+                max = _MAX_Z_1
+                min = _MIN_Z_1
+                line_edit = self.zlineEdit_1
+                inc_line_edit = self.z_inc_lineEdit_1
+            elif instrument_id == 2:
+                pos = self.zlineEdit_2.text()
+                max = _MAX_Z_2
+                min = _MIN_Z_2
+                line_edit = self.zlineEdit_2
+                inc_line_edit = self.z_inc_lineEdit_2
+            elif instrument_id == 3:
+                pos = self.zlineEdit_3.text()
+                max = _MAX_Z_3
+                min = _MIN_Z_3
+                line_edit = self.zlineEdit_3
+                inc_line_edit = self.z_inc_lineEdit_3
+            else:
+                raise Exception
         else:
-            self.zlineEdit_2.setText(str(self.stage_2.get_position('z')))
-            return
+            raise Exception
+        return stage, pos, max, min, line_edit, inc_line_edit
 
-    def inc_x_position_1(self):
-        inc_step = self.x_y_inc_lineEdit_1
-        x_pos = self.stage_1.get_position('x')
+    def change_position(self, axis, instrument_id, increase):
+        # 1 for inc 0 for dec
+        stage, pos, max, min, line_edit, inc_line_edit = self.selector(axis, instrument_id)
+        inc_step = inc_line_edit.text()
+        pos = float(stage.get_position(axis))
         if isinstance(inc_step, str) or isinstance(inc_step, int) or isinstance(inc_step, float):
             try:
                 inc_step = float(inc_step)
-                if x_pos+inc_step < _MAX_X_1 and x_pos > _MIN_X_1+inc_step:
-                    self.stage_1.set_position('x',x_pos+inc_step)
-                    time.sleep(2)
-                    self.xlineEdit_1.setText(str(self.stage_1.get_position('x')))
+                if increase:
+                    new_pos = pos + inc_step
+                else:
+                    new_pos = pos - inc_step
+                print(f'new position inc/dec: {new_pos}')
+                if new_pos < max and new_pos > min:
+                    stage.set_position(axis, new_pos)
+                    time.sleep(1)
+                    line_edit.setText(str(stage.get_position(axis)))
+                else:
+                    self.error_box(
+                        "OUT OF RANGE!",
+                        "Please provide a position within the range"
+                    )
+                    return
             except ValueError:
-                self.xlineEdit_1.setText(str(self.stage_1.get_position('x')))
+                line_edit.setText(str(stage.get_position(axis)))
                 return
         else:
-            self.xlineEdit_1.setText(str(self.stage_1.get_position('x')))
-            return
-
-    def inc_y_position_1(self):
-        inc_step = self.x_y_inc_lineEdit_1
-        y_pos = self.stage_1.get_position('y')
-        if isinstance(inc_step, str) or isinstance(inc_step, int) or isinstance(inc_step, float):
-            try:
-                inc_step = float(inc_step)
-                if y_pos + inc_step < _MAX_Y_1 and y_pos > _MIN_Y_1 + inc_step:
-                    self.stage_1.set_position('y', y_pos + inc_step)
-                    time.sleep(2)
-                    self.ylineEdit_1.setText(str(self.stage_1.get_position('y')))
-            except ValueError:
-                self.ylineEdit_1.setText(str(self.stage_1.get_position('y')))
-                return
-        else:
-            self.ylineEdit_1.setText(str(self.stage_1.get_position('y')))
-            return
-
-    def inc_z_position_1(self):
-        inc_step = self.z_inc_lineEdit_1
-        z_pos = self.stage_1.get_position('z')
-        if isinstance(inc_step, str) or isinstance(inc_step, int) or isinstance(inc_step, float):
-            try:
-                inc_step = float(inc_step)
-                if z_pos + inc_step < _MAX_Z_1 and z_pos > _MIN_Z_1 + inc_step:
-                    self.stage_1.set_position('z', z_pos + inc_step)
-                    time.sleep(2)
-                    self.zlineEdit_1.setText(str(self.stage_1.get_position('z')))
-            except ValueError:
-                self.zlineEdit_1.setText(str(self.stage_1.get_position('z')))
-                return
-        else:
-            self.zlineEdit_1.setText(str(self.stage_1.get_position('z')))
-            return
-
-    def dec_x_position_1(self):
-        inc_step = self.x_y_inc_lineEdit_1
-        y_pos = self.stage_1.get_position('y')
-        if isinstance(inc_step, str) or isinstance(inc_step, int) or isinstance(inc_step, float):
-            try:
-                inc_step = float(inc_step)
-                if y_pos - inc_step < _MAX_Y_1 and y_pos > _MIN_Y_1 - inc_step:
-                    self.stage_1.set_position('y', y_pos - inc_step)
-                    time.sleep(2)
-                    self.ylineEdit_1.setText(str(self.stage_1.get_position('y')))
-            except ValueError:
-                self.ylineEdit_1.setText(str(self.stage_1.get_position('y')))
-                return
-        else:
-            self.ylineEdit_1.setText(str(self.stage_1.get_position('y')))
-            return
-
-    def dec_y_position_1(self):
-        inc_step = self.x_y_inc_lineEdit_1
-        y_pos = self.stage_1.get_position('y')
-        if isinstance(inc_step, str) or isinstance(inc_step, int) or isinstance(inc_step, float):
-            try:
-                inc_step = float(inc_step)
-                if y_pos - inc_step < _MAX_Y_1 and y_pos > _MIN_Y_1 - inc_step:
-                    self.stage_1.set_position('y', y_pos - inc_step)
-                    time.sleep(2)
-                    self.ylineEdit_1.setText(str(self.stage_1.get_position('y')))
-            except ValueError:
-                self.ylineEdit_1.setText(str(self.stage_1.get_position('y')))
-                return
-        else:
-            self.ylineEdit_1.setText(str(self.stage_1.get_position('y')))
-            return
-
-    def dec_z_position_1(self):
-        inc_step = self.z_inc_lineEdit_1
-        z_pos = self.stage_1.get_position('z')
-        if isinstance(inc_step, str) or isinstance(inc_step, int) or isinstance(inc_step, float):
-            try:
-                inc_step = float(inc_step)
-                if z_pos - inc_step < _MAX_Z_1 and z_pos > _MIN_Z_1 - inc_step:
-                    self.stage_1.set_position('z', z_pos - inc_step)
-                    time.sleep(2)
-                    self.zlineEdit_1.setText(str(self.stage_1.get_position('z')))
-            except ValueError:
-                self.zlineEdit_1.setText(str(self.stage_1.get_position('z')))
-                return
-        else:
-            self.zlineEdit_1.setText(str(self.stage_1.get_position('z')))
-            return
-
-    def inc_x_position_2(self):
-        inc_step = self.x_y_inc_lineEdit_2
-        x_pos = self.stage_2.get_position('x')
-        if isinstance(inc_step, str) or isinstance(inc_step, int) or isinstance(inc_step, float):
-            try:
-                inc_step = float(inc_step)
-                if x_pos + inc_step < _MAX_X_2 and x_pos > _MIN_X_2 + inc_step:
-                    self.stage_2.set_position('x', x_pos + inc_step)
-                    time.sleep(2)
-                    self.xlineEdit_2.setText(str(self.stage_2.get_position('x')))
-            except ValueError:
-                self.xlineEdit_2.setText(str(self.stage_2.get_position('x')))
-                return
-        else:
-            self.xlineEdit_2.setText(str(self.stage_2.get_position('x')))
-            return
-
-    def inc_y_position_2(self):
-        inc_step = self.x_y_inc_lineEdit_2
-        y_pos = self.stage_2.get_position('y')
-        if isinstance(inc_step, str) or isinstance(inc_step, int) or isinstance(inc_step, float):
-            try:
-                inc_step = float(inc_step)
-                if y_pos + inc_step < _MAX_Y_2 and y_pos > _MIN_Y_2 + inc_step:
-                    self.stage_2.set_position('y', y_pos + inc_step)
-                    time.sleep(2)
-                    self.ylineEdit_2.setText(str(self.stage_2.get_position('y')))
-            except ValueError:
-                self.ylineEdit_2.setText(str(self.stage_2.get_position('y')))
-                return
-        else:
-            self.ylineEdit_2.setText(str(self.stage_2.get_position('y')))
-            return
-
-    def inc_z_position_2(self):
-        inc_step = self.z_inc_lineEdit_2
-        z_pos = self.stage_2.get_position('z')
-        if isinstance(inc_step, str) or isinstance(inc_step, int) or isinstance(inc_step, float):
-            try:
-                inc_step = float(inc_step)
-                if z_pos + inc_step < _MAX_Z_2 and z_pos > _MIN_Z_2 + inc_step:
-                    self.stage_2.set_position('z', z_pos + inc_step)
-                    time.sleep(2)
-                    self.zlineEdit_2.setText(str(self.stage_2.get_position('z')))
-            except ValueError:
-                self.zlineEdit_2.setText(str(self.stage_2.get_position('z')))
-                return
-        else:
-            self.zlineEdit_2.setText(str(self.stage_2.get_position('z')))
-            return
-
-    def dec_x_position_2(self):
-        inc_step = self.x_y_inc_lineEdit_2
-        x_pos = self.stage_2.get_position('x')
-        if isinstance(inc_step, str) or isinstance(inc_step, int) or isinstance(inc_step, float):
-            try:
-                inc_step = float(inc_step)
-                if x_pos - inc_step < _MAX_X_2 and x_pos > _MIN_X_2 - inc_step:
-                    self.stage_2.set_position('x', x_pos - inc_step)
-                    time.sleep(2)
-                    self.xlineEdit_2.setText(str(self.stage_2.get_position('x')))
-            except ValueError:
-                self.xlineEdit_2.setText(str(self.stage_2.get_position('x')))
-                return
-        else:
-            self.xlineEdit_2.setText(str(self.stage_2.get_position('x')))
-            return
-
-    def dec_y_position_2(self):
-        inc_step = self.x_y_inc_lineEdit_2
-        y_pos = self.stage_2.get_position('y')
-        if isinstance(inc_step, str) or isinstance(inc_step, int) or isinstance(inc_step, float):
-            try:
-                inc_step = float(inc_step)
-                if y_pos - inc_step < _MAX_Y_2 and y_pos > _MIN_Y_2 - inc_step:
-                    self.stage_2.set_position('y', y_pos - inc_step)
-                    time.sleep(2)
-                    self.ylineEdit_2.setText(str(self.stage_2.get_position('y')))
-            except ValueError:
-                self.ylineEdit_2.setText(str(self.stage_2.get_position('y')))
-                return
-        else:
-            self.ylineEdit_2.setText(str(self.stage_2.get_position('y')))
-            return
-
-    def dec_z_position_2(self):
-        inc_step = self.z_inc_lineEdit_2
-        z_pos = self.stage_2.get_position('z')
-        if isinstance(inc_step, str) or isinstance(inc_step, int) or isinstance(inc_step, float):
-            try:
-                inc_step = float(inc_step)
-                if z_pos - inc_step < _MAX_Z_2 and z_pos > _MIN_Z_2 - inc_step:
-                    self.stage_2.set_position('z', z_pos - inc_step)
-                    time.sleep(2)
-                    self.zlineEdit_2.setText(str(self.stage_2.get_position('z')))
-            except ValueError:
-                self.zlineEdit_2.setText(str(self.stage_2.get_position('z')))
-                return
-        else:
-            self.zlineEdit_2.setText(str(self.stage_2.get_position('z')))
+            line_edit.setText(str(stage.get_position(axis)))
             return
 
     def on_display_choice_changed(self, text):
@@ -570,22 +451,6 @@ class positioning_stages_view(QWidget, Ui_Form):
             if full_path is None:
                 return
             mode = "r+"
-        #old:
-        """root = StructArray()
-
-        # positioning.INITIAL / positioning.FINAL
-        if not hasattr(root[0], point_status):
-            if point_status in ("INITIAL", "FINAL"):
-                setattr(root[0], point_status, MyStruct())
-            else:
-                self.error_box(
-                    "Not implemented error",
-                    f"please implement {point_status} before proceeding"
-                )
-                return
-
-        point_status_object = getattr(root[0], point_status)"""
-        #new:
         # new root
         root = MyStruct()
 
@@ -616,12 +481,6 @@ class positioning_stages_view(QWidget, Ui_Form):
         # --------------------------------------------------
         # Snapshot metadata
         # --------------------------------------------------
-        """grp.attrs["micro_x"] = micro.get_position("x")
-                grp.attrs["micro_y"] = micro.get_position("y")
-
-                grp.attrs["nano_x"] = nano.get_position("x")
-                grp.attrs["nano_y"] = nano.get_position("y")
-                grp.attrs["nano_z"] = nano.get_position("z")"""
         point.micro_x = self.xlineEdit_2.text()
         point.micro_y = self.ylineEdit_2.text()
 
@@ -644,7 +503,7 @@ class positioning_stages_view(QWidget, Ui_Form):
             print(self.frame)
             point.camera_image = self.frame
         else:
-            self.error_box("please take snapshot to same image data", "image data will not be saved for this entry")
+            self.error_box("please take snapshot to save image data", "image data will not be saved for this entry")
             point.camera_image = None
         # --------------------------------------------------
         # SAVE (single call)
@@ -924,28 +783,6 @@ class positioning_stages_view(QWidget, Ui_Form):
             return nv_new
         else:
             raise ValueError(f"Method {method} not implemented")
-
-    """def extract_corners(self, structure):
-        order = ["top_left", "top_right", "bottom_right", "bottom_left"]
-
-        def get_xy(block, name):
-            arr = getattr(block, name)  # StructArray
-            if not arr._items:
-                raise ValueError(f"No data for {name}")
-
-            pt = arr._items[-1]  # latest snapshot
-            print(f"{name} micro_x: {pt.micro_x}, micro_y: {pt.micro_y}")
-
-            return np.array([
-                float(pt.micro_x),
-                float(pt.micro_y)
-            ])
-
-        old_corners = [get_xy(structure.INITIAL, n) for n in order]
-        new_corners = [get_xy(structure.FINAL, n) for n in order]
-        nv_position = get_xy(structure.INITIAL, "nv")
-
-        return old_corners, new_corners, nv_position"""
 
     def extract_corners(self, structure):
         order = ["top_left", "top_right", "bottom_right", "bottom_left"]

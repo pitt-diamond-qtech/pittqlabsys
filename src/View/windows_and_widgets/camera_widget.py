@@ -19,9 +19,32 @@ from PyQt5.QtWidgets import (
     QHBoxLayout,
     QDesktopWidget,
     QMessageBox,
+    QSlider
 )
 import numpy as np
 import weakref
+from src.core.struct_hdf5 import save_parameters_hdf5, load_data
+"""
+        Parameter class for managing experiment parameters with validation and units.
+
+        Supported initialization patterns:
+        - Parameter(name, value, valid_values, info, units)
+        - Parameter({name: value})
+        - Parameter([Parameter(...), Parameter(...)])
+
+        Args:
+            name: Parameter name (str) or dict/list for multiple parameters
+            value: Parameter value (any type)
+            valid_values: Type or list of valid values
+            info: Description string
+            visible: Boolean for GUI visibility
+            units: Units string
+            min_value: Minimum allowed value (for numeric parameters)
+            max_value: Maximum allowed value (for numeric parameters)
+            pattern: Regex pattern for string validation
+            validator: Custom validation function
+        """
+
 
 class SnapWin(QWidget):
     """Separate window that shows still‑image captures."""
@@ -37,6 +60,7 @@ class SnapWin(QWidget):
     def show_frame(self, qimg: QImage):
         self.label.setPixmap(QPixmap.fromImage(qimg))
         self.show()
+
 class Amscope_Camera_View(QWidget):
     """Live‑view window. Compatible with the legacy *app.py* launcher."""
 
@@ -256,7 +280,6 @@ class Amscope_Camera_View(QWidget):
         if not self.buf:
             return None
         try:
-            print("get_latest_frame")
             arr = np.frombuffer(self.buf, dtype=np.uint8).reshape((self.h, self.w, 3))
             return arr
         except Exception as e:

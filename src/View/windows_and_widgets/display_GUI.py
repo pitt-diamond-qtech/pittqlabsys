@@ -3,15 +3,18 @@ from __future__ import annotations
 import sys
 from src.View.windows_and_widgets.camera_widget import Amscope_Camera_View
 from src.View.windows_and_widgets.display_design import Ui_Form
-from PyQt5.QtWidgets import (
-    QWidget,
-    QMessageBox,
-    QVBoxLayout, QApplication
-)
-from PyQt5.QtCore import QTimer, Qt
 import pyqtgraph as pg
 import numpy as np
-from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtCore import Qt, pyqtSignal, QTimer
+from PyQt5.QtWidgets import (
+    QApplication,
+    QWidget,
+    QLabel,
+    QVBoxLayout,
+    QHBoxLayout,
+    QMessageBox,
+    QSlider
+)
 # Assuming the .ui file is converted to design.py
 #To convert display_design.ui to .py, paste this into the terminal:
 # pyuic5 -x display_design.ui -o display_design.py
@@ -89,6 +92,7 @@ class Display_View(QWidget, Ui_Form):
         self.crosshair_width.valueChanged.connect(self.on_crosshair_changed)
         self.x_selected = 0
         self.y_selected = 0
+        self.build_sliders()
 
     def update_choices(self, display_choice, snapshot_or_live):
         #this function gets the signals from main (that are emitted by the positioning class) and only updates the display of the choices are different from what we have
@@ -96,7 +100,7 @@ class Display_View(QWidget, Ui_Form):
             print("update_choices called display choice changed")
             self.update_timer.stop()
             self.display_choice = display_choice
-            self.connect_to_display()
+            self.connect_to_dis00play()
         if snapshot_or_live != self.snapshot_or_live:
             print("update_choices called snapshot_or_live changed"+str(snapshot_or_live))
             self.update_timer.stop()
@@ -110,7 +114,7 @@ class Display_View(QWidget, Ui_Form):
             # future users: you can do more (make sure you add those options in the positioning_design.ui file)
             try:
                 self.widget = Amscope_Camera_View()
-                self.horizontalLayout.addWidget(self.widget)
+                self.verticalLayout.addWidget(self.widget)
                 QMessageBox.information(self, 'Success', f'Connected to: {self.display_choice}')
 
             except Exception as e:
@@ -140,6 +144,29 @@ class Display_View(QWidget, Ui_Form):
             except Exception as e:
                 print(f"Exception: {e}")
                 QMessageBox.warning(self, 'Warning', f'Unexpected error: {e}')
+
+    def build_sliders(self):
+        params = [
+            "exposure gain", "exposure time", "brightness", "saturation",
+            "contrast", "Gamma", "Temp", "Tint", "Hue"]
+        i = 9
+        for name in params:
+            i+=1
+            current_val = self.widget.hcam.read_probes(name)
+            min_value, max_value = self.widget.hcam.return_min_max(name)
+            slider = getattr(self, f"horizontalSlider_{i}")
+            self._add_slider(name, slider, min_value, max_value, current_val)
+
+    def _add_slider(self, name, slider, min_value, max_value, current_val):
+        value_label = QLabel(str(current_val))
+        slider.setMinimum(min_value)
+        slider.setMaximum(max_value)
+        slider.setValue(current_val)
+
+        def on_change(value):
+            value_label.setText(str(value))
+            self.widget.hcam.update({name: value})
+        slider.valueChanged.connect(on_change)
 
     def acquire_and_plot_data(self):
         try:
