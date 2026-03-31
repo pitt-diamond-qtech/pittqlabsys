@@ -45,12 +45,12 @@ class ODMRPulsedExperiment(Experiment):
     
     _DEFAULT_SETTINGS = [
         Parameter('sequence',[
-            Parameter('file_path', '', str, 'Path to sequence definition file'),
+            Parameter('file_path', "D:\Data\jannet_trabelsi\March2026\odmr_sequence.txt", str, 'Path to sequence definition file'),
             Parameter('load_from_file', False, bool, 'load the sequence from a file'),
-            Parameter('text', "sequence: name=odmr_pulsed, type=odmr, duration=1002500ns, sample_rate=1GHz, repeat_count=50000 variable pulse_duration, start=50ns, stop=500ns, steps=20 marker, laser_int_1 on channel 1 at 0ns, 500ns pi/2 pulse on channel 1 at 500ns, gaussian, pulse_duration, 1.0 pi/2 pulse on channel 2 at 500ns, gaussian, pulse_duration, 1.0 wait pulse on channel 1 at pulse_duration+0.000000500, square, 2*pulse_duration, 0.0 wait pulse on channel 2 at pulse_duration+0.000000500, square, 2*pulse_duration, 0.0 pi/2 pulse on channel 1 at 3*pulse_duration+0.000000500, gaussian, pulse_duration, 1.0 pi/2 pulse on channel 2 at 3*pulse_duration+0.000000500, gaussian, pulse_duration, 1.0 marker, laser_readout_1 on channel 1 at 2500ns, 1ms marker, readout_counts_1 on channel 2 at 2500ns, 300ns marker, reference_counts_1 on channel 2 at 1002200ns, 300ns")
-        ]),
+            Parameter('text',"sequence: name=odmr_pulsed, type=odmr, duration=1002500ns, sample_rate=1GHz, repeat_count=50000\nvariable pulse_duration, start=50ns, stop=500ns, steps=20\nmarker, laser_int_1 on channel 1 at 0ns, 500ns\npi/2 pulse on channel 1 at 500ns, gaussian, pulse_duration, 1.0\npi/2 pulse on channel 2 at 500ns, gaussian, pulse_duration, 1.0 \nwait pulse on channel 1 at pulse_duration+0.000000500, square, 2*pulse_duration, 0.0\nwait pulse on channel 2 at pulse_duration+0.000000500, square, 2*pulse_duration, 0.0\npi/2 pulse on channel 1 at 3*pulse_duration+0.000000500, gaussian, pulse_duration, 1.0\npi/2 pulse on channel 2 at 3*pulse_duration+0.000000500, gaussian, pulse_duration, 1.0\nmarker, laser_readout_1 on channel 1 at 2500ns, 1ms\nmarker, readout_counts_1 on channel 2 at 2500ns, 300ns\nmarker, reference_counts_1 on channel 2 at 1002200ns, 300ns"
+        )]),
         Parameter('microwave', [
-            Parameter('frequency range', 2.87e9, float, 'Microwave frequency in Hz', units='Hz'),
+            Parameter('frequency range', [2.87e9, 2.88e9, 2.89e9], list, 'Microwave frequency in Hz', units='Hz'),
             Parameter('power', -10.0, float, 'Microwave power in dBm', units='dBm')
         ]),
         Parameter('green_laser', [
@@ -61,7 +61,7 @@ class ODMRPulsedExperiment(Experiment):
             Parameter('green_laser_delay', 50.0, float, 'green_laser_delay in ns', units='ns'),
             Parameter('orange_laser_delay', 10.0, float, 'orange_laser_delay in ns', units='ns'),
             Parameter('mw_delay', 25.0, float, 'Microwave delay in ns', units='ns'),
-            Parameter('iq_delay', 30.0, float, 'Microwave delay in ns', units='ns'),
+            Parameter('iq_delay', 30.0, float, 'iq delay in ns', units='ns'),
             Parameter('counter_delay', 15.0, float, 'AOM delay in ns', units='ns'),
             Parameter('trigger_delay', 0.0, float, 'Counter delay in ns', units='ns')
         ]),
@@ -96,6 +96,7 @@ class ODMRPulsedExperiment(Experiment):
         self.logger = logging.getLogger(__name__)
         self.repeat_count = None
         self.number_of_iterations = 0
+        self.config_path = config_path or self.get_config_path("D:\\Duttlab\\Experiments\\AQuISS_default_save_location\\experiments_auto_generated\\ODMRPulsedExperiment.json")
         # Configuration
         self.config = self._load_config()
 
@@ -106,10 +107,9 @@ class ODMRPulsedExperiment(Experiment):
         # Initialize hardware calibrator with experiment-specific connection file
         connection_file = Path(__file__).parent / "odmr_pulsed_connection.json"
         self.hardware_calibrator = ProteusHardwareCalibrator(connection_file=str(connection_file))
-        self.config_path = config_path or self.get_config_path("D:\\Duttlab\\Experiments\\AQuISS_default_save_location\\experiments_auto_generated\\ODMRPulsedExperiment.json")
         self.adwin = self.devices['adwin']['instance']
         self.proteus = self.devices['proteus']['instance']
-        self.ag384 = self.devices['sg384']['instance']
+        self.sg384 = self.devices['sg384']['instance']
         self.mux = self.devices['mux_control']['instance']
         self.mux.select_trigger('pulsed')
         # Sequence data
@@ -187,16 +187,20 @@ class ODMRPulsedExperiment(Experiment):
             True if sequence loaded successfully
         """
         try:
+            print("load_sequence_from_file")
             if not sequence_file.exists():
                 self.logger.error(f"Sequence file not found: {sequence_file}")
+                print("Sequence file not found")
                 return False
             
             # Read sequence text
             with open(sequence_file, 'r') as f:
+                print("reading from file")
                 sequence_text = f.read()
-            
+            print("parsing sequence text")
             # Parse sequence
             self.sequence_description = self.sequence_parser.parse_text(sequence_text)
+            self.repeat_count = self.sequence_description.repeat_count
             
             if self.sequence_description:
                 self.logger.info(f"Sequence loaded: {self.sequence_description.name}")
@@ -488,6 +492,7 @@ class ODMRPulsedExperiment(Experiment):
             return False
 
     def _function(self):
+        print("selected start")
         # new work to be tested:
         def build_calibration_overrides():
             return {
@@ -496,14 +501,14 @@ class ODMRPulsedExperiment(Experiment):
                 "mw_delay": self.settings['delays']['mw_delay'],
                 "iq_delay": self.settings['delays']['iq_delay'],
                 "counter_delay": self.settings['delays']['counter_delay'],
-                "trigger_delay": self.settings['delays']['trigger_delay']
+                "trigger_delay": self.settings['delays']['trigger_delay'],
+                "units": "ns"
             }
         # this part is for when we adjust the settings in the gui, the calibration changes accordingly: so no need to change the json
         overrides = build_calibration_overrides()
         self.hardware_calibrator.update_calibration_delays(overrides)
-
+        print("HW cal done")
         # Experiment parameters: the next section updates the settings every start click
-        self.microwave_frequency = self.settings['microwave']['frequency']
         self.microwave_power = self.settings['microwave']['power']
         self.mw_delay = self.settings['delays']['mw_delay']
         self.green_laser_delay = self.settings['delays']['green_laser_delay']
@@ -524,14 +529,18 @@ class ODMRPulsedExperiment(Experiment):
         sequence_loaded = False
 
         if self.settings['sequence']['load_from_file']:
+            print("loading from file")
             file_path = self.settings['sequence']['file_path']
+            file_path = Path(file_path)
 
             if file_path and os.path.exists(file_path):
                 sequence_loaded = self.load_sequence_from_file(file_path)
+                print(f"file path: {file_path}")
                 source = "file"
             else:
                 self.logger.info("File path is invalid or does not exist")
         else:
+            print("loading from text")
             sequence_text = self.settings['sequence']['text']
             print("ODMR Sequence:")
             print(sequence_text)
@@ -545,8 +554,9 @@ class ODMRPulsedExperiment(Experiment):
             self.logger.info(f"Failed to load sequence from {source}")
             return
         # Run experiment
+        print("running exp")
         self.logger.info("Running experiment...")
-        results = self.run_experiment(frequency_range=[2.87e9])
+        results = self.run_experiment(self.settings['microwave']['frequency range'])
         if results['success']:
             self.logger.info("Experiment completed successfully!")
             self.logger.info(f"Frequencies scanned: {[f / 1e9 for f in results['frequencies']]} GHz")
@@ -556,6 +566,7 @@ class ODMRPulsedExperiment(Experiment):
             self.logger.info(f"Experiment failed: {results['error']}")
         self.show_sequence_preview(10)
         self.logger.info("\nODMR Pulsed Experiment ready!")
+        print("experiment ready")
 
     def generate_awg_sequences_awg_triggering_adwin_case(self) -> bool:
         """
@@ -903,10 +914,11 @@ class ODMRPulsedExperiment(Experiment):
         """
         try:
             self.logger.info("Starting ODMR Pulsed Experiment")
-            
+            print("Starting ODMR Pulsed Experiment")
             # Step 1: Load sequence
             if not self.sequence_description:
                 self.logger.error("No sequence loaded")
+                print("No sequence loaded")
                 return {'success': False, 'error': 'No sequence loaded'}
 
             # Step 2: Build scan sequences
@@ -920,10 +932,7 @@ class ODMRPulsedExperiment(Experiment):
             # Step 4: Setup ADwin for photon counting
             if not self._setup_adwin_counting():
                 return {'success': False, 'error': 'Failed to setup ADwin counting'}
-            
-            # Step 5: Determine frequency range
-            if frequency_range is None:
-                frequency_range = [self.microwave_frequency]
+
             
             # Step 6: Run experiment for each frequency
             results = {
@@ -933,15 +942,18 @@ class ODMRPulsedExperiment(Experiment):
                 'reference_counts': [],
                 'total_counts': []
             }
-            
+
             for freq in frequency_range:
+                print(f"Running experiment at {freq/1e9:.3f} GHz")
                 self.logger.info(f"Running experiment at {freq/1e9:.3f} GHz")
                 
                 # Set SG384 frequency
                 if 'sg384' in self.devices:
-                    self.devices['sg384'].set_frequency(freq)
-                    self.devices['sg384'].set_power(self.microwave_power)
+                    self.sg384.set_frequency(freq)
+                    self.sg384.set_power(self.microwave_power)
+                    self.microwave_frequency = freq
                     self.logger.info(f"Set SG384 to {freq/1e9:.3f} GHz, {self.microwave_power} dBm")
+                    print(f"Set SG384 to {freq / 1e9:.3f} GHz, {self.microwave_power} dBm")
                 
                 # Run sequence and collect data
                 freq_results = self._run_sequence_and_collect_data()
@@ -953,6 +965,7 @@ class ODMRPulsedExperiment(Experiment):
                 results['total_counts'].append(freq_results['total_counts'])
             
             self.logger.info("ODMR Pulsed Experiment completed successfully")
+            print("ODMR Pulsed Experiment completed successfully")
             return results
             
         except Exception as e:
@@ -967,6 +980,7 @@ class ODMRPulsedExperiment(Experiment):
             True if setup successful
         """
         try:
+            print("Setting ADwin counting")
             # Load the odmr_pulsed_counter.bas process (Process 2)
             # This process handles dual-gate counting triggered by Proteus
             #process_file = "odmr_pulsed_counter.__2"
@@ -974,6 +988,7 @@ class ODMRPulsedExperiment(Experiment):
 
             if not self.adwin.is_connected:
                 self.adwin.connect()
+                print("adwin connected")
 
             # Proper cleanup like debug script
             self.log("Cleaning up any existing ADwin process...")
@@ -1002,7 +1017,6 @@ class ODMRPulsedExperiment(Experiment):
             # option 3 file: BEHAVIORAL MODEL
             #odmr_pulsed_counter_path = get_adwin_binary_path('adwin_odmr_pulsed_ticks.TB1')
             self.adwin.update({'process_1': {'load': str(odmr_pulsed_counter_path)}})
-
             # Set ADwin parameters for counting
             # Par_3: count_time (with calibration offset)
             # Par_4: reset_time (with calibration offset) 
@@ -1125,9 +1139,9 @@ readout pulse on channel 3 at 800ns, square, 600ns, 0.3
 #marker, laser_readout_1 on channel 1 at 100ns, 1ms
 sequence: name=SCC, type=SCC, duration=1700ns, sample_rate=1GHz, repeat=50000
 variable pulse_duration, start=50ns, stop=100ns, steps=20
-    shelving pulse on channel 2 at 0ns, square, 300ns, 1.0
-    ionization pulse on channel 2 at 300ns, square, 500ns, 0
-    readout pulse on channel 2 at 800ns, square, 900ns, -1.0
+    shelving pulse on channel 2 at 0ns, square, 300ns, 0.6
+    ionization pulse on channel 2 at 300ns, square, 500ns, 1.0
+    readout pulse on channel 2 at 800ns, square, 900ns, 0.3
     #marker, laser_readout_1 on channel 1 at 800ns, 900ns
     #marker, laser_readout_1 on channel 1 at 810ns, 17ns
     #marker, laser_readout_1 on channel 1 at 827ns, 17ns

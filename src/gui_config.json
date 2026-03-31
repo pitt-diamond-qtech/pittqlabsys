@@ -151,67 +151,6 @@
                 "server_port": 5005
             }
         },
-        "nanodrive": {
-            "class": "MCLNanoDrive",
-            "filepath": "D:\\PyCharmProjects\\pittqlabsys-single-NV\\src\\Controller\\nanodrive.py",
-            "info": "\n    This class implements the Mad City Labs NanoDrive. The class loads the madlib.dll library to communicate with the device.\n    ",
-            "settings": {
-                "serial": 2849,
-                "x_pos": 82.76341717612094,
-                "y_pos": 43.228210357097666,
-                "z_pos": 44.971508770869264,
-                "read_rate": 2.0,
-                "load_rate": 2.0,
-                "num_datapoints": 1,
-                "axis": "x",
-                "load_waveform": [
-                    0
-                ],
-                "read_waveform": [
-                    0
-                ],
-                "mult_ax": {
-                    "waveform": [
-                        [
-                            0
-                        ],
-                        [
-                            0
-                        ],
-                        [
-                            0
-                        ]
-                    ],
-                    "time_step": 1.0,
-                    "iterations": 1
-                },
-                "Pixel": {
-                    "mode": "low",
-                    "polarity": "low-to-high",
-                    "binding": "read",
-                    "pulse": false
-                },
-                "Line": {
-                    "mode": "low",
-                    "polarity": "low-to-high",
-                    "binding": "load",
-                    "pulse": false
-                },
-                "Frame": {
-                    "mode": "low",
-                    "polarity": "low-to-high",
-                    "binding": "read",
-                    "pulse": false
-                },
-                "Aux": {
-                    "mode": "low",
-                    "polarity": "low-to-high",
-                    "binding": "read",
-                    "pulse": false
-                },
-                "server_port": 5001
-            }
-        },
         "microdrive": {
             "class": "Newport_CONEX_CC_xy_stage",
             "filepath": "D:\\PyCharmProjects\\pittqlabsys-single-NV\\src\\Controller\\newport_conex_cc.py",
