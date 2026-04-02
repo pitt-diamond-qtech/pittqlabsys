@@ -360,6 +360,7 @@ AQuISS includes drivers for the following instruments:
 
 ### **Getting Started with Development**
 - **[📚 Lab Workflow Guide](docs/LAB_WORKFLOW_GUIDE.md)** - Complete development workflow with Jannet's student example
+- **[GUI USAGE](docs/GUI_USAGE.md)** - Complete guide on how to use GUI
 - **[📋 Quality Guidelines](docs/QUALITY_GUIDELINES.md)** - Code quality standards and examples
 - **[🤖 AI Context](docs/AI_CONTEXT.md)** - For AI assistants working on the project
 
