@@ -134,21 +134,65 @@
                 }
             }
         },
-        "amscope_camera": {
-            "class": "Amscope_MU_Camera",
-            "filepath": "D:\\PyCharmProjects\\pittqlabsys-single-NV\\src\\Controller\\Amscope_MU_Camera.py",
-            "info": "This class implements the Windfreak SynthUSBII. The device plugs into a usb port and is communicated with using pyvisa.",
+        "nanodrive": {
+            "class": "MCLNanoDrive",
+            "filepath": "D:\\PyCharmProjects\\pittqlabsys-single-NV\\src\\Controller\\nanodrive.py",
+            "info": "\n    This class implements the Mad City Labs NanoDrive. The class loads the madlib.dll library to communicate with the device.\n    ",
             "settings": {
-                "exposure gain": 100,
-                "exposure time": 10000,
-                "brightness": 0,
-                "saturation": 128,
-                "contrast": 0,
-                "Gamma": 100,
-                "Temp": 6503,
-                "Tint": 1000,
-                "Hue": 0,
-                "server_port": 5005
+                "serial": 2849,
+                "x_pos": -0.03756230972084937,
+                "y_pos": -0.04899082655721197,
+                "z_pos": 34.0843922519593,
+                "read_rate": 2.0,
+                "load_rate": 2.0,
+                "num_datapoints": 1,
+                "axis": "x",
+                "load_waveform": [
+                    0
+                ],
+                "read_waveform": [
+                    0
+                ],
+                "mult_ax": {
+                    "waveform": [
+                        [
+                            0
+                        ],
+                        [
+                            0
+                        ],
+                        [
+                            0
+                        ]
+                    ],
+                    "time_step": 1.0,
+                    "iterations": 1
+                },
+                "Pixel": {
+                    "mode": "low",
+                    "polarity": "low-to-high",
+                    "binding": "read",
+                    "pulse": false
+                },
+                "Line": {
+                    "mode": "low",
+                    "polarity": "low-to-high",
+                    "binding": "load",
+                    "pulse": false
+                },
+                "Frame": {
+                    "mode": "low",
+                    "polarity": "low-to-high",
+                    "binding": "read",
+                    "pulse": false
+                },
+                "Aux": {
+                    "mode": "low",
+                    "polarity": "low-to-high",
+                    "binding": "read",
+                    "pulse": false
+                },
+                "server_port": 5001
             }
         },
         "microdrive": {
