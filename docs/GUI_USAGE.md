@@ -10,7 +10,7 @@
 - **[experiment_guide_6](guides/experiment_guide_6.jpg)** - Experiment Guide 6
 ### Devices Tab:
 You can use the devices Tab to control all of you configured devices. Please edit your config.json to add your device. Only devices inhereting from the Device Class can be implemented here. To add more Parameters, programmers need to add more settings in their device file)
-- **[Devices_tab](docs/guides/Devices_tab.jpg)** - Devices_tab
+- **[Devices_tab](guides/Devices_tab.jpg)** - Devices_tab
 
 ## NEW GUI:
 ### spectrum analyzer tab:
@@ -26,4 +26,4 @@ We also have Find NV algorithm where you select which point, save 4 corners, sav
 
 ### Data saving tab:
 - **[Data_saving_tab](guides/Data_saving_tab.jpg)** - Data_saving_tab
-You can go to your data saving path, see hdf5 data, see images, create, rename, and delete files here. As for 04/01/2026: this is only linked to the positioning tab (your path is automatically adjusted when you navigate to the data saving tab). For future implementations, programmers can decide whether data saving path should go on the json, the experiment settings, or in a way that is similar to the positioning code.
+You can go to your data saving path, see hdf5 data, see images, create, rename, and delete files here. Most importantly, you can see your data when you click on the file, click read data button, and you can clich view value to see the value of the data point. As for 04/01/2026: this is only linked to the positioning tab (your path is automatically adjusted when you navigate to the data saving tab). For future implementations, programmers can decide whether data saving path should go on the json, the experiment settings, or in a way that is similar to the positioning code.
