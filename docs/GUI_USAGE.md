@@ -2,12 +2,12 @@
 
 ## OLD GUI (please note that these features are kept in the new GUI):
 ### Experiment Tab:
-- **[experiment_guide_1](docs/guides/experiment_guide_1.jpg)** - Experiment Guide 1
-- **[experiment_guide_2](docs/guides/experiment_guide_2.jpg)** - Experiment Guide 2
-- **[experiment_guide_3](docs/guides/experiment_guide_3.jpg)** - Experiment Guide 3
-- **[experiment_guide_4](docs/guides/experiment_guide_4.jpg)** - Experiment Guide 4
-- **[experiment_guide_5](docs/guides/experiment_guide_5.jpg)** - Experiment Guide 5
-- **[experiment_guide_6](docs/guides/experiment_guide_6.jpg)** - Experiment Guide 6
+- **[experiment_guide_1](guides/experiment_guide_1.jpg)** - Experiment Guide 1
+- **[experiment_guide_2](guides/experiment_guide_2.jpg)** - Experiment Guide 2
+- **[experiment_guide_3](guides/experiment_guide_3.jpg)** - Experiment Guide 3
+- **[experiment_guide_4](guides/experiment_guide_4.jpg)** - Experiment Guide 4
+- **[experiment_guide_5](guides/experiment_guide_5.jpg)** - Experiment Guide 5
+- **[experiment_guide_6](guides/experiment_guide_6.jpg)** - Experiment Guide 6
 ### Devices Tab:
 You can use the devices Tab to control all of you configured devices. Please edit your config.json to add your device. Only devices inhereting from the Device Class can be implemented here. To add more Parameters, programmers need to add more settings in their device file)
 - **[Devices_tab](docs/guides/Devices_tab.jpg)** - Devices_tab
