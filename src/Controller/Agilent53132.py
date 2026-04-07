@@ -21,7 +21,7 @@ RANGE_MAX = 1
 RANGE_MIN = 225000000
 class Agilent53132(Device):
 
-    _DEFAULT_SETTINGS = Parameter([
+    _DEFAULT_SETTINGS = Parameter(Device._get_base_settings() +[
         Parameter('connection_type', 'GPIB', ['GPIB'], 'type of connection to open to controller'),
         Parameter('port', 3, list(range(0, 31)), 'GPIB port on which to connect'),
         Parameter('GPIB_num', 0, int, 'GPIB device on which to connect')
@@ -66,6 +66,7 @@ class Agilent53132(Device):
     @property
     def _PROBES(self):
         return{
+            'get_data': 'choose whether you need to get data from this device or not',
             'frequency': 'frequency in Hz',
             'period': 'period in s',
             'phase': 'phase of input in degrees',
@@ -83,9 +84,12 @@ class Agilent53132(Device):
     def read_probes(self, key):
         assert(self._settings_initialized) #will cause read_probes to fail if settings (and thus also connection) not yet initialized
         assert key in list(self._PROBES.keys())
-        key_internal = self._param_to_internal(key)
-        value = float(self.agilent_counter.query(key_internal + '?'))
-        return value
+        if key == 'get_data':
+            return self.settings['get_data']
+        else:
+            key_internal = self._param_to_internal(key)
+            value = float(self.agilent_counter.query(key_internal + '?'))
+            return value
 
     # :INPUT# read probes
     def read_probes_channel(self, key, channel_number):

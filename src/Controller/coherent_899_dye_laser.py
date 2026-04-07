@@ -3,7 +3,7 @@ import matlab.engine
 eng = matlab.engine.start_matlab()
 
 class coherent_899_dye_laser(Device):
-    _DEFAULT_SETTINGS = Parameter([
+    _DEFAULT_SETTINGS = Parameter(Device._get_base_settings() +[
         Parameter('wavelength', 594, list(range(567, 625)) ,'wavelength in nm'),
         Parameter('position', 594, list(range(567, 625)) ,'position'),
     ])
@@ -40,6 +40,8 @@ class coherent_899_dye_laser(Device):
         key_internal = self._param_to_internal(key)
         if key_internal == "wavelength":
             value = self.eng.coherent_899_dye_client_getwavelength
+        elif key == 'get_data':
+            return self.settings['get_data']
         elif key_internal == "power":
             value = self.eng.coherent_899_dye_client_getpower
         elif key_internal == "position":
@@ -53,6 +55,7 @@ class coherent_899_dye_laser(Device):
     @property
     def _PROBES(self):
         return {
+            'get_data': 'choose whether you need to get data from this device or not',
             'wavelength': 'wavelength',
             'position': 'position',
             'power': 'power',

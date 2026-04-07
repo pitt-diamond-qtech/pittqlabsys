@@ -2977,12 +2977,15 @@ class ProteusDevice(Device):
     """Device wrapper for Proteus awg using Device framework."""
     file_transfer_completed = pyqtSignal(bool, str)
 
-    _DEFAULT_SETTINGS = Parameter([
+    _DEFAULT_SETTINGS = Parameter(Device._get_base_settings() +[
         Parameter('ip_address', _IP_ADDRESS, str, 'ip address'),
         Parameter('slot_id', _SID, int, 'slot id on the chassis')
     ])
 
     _PROBES = {
+        'ip_address': 'ip_address',
+        'slot_id': 'slot_id',
+        'get_data': 'choose whether you need to get data from this device or not',
         'status': 'AWG device status',
     }
 
@@ -3176,6 +3179,12 @@ class ProteusDevice(Device):
         if key == 'status':
             resp = self.driver.get_system_error()
             return resp
+        elif key == 'get_data':
+            return self.settings['get_data']
+        elif key == 'ip_address':
+            return self.settings['ip_address']
+        elif key == 'slot_id':
+            return self.settings['slot_id']
         raise KeyError(f"Unknown probe '{key}'")
 
     def cleanup(self):

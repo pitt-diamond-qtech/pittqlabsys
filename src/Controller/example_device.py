@@ -24,7 +24,7 @@ class ExampleDevice(Device):
     a implementation of a dummy device
     '''
 
-    _DEFAULT_SETTINGS = Parameter([
+    _DEFAULT_SETTINGS = Parameter(Device._get_base_settings() +[
         Parameter('test1', 0, int, 'some int parameter'),
         Parameter('output probe2', 0, int, 'return value of probe 2 (int)'),
         Parameter('test2', [Parameter('test2_1', 'string', str, 'test parameter (str)'),
@@ -32,7 +32,9 @@ class ExampleDevice(Device):
                             ])
     ])
 
-    _PROBES = {'value1': 'this is some value from the device',
+    _PROBES = {
+                'get_data': 'choose whether you need to get data from this device or not',
+                'value1': 'this is some value from the device',
                'value2': 'this is another',
                'internal': 'gives the internal state variable',
                'deep_internal': 'gives another internal state variable'
@@ -76,6 +78,8 @@ class ExampleDevice(Device):
         import random
         if key == 'value1':
             value = random.random()
+        elif key == 'get_data':
+            return self.settings['get_data']
         elif key == 'value2':
             value = self.settings['output probe2']
         elif key == 'internal':

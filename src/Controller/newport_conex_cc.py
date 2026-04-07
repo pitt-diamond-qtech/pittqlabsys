@@ -89,7 +89,7 @@ _max_velocity = pow(10,12)
 _server_port = 5004
 
 class Newport_CONEX_CC_xy_stage(Device):
-    _DEFAULT_SETTINGS = Parameter([
+    _DEFAULT_SETTINGS = Parameter(Device._get_base_settings() +[
         Parameter('connection_type', "SERIAL", ["SERIAL"], 'type of connection to open to controller'),
         Parameter('xport', 14, list(range(0, 31)), 'COM port on which to connect'),
         Parameter('x-address', 1, int, 'address prefix (nn)'),
@@ -161,6 +161,7 @@ class Newport_CONEX_CC_xy_stage(Device):
     @property
     def _PROBES(self):
         return {
+            'get_data': 'choose whether you need to get data from this device or not',
             "x acceleration": 'acceleration',
             "x backlash compensation": 'backlash compensation',
             "x hysteresis compensation": 'hysteresis compensation',
@@ -271,6 +272,8 @@ class Newport_CONEX_CC_xy_stage(Device):
             if key == "y-position":
                 return self.newport_conex_cc_y_stage.query(key_internal + "?")
             return self.newport_conex_cc_y_stage.query(key_internal[1:])
+        elif key == 'get_data':
+            return self.settings['get_data']
         else:
             raise KeyError
 

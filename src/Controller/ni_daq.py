@@ -72,7 +72,7 @@ class NIDAQ(Device):
     # currently includes four analog outputs, five analog inputs, and one digital counter input. Add
     # more as needed and your device allows
     # TODO: write a function that loads all the parameters from a .cfg or .ini file for that instrument
-    _DEFAULT_SETTINGS = Parameter([
+    _DEFAULT_SETTINGS = Parameter(Device._get_base_settings() +[
         Parameter('device', 'Dev1', ['Dev1', "PXI1Slot3", "PXI1Slot8"], 'Name of NI-DAQ device'),
         Parameter('override_buffer_size', -1, int, 'Buffer size for manual override (unused if -1)'),
         Parameter('ao_read_offset', .005, float, 'Empirically determined offset for reading ao voltages internally',
@@ -221,10 +221,11 @@ class NIDAQ(Device):
 
     @property
     def _PROBES(self):
-        return None
+        return {'get_data': 'choose whether you need to get data from this device or not',}
 
     def read_probes(self, key):
-        pass
+        if key == 'get_data':
+            return self.settings['get_data']
 
     @property
     def is_connected(self):

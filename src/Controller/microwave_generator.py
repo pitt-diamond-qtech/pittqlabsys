@@ -30,7 +30,7 @@ class MicrowaveGenerator(Device):
     """
         # SHOULD BE 4
     ## GD: watch out for the ports this might be different on each computer and might cause issues when running export default
-    _DEFAULT_SETTINGS = Parameter([
+    _DEFAULT_SETTINGS = Parameter(Device._get_base_settings() +[
         Parameter('connection_type', 'LAN', ['GPIB', 'RS232', 'LAN'], 'type of connection to open to controller'),
         Parameter('port', 5025, int, 'GPIB, COM, or LAN port on which to connect'),
         Parameter('GPIB_num', 0, int, 'GPIB device on which to connect'),
@@ -161,6 +161,7 @@ class MicrowaveGenerator(Device):
     @property
     def _PROBES(self):
         return{
+            'get_data': 'choose whether you need to get data from this device or not',
             'enable_output': 'if type-N output is enabled',
             'frequency': 'frequency of output in Hz',
             'amplitude': 'type-N amplitude in dBm',
@@ -189,6 +190,8 @@ class MicrowaveGenerator(Device):
                 value = True
             elif value == 0:
                 value = False
+        elif key == 'get_data':
+            return self.settings['get_data']
         elif key in ['modulation_type', 'modulation_function', 'pulse_modulation_function']:
             key_internal = self._param_to_internal(key)
             if self.settings['connection_type'] == 'LAN':

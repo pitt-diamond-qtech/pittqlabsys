@@ -3,7 +3,7 @@ import matlab.engine
 eng = matlab.engine.start_matlab()
 
 class spex_spectrometer(Device):
-    _DEFAULT_SETTINGS = Parameter([
+    _DEFAULT_SETTINGS = Parameter(Device._get_base_settings() +[
         Parameter('wavelength', 594, float ,'wavelength in nm'),
         Parameter('grating', 1, int ,'grating'),
         Parameter('mirror', 1, int, 'mirror'),
@@ -61,6 +61,8 @@ class spex_spectrometer(Device):
         key_internal = self._param_to_internal(key)
         if key_internal == "grating":
             value = self.eng.feval(self.spectrometer['getgrating'])
+        elif key == 'get_data':
+            return self.settings['get_data']
         elif key_internal == "gratings":
             value = self.eng.feval(self.spectrometer['getgratings'])
         elif key_internal == "mirror":
@@ -100,6 +102,7 @@ class spex_spectrometer(Device):
     @property
     def _PROBES(self):
         return {
+            'get_data': 'choose whether you need to get data from this device or not',
             'grating': 'grating',
             'gratings': 'gratings',
             'mirror': 'mirror',

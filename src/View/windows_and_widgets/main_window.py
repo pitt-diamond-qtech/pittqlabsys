@@ -15,6 +15,8 @@
 
 """to access current saving directory:
 (self.data_saving_tab.current_path())"""
+
+# pyuic5 -x main_window.ui -o gui_compiled_main_window.py
 from .agilent_8596E_GUI import SpectrumAnalyzerView
 from .data_saving_tab import data_saving_tab_view
 from .display_GUI import Display_View
@@ -997,6 +999,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             #     if someitem.isExpanded():
             #         self.expanded_items.append(someitem.name)
             self.experiment_start_time = datetime.datetime.now()
+
+            if self.getbasicdatacheckBox.isChecked():
+                print("The checkbox is CHECKED.")
+            else:
+                print("The checkbox is UNCHECKED.")
 
             if item is not None:
                 # get experiment and update settings from tree

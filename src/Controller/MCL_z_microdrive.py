@@ -1062,7 +1062,7 @@ class MCLZMicroDrive(Device):
         Therefore, we cannot set and get absolute positions we
         can only move relative to the current position
         We do not use the read encoder functions provided by the python wrapper"""
-    _DEFAULT_SETTINGS = Parameter([Parameter('z_pos', 0, float, 'position of z axis in mm'),
+    _DEFAULT_SETTINGS = Parameter(Device._get_base_settings() +[Parameter('z_pos', 0, float, 'position of z axis in mm'),
                                    Parameter('server_port', 5006, int, 'server_port'),
                                    ])
     def __init__(self, name=None, settings=None):
@@ -1103,11 +1103,13 @@ class MCLZMicroDrive(Device):
         assert key in list(self._PROBES.keys())
         if key == 'z_pos':
             self.get_position()
-        # future users: add more here
+        elif key == 'get_data':
+            return self.settings['get_data']
 
     @property
     def _PROBES(self):
         return {
+            'get_data': 'choose whether you need to get data from this device or not',
             # ask device
             'z_pos': 'current position of z axis',
         }

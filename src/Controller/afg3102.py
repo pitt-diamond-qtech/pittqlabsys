@@ -11,13 +11,14 @@ _IP_ADDRESS = '192.168.2.57'
 class AFG3102Device(Device):
     file_transfer_completed = pyqtSignal(bool, str)
 
-    _DEFAULT_SETTINGS = Parameter([
+    _DEFAULT_SETTINGS = Parameter(Device._get_base_settings() +[
         Parameter('ip_address', _IP_ADDRESS, str, 'IP address of the AWG520')
     ])
 
     _PROBES = {
         'calibrate':'calibrate',
         'test':'test',
+        'get_data': 'choose whether you need to get data from this device or not',
     }
 
     def __init__(self, name=None, settings=None):
@@ -121,6 +122,9 @@ class AFG3102Device(Device):
 
     def close(self):
         self.afg.close()
+    def read_probes(self, key=None):
+        if key == 'get_data':
+            return self.settings['get_data']
 
 
 if __name__ == "__main__":

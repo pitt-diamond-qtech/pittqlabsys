@@ -35,7 +35,7 @@ class MUXControlDevice(Device):
     - Commands: "1"=confocal, "2"=cw-esr, "3"=pulsed
     """
     
-    _DEFAULT_SETTINGS = Parameter([
+    _DEFAULT_SETTINGS = Parameter(Device._get_base_settings() +[
         Parameter('ip_address', _IP_ADDRESS, str, 'IP address of device'),
         Parameter('port', _DEFAULT_PORT, int, 'Port'),
         Parameter('timeout', _DEFAULT_TIMEOUT, int, 'Serial timeout in milliseconds'),
@@ -43,6 +43,7 @@ class MUXControlDevice(Device):
     ])
     
     _PROBES = {
+        'get_data': 'choose whether you need to get data from this device or not',
         'status': 'Current MUX selection status',
         'port': 'Current port',
         'connected': 'Connection status to Mux',
@@ -197,6 +198,8 @@ class MUXControlDevice(Device):
                 'port': self.settings.get('port', 'Not set'),
                 'connected': self.is_connected
             }
+        elif key == 'get_data':
+            return self.settings['get_data']
         elif key == 'status':
             return self.get_current_selection()
         elif key == 'port':

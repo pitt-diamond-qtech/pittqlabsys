@@ -32,7 +32,10 @@ class Device:
         - is_connected => property that checks if the device is actually connected
 
     """
-    _DEFAULT_SETTINGS = Parameter("default", 0, int, "some int parameter")
+    #_DEFAULT_SETTINGS = Parameter("default", 0, int, "some int parameter")
+    _DEFAULT_SETTINGS = Parameter([
+        Parameter('get_data', False, [False, True], 'choose whether you need to get data from this device or not')
+    ])
 
     @classmethod
     def _get_base_settings(cls):

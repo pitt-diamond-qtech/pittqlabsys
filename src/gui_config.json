@@ -10,6 +10,7 @@
             "filepath": "D:\\PyCharmProjects\\pittqlabsys-single-NV\\src\\Controller\\awg520.py",
             "info": "Device wrapper for Tektronix AWG520 using your Device framework.",
             "settings": {
+                "get_data": false,
                 "ip_address": "192.168.2.51",
                 "scpi_port": 4000,
                 "ftp_port": 21,
@@ -24,6 +25,7 @@
             "filepath": "D:\\PyCharmProjects\\pittqlabsys-single-NV\\src\\Controller\\sg384.py",
             "info": "\n    Stanford Research Systems SG384 concrete implementation.\n    Adds any SG384-specific settings and maps them to SCPI.\n    ",
             "settings": {
+                "get_data": false,
                 "connection_type": "LAN",
                 "ip_address": "192.168.2.217",
                 "port": 5025,
@@ -56,6 +58,7 @@
             "filepath": "D:\\PyCharmProjects\\pittqlabsys-single-NV\\src\\Controller\\Proteus_device.py",
             "info": "Device wrapper for Proteus awg using Device framework.",
             "settings": {
+                "get_data": false,
                 "ip_address": "192.168.2.4",
                 "slot_id": 6
             }
@@ -65,6 +68,7 @@
             "filepath": "D:\\PyCharmProjects\\pittqlabsys-single-NV\\src\\Controller\\Agilent8596E.py",
             "info": null,
             "settings": {
+                "get_data": false,
                 "connection_type": "GPIB",
                 "port": 18,
                 "GPIB_num": 0,
@@ -82,6 +86,7 @@
             "filepath": "D:\\PyCharmProjects\\pittqlabsys-single-NV\\src\\Controller\\adwin_gold.py",
             "info": "\n    This class implements the ADwin Gold II by booting it with the T11 processor. It does not yet implement TiCO processes.\n    Processes should be written in an ADbasic script and then loaded using this controller (note the inital processes delay set in each script).\n    The processor and priority can be changed for each process and is left to the user writing the ADbasic script.\n    ",
             "settings": {
+                "get_data": false,
                 "process_1": {
                     "load": "",
                     "delay": 3000,
@@ -139,6 +144,7 @@
             "filepath": "D:\\PyCharmProjects\\pittqlabsys-single-NV\\src\\Controller\\Amscope_MU_Camera.py",
             "info": "This class implements the Windfreak SynthUSBII. The device plugs into a usb port and is communicated with using pyvisa.",
             "settings": {
+                "get_data": false,
                 "exposure gain": 100,
                 "exposure time": 10000,
                 "brightness": 0,
@@ -156,10 +162,11 @@
             "filepath": "D:\\PyCharmProjects\\pittqlabsys-single-NV\\src\\Controller\\nanodrive.py",
             "info": "\n    This class implements the Mad City Labs NanoDrive. The class loads the madlib.dll library to communicate with the device.\n    ",
             "settings": {
+                "get_data": false,
                 "serial": 2849,
-                "x_pos": 0.024814689779410846,
-                "y_pos": 0.013509253661598624,
-                "z_pos": 31.21432768873308,
+                "x_pos": 0.021825261483829368,
+                "y_pos": 0.011387374718413975,
+                "z_pos": 31.28461480878693,
                 "read_rate": 2.0,
                 "load_rate": 2.0,
                 "num_datapoints": 1,
@@ -217,6 +224,7 @@
             "filepath": "D:\\PyCharmProjects\\pittqlabsys-single-NV\\src\\Controller\\newport_conex_cc.py",
             "info": null,
             "settings": {
+                "get_data": false,
                 "connection_type": "SERIAL",
                 "xport": 14,
                 "x-address": 1,
@@ -232,6 +240,7 @@
             "filepath": "D:\\PyCharmProjects\\pittqlabsys-single-NV\\src\\Controller\\mux_control.py",
             "info": "\n    Device wrapper for MUX controller.\n    \n    The MUX controller uses a multiplexer to switch between\n    3 different trigger sources:\n    1. Confocal trigger - from MCL nanodrive\n    2. CW-ESR trigger - from PTS Arduino  (old setup)\n    3. Pulsed ESR trigger - from AWG\n    - Commands: \"1\"=confocal, \"2\"=cw-esr, \"3\"=pulsed\n    ",
             "settings": {
+                "get_data": false,
                 "ip_address": "192.168.2.85",
                 "port": 502,
                 "timeout": 5000,

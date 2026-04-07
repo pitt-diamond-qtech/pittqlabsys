@@ -50,7 +50,7 @@ _default_video_average = 100
 _server_port = 5001
 
 class Agilent8596E(Device):
-    _DEFAULT_SETTINGS = Parameter([
+    _DEFAULT_SETTINGS = Parameter(Device._get_base_settings() +[
         Parameter('connection_type', 'GPIB', ['GPIB'], 'type of connection to open to controller'),
         Parameter('port', 18, list(range(0, 31)), 'GPIB port on which to connect'),
         Parameter('GPIB_num', 0, int, 'GPIB device on which to connect'),
@@ -115,6 +115,7 @@ class Agilent8596E(Device):
     @property
     def _PROBES(self):
         return {
+            'get_data': 'choose whether you need to get data from this device or not',
             "center frequency": 'Center Frequency in MHz',
             "marker resolution": 'marker resolution',
             "correction values": 'correction values after set_amplitude_correction function',
@@ -152,6 +153,8 @@ class Agilent8596E(Device):
             return trace_raw_units
         elif key == "coupling":
             return self.agilent_analyzer.query(key_internal)
+        elif key == 'get_data':
+            return self.settings['get_data']
         return float(self.agilent_analyzer.query(key_internal))
 
     @property

@@ -41,7 +41,7 @@ class PulseBlaster(Device):
     instructions to it, starts/stops the sequence, closes the board, etc.
     """
 
-    _DEFAULT_SETTINGS = Parameter([
+    _DEFAULT_SETTINGS = Parameter(Device._get_base_settings() +[
         Parameter('clock_frequency', 400e6, float, 'clock frequency (Hz)', units="Hz"),
         Parameter('min_pulse', 2.5e-6, float, 'shortest pulse (s)', units="s"),
         Parameter('max_pulse', 1.123e7, float, 'longest pulse (s)', units="s"),
@@ -75,6 +75,10 @@ class PulseBlaster(Device):
             self._is_connected = False
             return False
 
+    _PROBES = {
+        'get_data': 'choose whether you need to get data from this device or not',
+    }
+
     # Check if the command has given an error. If so, print and return the error's description.
     def chk(self, error):
         self._dll.pb_get_error.restype = c_char_p
@@ -88,6 +92,10 @@ class PulseBlaster(Device):
     # Initialize the PB board.
     def init(self):
         return self.chk(self._dll.pb_init())
+
+    def read_probes(self, key=None):
+        if key == 'get_data':
+            return self.settings['get_data']
 
     # Set the clock of the PB board. NOTE: This does not actually set the clock of the PB board. The PB board must
     # be told what its frequency is. set_clock() must be called after init()

@@ -8,7 +8,7 @@ class USB_RFGenerator(Device):
     '''
     This class implements the Windfreak SynthUSBII. The device plugs into a usb port and is communicated with using pyvisa.
     '''
-    _DEFAULT_SETTINGS = Parameter([
+    _DEFAULT_SETTINGS = Parameter(Device._get_base_settings() +[
         Parameter('address','ASRL9::INSTR',str,'serial address of device'),
         Parameter('frequency',1000.0,float,'frequency in MHz'), #input 'frequency':0 to stop output
         Parameter('power',-4,[-4,-1,2,5],'power in dBm; datasheet says ±1 dBm for output'),
@@ -122,6 +122,7 @@ class USB_RFGenerator(Device):
     @property
     def _PROBES(self):
         return{
+            'get_data': 'choose whether you need to get data from this device or not',
             'frequency':'frequency of output in Hz',
             'power':'power of output with -4dBm=minimum, 5dBm=maximmum',
             'reference':'internal or external reference',
@@ -140,6 +141,8 @@ class USB_RFGenerator(Device):
         key_internal = self._param_to_internal(key)
         if key == 'power':
             value = self._internal_to_power(self._ask_value(key_internal))
+        elif key == 'get_data':
+            return self.settings['get_data']
         elif key == 'reference':
             value = self._internal_to_reference(self._ask_value(key_internal))
         elif key == 'phase_lock':

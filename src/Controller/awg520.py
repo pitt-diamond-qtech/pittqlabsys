@@ -708,7 +708,7 @@ class AWG520Device(Device):
     """Device wrapper for Tektronix AWG520 using your Device framework."""
     file_transfer_completed = pyqtSignal(bool, str)
 
-    _DEFAULT_SETTINGS = Parameter([
+    _DEFAULT_SETTINGS = Parameter(Device._get_base_settings() +[
         Parameter('ip_address', _IP_ADDRESS,str,'IP address of the AWG520'),
         Parameter('scpi_port', _PORT,int,'SCPI port of the AWG520'),
         Parameter('ftp_port', _FTP_PORT,int,'FTP port of the AWG520'),
@@ -720,7 +720,15 @@ class AWG520Device(Device):
 
 
     _PROBES = {
+        'get_data': 'choose whether you need to get data from this device or not',
         'status': 'AWG device status',
+        'ip_address':'IP address of the AWG520',
+        'scpi_port':'SCPI port of the AWG520',
+        'ftp_port':'FTP port of the AWG520',
+        'ftp_user':'FTP username of the AWG520',
+        'ftp_pass':'FTP password of the AWG520',
+        'seq_file':'Sequence file to upload to the AWG520',
+        'enable_iq':'Enable I/Q output on the AWG520',
     }
 
     def __init__(self, name=None, settings=None):
@@ -907,6 +915,22 @@ class AWG520Device(Device):
     def read_probes(self, key):
         if key == 'status':
             return self.driver.send_command('*STB?', query=True)
+        elif key == 'get_data':
+            return self.settings['get_data']
+        elif key == 'ip_address':
+            return self.settings['ip_address']
+        elif key == 'scpi_port':
+            return self.settings['scpi_port']
+        elif key == 'ftp_port':
+            return self.settings['ftp_port']
+        elif key == 'ftp_user':
+            return self.settings['ftp_user']
+        elif key == 'ftp_pass':
+            return self.settings['ftp_pass']
+        elif key == 'seq_file':
+            return self.settings['seq_file']
+        elif key == 'enable_iq':
+            return self.settings['enable_iq']
         raise KeyError(f"Unknown probe '{key}'")
 
     def cleanup(self):

@@ -17,7 +17,7 @@ class MCLNanoDrive(Device):
     """
     This class implements the Mad City Labs NanoDrive. The class loads the madlib.dll library to communicate with the device.
     """
-    _DEFAULT_SETTINGS = Parameter([Parameter('serial', 2849, [2850, 2849],
+    _DEFAULT_SETTINGS = Parameter(Device._get_base_settings() +[Parameter('serial', 2849, [2850, 2849],
                                              'serial of specific Nano Drive. Dutt labs LP100:2849 & HS3:2850 (20 bit systems)'),
                                    Parameter('x_pos', 0, float, 'position of x axis in microns'),
                                    Parameter('y_pos', 0, float, 'position of y axis in microns'),
@@ -376,6 +376,8 @@ class MCLNanoDrive(Device):
             self.DLL.MCL_SingleReadN.restype = c_double
             value = self._check_error(self.DLL.MCL_SingleReadN(axis, self.handle))
             print(value)
+        elif key == 'get_data':
+            return self.settings['get_data']
 
         elif key == 'read_waveform':  # reads waveform for given axis and stores sensor data in read_waveform
             ArrayType = c_double * self.settings[
@@ -418,6 +420,7 @@ class MCLNanoDrive(Device):
     @property
     def _PROBES(self):
         return {
+            'get_data': 'choose whether you need to get data from this device or not',
             # ask device
             'x_range': 'position range of x axis',
             'y_range': 'position range of y axis',

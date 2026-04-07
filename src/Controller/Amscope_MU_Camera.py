@@ -60,7 +60,7 @@ TOUPCAM_AETARGET_MAX              = 220      # target of auto exposure
 
 class Amscope_MU_Camera(Device):
     """This class implements the Windfreak SynthUSBII. The device plugs into a usb port and is communicated with using pyvisa."""
-    _DEFAULT_SETTINGS = Parameter([
+    _DEFAULT_SETTINGS = Parameter(Device._get_base_settings() +[
         Parameter('exposure gain', _DEFAULT_GAIN, int, 'camera exposure gain', min_value = TOUPCAM_EXPOGAIN_MIN, max_value = TOUPCAM_EXPOGAIN_MAX),
         Parameter('exposure time', _DEFAULT_EXPOSURE_TIME_US, int, 'camera exposure time in us', min_value = _MIN_EXPOSURE_TIME, max_value = _MAX_EXPOSURE_TIME),
         Parameter('brightness', _DEFAULT_BRIGHTNESS, int, 'camera brightness', min_value = _MIN_BRIGHTNESS, max_value = _MAX_BRIGHTNESS),
@@ -109,6 +109,7 @@ class Amscope_MU_Camera(Device):
     @property
     def _PROBES(self):
         return {
+            'get_data': 'choose whether you need to get data from this device or not',
             'exposure gain': 'exposure gain',
             'exposure time': 'exposure time',
             'Gamma': 'Gamma',
@@ -168,6 +169,8 @@ class Amscope_MU_Camera(Device):
         key_internal = self._param_to_internal(key)
         if key == 'exposure gain':
             value = self.amscope_cam.get_ExpoAGain()
+        elif key == 'get_data':
+            return self.settings['get_data']
         elif key == 'exposure time':
             value = self.amscope_cam.get_ExpoTime()
         elif key == 'Gamma':
