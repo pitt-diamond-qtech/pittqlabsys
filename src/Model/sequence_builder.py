@@ -180,6 +180,7 @@ class SequenceBuilder:
             if not description.variables:
                 # No variables to scan, return single sequence
                 optimized_sequence = self.build_sequence(description)
+                self.sample_rate = optimized_sequence["sample_rate"]
                 main_sequence = optimized_sequence.sequences[0]
                 main_sequence.name = f"{description.name}_scan"
                 return [main_sequence]

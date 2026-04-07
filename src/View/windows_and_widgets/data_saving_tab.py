@@ -304,7 +304,7 @@ class data_saving_tab_view(QWidget, Ui_Form):
 
     def build_hdf5_tree(self):
         model = QStandardItemModel()
-        model.setHorizontalHeaderLabels(["HDF5 Content"])
+        model.setHorizontalHeaderLabels(["HDF5 Content", "Value"])
 
         root = model.invisibleRootItem()
 
@@ -329,14 +329,46 @@ class data_saving_tab_view(QWidget, Ui_Form):
             # --- ICONS ---
             if is_image_array(value):
                 parent.setIcon(QIcon("icons/image.png"))
+                # Add size info in second column
+                second_col = QStandardItem(f"{value.shape[0]}x{value.shape[1]}")
+                parent.parent().setChild(parent.row(), 1, second_col)
+            elif isinstance(value, np.ndarray) and not is_image_array(value):
+                # Vector or matrix (non-image array)
+                if len(value.shape) == 1:
+                    # 1D array (vector)
+                    if value.shape[0] == 1:
+                        # Single element array - show as "[value]" to distinguish from scalar
+                        second_col = QStandardItem(f"[{normalize_value(value[0])}]")
+                    else:
+                        # Multi-element vector - show length
+                        second_col = QStandardItem(f"Vector ({len(value)})")
+                elif len(value.shape) == 2:
+                    # 2D matrix
+                    if value.shape[0] == 1 and value.shape[1] == 1:
+                        # 1x1 matrix - show as "[[value]]"
+                        second_col = QStandardItem(f"[[{normalize_value(value[0, 0])}]]")
+                    else:
+                        # Normal matrix - show dimensions
+                        second_col = QStandardItem(f"{value.shape[0]}x{value.shape[1]}")
+                else:
+                    # Higher dimensional arrays
+                    second_col = QStandardItem(f"{'x'.join(str(d) for d in value.shape)}")
+                parent.parent().setChild(parent.row(), 1, second_col)
+
             elif isinstance(value, str):
                 parent.setIcon(QIcon("icons/text.png"))
+                # Display string directly in second column
+                second_col = QStandardItem(value[:50] + "..." if len(value) > 50 else value)
+                parent.parent().setChild(parent.row(), 1, second_col)
             elif np.isscalar(value):
                 parent.setIcon(QIcon("icons/number.png"))
-
-            # --- TOOLTIP PREVIEW ---
-            if is_scalar_or_small(value):
-                parent.setToolTip(str(normalize_value(value)))
+                # Display scalar directly - no brackets
+                second_col = QStandardItem(str(normalize_value(value)))
+                parent.parent().setChild(parent.row(), 1, second_col)
+        else:
+                # Other types (lists, dicts, etc.)
+                second_col = QStandardItem(f"<{type(value).__name__}>")
+                parent.parent().setChild(parent.row(), 1, second_col)
 
         return model
 
@@ -355,21 +387,39 @@ class data_saving_tab_view(QWidget, Ui_Form):
             view_action = menu.addAction("View Image")
             save_action = menu.addAction("Export as PNG")
 
-        # --- SCALAR / SMALL DATA ---
-        elif is_scalar_or_small(value):
-            view_value_action = menu.addAction("View Value")
+            action = menu.exec_(self.hdf5_tree.viewport().mapToGlobal(pos))
 
-        action = menu.exec_(self.hdf5_tree.viewport().mapToGlobal(pos))
-
-        if is_image_array(value):
             if action == view_action:
                 ImageViewer(value, title=item.text(), parent=self).exec_()
             elif action == save_action:
                 self.export_png(value)
 
-        elif is_scalar_or_small(value):
+        # --- VECTORS AND MATRICES (non-image arrays) ---
+        elif isinstance(value, np.ndarray) and not is_image_array(value):
+            view_value_action = menu.addAction("View Array Details")
+
+            action = menu.exec_(self.hdf5_tree.viewport().mapToGlobal(pos))
+
             if action == view_value_action:
-                ValueViewer(item.text(), normalize_value(value), parent=self).exec_()
+                ValueViewer(item.text(), f"Shape: {value.shape}\n\nData:\n{value}", parent=self).exec_()
+
+        # --- STRINGS ---
+        elif isinstance(value, str):
+            view_string_action = menu.addAction("View Full String")
+
+            action = menu.exec_(self.hdf5_tree.viewport().mapToGlobal(pos))
+
+            if action == view_string_action:
+                ValueViewer(item.text(), value, parent=self).exec_()
+
+        # --- SCALARS (ints, floats, etc.) ---
+        elif np.isscalar(value):
+            view_value_action = menu.addAction("View Value")
+
+            action = menu.exec_(self.hdf5_tree.viewport().mapToGlobal(pos))
+
+            if action == view_value_action:
+                ValueViewer(item.text(), str(normalize_value(value)), parent=self).exec_()
 
     def export_png(self, img):
         path, _ = QFileDialog.getSaveFileName(
@@ -396,6 +446,10 @@ class data_saving_tab_view(QWidget, Ui_Form):
         self.hdf5_model = self.build_hdf5_tree()
         self.hdf5_tree.setModel(self.hdf5_model)
         self.hdf5_tree.expandAll()
+
+        # Set column widths
+        self.hdf5_tree.setColumnWidth(0, 300)  # Name column
+        self.hdf5_tree.setColumnWidth(1, 200)  # Value column
 
 
 class ImageViewer(QDialog):

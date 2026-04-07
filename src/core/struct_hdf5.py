@@ -6,6 +6,7 @@ import numpy as np
 import h5py
 from typing import Any
 from src import ur  # pint unit registry
+import datetime
 from src.core import Parameter
 
 # ============================================================
@@ -58,6 +59,7 @@ def save_data(filename, obj, mode="w", swmr=True):
         if isinstance(obj, StructArray):
             _write_structarray(f, obj)
         else:
+            print(f"obj{obj}")
             _write_mystruct(f, obj)
 
         if swmr and mode in ("w", "r+"):
@@ -106,16 +108,23 @@ def _write_value(h5group, name, value):
         for k, v in value.items():
             _write_value(grp, k, v)
 
+    elif isinstance(value, datetime.datetime):
+        h5group.attrs[name] = value.timestamp()
+
     # Everything else → dataset
     else:
-        arr = np.asarray(value)
-        if name in h5group:
-            del h5group[name]
-        h5group.create_dataset(
+        try:
+            arr = np.asarray(value)
+            if name in h5group:
+                del h5group[name]
+            h5group.create_dataset(
             name,
             data=arr,
-            chunks=True
-        )
+            chunks=True)
+        except Exception:
+            h5group.attrs[name] = str(value)
+            """print(f"Failed to create {name}")
+            raise Exception"""
 
 
 # ============================================================
