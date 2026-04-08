@@ -607,7 +607,7 @@ class ODMRPulsedExperiment(Experiment):
             success = self.data["success"],
             trigger_delay = self.trigger_delay
             )
-        filename = f"{filename}_{self.end_time}"
+        filename = f"{filename}_1"
         save_data(filename, root)
 
     def generate_awg_sequences_awg_triggering_adwin_case(self) -> bool:

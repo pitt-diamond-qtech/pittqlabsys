@@ -3,7 +3,144 @@
         "experiments_folder": "",
         "data_folder": ""
     },
-    "experiments_hidden_parameters": {},
+    "experiments_hidden_parameters": {
+        "ODMRPulsedExperiment": {
+            "sequence": {
+                "file_path": false,
+                "load_from_file": false,
+                "text": false
+            },
+            "microwave": {
+                "frequency range": false,
+                "power": false
+            },
+            "green_laser": {
+                "power": false,
+                "wavelength": false
+            },
+            "delays": {
+                "green_laser_delay": false,
+                "mw_delay": false,
+                "iq_delay": false,
+                "counter_delay": false,
+                "trigger_delay": false
+            },
+            "adwin": {
+                "instance": true,
+                "settings": {
+                    "get_data": false,
+                    "process_1": {
+                        "load": false,
+                        "delay": false,
+                        "running": false
+                    },
+                    "process_2": {
+                        "load": false,
+                        "delay": false,
+                        "running": false
+                    },
+                    "process_3": {
+                        "load": false,
+                        "delay": false,
+                        "running": false
+                    },
+                    "process_4": {
+                        "load": false,
+                        "delay": false,
+                        "running": false
+                    },
+                    "process_5": {
+                        "load": false,
+                        "delay": false,
+                        "running": false
+                    },
+                    "process_6": {
+                        "load": false,
+                        "delay": false,
+                        "running": false
+                    },
+                    "process_7": {
+                        "load": false,
+                        "delay": false,
+                        "running": false
+                    },
+                    "process_8": {
+                        "load": false,
+                        "delay": false,
+                        "running": false
+                    },
+                    "process_9": {
+                        "load": false,
+                        "delay": false,
+                        "running": false
+                    },
+                    "process_10": {
+                        "load": false,
+                        "delay": false,
+                        "running": false
+                    }
+                }
+            },
+            "proteus": {
+                "instance": true,
+                "settings": {
+                    "get_data": false,
+                    "ip_address": false,
+                    "slot_id": false
+                }
+            },
+            "scan": {
+                "preview_points": false,
+                "auto_generate_files": false,
+                "output_directory": false
+            },
+            "path": false,
+            "filename": false,
+            "tag": false,
+            "save": false,
+            "sg384": {
+                "instance": true,
+                "settings": {
+                    "get_data": false,
+                    "connection_type": false,
+                    "ip_address": false,
+                    "port": false,
+                    "connection_timeout": false,
+                    "socket_timeout": false,
+                    "visa_resource": false,
+                    "baud_rate": false,
+                    "frequency": false,
+                    "power": false,
+                    "phase": false,
+                    "amplitude": false,
+                    "enable_output": false,
+                    "enable_modulation": false,
+                    "modulation_type": false,
+                    "modulation_function": false,
+                    "pulse_modulation_function": false,
+                    "modulation_depth": false,
+                    "dev_width": false,
+                    "mod_rate": false,
+                    "sweep_function": false,
+                    "sweep_rate": false,
+                    "sweep_deviation": false,
+                    "sweep_center_frequency": false,
+                    "sweep_max_frequency": false,
+                    "sweep_min_frequency": false
+                }
+            },
+            "mux_control": {
+                "instance": true,
+                "settings": {
+                    "get_data": false,
+                    "ip_address": false,
+                    "port": false,
+                    "timeout": false,
+                    "auto_connect": false
+                }
+            }
+        }
+    },
     "devices": {
         "awg520": {
             "class": "AWG520Device",
@@ -33,10 +170,10 @@
                 "socket_timeout": 5.0,
                 "visa_resource": "",
                 "baud_rate": 115200,
-                "frequency": 1000000000.0,
+                "frequency": 2870000000.0,
                 "power": -10,
                 "phase": 0,
-                "amplitude": -10,
+                "amplitude": -10.0,
                 "enable_output": false,
                 "enable_modulation": true,
                 "modulation_type": "FM",
@@ -88,7 +225,7 @@
             "settings": {
                 "get_data": false,
                 "process_1": {
-                    "load": "",
+                    "load": "D:\\PyCharmProjects\\pittqlabsys-single-NV\\src\\Controller\\binary_files\\ADbasic\\adwin_triggering_proteus.TB1",
                     "delay": 3000,
                     "running": false
                 },
@@ -164,9 +301,9 @@
             "settings": {
                 "get_data": false,
                 "serial": 2849,
-                "x_pos": 0.021825261483829368,
-                "y_pos": 0.011387374718413975,
-                "z_pos": 31.28461480878693,
+                "x_pos": 0.021728044299271543,
+                "y_pos": 0.011222339793323039,
+                "z_pos": 31.30244022094536,
                 "read_rate": 2.0,
                 "load_rate": 2.0,
                 "num_datapoints": 1,
@@ -248,7 +385,161 @@
             }
         }
     },
-    "experiments": {},
+    "experiments": {
+        "ODMRPulsedExperiment": {
+            "class": "ODMRPulsedExperiment",
+            "filepath": "D:\\PyCharmProjects\\pittqlabsys-single-NV\\src\\Model\\experiments\\odmr_pulsed.py",
+            "info": "\n    Pulsed ODMR experiment using proteus for sequence generation and ADwin for counting.\n    \n    Features:\n    - Text-based sequence definition using our sequence language\n    - Sequence preview with first 10 scan points\n    - Microwave frequency, power, and delay parameters\n    - Laser power and wavelength configuration\n    - AWG520 triggers ADwin for photon counting\n    - Memory optimization for long sequences\n    ",
+            "package": "Model",
+            "devices": {
+                "proteus": {
+                    "class": "ProteusDevice",
+                    "settings": {
+                        "get_data": false,
+                        "ip_address": "192.168.2.4",
+                        "slot_id": 6
+                    }
+                },
+                "adwin": {
+                    "class": "AdwinGoldDevice",
+                    "settings": {
+                        "get_data": false,
+                        "process_1": {
+                            "load": "D:\\PyCharmProjects\\pittqlabsys-single-NV\\src\\Controller\\binary_files\\ADbasic\\adwin_triggering_proteus.TB1",
+                            "delay": 3000,
+                            "running": false
+                        },
+                        "process_2": {
+                            "load": "",
+                            "delay": 3000,
+                            "running": false
+                        },
+                        "process_3": {
+                            "load": "",
+                            "delay": 3000,
+                            "running": false
+                        },
+                        "process_4": {
+                            "load": "",
+                            "delay": 3000,
+                            "running": false
+                        },
+                        "process_5": {
+                            "load": "",
+                            "delay": 3000,
+                            "running": false
+                        },
+                        "process_6": {
+                            "load": "",
+                            "delay": 3000,
+                            "running": false
+                        },
+                        "process_7": {
+                            "load": "",
+                            "delay": 3000,
+                            "running": false
+                        },
+                        "process_8": {
+                            "load": "",
+                            "delay": 3000,
+                            "running": false
+                        },
+                        "process_9": {
+                            "load": "",
+                            "delay": 3000,
+                            "running": false
+                        },
+                        "process_10": {
+                            "load": "",
+                            "delay": 3000,
+                            "running": false
+                        }
+                    }
+                },
+                "sg384": {
+                    "class": "SG384Generator",
+                    "settings": {
+                        "get_data": false,
+                        "connection_type": "LAN",
+                        "ip_address": "192.168.2.217",
+                        "port": 5025,
+                        "connection_timeout": 10.0,
+                        "socket_timeout": 5.0,
+                        "visa_resource": "",
+                        "baud_rate": 115200,
+                        "frequency": 2870000000.0,
+                        "power": -10,
+                        "phase": 0,
+                        "amplitude": -10.0,
+                        "enable_output": false,
+                        "enable_modulation": true,
+                        "modulation_type": "FM",
+                        "modulation_function": "Sine",
+                        "pulse_modulation_function": "Square",
+                        "modulation_depth": 1000000.0,
+                        "dev_width": 1000000.0,
+                        "mod_rate": 10000000.0,
+                        "sweep_function": "Triangle",
+                        "sweep_rate": 1.0,
+                        "sweep_deviation": 1000000.0,
+                        "sweep_center_frequency": 2870000000.0,
+                        "sweep_max_frequency": 4100000000.0,
+                        "sweep_min_frequency": 1900000000.0
+                    }
+                },
+                "mux_control": {
+                    "class": "MUXControlDevice",
+                    "settings": {
+                        "get_data": false,
+                        "ip_address": "192.168.2.85",
+                        "port": 502,
+                        "timeout": 5000,
+                        "auto_connect": true
+                    }
+                }
+            },
+            "settings": {
+                "sequence": {
+                    "file_path": "D:/Data/jannet_trabelsi/March2026/odmr_sequence.txt",
+                    "load_from_file": true,
+                    "text": "sequence: name=odmr_pulsed, type=odmr, duration=1002500ns, sample_rate=1GHz, repeat_count=50000\nvariable pulse_duration, start=50ns, stop=500ns, steps=20\nmarker, laser_int_1 on channel 1 at 0ns, 500ns\npi/2 pulse on channel 1 at 500ns, gaussian, pulse_duration, 1.0\npi/2 pulse on channel 2 at 500ns, gaussian, pulse_duration, 1.0 \nwait pulse on channel 1 at pulse_duration+0.000000500, square, 2*pulse_duration, 0.0\nwait pulse on channel 2 at pulse_duration+0.000000500, square, 2*pulse_duration, 0.0\npi/2 pulse on channel 1 at 3*pulse_duration+0.000000500, gaussian, pulse_duration, 1.0\npi/2 pulse on channel 2 at 3*pulse_duration+0.000000500, gaussian, pulse_duration, 1.0\nmarker, laser_readout_1 on channel 1 at 2500ns, 1ms\nmarker, readout_counts_1 on channel 2 at 2500ns, 300ns\nmarker, reference_counts_1 on channel 2 at 1002200ns, 300ns"
+                },
+                "microwave": {
+                    "frequency range": [
+                        2870000000.0
+                    ],
+                    "power": -10.0
+                },
+                "green_laser": {
+                    "power": 1.0,
+                    "wavelength": 532.0
+                },
+                "delays": {
+                    "green_laser_delay": 50.0,
+                    "mw_delay": 25.0,
+                    "iq_delay": 30.0,
+                    "counter_delay": 15.0,
+                    "trigger_delay": 0.0
+                },
+                "adwin": {
+                    "count_time": 300,
+                    "reset_time": 1750000
+                },
+                "proteus": {
+                    "proteus_response_delay": 306.5
+                },
+                "scan": {
+                    "preview_points": 10,
+                    "auto_generate_files": true,
+                    "output_directory": "odmr_pulsed_output"
+                },
+                "path": "D:/Data",
+                "filename": "odmr_pulsed_output",
+                "tag": "ODMRPulsedExperiment",
+                "save": false
+            }
+        }
+    },
     "probes": {},
     "last_save_path": "D:\\PyCharmProjects\\pittqlabsys-single-NV\\src\\gui_config.json"
 }

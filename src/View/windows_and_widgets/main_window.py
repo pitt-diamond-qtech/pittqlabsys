@@ -1002,6 +1002,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
             if self.getbasicdatacheckBox.isChecked():
                 print("The checkbox is CHECKED.")
+                for device_name, device_obj in self.devices.items():
+                    print(device_name)
+                    if device_obj.settings['get_data'] == True:
+                        print(f"device {device_name}'s data is included")
+                    else:
+                        print(f"device {device_name}'s data is NOT included")
             else:
                 print("The checkbox is UNCHECKED.")
 
