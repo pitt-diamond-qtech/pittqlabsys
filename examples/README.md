@@ -78,7 +78,7 @@ python examples/galvo_scan_example.py --no-save
 - Counts photons at each position
 - Uses mock devices on non-Windows platforms
 - Saves data as `galvo_scan_YYYYMMDD_HHMMSS.npz`
-- **Status**: ✅ Working with mock hardware
+- **Status**: Working with mock hardware
 
 ### Confocal Scan Example
 
