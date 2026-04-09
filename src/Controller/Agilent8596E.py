@@ -30,7 +30,7 @@ import pyvisa.errors
 import numpy as np
 from src.core import Device, Parameter
 import pandas as pd
-from src.core.struct_hdf5 import save_parameters_hdf5
+from src.core.struct_hdf5 import save_parameters_hdf5, MyStruct, parameter_to_mystruct
 
 # LIMITS
 _max_freq = 12800
@@ -48,9 +48,10 @@ _default_resolution_BW = 0.1
 _default_video_BW = 1
 _default_video_average = 100
 _server_port = 5001
-
+#Device._get_base_settings() +
 class Agilent8596E(Device):
-    _DEFAULT_SETTINGS = Parameter(Device._get_base_settings() +[
+    _DEFAULT_SETTINGS = Parameter([
+        Parameter('get_data', True, [False, True], 'choose whether you need to get data from this device or not'),
         Parameter('connection_type', 'GPIB', ['GPIB'], 'type of connection to open to controller'),
         Parameter('port', 18, list(range(0, 31)), 'GPIB port on which to connect'),
         Parameter('GPIB_num', 0, int, 'GPIB device on which to connect'),
@@ -141,6 +142,8 @@ class Agilent8596E(Device):
         assert (
             self._settings_initialized)  # will cause read_probes to fail if settings (and thus also connection) not yet initialized
         assert key in list(self._PROBES.keys())
+        if key == 'get_data':
+            return self.settings['get_data']
         key_internal = self._param_to_internal(key)
         if key == "trace AP":
             value = self.agilent_analyzer.query(key_internal)
@@ -153,8 +156,6 @@ class Agilent8596E(Device):
             return trace_raw_units
         elif key == "coupling":
             return self.agilent_analyzer.query(key_internal)
-        elif key == 'get_data':
-            return self.settings['get_data']
         return float(self.agilent_analyzer.query(key_internal))
 
     @property
@@ -210,6 +211,7 @@ class Agilent8596E(Device):
         elif param == "id":
             return "ID?;"
         else:
+            print(f" cannot find param {param}")
             raise KeyError
 
     def _param_to_internal_write(self, param):
@@ -890,9 +892,17 @@ MDS W transfers 802 bytes of trace data with no loss of resolution."""
         A = self.agilent_analyzer.query("ACTDEF M_BW?;")  # Queries the definition of the M-BW function.
         return A
 
+    def get_data(self):
+        """ this is overriding the function in the parent device class to include self.data.trace as it is not present in the parameters"""
+        self.data = MyStruct()
+        self.data.params = parameter_to_mystruct(self.settings)
+        self.data.trace = np.array(self.read_probes("trace AP"))
+        return self.data
+
 
 if __name__ == '__main__':
     ag = Agilent8596E()
+    ag.update({'span': 300})
 
     # TESTS RAN SUCCESSFULLY:
     # first test: PAGE 52: Successful

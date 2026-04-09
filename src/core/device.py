@@ -19,6 +19,7 @@ from copy import deepcopy
 from importlib import import_module
 from src.core.helper_functions import module_name_from_path
 from src.core.read_write_functions import save_aqs_file
+from src.core.struct_hdf5 import MyStruct, parameter_to_mystruct
 
 
 class Device:
@@ -84,6 +85,16 @@ class Device:
         returns the default parameter_list of the device this function should be over written in any subclass
         """
         return NotImplementedError
+
+    def get_data(self):
+        """ data saving: any experiment that clicks Get Basic Data button can have the devices selected True in the devices tab for get_data saved along with the experiment data.
+        If your device data that needs to be saved is only the parameters, please refrain from overriding the function. However, if you need to add more data, please override this function
+        For example, please check Agilent8596E get_data function that overrides this function and adds self.data.trace. if you have a camera, you can have self.data.image and override this
+        function to share that data
+        For more info, please refer to github: https://github.com/duttlab-sys/pittqlabsys-single-NV/tree/main/docs/guides/development/data_saving_documentation.pdf"""
+        self.data = MyStruct()
+        self.data.params = parameter_to_mystruct(self.settings)
+        return self.data
 
     def update(self, settings):
         """

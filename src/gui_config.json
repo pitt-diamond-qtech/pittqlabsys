@@ -205,7 +205,7 @@
             "filepath": "D:\\PyCharmProjects\\pittqlabsys-single-NV\\src\\Controller\\Agilent8596E.py",
             "info": null,
             "settings": {
-                "get_data": false,
+                "get_data": true,
                 "connection_type": "GPIB",
                 "port": 18,
                 "GPIB_num": 0,
@@ -301,9 +301,9 @@
             "settings": {
                 "get_data": false,
                 "serial": 2849,
-                "x_pos": 0.021728044299271543,
-                "y_pos": 0.011222339793323039,
-                "z_pos": 31.30244022094536,
+                "x_pos": 0.01395066915771015,
+                "y_pos": 0.0047859893876467064,
+                "z_pos": 31.31733860441405,
                 "read_rate": 2.0,
                 "load_rate": 2.0,
                 "num_datapoints": 1,

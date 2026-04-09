@@ -262,9 +262,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
             self.tree_experiments.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
             self.tree_probes.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
-            self.tree_settings.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
+            #jano: self.tree_settings.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
 
-            self.tree_gui_settings.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
+            #jano: self.tree_gui_settings.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
             self.tree_gui_settings.doubleClicked.connect(self.edit_tree_item)
 
             self.current_experiment = None
@@ -284,7 +284,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.tree_experiments.header().setStretchLastSection(True)
         def connect_controls():
             gui_logger.debug("Connecting controls")
-            
+
             # Debug: Check if menu actions exist
             gui_logger.debug(f"actionExport exists: {hasattr(self, 'actionExport')}")
             if hasattr(self, 'actionExport'):
@@ -1000,21 +1000,23 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             #         self.expanded_items.append(someitem.name)
             self.experiment_start_time = datetime.datetime.now()
 
-            if self.getbasicdatacheckBox.isChecked():
-                print("The checkbox is CHECKED.")
-                for device_name, device_obj in self.devices.items():
-                    print(device_name)
-                    if device_obj.settings['get_data'] == True:
-                        print(f"device {device_name}'s data is included")
-                    else:
-                        print(f"device {device_name}'s data is NOT included")
-            else:
-                print("The checkbox is UNCHECKED.")
-
             if item is not None:
                 # get experiment and update settings from tree
                 self.running_item = item
                 experiment, path_to_experiment, experiment_item = item.get_experiment()
+                if self.getbasicdatacheckBox.isChecked():
+                    checked_devices = []
+                    print("The checkbox is CHECKED.")
+                    for device_name, device_obj in self.devices.items():
+                        print(device_name)
+                        if device_obj.settings['get_data'] == True:
+                            print(f"device {device_name}'s data is included")
+                            checked_devices.append(device_obj)
+                        else:
+                            print(f"device {device_name}'s data is NOT included")
+                    experiment.get_checked_devices(checked_devices)
+                else:
+                    print("The checkbox is UNCHECKED.")
                 
                 gui_logger.info(f"Starting experiment: {experiment.name}")
 
@@ -1603,6 +1605,14 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             changed_col: the column that changed (if called from signal)
         """
         # Prevent recursion
+        print(f"jano inside update_parameters")
+        print(f"jano treeWidget.item(){treeWidget}")
+        print(f"jano changed_item.name{changed_item.name}")
+        print(f"jano changed_col{changed_col}")
+        if changed_item.name == 'get_data' or changed_item.name == 'span':
+            print(f"jano changed {changed_item.name} to {changed_item.value}")
+            treeWidget.update({changed_item.name: changed_item.value})
+            return
         if getattr(self, "_updating_parameters", False) or getattr(self, "_programmatic_update", False):
             return
 
@@ -1621,6 +1631,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             return
 
         item = changed_item
+        print(f" jano changed_item: {changed_item} changed_col {changed_col} treeWidget {treeWidget} device, path_to_device = item.get_device() {item.get_device()}")
         
         self._updating_parameters = True
         try:
@@ -2041,22 +2052,25 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.log(msg)
 
     def _handle_delegate_validation_result(self, item, param_name, result):
-        """
-        Handles validation results from the NumberClampDelegate.
-        This provides visual feedback, logging, and GUI history updates.
-        """
+
+        """Handles validation results from the NumberClampDelegate.
+        This provides visual feedback, logging, and GUI history updates."""
+
         gui_logger.debug(f"Received delegate validation result for {item.name}: {result}")
-        
+        print(f"jano item.name: {item.name} param_name {param_name} result {result}")
+        if item.name == 'get_data' or item.name == 'span':
+            self.update_parameters()
+
         # Update the item's display text if the actual value is different
         if result.get('actual_value') is not None and result.get('actual_value') != result.get('requested_value'):
             # Update the display text to show the actual value
             item.setText(1, str(result['actual_value']))
             item.value = result['actual_value']
-        
+
         # Set visual feedback using the new model-based approach
         reason = result.get('reason', 'unknown')
         gui_logger.info(f"MAIN WINDOW: Processing delegate result for {item.name}, reason: {reason}")
-        
+
         # Map reason to visual feedback status
         if reason == 'clamped':
             feedback_status = 'clamped'
@@ -2066,11 +2080,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             feedback_status = 'success'
         else:
             feedback_status = None
-        
+
         # Apply visual feedback if we have a status
         if feedback_status:
             gui_logger.debug(f"MAIN WINDOW: Applying visual feedback '{feedback_status}' for item {item.name}")
-            
+
             # Find the index for this item
             tree_widget = None
             for tree in [self.tree_settings, self.tree_experiments]:
@@ -2079,17 +2093,19 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                     tree_widget = tree
                     gui_logger.debug(f"MAIN WINDOW: Found item {item.name} in tree {tree.objectName()}")
                     break
-            
+            print(f"jano tree_widget {tree_widget}")
+            #print(f"jano tree_widget.objectName() {tree_widget.objectName()}")
+
             if tree_widget:
                 # Find the index for the value column (column 1)
                 item_index = tree_widget.indexFromItem(item, 1)
                 gui_logger.debug(f"MAIN WINDOW: Item index for {item.name}: {item_index.isValid()}")
-                
+
                 if item_index.isValid():
                     # Get the delegate and use its _color_index method
                     delegate = tree_widget.itemDelegateForColumn(1)
                     gui_logger.debug(f"MAIN WINDOW: Delegate type: {type(delegate)}")
-                    
+
                     if hasattr(delegate, '_color_index'):
                         gui_logger.debug(f"MAIN WINDOW: Calling _color_index for {item.name} with status '{feedback_status}'")
                         delegate._color_index(tree_widget, item_index, feedback_status)
@@ -2099,11 +2115,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                     gui_logger.warning(f"MAIN WINDOW: Invalid index for item {item.name}")
             else:
                 gui_logger.warning(f"MAIN WINDOW: Could not find tree widget for item {item.name}")
-        
+
         # Log the message to GUI history
         message = result.get('message', 'Parameter validation completed')
         self.log(message)
-        
+
         # Show notification
         is_error = reason == 'error'
         self._show_parameter_notification(message, is_error=is_error)
@@ -2118,6 +2134,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             is_error: Whether this is an error message
         """
         # Log the message
+        print(f" jano _show_parameter_notification message {message} is_error: {is_error}")
         if is_error:
             gui_logger.error(f"Parameter notification (ERROR): {message}")
         else:

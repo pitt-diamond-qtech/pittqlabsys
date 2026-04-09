@@ -557,13 +557,13 @@ class ODMRPulsedExperiment(Experiment):
         # Run experiment
         print("running exp")
         self.logger.info("Running experiment...")
-        self.start_time = datetime.datetime.now()
+        start_time = datetime.datetime.now()
+        self.s_t = start_time.strftime("%m_%d_%Y_%H:%M:%S")
         results = self.run_experiment(self.settings['microwave']['frequency range'])
-        self.end_time = datetime.datetime.now()
+        end_time = datetime.datetime.now()
+        self.e_t = end_time.strftime("%m_%d_%Y_%H:%M:%S")
         self.data = results
-        filename = f"{self.settings['path']}\{self.settings['filename']}"
-        filename = Path(filename)
-        self.save_hdf5(filename)
+        self.save_hdf5()
         if results['success']:
             self.logger.info("Experiment completed successfully!")
             self.logger.info(f"Frequencies scanned: {[f / 1e9 for f in results['frequencies']]} GHz")
@@ -575,20 +575,23 @@ class ODMRPulsedExperiment(Experiment):
         self.logger.info("\nODMR Pulsed Experiment ready!")
         print("experiment ready")
 
-    def save_hdf5(self, filename):
-        root = MyStruct()
+    def save_hdf5(self):
+        """this function defines its custom data and metadata to be saved and then calls the
+        save_hdf_data function that is in the parent Experiment class, which adds the external
+        devices in case you ever check the Get Basic Data checkbox in the GUI"""
+        structure_to_save = MyStruct()
         signal_counts = self.data["signal_counts"]
         reference_counts = self.data["reference_counts"]
         total_counts = self.data["total_counts"]
-        root.data = MyStruct(
+        structure_to_save.data = MyStruct(
             signal_counts=signal_counts,
             reference_counts = reference_counts,
             total_counts = total_counts
         )
-        root.meta = MyStruct(
+        structure_to_save.meta = MyStruct(
             count_time = self.count_time,
             counter_delay = self.counter_delay,
-            end_time = self.end_time,
+            end_time = self.e_t,
             frequency_range = self.data['frequencies'],
             green_laser_delay = self.green_laser_delay,
             green_laser_power = self.green_laser_power,
@@ -603,12 +606,12 @@ class ODMRPulsedExperiment(Experiment):
             sampling_rate = self.sampling_rate,
             sequence_text=self.sequence_text,
             sequence_duration = self.sequence_duration,
-            start_time = self.start_time,
+            start_time = self.s_t,
             success = self.data["success"],
             trigger_delay = self.trigger_delay
             )
-        filename = f"{filename}_1"
-        save_data(filename, root)
+        structure_to_save.devices = self.devices
+        self.save_hdf_data(structure_to_save)
 
     def generate_awg_sequences_awg_triggering_adwin_case(self) -> bool:
         """
