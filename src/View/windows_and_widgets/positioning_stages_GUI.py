@@ -120,8 +120,8 @@ class positioning_stages_view(QWidget, Ui_Form):
         self.z_dec_2.clicked.connect(lambda: self.change_position("z", 2, 0))
         self.z_inc_3.clicked.connect(lambda: self.change_position("z", 3, 1))
         self.z_dec_3.clicked.connect(lambda: self.change_position("z", 3, 0))
-        self.save_button.clicked.connect(lambda: self.save)
-        self.Find_NV_Button.clicked.connect(lambda: self.find_NV)
+        self.save_button.clicked.connect(self.save)
+        self.Find_NV_Button.clicked.connect(self.find_NV)
         # Connect combobox signals to emitters
         self.display_option.currentTextChanged.connect(self.on_display_choice_changed)
         self.snapshot_live_comboBox.currentTextChanged.connect(self.on_snapshot_or_live_changed)
@@ -412,7 +412,9 @@ class positioning_stages_view(QWidget, Ui_Form):
         return self.snapshot_live_comboBox.currentText()
 
     def save(self):
+        print("save is pressed 1")
         self.save_or_find_nv_button_clicked.emit(1)
+        print("save is pressed 2")
 
         # --- UI → keys ---
         sample_selection = self.Sample_Selector_comboBox.currentText()
@@ -754,6 +756,7 @@ class positioning_stages_view(QWidget, Ui_Form):
     def find_NV(self) -> np.ndarray:
 
         self.save_or_find_nv_button_clicked.emit(1)
+        print("find_NV is pressed")
         path = self.open_file_dialog(self.data_saving_path)
         if not path:
             return

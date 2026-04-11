@@ -16,7 +16,7 @@ class Ui_Form(object):
         Form.setObjectName("Form")
         Form.resize(1268, 857)
         self.widget = QtWidgets.QWidget(Form)
-        self.widget.setGeometry(QtCore.QRect(10, 10, 421, 521))
+        self.widget.setGeometry(QtCore.QRect(10, 10, 421, 561))
         self.widget.setObjectName("widget")
         self.connectButton_2 = QtWidgets.QPushButton(self.widget)
         self.connectButton_2.setGeometry(QtCore.QRect(60, 140, 201, 23))

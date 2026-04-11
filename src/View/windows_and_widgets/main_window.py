@@ -469,7 +469,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         #     self.config_filepath = os.path.join(self._DEFAULT_CONFIG["gui_settings"], 'gui.aqs')
 
     def update_current_data_saving_path(self):
+        print("updating current path")
         self.data_saving_path = self.data_saving_tab.current_path()
+        print(f"self.data_saving_path {self.data_saving_path}")
         self.positioning_tab.data_saving_path = self.data_saving_path
 
     def take_frame(self):
