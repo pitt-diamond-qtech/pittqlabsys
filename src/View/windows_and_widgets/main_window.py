@@ -227,7 +227,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.data_saving_tab = data_saving_tab_view()
         self.tabWidget.addTab(self.data_saving_tab, "Data Saving")
         self.data_saving_path = self.data_saving_tab.current_path() # @
-        self.positioning_tab = positioning_stages_view()
+        self.positioning_tab = positioning_stages_view(self)
         self.tabWidget.addTab(self.positioning_tab, "Positioning")
         self.display_choice = self.positioning_tab.display_choice()
         self.snapshot_or_live = self.positioning_tab.snapshot_or_live()
@@ -262,9 +262,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
             self.tree_experiments.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
             self.tree_probes.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
-            #jano: self.tree_settings.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
+            #commented by Jannet Trabelsi: self.tree_settings.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
 
-            #jano: self.tree_gui_settings.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
+            #commented by Jannet Trabelsi: self.tree_gui_settings.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
             self.tree_gui_settings.doubleClicked.connect(self.edit_tree_item)
 
             self.current_experiment = None
@@ -385,16 +385,17 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         gui_logger.debug("setup_trees() completed, about to call connect_controls()")
         
         # Install NumberClampDelegate for column 1 (Value column) on both trees
+        print("installing NumberClampDelegate")
         from src.View.windows_and_widgets.widgets import NumberClampDelegate
         
         self.settings_delegate = NumberClampDelegate(self.tree_settings)
         self.tree_settings.setItemDelegateForColumn(1, self.settings_delegate)
         self.settings_delegate.validation_result_signal.connect(self._handle_delegate_validation_result)
-        
+        print("settings_delegate done")
         self.experiments_delegate = NumberClampDelegate(self.tree_experiments)
         self.tree_experiments.setItemDelegateForColumn(1, self.experiments_delegate)
         self.experiments_delegate.validation_result_signal.connect(self._handle_delegate_validation_result)
-        
+        print("experiments_delegate done")
         gui_logger.debug("Installed NumberClampDelegate for column 1 on both trees and connected validation signals")
         
         connect_controls()
@@ -506,7 +507,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         print('================= Closing AQuISS Python LAB =============')
         print('======================================================\n\n')
 
-    def eventFilter(self, object, event):
+    def eventFilter(self, obj, event):
         """
 
         TEMPORARY / UNDER DEVELOPMENT
@@ -514,13 +515,13 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         THIS IS TO ALLOW COPYING OF PARAMETERS VIA DRAP AND DROP
 
         Args:
-            object:
+            obj:
             event:
 
         Returns:
 
         """
-        if (object is self.tree_experiments):
+        if (obj is self.tree_experiments):
             # print('XXXXXXX = event in experiments', event.type(),
             #       QtCore.QEvent.DragEnter, QtCore.QEvent.DragMove, QtCore.QEvent.DragLeave)
             if (event.type() == QtCore.QEvent.ChildAdded):
@@ -545,7 +546,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 # if event.mimeData().hasUrls():  # if file or link is dropped
                 #     urlcount = len(event.mimeData().urls())  # count number of drops
                 #     url = event.mimeData().urls()[0]  # get first url
-                #     object.setText(url.toString())  # assign first url to editline
+                #     obj.setText(url.toString())  # assign first url to editline
                 #     # event.accept()  # doesnt appear to be needed
             return False  # lets the event continue to the edit
 
@@ -573,35 +574,41 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         takes care of the action that happen when switching between tabs
         e.g. activates and deactives probes
         """
-        current_tab = str(self.tabWidget.tabText(self.tabWidget.currentIndex()))
-        if current_tab == "Positioning":
-            self.load_display_widget()
-            self.resize(self.sizeHint())
-        else:
-            if hasattr(self, "Display_View_widget") and self.Display_View_widget is not None:
-                self.Display_View_widget.close()
-                self.Display_View_widget.setParent(None)
-                self.Display_View_widget.deleteLater()
-                self.Display_View_widget = None  # prevent multiple deletions
-
-                # Show original contents again
-                self.restore_layout_contents()
-        if self.current_experiment is None:
-            if current_tab == 'Probes':
-                self.read_probes.start()
-                self.read_probes.updateProgress.connect(self.update_probes)
+        try:
+            current_tab = str(self.tabWidget.tabText(self.tabWidget.currentIndex()))
+            if current_tab == "Positioning":
+                self.load_display_widget()
             else:
-                try:
-                    self.read_probes.updateProgress.disconnect()
-                    self.read_probes.quit()
-                except TypeError:
-                    pass
+                if hasattr(self, "Display_View_widget") and self.Display_View_widget is not None:
+                    self.Display_View_widget.close()
+                    self.Display_View_widget.setParent(None)
+                    self.Display_View_widget.deleteLater()
+                    self.Display_View_widget = None
 
-            if current_tab == 'Devices':
-                self.refresh_devices()
+                    # Show original contents again
+                    self.restore_layout_contents()
 
-        else:
-            self.log('updating probes / devices disabled while experiment is running!')
+            # Rest of your existing code...
+            if self.current_experiment is None:
+                if current_tab == 'Probes':
+                    self.read_probes.start()
+                    self.read_probes.updateProgress.connect(self.update_probes)
+                else:
+                    try:
+                        self.read_probes.updateProgress.disconnect()
+                        self.read_probes.quit()
+                    except TypeError:
+                        pass
+
+                if current_tab == 'Devices':
+                    self.refresh_devices()
+            else:
+                self.log('updating probes / devices disabled while experiment is running!')
+
+        except Exception as e:
+            print(f"Error in switch_tab: {e}")
+            import traceback
+            traceback.print_exc()
 
     def update_display_choice(self, new_display_choice):
         print("update_display_choice called")
@@ -651,22 +658,31 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 self.verticalLayout_2.addItem(item)
 
     def load_display_widget(self):
-        print("Loading Display_View_widget...")  # Debug line
-        # Hide original layout contents
-        self.remove_and_store_layout_contents(self.verticalLayout_2)
-        # Create and add display view widget
-        self.Display_View_widget = Display_View(self.display_choice, self.snapshot_or_live)
-        self.Display_View_widget.x_crosshair.connect(self.update_x_crosshair)
-        self.Display_View_widget.y_crosshair.connect(self.update_y_crosshair)
-        self.Display_View_widget.setMinimumHeight(500)
-        self.Display_View_widget.setMinimumWidth(500)
+        print("Loading Display_View_widget...")
+        try:
+            # Hide original layout contents
+            self.remove_and_store_layout_contents(self.verticalLayout_2)
 
-        # ensure it expands to fill space
-        self.Display_View_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.verticalLayout_2.addWidget(self.Display_View_widget)
-        self.Display_View_widget.show()
-        self.verticalLayout_2.update()
-        self.verticalLayout_2.activate()
+            # Create and add display view widget
+            self.Display_View_widget = Display_View(self.display_choice, self.snapshot_or_live)
+            self.Display_View_widget.x_crosshair.connect(self.update_x_crosshair)
+            self.Display_View_widget.y_crosshair.connect(self.update_y_crosshair)
+            self.Display_View_widget.setMinimumHeight(500)
+            self.Display_View_widget.setMinimumWidth(500)
+
+            # ensure it expands to fill space
+            self.Display_View_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            self.verticalLayout_2.addWidget(self.Display_View_widget)
+            self.Display_View_widget.show()
+            self.verticalLayout_2.update()
+            self.verticalLayout_2.activate()
+
+        except Exception as e:
+            print(f"Error loading display widget: {e}")
+            import traceback
+            traceback.print_exc()
+            # Restore layout if widget creation failed
+            self.restore_layout_contents()
 
     def refresh_devices(self):
         """
@@ -1607,14 +1623,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             changed_col: the column that changed (if called from signal)
         """
         # Prevent recursion
-        print(f"jano inside update_parameters")
-        print(f"jano treeWidget.item(){treeWidget}")
-        print(f"jano changed_item.name{changed_item.name}")
-        print(f"jano changed_col{changed_col}")
-        if changed_item.name == 'get_data' or changed_item.name == 'span':
-            print(f"jano changed {changed_item.name} to {changed_item.value}")
-            treeWidget.update({changed_item.name: changed_item.value})
-            return
+        print(f"inside update_parameters")
+        print(f"treeWidget.item() {treeWidget}")
+        print(f"changed_item.name {changed_item.name}")
+        print(f"changed_col {changed_col}")
         if getattr(self, "_updating_parameters", False) or getattr(self, "_programmatic_update", False):
             return
 
@@ -1633,7 +1645,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             return
 
         item = changed_item
-        print(f" jano changed_item: {changed_item} changed_col {changed_col} treeWidget {treeWidget} device, path_to_device = item.get_device() {item.get_device()}")
+        print(f"changed_item: {changed_item} changed_col {changed_col} treeWidget {treeWidget} device, path_to_device = item.get_device() {item.get_device()}")
         
         self._updating_parameters = True
         try:
@@ -2059,9 +2071,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         This provides visual feedback, logging, and GUI history updates."""
 
         gui_logger.debug(f"Received delegate validation result for {item.name}: {result}")
-        print(f"jano item.name: {item.name} param_name {param_name} result {result}")
-        if item.name == 'get_data' or item.name == 'span':
-            self.update_parameters()
+        print(f"item.name: {item.name} param_name {param_name} result {result}")
+        device, path_to_device = item.get_device()
+        print(f"device: {device}, path_to_device {path_to_device}")
+        device.update({param_name: result['actual_value']})
 
         # Update the item's display text if the actual value is different
         if result.get('actual_value') is not None and result.get('actual_value') != result.get('requested_value'):
@@ -2095,8 +2108,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                     tree_widget = tree
                     gui_logger.debug(f"MAIN WINDOW: Found item {item.name} in tree {tree.objectName()}")
                     break
-            print(f"jano tree_widget {tree_widget}")
-            #print(f"jano tree_widget.objectName() {tree_widget.objectName()}")
+            print(f"tree_widget {tree_widget}")
 
             if tree_widget:
                 # Find the index for the value column (column 1)
@@ -2136,7 +2148,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             is_error: Whether this is an error message
         """
         # Log the message
-        print(f" jano _show_parameter_notification message {message} is_error: {is_error}")
+        print(f"_show_parameter_notification message {message} is_error: {is_error}")
         if is_error:
             gui_logger.error(f"Parameter notification (ERROR): {message}")
         else:

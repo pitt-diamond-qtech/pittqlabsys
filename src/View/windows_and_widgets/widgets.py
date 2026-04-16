@@ -151,7 +151,7 @@ class AQuISSQTreeItem(QtWidgets.QTreeWidgetItem):
                 self.setData(1, 0, value)
         else:
             if value is not None:
-                raise TypeError("wrong type {:s}, expected {:s}".format(str(type(value)), str(self.valid_values)))
+                raise TypeError(f"wrong type {str(type(value))}, expected {str(self.valid_values)}")
 
     @property
     def visible(self):
@@ -748,6 +748,8 @@ class NumberClampDelegate(QtWidgets.QStyledItemDelegate):
         editor.selectAll()  # UX nicety: select existing text on focus
 
     def setModelData(self, editor, model, index):
+        print("inside setModelData")
+        print(f"editor: {editor} model: {model} index: {index}")
         raw = editor.text().strip()
         gui_logger.debug(f"DELEGATE: setModelData called with text '{raw}'")
         

@@ -233,6 +233,9 @@ class Ui_Form(object):
         self.line_3.setFrameShape(QtWidgets.QFrame.HLine)
         self.line_3.setFrameShadow(QtWidgets.QFrame.Sunken)
         self.line_3.setObjectName("line_3")
+        self.snapButton = QtWidgets.QPushButton(self.widget)
+        self.snapButton.setGeometry(QtCore.QRect(220, 490, 81, 23))
+        self.snapButton.setObjectName("snapButton")
 
         self.retranslateUi(Form)
         QtCore.QMetaObject.connectSlotsByName(Form)
@@ -295,6 +298,7 @@ class Ui_Form(object):
         self.home_button_3.setText(_translate("Form", "home"))
         self.connectButton_3.setText(_translate("Form", "Connect"))
         self.comboBox_3.setItemText(0, _translate("Form", "MCL_z_microdrive"))
+        self.snapButton.setText(_translate("Form", "snapButton"))
 
 
 if __name__ == "__main__":

@@ -49,6 +49,7 @@ class positioning_stages_view(QWidget, Ui_Form):
     """
     display_choice_changed = pyqtSignal(str)
     snapshot_mode_changed = pyqtSignal(int)
+    snapButtonclicked = pyqtSignal(int)
     save_or_find_nv_button_clicked = pyqtSignal(int)
     take_img_signal = pyqtSignal(int)
     def __init__(self, parent = None):
@@ -122,6 +123,7 @@ class positioning_stages_view(QWidget, Ui_Form):
         self.z_dec_3.clicked.connect(lambda: self.change_position("z", 3, 0))
         self.save_button.clicked.connect(self.save)
         self.Find_NV_Button.clicked.connect(self.find_NV)
+        self.snapButton.clicked.connexct(self.send_snapshotButtonclicked_signal)
         # Connect combobox signals to emitters
         self.display_option.currentTextChanged.connect(self.on_display_choice_changed)
         self.snapshot_live_comboBox.currentTextChanged.connect(self.on_snapshot_or_live_changed)
@@ -410,6 +412,9 @@ class positioning_stages_view(QWidget, Ui_Form):
 
     def snapshot_or_live(self):
         return self.snapshot_live_comboBox.currentText()
+
+    def send_snapshotButtonclicked_signal(self):
+        self.snapButtonclicked.emit(1)
 
     def save(self):
         print("save is pressed 1")

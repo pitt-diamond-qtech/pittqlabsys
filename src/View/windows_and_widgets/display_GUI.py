@@ -37,7 +37,7 @@ class Display_View(QWidget, Ui_Form):
         self.parent_widget.setStyleSheet("background-color: white;")
 
         self.display_choice = display_choice
-        self.snapshot_or_live = snapshot_or_live
+        self.snapshot_or_live = 1
         self.last_selection = 1
         self.update_timer = QTimer(self)
         self.update_timer.timeout.connect(self.acquire_and_plot_data)
@@ -92,17 +92,16 @@ class Display_View(QWidget, Ui_Form):
         self.crosshair_width.valueChanged.connect(self.on_crosshair_changed)
         self.x_selected = 0
         self.y_selected = 0
-        self.build_sliders()
 
     def update_choices(self, display_choice, snapshot_or_live):
-        #this function gets the signals from main (that are emitted by the positioning class) and only updates the display of the choices are different from what we have
+        # this function gets the signals from main (that are emitted by the positioning class) and only updates the display of the choices are different from what we have
         if display_choice != self.display_choice:
             print("update_choices called display choice changed")
             self.update_timer.stop()
             self.display_choice = display_choice
-            self.connect_to_dis00play()
+            self.connect_to_display()
         if snapshot_or_live != self.snapshot_or_live:
-            print("update_choices called snapshot_or_live changed"+str(snapshot_or_live))
+            print("update_choices called snapshot_or_live changed" + str(snapshot_or_live))
             self.update_timer.stop()
             self.snapshot_or_live = snapshot_or_live
         self.start()
@@ -136,6 +135,7 @@ class Display_View(QWidget, Ui_Form):
         else:
             self.last_selection = 1
             self.widget.start_live_view()
+            self.build_sliders()
             try:
                 self.update_timer.start(500)
             except ValueError as e:
