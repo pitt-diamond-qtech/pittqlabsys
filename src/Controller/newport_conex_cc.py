@@ -92,11 +92,11 @@ class Newport_CONEX_CC_xy_stage(Device):
     _DEFAULT_SETTINGS = Parameter(Device._get_base_settings() +[
         Parameter('connection_type', "SERIAL", ["SERIAL"], 'type of connection to open to controller'),
         Parameter('xport', 14, list(range(0, 31)), 'COM port on which to connect'),
-        Parameter('x-address', '1', str, 'address prefix (nn)'),
+        Parameter('x-address', 1, int, 'address prefix (nn)'),
         Parameter('yport', 15, list(range(0, 31)), 'COM port on which to connect'),
-        Parameter('y-address', '1', str, 'address prefix (nn)'),
-        Parameter('x-position', '0', str,'position of x axis in microns'),
-        Parameter('y-position', '0',str,'position of y axis in microns'),
+        Parameter('y-address', 1, int, 'address prefix (nn)'),
+        Parameter('x-position', 0, float,'position of x axis in microns'),
+        Parameter('y-position', 0, float,'position of y axis in microns'),
         Parameter('server_port', _server_port, int, 'server_port'),
     ])
 
@@ -142,21 +142,25 @@ class Newport_CONEX_CC_xy_stage(Device):
                     value = int(value)  # the integers used internally in the stage
                 axis = key[0]
                 print(f"setting {key}")
-                key = self._param_to_internal(key)
+                key_internal = self._param_to_internal(key)
                 # only send update to Device if connection to Device has been established
                 if self._settings_initialized:
                     if axis == 'x':
+                        if key == 'x-position':
+                            self.set_position("x", value)
+                            time.sleep(10)  # find exact sleep time later
                         # This sends the command to the microstage
-                        self.newport_conex_cc_x_stage.write(str(self.settings['x-address']) + key + str(value))
+                        self.newport_conex_cc_x_stage.write(str(self.settings['x-address']) + key_internal + str(value))
                         # This overwrites the value variable in the GUI
-                        time.sleep(100) # find exact sleep time later
                         #value = self.read_probes(key)
 
                     else:
+                        if key == 'y-position':
+                            self.set_position("y", value)
+                            time.sleep(10)  # find exact sleep time later
                         # This sends the command to the microstage
-                        self.newport_conex_cc_y_stage.write(str(self.settings['y-address']) + key + str(value))
+                        self.newport_conex_cc_y_stage.write(str(self.settings['y-address']) + key_internal + str(value))
                         # This overwrites the value variable in the GUI
-                        time.sleep(100) # find exact sleep time later
                         #value = self.read_probes(key)
     @property
     def _PROBES(self):
@@ -259,22 +263,25 @@ class Newport_CONEX_CC_xy_stage(Device):
             return self.settings['get_data']
         key_internal = self._param_to_internal(key)
         if key_internal[0] == "x":
+            if key == "x-address":
+                return (int(self.newport_conex_cc_x_stage.query("x1SA?"[1:])[3:]))
             if key == "x motion time for a relative move":
                 return self.newport_conex_cc_x_stage.query(key_internal[1:]+displacement)
             if key == "x command error string":
                 return self.newport_conex_cc_x_stage.query(key_internal[1:] + error)
-            if key == "x-position":
-                return self.newport_conex_cc_x_stage.query(key_internal + "?")
+            if key in ["x-position", "x position"]:
+                return (float(self.newport_conex_cc_x_stage.query("x1PA?"[1:])[3:]))
             return self.newport_conex_cc_x_stage.query(key_internal[1:])
         elif key_internal[0] == "y":
+            if key == "y-address":
+                return (int(self.newport_conex_cc_y_stage.query("y1SA?"[1:])[3:]))
             if key == "y motion time for a relative move":
                 return self.newport_conex_cc_y_stage.query(key_internal[1:]+displacement)
             if key == "y command error string":
                 return self.newport_conex_cc_y_stage.query(key_internal[1:] + error)
-            if key == "y-position":
-                print(f"jano1234 asking for {key}")
-                print(self.newport_conex_cc_y_stage.query(key_internal + "?"))
-                return self.newport_conex_cc_y_stage.query(key_internal + "?")
+            if key in ["y-position", "y position"]:
+                return (float(self.newport_conex_cc_y_stage.query("y1PA?"[1:])[3:]))
+            print("here")
             return self.newport_conex_cc_y_stage.query(key_internal[1:])
         else:
             print(f"{key} not recognized")
@@ -465,9 +472,9 @@ class Newport_CONEX_CC_xy_stage(Device):
 
     def get_position(self, axis):
         if axis == "x":
-            return self.read_probes("x position")[3:]
+            return self.read_probes("x position")
         if axis == "y":
-            return self.read_probes("y position")[3:]
+            return self.read_probes("y position")
         raise KeyError
 
     def get_setpoint_position(self, axis):
@@ -1323,7 +1330,19 @@ class Newport_CONEX_CC_xy_stage(Device):
 
 if __name__ == '__main__':
     newport_stage = Newport_CONEX_CC_xy_stage()
-    print(newport_stage.read_probes("y position")[3:])
+    print(newport_stage.read_probes("x-position"))
+    print(newport_stage.read_probes("x position"))
+    print(newport_stage.read_probes("y-position"))
+    print(newport_stage.read_probes("y position"))
+    print(newport_stage.get_position("x"))
+    print(newport_stage.get_position("y"))
+    print(newport_stage.read_probes("x-address"))
+    newport_stage.update({"x-position": 7})
+    print(newport_stage.read_probes("x-position"))
+
+    #print(float(newport_stage.newport_conex_cc_x_stage.query("x1PA?"[1:])[3:]))
+    #print((newport_stage.read_probes("x position")))
+    #print((newport_stage.read_probes("y position")))
     #print(newport_stage.get_positive_software_limit('x'))
     #print(newport_stage.get_positive_software_limit('y'))
     #print(newport_stage.get_position('x'))

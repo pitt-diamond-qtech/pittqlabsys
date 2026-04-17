@@ -151,7 +151,7 @@ class AQuISSQTreeItem(QtWidgets.QTreeWidgetItem):
                 self.setData(1, 0, value)
         else:
             if value is not None:
-                raise TypeError(f"wrong type {str(type(value))}, expected {str(self.valid_values)}")
+                raise TypeError(f"wrong type {str(type(value))} for {value}, expected {str(self.valid_values)}")
 
     @property
     def visible(self):
