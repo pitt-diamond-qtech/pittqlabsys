@@ -110,11 +110,11 @@
             "settings": {
                 "connection_type": "SERIAL",
                 "xport": 14,
-                "x-address": 1,
+                "x-address": "1",
                 "yport": 15,
-                "y-address": 1,
-                "x-position": 0,
-                "y-position": 0,
+                "y-address": "1",
+                "x-position": "0",
+                "y-position": "0",
                 "server_port": 5004
             }
         },

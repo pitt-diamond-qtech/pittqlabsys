@@ -35,6 +35,7 @@ from src.core.read_write_functions import load_aqs_file
 from src.core.helper_functions import get_project_root
 from src.config_store import load_config, merge_config, save_config
 from pathlib import Path
+from PyQt5.QtWidgets import QFileDialog
 from src.config_paths import resolve_paths
 import os, webbrowser, datetime, operator
 import numpy as np
@@ -166,6 +167,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.paths = resolve_paths(cfg_path)
         gui_logger.debug(f"Resolved paths: {self.paths}")
         # now self.paths["data_folder"], self.paths["experiments_folder"], etc.
+        self.first_time_positioning = True
 
         # 2) Load any other globals you need:
         self.global_cfg = load_config(cfg_path)
@@ -235,6 +237,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.positioning_tab.snapshot_mode_changed.connect(self.update_snapshot_mode)
         self.positioning_tab.save_or_find_nv_button_clicked.connect(self.update_current_data_saving_path) # @
         self.positioning_tab.take_img_signal.connect(self.take_frame)
+        self.positioning_tab.snapButtonclicked.connect(self.take_cam_snapshot)
         gui_logger.debug("setupUi() completed successfully")
         
         # Fix for macOS menu bar issue - ensure menu bar is properly attached to main window
@@ -282,6 +285,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.tree_gui_settings_model.setHorizontalHeaderLabels(['parameter', 'value'])
 
             self.tree_experiments.header().setStretchLastSection(True)
+
         def connect_controls():
             gui_logger.debug("Connecting controls")
 
@@ -469,6 +473,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         # if self.config_filepath is None:
         #     self.config_filepath = os.path.join(self._DEFAULT_CONFIG["gui_settings"], 'gui.aqs')
 
+
     def update_current_data_saving_path(self):
         print("updating current path")
         self.data_saving_path = self.data_saving_tab.current_path()
@@ -476,10 +481,21 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.positioning_tab.data_saving_path = self.data_saving_path
 
     def take_frame(self):
-        if self.positioning_tab.snapshot_or_live()=="Snapshot":
-            frame = self.Display_View_widget.widget.get_latest_frame()
-            print(f"frame is {frame}")
-            self.positioning_tab.frame = frame
+        frame = self.Display_View_widget.widget.get_latest_frame()
+        print(f"frame is {frame}")
+        self.positioning_tab.frame = frame
+
+    def take_cam_snapshot(self):
+        self.data_saving_path = self.data_saving_tab.current_path()
+        frame = self.Display_View_widget.widget.get_latest_frame()
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Save Image", self.data_saving_path, "PNG (*.png)"
+        )
+        if not path:
+            return
+
+        from PIL import Image
+        Image.fromarray(frame).save(path)
 
     def closeEvent(self, event):
         """
@@ -578,8 +594,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             current_tab = str(self.tabWidget.tabText(self.tabWidget.currentIndex()))
             if current_tab == "Positioning":
                 self.load_display_widget()
+
             else:
                 if hasattr(self, "Display_View_widget") and self.Display_View_widget is not None:
+                    self.latest_display_frame = self.Display_View_widget.widget.get_latest_frame()
                     self.Display_View_widget.close()
                     self.Display_View_widget.setParent(None)
                     self.Display_View_widget.deleteLater()
@@ -660,11 +678,18 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     def load_display_widget(self):
         print("Loading Display_View_widget...")
         try:
+            self.snapshot_or_live = self.positioning_tab.snapshot_live_comboBox.currentText()
+            print(f"snapshot_or_live: {self.snapshot_or_live}")
             # Hide original layout contents
             self.remove_and_store_layout_contents(self.verticalLayout_2)
 
             # Create and add display view widget
             self.Display_View_widget = Display_View(self.display_choice, self.snapshot_or_live)
+            if self.first_time_positioning == False:
+                if self.snapshot_or_live == "Snapshot":
+                    self.Display_View_widget.widget._init_camera()
+                    buf = self.latest_display_frame
+                    self.Display_View_widget.img_gray = np.dot(buf[..., :3], [0.2989, 0.5870, 0.1140])
             self.Display_View_widget.x_crosshair.connect(self.update_x_crosshair)
             self.Display_View_widget.y_crosshair.connect(self.update_y_crosshair)
             self.Display_View_widget.setMinimumHeight(500)
@@ -676,6 +701,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.Display_View_widget.show()
             self.verticalLayout_2.update()
             self.verticalLayout_2.activate()
+            self.first_time_positioning = False
 
         except Exception as e:
             print(f"Error loading display widget: {e}")

@@ -123,7 +123,7 @@ class positioning_stages_view(QWidget, Ui_Form):
         self.z_dec_3.clicked.connect(lambda: self.change_position("z", 3, 0))
         self.save_button.clicked.connect(self.save)
         self.Find_NV_Button.clicked.connect(self.find_NV)
-        self.snapButton.clicked.connexct(self.send_snapshotButtonclicked_signal)
+        self.snapButton.clicked.connect(self.send_snapshotButtonclicked_signal)
         # Connect combobox signals to emitters
         self.display_option.currentTextChanged.connect(self.on_display_choice_changed)
         self.snapshot_live_comboBox.currentTextChanged.connect(self.on_snapshot_or_live_changed)
@@ -504,14 +504,10 @@ class positioning_stages_view(QWidget, Ui_Form):
         # Capture camera image
         # --------------------------------------------------
 
-        if self.snapshot_or_live() == "Snapshot":
-            self.take_img_signal.emit(1)
-            print("snapshot called")
-            print(self.frame)
-            point.camera_image = self.frame
-        else:
-            self.error_box("please take snapshot to save image data", "image data will not be saved for this entry")
-            point.camera_image = None
+        self.take_img_signal.emit(1)
+        print("snapshot called")
+        print(self.frame)
+        point.camera_image = self.frame
         # --------------------------------------------------
         # SAVE (single call)
         # --------------------------------------------------

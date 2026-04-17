@@ -164,9 +164,9 @@
             "settings": {
                 "get_data": false,
                 "serial": 2849,
-                "x_pos": 0.009381460796931319,
-                "y_pos": 0.0010609325222210753,
-                "z_pos": 31.838956602343835,
+                "x_pos": 9.536501453772441,
+                "y_pos": 28.066796170454282,
+                "z_pos": 49.9910650678764,
                 "read_rate": 2.0,
                 "load_rate": 2.0,
                 "num_datapoints": 1,
@@ -227,11 +227,11 @@
                 "get_data": false,
                 "connection_type": "SERIAL",
                 "xport": 14,
-                "x-address": 1,
+                "x-address": "1",
                 "yport": 15,
-                "y-address": 1,
-                "x-position": 0,
-                "y-position": 0,
+                "y-address": "1",
+                "x-position": "0",
+                "y-position": "0",
                 "server_port": 5004
             }
         },

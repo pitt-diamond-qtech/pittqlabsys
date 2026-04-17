@@ -108,6 +108,7 @@ class Agilent8596E(Device):
                     elif key == "ST " :
                         self.agilent_analyzer.write(key + str(value) + "US;")
                     else:
+                        print(f"setting {key} to {value}")
                         self.agilent_analyzer.write(key + str(value) + "MZ;")
 
     def write(self, message):
@@ -156,6 +157,8 @@ class Agilent8596E(Device):
             return trace_raw_units
         elif key == "coupling":
             return self.agilent_analyzer.query(key_internal)
+        elif key in ["CF?;", "MKFCR?;", "MKF?;", "SP?;", "RB?;", "VB?;"]:
+            return float(self.agilent_analyzer.query(key_internal))/1E6
         return float(self.agilent_analyzer.query(key_internal))
 
     @property

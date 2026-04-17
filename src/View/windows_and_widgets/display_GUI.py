@@ -26,7 +26,7 @@ class Display_View(QWidget, Ui_Form):
     """
     x_crosshair = pyqtSignal(int)
     y_crosshair = pyqtSignal(int)
-    def __init__(self, display_choice = "MU300", snapshot_or_live = 1, parent=None):
+    def __init__(self, display_choice = "MU300", snapshot_or_live = "live", parent=None):
         super().__init__(parent)
         self.setupUi(self)
         self.widget = None
@@ -37,8 +37,7 @@ class Display_View(QWidget, Ui_Form):
         self.parent_widget.setStyleSheet("background-color: white;")
 
         self.display_choice = display_choice
-        self.snapshot_or_live = 1
-        self.last_selection = 1
+        self.snapshot_or_live = snapshot_or_live
         self.update_timer = QTimer(self)
         self.update_timer.timeout.connect(self.acquire_and_plot_data)
         # plots
@@ -101,7 +100,7 @@ class Display_View(QWidget, Ui_Form):
             self.display_choice = display_choice
             self.connect_to_display()
         if snapshot_or_live != self.snapshot_or_live:
-            print("update_choices called snapshot_or_live changed" + str(snapshot_or_live))
+            print("update_choices called snapshot_or_live changed to:" + str(snapshot_or_live))
             self.update_timer.stop()
             self.snapshot_or_live = snapshot_or_live
         self.start()
@@ -124,16 +123,11 @@ class Display_View(QWidget, Ui_Form):
     # 0 means snapshot
     # 1 means live
     def start(self):
-        if self.last_selection == 0 and self.snapshot_or_live == 0:
-            # do not update anything if the last and current selection are snapshots
-            return
-        if self.snapshot_or_live == 0:
-            self.last_selection = 0
+        if self.snapshot_or_live == "Snapshot":
             self.update_timer.stop()
             #self.widget.stop_live_view()
             return
         else:
-            self.last_selection = 1
             self.widget.start_live_view()
             self.build_sliders()
             try:
@@ -211,7 +205,7 @@ class Display_View(QWidget, Ui_Form):
         self.zy_plot.setData(self.z_y, self.y)
 
     def close(self):
-        if self.snapshot_or_live == 1:
+        if self.snapshot_or_live == "Live":
             self.widget.stop_live_view()
             self.widget.stop()
 
@@ -235,7 +229,7 @@ class Display_View(QWidget, Ui_Form):
         thickness = int(self.crosshair_width.value())
         #self.widget.draw_crosshair(x, y, thickness)
         self.widget.label.enable_crosshair(x, y, thickness)
-        if self.snapshot_or_live == 0:
+        if self.snapshot_or_live == "Snapshot":
             # Crosshair center coordinates
             x = int(self.crosshair_x.value())
             y = int(self.crosshair_y.value())

@@ -167,6 +167,7 @@ class Amscope_Camera_View(QWidget):
         # reflect current auto‑exposure state
         self.cb_auto.setChecked(self.hcam.get_AutoExpoEnable())
 
+
         # start stream
         try:
             # Instead of:

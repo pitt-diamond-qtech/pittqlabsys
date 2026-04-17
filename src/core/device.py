@@ -151,8 +151,10 @@ class Device:
         
         # Get actual values
         if '_PROBES' in self.__dict__ and self._PROBES:
+            print("getting actual value from read_probes")
             actual_values = self.read_probes()
         else:
+            print("getting actual value from _settings")
             actual_values = dict(self._settings)
         
         # Generate feedback for each parameter

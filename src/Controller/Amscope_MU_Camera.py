@@ -166,7 +166,6 @@ class Amscope_MU_Camera(Device):
         assert (self._settings_initialized)
         assert key in list(self._PROBES.keys())
 
-        key_internal = self._param_to_internal(key)
         if key == 'exposure gain':
             value = self.amscope_cam.get_ExpoAGain()
         elif key == 'get_data':

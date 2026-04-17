@@ -241,24 +241,31 @@ class NanodriveAdwinConfocalPoint(Experiment):
                     if keyboard.is_pressed(x_neg_key):
                         self.nd.update({'x_pos': self.nd.read_probes('x_pos') - x_step})
                         sleep(settle_time)
+                        print(f"x is decreased to {self.nd.read_probes('x_pos')}")
                     if keyboard.is_pressed(x_pos_key):
                         self.nd.update({'x_pos': self.nd.read_probes('x_pos') + x_step})
                         sleep(settle_time)
+                        print(f"x is increased to {self.nd.read_probes('x_pos')}")
                     if keyboard.is_pressed(y_neg_key):
                         self.nd.update({'y_pos': self.nd.read_probes('y_pos') - y_step})
                         sleep(settle_time)
+                        print(f"y is decreased to {self.nd.read_probes('y_pos')}")
                     if keyboard.is_pressed(y_pos_key):
                         self.nd.update({'y_pos': self.nd.read_probes('y_pos') + y_step})
                         sleep(settle_time)
+                        print(f"y is increased to {self.nd.read_probes('y_pos')}")
                     if keyboard.is_pressed(z_neg_key):
                         self.nd.update({'z_pos': self.nd.read_probes('z_pos') - z_step})
                         sleep(settle_time)
+                        print(f"z is decreased to {self.nd.read_probes('z_pos')}")
                     if keyboard.is_pressed(z_pos_key):
                         self.nd.update({'z_pos': self.nd.read_probes('z_pos') + z_step})
                         sleep(settle_time)
+                        print(f"z is increased to {self.nd.read_probes('z_pos')}")
                     if keyboard.is_pressed(return_to_start_key):
                         self.nd.update({'x_pos': original_x, 'y_pos': original_y, 'z_pos': original_z})
                         sleep(10 * settle_time)
+                        print(f"return_to_start_key is pressed. Moved to x = {self.nd.read_probes('x_pos')}, y = {self.nd.read_probes('y_pos')}, z = {self.nd.read_probes('z_pos')}")
 
                 # Plot solution to make sure that the code and theory match
                 # Play with parameters: step size and settle time
