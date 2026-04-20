@@ -128,7 +128,6 @@ class Amscope_Camera_View(QWidget):
     # ── Camera setup ──────────────────────────────────────────────────────────
 
     def _init_camera(self) -> None:
-        #cams = amcam.Amcam.EnumV2()
         cams = toupcam.Toupcam.EnumV2()
         if not cams:
             self.setWindowTitle("No camera found")

@@ -15,7 +15,7 @@ from pathlib import Path
 _MAX_POSITION = 25000 # um
 _MIN_POSITION = -25000 # um
 _MAX_SPEED = 2000 # um/s
-_FILENAME = r"D:\PyCharmProjects\pittqlabsys-single-NV\src\Controller\MCL_Z_MICRODRIVE_POSITION.h5"
+_FILENAME = r"Z:\shared_lab_resources\equipment\MCL_Z_MICRODRIVE\MCL_Z_MICRODRIVE_POSITION.h5"
 from src.core.struct_hdf5 import save_data, load_data, MyStruct
 
 class MCL_Microdrive:

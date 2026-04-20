@@ -2284,7 +2284,7 @@ class Toupcam:
             if cls.__lib is None:
                 if sys.platform == 'win32':
                     ###cls.__lib = ctypes.windll.LoadLibrary('toupcam.dll')
-                    cls.__lib = ctypes.windll.LoadLibrary('toupcam.dll')
+                    cls.__lib = ctypes.windll.LoadLibrary(r'D:\PyCharmProjects\pittqlabsys-single-NV\src\Controller\binary_files\toupcam.dll')
                 elif sys.platform.startswith('linux'):
                     cls.__lib = ctypes.cdll.LoadLibrary('libtoupcam.so')
                 else:

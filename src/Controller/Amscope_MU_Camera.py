@@ -15,10 +15,8 @@
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 from __future__ import annotations
-#from src.Controller import amcam
 from src.Controller import toupcam
 from src.core import Device,Parameter
-from src.core.struct_hdf5 import save_parameters_hdf5
 
 _DEFAULT_AUTO_EXPOSURE_TARGET  = 120
 _DEFAULT_TEMP = 6503
