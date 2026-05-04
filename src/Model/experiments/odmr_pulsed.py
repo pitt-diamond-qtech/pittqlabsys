@@ -49,8 +49,8 @@ class ODMRPulsedExperiment(Experiment):
         Parameter('sequence',[
             Parameter('file_path', "D:\Data\jannet_trabelsi\March2026\odmr_sequence.txt", str, 'Path to sequence definition file'),
             Parameter('load_from_file', False, bool, 'load the sequence from a file'),
-            Parameter('text',"sequence: name=odmr_pulsed, type=odmr, duration=1002500ns, sample_rate=1GHz, repeat_count=50000\nvariable pulse_duration, start=50ns, stop=500ns, steps=20\nmarker, laser_int_1 on channel 1 at 0ns, 500ns\npi/2 pulse on channel 1 at 500ns, gaussian, pulse_duration, 1.0\npi/2 pulse on channel 2 at 500ns, gaussian, pulse_duration, 1.0 \nwait pulse on channel 1 at pulse_duration+0.000000500, square, 2*pulse_duration, 0.0\nwait pulse on channel 2 at pulse_duration+0.000000500, square, 2*pulse_duration, 0.0\npi/2 pulse on channel 1 at 3*pulse_duration+0.000000500, gaussian, pulse_duration, 1.0\npi/2 pulse on channel 2 at 3*pulse_duration+0.000000500, gaussian, pulse_duration, 1.0\nmarker, laser_readout_1 on channel 1 at 2500ns, 1ms\nmarker, readout_counts_1 on channel 2 at 2500ns, 300ns\nmarker, reference_counts_1 on channel 2 at 1002200ns, 300ns"
-        )]),
+            Parameter('text',"sequence: name=odmr_pulsed, type=odmr, duration=1002500ns, sample_rate=1GHz, repeat_count=50000\nvariable pulse_duration, start=50ns, stop=500ns, steps=20\nmarker, laser_int_1 on channel 1 at 0ns, 500ns\npi/2 pulse on channel 1 at 500ns, gaussian, pulse_duration, 1.0\npi/2 pulse on channel 2 at 500ns, gaussian, pulse_duration, 1.0 \nwait pulse on channel 1 at pulse_duration+0.000000500, square, 2*pulse_duration, 0.0\nwait pulse on channel 2 at pulse_duration+0.000000500, square, 2*pulse_duration, 0.0\npi/2 pulse on channel 1 at 3*pulse_duration+0.000000500, gaussian, pulse_duration, 1.0\npi/2 pulse on channel 2 at 3*pulse_duration+0.000000500, gaussian, pulse_duration, 1.0\nmarker, laser_readout_1 on channel 1 at 2500ns, 1ms\nmarker, readout_counts_1 on channel 2 at 2500ns, 300ns\nmarker, reference_counts_1 on channel 2 at 1002200ns, 300ns", str, 'sequence_text')
+        ]),
         Parameter('microwave', [
             Parameter('frequency range', [2.87e9], list, 'Microwave frequency in Hz', units='Hz'),
             Parameter('power', -10.0, float, 'Microwave power in dBm', units='dBm')
@@ -68,7 +68,7 @@ class ODMRPulsedExperiment(Experiment):
         ]),
         Parameter('adwin', [
             Parameter('count_time', 300, float, 'Photon counting time in ns', units='ns'),
-            Parameter('reset_time', 150, float, 'Reset time between counts in ns', units='ns')        ]),
+            Parameter('reset_time', 0, float, 'Reset time between counts in ns', units='ns')        ]),
         Parameter('proteus', [
             Parameter('proteus_response_delay', 306.5, float, 'proteus response delay to triggers in ns', units='ns')]),
         Parameter('scan', [
@@ -114,6 +114,9 @@ class ODMRPulsedExperiment(Experiment):
         self.proteus = self.devices['proteus']['instance']
         self.sg384 = self.devices['sg384']['instance']
         self.mux = self.devices['mux_control']['instance']
+        """self.proteus = ProteusDevice()
+        self.adwin = AdwinGoldDevice()
+        self.mux = MUXControlDevice()"""
         self.mux.select_trigger('pulsed')
         # Sequence data
         self.sequence_description = None
@@ -230,17 +233,19 @@ class ODMRPulsedExperiment(Experiment):
             if not self.sequence_description:
                 self.logger.error("No sequence description loaded")
                 return False
+            print("building scan sequences")
             # Build scan sequences
             self.scan_sequences = self.sequence_builder.build_scan_sequences(
                 self.sequence_description
             )
+            print("scan sequences built")
             self.sampling_rate = self.sequence_builder.sample_rate
             if self.sequence_description.variables:
                 for seq in self.scan_sequences:
                     self.number_of_iterations += 1
             else:
                 self.number_of_iterations = 1
-
+            print("adding hardware calibration")
             # Apply hardware calibration
             for i, sequence in enumerate(self.scan_sequences):
                 calibrated_sequence = self.hardware_calibrator.calibrate_sequence(
@@ -947,19 +952,22 @@ class ODMRPulsedExperiment(Experiment):
                 self.logger.error("No sequence loaded")
                 print("No sequence loaded")
                 return {'success': False, 'error': 'No sequence loaded'}
+            print("sequence loaded")
 
             # Step 2: Build scan sequences
             if not self.build_scan_sequences():
                 return {'success': False, 'error': 'Failed to build scan sequences'}
+            print("scan sequences built")
 
             # Step 3: Generate AWG sequences
             if not self.generate_awg_task_sequences_adwin_triggering_awg_case():
                 return {'success': False, 'error': 'Failed to generate AWG sequences'}
-            
+            print("awg sequences generated")
+
             # Step 4: Setup ADwin for photon counting
             if not self._setup_adwin_counting():
                 return {'success': False, 'error': 'Failed to setup ADwin counting'}
-
+            print("ADwin counting setup done")
             
             # Step 6: Run experiment for each frequency
             #'success': True,
@@ -1046,7 +1054,8 @@ class ODMRPulsedExperiment(Experiment):
             # tested proteus delay and digout delay
             odmr_pulsed_counter_path = get_adwin_binary_path('test_adwin_delays.TB1')"""
             # option 3 file: SEQUENTIAL MODEL
-            odmr_pulsed_counter_path = get_adwin_binary_path('adwin_triggering_proteus.TB1')
+            ###odmr_pulsed_counter_path = get_adwin_binary_path('adwin_triggering_proteus.TB1')
+            odmr_pulsed_counter_path = get_adwin_binary_path('T1.TB1')
             # option 3 file: BEHAVIORAL MODEL
             #odmr_pulsed_counter_path = get_adwin_binary_path('adwin_odmr_pulsed_ticks.TB1')
             self.adwin.update({'process_1': {'load': str(odmr_pulsed_counter_path)}})
@@ -1096,7 +1105,7 @@ class ODMRPulsedExperiment(Experiment):
             # Collect data
             wait_time = (self.sequence_duration + self.proteus_response_delay)
             wait_time = wait_time * self.repeat_count * self.number_of_iterations  # remember: wait_time is in ns
-            wait_time = wait_time * (10 ** (-9)) * 10  * 10 * 10
+            wait_time = wait_time * (10 ** (-9))
             print(f"wait time: {wait_time}")
             # wait for length of the entire experiment, then get the data
             time.sleep(wait_time)
@@ -1164,13 +1173,17 @@ readout pulse on channel 3 at 800ns, square, 600ns, 0.3
             Sequence text in the sequence language format
         """
         sequence_text = """    
-sequence: name=odmr_pulsed, type=odmr, duration=1300ns, sample_rate=1GHz, repeat_count=50000
-variable pulse_duration, start=50ns, stop=500ns, steps=20
-marker, laser_int_1 on channel 1 at 0ns, 50ns
-pi/2 pulse on channel 1 at 50ns, gaussian, pulse_duration, 1.0
-pi/2 pulse on channel 2 at 50ns, gaussian, pulse_duration, 1.0 
-marker, laser_readout_1 on channel 1 at 550ns, 300ns
-marker, ref_readout_1 on channel 1 at 1000ns, 300ns
+sequence: name=odmr_pulsed, type=odmr, duration=15002600ns, sample_rate=1GHz, repeat_count=50000
+variable pulse_duration, start=0ns, stop=15000000ns, steps=20
+initialize pulse on channel 3 at 0ns, square, 2000ns, 1.0
+wait pulse on channel 3 at 2000ns, square, pulse_duration, 0.0
+signal pulse on channel 3 at 2000ns+pulse_duration, square, 300ns, 1.0
+reference pulse on channel 3 at 2300ns+pulse_duration, square, 300ns, 1.0
+#marker, laser_int_1 on channel 1 at 0ns, 50ns
+#pi/2 pulse on channel 1 at 50ns, gaussian, pulse_duration, 1.0
+#pi/2 pulse on channel 2 at 50ns, gaussian, pulse_duration, 1.0 
+#marker, laser_readout_1 on channel 1 at 550ns, 300ns
+#marker, ref_readout_1 on channel 1 at 1000ns, 300ns
     """
         return sequence_text.strip()
 
@@ -1334,12 +1347,12 @@ if __name__ == "__main__":
     experiment.set_green_laser_parameters(1.0, 532)
     experiment.set_delay_parameters(25.0, 50.0, 15.0)
     # Create and load example sequence
-    sequence_text = experiment.create_example_odmr_sequence()
+    experiment.sequence_text = experiment.create_example_odmr_sequence()
     print("Example ODMR Sequence:")
-    print(sequence_text)
+    print(experiment.sequence_text)
     print("\n" + "="*50 + "\n")
     
-    if experiment.load_sequence_from_text(sequence_text):
+    if experiment.load_sequence_from_text():
         print("Sequence loaded successfully")
     else:
         print("Failed to load sequence")
@@ -1364,12 +1377,12 @@ if __name__ == "__main__":
     experiment.set_green_laser_parameters(1.0, 532)
     experiment.set_delay_parameters(25.0, 50.0, 15.0)
     # Create and load example sequence
-    sequence_text = experiment.create_example_odmr_sequence()
+    experiment.sequence_text = experiment.create_example_odmr_sequence()
     print("Example ODMR Sequence:")
-    print(sequence_text)
+    print(experiment.sequence_text)
     print("\n" + "=" * 50 + "\n")
 
-    if experiment.load_sequence_from_text(sequence_text):
+    if experiment.load_sequence_from_text():
         print("Sequence loaded successfully")
     else:
         print("Failed to load sequence")

@@ -177,6 +177,7 @@ class SequenceBuilder:
 
         markers = description.markers
         try:
+            print("building scan sequences")
             if not description.variables:
                 # No variables to scan, return single sequence
                 optimized_sequence = self.build_sequence(description)
@@ -194,24 +195,29 @@ class SequenceBuilder:
                     "Consider scanning one variable at a time for clean data correlation.",
                     UserWarning
                 )
+            print("Generate all variable value combinations")
 
             # Generate all variable value combinations
             variable_combinations = self._generate_variable_combinations(description.variables)
+            print("Create sequence for each combination")
             scan_sequences = []
             for combo in variable_combinations:
+                print(f"started with combo {combo}")
                 # Create sequence with these variable values
                 optimized_sequence = self._create_sequence_with_variables(description, combo)
+                print("finished with _create_sequence_with_variables")
                 # Get the main sequence from the optimized sequence
                 main_sequence = optimized_sequence.sequences[0]
 
                 # Apply timing adjustments for scanned variables
                 """main_sequence = self._adjust_timing_for_variable_scan(main_sequence, combo)"""
-
+                print(f"combo: {combo}")
                 # Recalculate actual duration based on adjusted timing
                 actual_duration = self._calculate_actual_duration_from_sequence(main_sequence)
                 main_sequence.total_duration = actual_duration
 
                 scan_sequences.append(main_sequence)
+                print(f"scan_sequences.append(main_sequence) done for {combo}")
             return scan_sequences
 
         except Exception as e:
@@ -236,6 +242,7 @@ class SequenceBuilder:
     def _create_sequence_with_variables(self, description: SequenceDescription, variable_values: Dict[str, float]) -> OptimizedSequence:
         """Create a sequence with specific variable values substituted."""
         # Create a copy of the description with variable values
+        print("creating sequence with variable values")
         modified_description = SequenceDescription(
             name=f"{description.name}_scan",
             experiment_type=description.experiment_type,
@@ -243,6 +250,7 @@ class SequenceBuilder:
             sample_rate=description.sample_rate,
             repeat_count=description.repeat_count
         )
+        print("done SequenceDescription")
         # Add pulses with variable values substituted
         sequence_duration = 0.0
         for pulse in description.pulses:
@@ -259,18 +267,24 @@ class SequenceBuilder:
                 markers=pulse.markers.copy(),
                 fixed_timing=pulse.fixed_timing
             )
+            print("done pulse")
             # Substitute variable values in parameters
             for param_name, param_value in modified_pulse.parameters.items():
                 if isinstance(param_value, str) and param_value in variable_values:
                     modified_pulse.parameters[param_name] = variable_values[param_value]
-
+            print("modified_pulse.parameters[param_name] = variable_values[param_value]")
 
             # apply variable substitutions
             modified_pulse.duration = self._evaluate_expression(pulse.duration, variable_values)
+            print("self._evaluate_expression(pulse.duration, variable_values)")
             modified_pulse.timing = self._evaluate_expression(pulse.timing, variable_values)
+            print("self._evaluate_expression(pulse.timing, variable_values)")
             modified_pulse.amplitude = self._evaluate_expression(pulse.amplitude, variable_values)
+            print("self._evaluate_expression(pulse.amplitude, variable_values)")
             end_time = modified_pulse.timing + modified_pulse.duration
+            print("self._evaluate_expression(end_time, variable_values)")
             sequence_duration = max(sequence_duration, end_time)
+            print("self._evaluate_expression(sequence_duration, variable_values)")
             modified_description.add_pulse(modified_pulse)
 
         modified_description.total_duration = sequence_duration
