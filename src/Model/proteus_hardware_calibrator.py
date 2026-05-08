@@ -170,7 +170,7 @@ class ProteusHardwareCalibrator:
     def _set_default_calibration_delays(self) -> None:
         """Set default calibration delay values."""
         self.calibration_delays = {
-            "green_laser_delay": 50.0,
+            "green_laser_delay": 6265.0,
             "orange_laser_delay": 10.0,
             "mw_delay": 25.0,
             "iq_delay": 30.0,

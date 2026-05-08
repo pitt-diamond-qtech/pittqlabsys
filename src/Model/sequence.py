@@ -89,7 +89,7 @@ class Sequence:
         for ch in channels:
             # Allocate arrays of length equal to the sequence's total length
             envelope = np.zeros(self.length, dtype=float)
-            markers = np.zeros(self.length, dtype=int)
+            markers = np.zeros(self.length, dtype=np.uint8)
 
             # Place pulses for this channel
             for start, pulse in self.pulses:

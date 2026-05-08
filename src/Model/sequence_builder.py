@@ -286,6 +286,7 @@ class SequenceBuilder:
             sequence_duration = max(sequence_duration, end_time)
             print("self._evaluate_expression(sequence_duration, variable_values)")
             modified_description.add_pulse(modified_pulse)
+        print("done modified_description")
 
         modified_description.total_duration = sequence_duration
         for marker in description.markers:

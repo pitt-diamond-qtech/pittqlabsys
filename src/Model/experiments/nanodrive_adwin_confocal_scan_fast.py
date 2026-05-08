@@ -111,7 +111,7 @@ class NanodriveAdwinConfocalScanFast(Experiment):
         ch = 4  # everything after relates to CH 4
         cmd = ':INST:CHAN {0}'.format(ch)
         inst.send_scpi_cmd(cmd)
-        cmd = ':VOLT 1.0'
+        cmd = ':VOLT MAX'
         rc = inst.send_scpi_cmd(cmd)
         # cmd = ':VOLT {0}'.format(1)
         # inst.send_scpi_cmd(cmd)

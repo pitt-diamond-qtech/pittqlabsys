@@ -27,21 +27,21 @@
         "impedance": "50Ω"
       },
       "4": {
-        "connection": "unassigned",
+        "connection": "green laser AOM",
         "type": "analog",
-        "calibration_delays": [],
-        "description": "Available for future use",
+        "calibration_delays": ["green_laser_delay"],
+        "description": "green laser AOM",
         "voltage_range": "±1V",
         "impedance": "50Ω"
       }
     },
     "markers": {
       "ch1_marker1": {
-        "connection": "green laser AOM",
+        "connection": "unassigned",
         "type": "digital",
-        "calibration_delays": ["green_laser_delay"],
+        "calibration_delays": [],
         "description": "Available for future use",
-        "voltage": "3.3V",
+        "voltage": "1V",
         "impedance": "50Ω"
       },
       "ch2_marker1": {
@@ -49,7 +49,7 @@
         "type": "digital",
         "calibration_delays": [],
         "description": "Available for future use. Please note that this used to be adwin external event trigger for the old system",
-        "voltage": "3.3V",
+        "voltage": "1V",
         "impedance": "50Ω"
       },
       "ch3_marker1": {
@@ -57,7 +57,7 @@
         "type": "digital",
         "calibration_delays": [],
         "description": "Available for future use",
-        "voltage": "3.3V",
+        "voltage": "1V",
         "impedance": "50Ω"
       },
       "ch4_marker1": {
@@ -65,14 +65,14 @@
         "type": "digital",
         "calibration_delays": [],
         "description": "Available for future use",
-        "voltage": "3.3V",
+        "voltage": "1V",
         "impedance": "50Ω"
       }
     }
   },
   "calibration_delays": {
     "description": "Calibration delays for ODMR pulsed experiments",
-    "green_laser_delay": 50.0,
+    "green_laser_delay": 6265.0,
     "orange_laser_delay": 10.0,
     "mw_delay": 25.0,
     "iq_delay": 30.0,

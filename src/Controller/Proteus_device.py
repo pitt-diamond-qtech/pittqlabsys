@@ -407,6 +407,7 @@ class ProteusDriver:
             if flag_low:
                 granul = 32
         else:
+            print(f"model: {model}, dac_mode: {dac_mode}")
             raise ValueError
         return granul
 

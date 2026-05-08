@@ -81,14 +81,6 @@
                     }
                 }
             },
-            "proteus": {
-                "instance": true,
-                "settings": {
-                    "get_data": false,
-                    "ip_address": false,
-                    "slot_id": false
-                }
-            },
             "scan": {
                 "preview_points": false,
                 "auto_generate_files": false,
@@ -98,6 +90,14 @@
             "filename": false,
             "tag": false,
             "save": false,
+            "proteus": {
+                "instance": true,
+                "settings": {
+                    "get_data": false,
+                    "ip_address": false,
+                    "slot_id": false
+                }
+            },
             "sg384": {
                 "instance": true,
                 "settings": {
@@ -301,9 +301,9 @@
             "settings": {
                 "get_data": false,
                 "serial": 2849,
-                "x_pos": 64.83695343155821,
-                "y_pos": 42.5431452994085,
-                "z_pos": 47.7921554738778,
+                "x_pos": 63.34492314662104,
+                "y_pos": 42.84728423500798,
+                "z_pos": 48.62694871036645,
                 "read_rate": 2.0,
                 "load_rate": 2.0,
                 "num_datapoints": 1,
@@ -515,18 +515,15 @@
                     "wavelength": 532.0
                 },
                 "delays": {
-                    "green_laser_delay": 50.0,
-                    "mw_delay": 25.0,
-                    "iq_delay": 30.0,
-                    "counter_delay": 15.0,
+                    "green_laser_delay": 0.0,
+                    "mw_delay": 0.0,
+                    "iq_delay": 0.0,
+                    "counter_delay": 0.0,
                     "trigger_delay": 0.0
                 },
                 "adwin": {
                     "count_time": 300,
                     "reset_time": 0
-                },
-                "proteus": {
-                    "proteus_response_delay": 306.5
                 },
                 "scan": {
                     "preview_points": 10,

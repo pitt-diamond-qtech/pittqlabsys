@@ -20,7 +20,10 @@ from matplotlib.animation import FuncAnimation
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import datetime
+from PyQt5.QtWidgets import QMessageBox
+from PyQt5.QtWidgets import QApplication
 
+from src.Controller import SG384Generator
 from src.core.experiment import Experiment
 from src.core import Parameter
 from src.Model.sequence_parser import SequenceTextParser
@@ -60,7 +63,7 @@ class ODMRPulsedExperiment(Experiment):
             Parameter('wavelength', 532.0, float, 'Green Laser wavelength in nm', units='nm')
         ]),
         Parameter('delays', [
-            Parameter('green_laser_delay', 50.0, float, 'green_laser_delay in ns', units='ns'),
+            Parameter('green_laser_delay', 6265.0, float, 'green_laser_delay in ns', units='ns'),
             Parameter('mw_delay', 25.0, float, 'Microwave delay in ns', units='ns'),
             Parameter('iq_delay', 30.0, float, 'iq delay in ns', units='ns'),
             Parameter('counter_delay', 15.0, float, 'AOM delay in ns', units='ns'),
@@ -69,8 +72,6 @@ class ODMRPulsedExperiment(Experiment):
         Parameter('adwin', [
             Parameter('count_time', 300, float, 'Photon counting time in ns', units='ns'),
             Parameter('reset_time', 0, float, 'Reset time between counts in ns', units='ns')        ]),
-        Parameter('proteus', [
-            Parameter('proteus_response_delay', 306.5, float, 'proteus response delay to triggers in ns', units='ns')]),
         Parameter('scan', [
             Parameter('preview_points', 10, int, 'Number of scan points to preview'),
             Parameter('auto_generate_files', True, bool, 'Automatically generate AWG files'),
@@ -110,13 +111,14 @@ class ODMRPulsedExperiment(Experiment):
         # Initialize hardware calibrator with experiment-specific connection file
         connection_file = Path(__file__).parent / "odmr_pulsed_connection.json"
         self.hardware_calibrator = ProteusHardwareCalibrator(connection_file=str(connection_file))
-        self.adwin = self.devices['adwin']['instance']
+        """self.adwin = self.devices['adwin']['instance']
         self.proteus = self.devices['proteus']['instance']
         self.sg384 = self.devices['sg384']['instance']
-        self.mux = self.devices['mux_control']['instance']
-        """self.proteus = ProteusDevice()
+        self.mux = self.devices['mux_control']['instance']"""
+        self.proteus = ProteusDevice()
         self.adwin = AdwinGoldDevice()
-        self.mux = MUXControlDevice()"""
+        self.mux = MUXControlDevice()
+        self.sg384 = SG384Generator()
         self.mux.select_trigger('pulsed')
         # Sequence data
         self.sequence_description = None
@@ -127,14 +129,7 @@ class ODMRPulsedExperiment(Experiment):
         self.count_time = self.settings["adwin"]["count_time"]  # ns
         self.reset_time = self.settings["adwin"]["reset_time"]  # ns
         self.sequence_duration = 1700  # just a placeholder
-        self.proteus_response_delay = self.settings["proteus"]["proteus_response_delay"]  # ns we tested this by running test_adwin_delays : 21 digout - 16 digout = 57.5 ns and 21 - proteus = 364 ns (when digout 16 is used to trigger proteus) and since we pad the zeros at the end, proteus delay should be relatively constant
 
-        #self.adwin = AdwinGoldDevice()
-        #self.proteus = ProteusDevice()
-        #self.proteus = None
-        # self.mux = self.devices['mux']['instance']
-        #self.mux = MUXControlDevice()
-    
     def _load_config(self) -> Dict[str, Any]:
         """Load configuration from JSON file."""
         try:
@@ -282,9 +277,10 @@ class ODMRPulsedExperiment(Experiment):
             m = (markers_array > 0).astype(np.uint8)
 
             # Ensure multiple of 4 samples
-            # pad at the end:
+            # pad:
             if len(m) % 4 != 0:
-                m = np.pad(m, (0, 4 - len(m) % 4))
+                #m = np.pad(m, (0, 4 - len(m) % 4)) # pad at the end
+                m = np.pad(m, (4 - len(m) % 4, 0))# pad at the beginning
 
             # One marker byte per 4 waveform samples
             marker_bytes = np.zeros(len(m) // 4, dtype=np.uint8)
@@ -385,9 +381,11 @@ class ODMRPulsedExperiment(Experiment):
                     rem = len(envelope) % ALIGNMENT
                     padded_zeros[ch] = rem
                     if rem:
-                        # pad at the end
-                        envelope = np.pad(envelope, (0, ALIGNMENT - rem))
-                        markers = np.pad(markers, (0, ALIGNMENT - rem))
+                        # pad
+                        #envelope = np.pad(envelope, (0, ALIGNMENT - rem)) # pad at the end
+                        #markers = np.pad(markers, (0, ALIGNMENT - rem)) # pad at the end
+                        envelope = np.pad(envelope, (ALIGNMENT - rem, 0)) # pad at the beginning
+                        markers = np.pad(markers, (ALIGNMENT - rem, 0)) # pad at the beginning
                         padded_zeros[ch] = ALIGNMENT - rem
                     # Scale to DAC
                     dac_wave = np.clip(envelope, -1.0, 1.0)
@@ -502,6 +500,10 @@ class ODMRPulsedExperiment(Experiment):
 
     def _function(self):
         print("selected start")
+        self.adwin = self.devices['adwin']['instance']
+        self.proteus = self.devices['proteus']['instance']
+        self.sg384 = self.devices['sg384']['instance']
+        self.mux = self.devices['mux_control']['instance']
         # new work to be tested:
         def build_calibration_overrides():
             return {
@@ -586,8 +588,8 @@ class ODMRPulsedExperiment(Experiment):
         devices in case you ever check the Get Basic Data checkbox in the GUI"""
         structure_to_save = MyStruct()
         signal_counts = self.data["signal_counts"]
-        reference_counts = self.data["reference_counts"]
         total_counts = self.data["total_counts"]
+        reference_counts = self.data["reference_counts"]
         structure_to_save.data = MyStruct(
             signal_counts=signal_counts,
             reference_counts = reference_counts,
@@ -605,7 +607,6 @@ class ODMRPulsedExperiment(Experiment):
             microwave_power = self.microwave_power,
             mw_delay = self.mw_delay,
             number_of_iterations = self.number_of_iterations,
-            proteus_response_delay = self.proteus_response_delay,
             repeat_count = self.repeat_count,
             reset_time = self.reset_time,
             sampling_rate = self.sampling_rate,
@@ -613,7 +614,10 @@ class ODMRPulsedExperiment(Experiment):
             sequence_duration = self.sequence_duration,
             start_time = self.s_t,
             success = self.data["success"],
-            trigger_delay = self.trigger_delay
+            trigger_delay = self.trigger_delay,
+            adwin_file = self.adwin_file,
+            adwin_reached_the_end = self.adwin_reached_the_end,
+            number_of_sequence_done_by_adwin = self.number_of_sequences_done_by_adwin
             )
         structure_to_save.devices = self.devices
         self.save_hdf_data(structure_to_save)
@@ -862,7 +866,7 @@ class ODMRPulsedExperiment(Experiment):
             self.proteus.driver.set_task_sync()
             self.proteus.start_sequence()
             time.sleep(1)
-            self.proteus.driver._close()
+            #self.proteus.driver._close()
             return True
         except Exception as e:
             self.logger.exception("Error generating AWG files")
@@ -1054,8 +1058,12 @@ class ODMRPulsedExperiment(Experiment):
             # tested proteus delay and digout delay
             odmr_pulsed_counter_path = get_adwin_binary_path('test_adwin_delays.TB1')"""
             # option 3 file: SEQUENTIAL MODEL
-            ###odmr_pulsed_counter_path = get_adwin_binary_path('adwin_triggering_proteus.TB1')
-            odmr_pulsed_counter_path = get_adwin_binary_path('T1.TB1')
+            ###self.adwin_file = 'adwin_triggering_proteus.TB1'
+            self.adwin_file = 'T1.TB1'
+            ###########self.adwin_file = 'PULSE_FIXED_WAIT_READ.TB1'
+            ###########self.adwin_file = 'TIME_RESOLUTION.TB1'
+            ###########self.adwin_file = 'TIME_RESOLUTIONz_T1_transition.TB1'
+            odmr_pulsed_counter_path = get_adwin_binary_path(self.adwin_file)
             # option 3 file: BEHAVIORAL MODEL
             #odmr_pulsed_counter_path = get_adwin_binary_path('adwin_odmr_pulsed_ticks.TB1')
             self.adwin.update({'process_1': {'load': str(odmr_pulsed_counter_path)}})
@@ -1069,7 +1077,6 @@ class ODMRPulsedExperiment(Experiment):
             self.adwin.set_int_var(5, self.repeat_count)
             self.adwin.set_int_var(6, self.number_of_iterations)
             self.adwin.set_int_var(9, self.sequence_duration)
-            self.adwin.set_int_var(10, self.proteus_response_delay)
             self.adwin.set_int_var(11, 1)
             # Start the counting process
             self.adwin.start_process(process_number)
@@ -1087,7 +1094,7 @@ class ODMRPulsedExperiment(Experiment):
         except Exception as e:
             self.logger.error(f"Failed to setup ADwin counting: {e}")
             return False
-    
+
     def _run_sequence_and_collect_data(self) -> Dict[str, Any]:
         """
         Run a single sequence and collect photon counting data from ADwin.
@@ -1103,19 +1110,27 @@ class ODMRPulsedExperiment(Experiment):
             # Collect data
             # this method has python collecting data and telling aadwin to stop:
             # Collect data
-            wait_time = (self.sequence_duration + self.proteus_response_delay)
+            wait_time = (self.sequence_duration + 1220)
             wait_time = wait_time * self.repeat_count * self.number_of_iterations  # remember: wait_time is in ns
             wait_time = wait_time * (10 ** (-9))
             print(f"wait time: {wait_time}")
             # wait for length of the entire experiment, then get the data
             time.sleep(wait_time)
+            # After time.sleep(wait_time)
+            input(f"\n=== Wait time finished ({wait_time:.2f} seconds) ===\nPress Enter to collect data or Ctrl+C to cancel...")
+
             # this method has adwin collecting data and telling python that it has finished (which is the correct way to do it):
             """while self.adwin.get_int_var(7) == 0:
                 time.sleep(60)"""
-            print(f"self.adwin.get_int_var(8): {self.adwin.get_int_var(8)}")
-            signal_counts = np.array(self.adwin.get_int_data(1, self.number_of_iterations), dtype=np.int64)
-            ref_counts = np.array(self.adwin.get_int_data(2, self.number_of_iterations), dtype=np.int64)
-            total_counts=signal_counts.astype(np.int64)+ref_counts.astype(np.int64)
+            self.number_of_sequences_done_by_adwin = self.adwin.get_int_var(8)
+            self.adwin_reached_the_end = self.adwin.get_int_var(7)
+            print(f"number_of_sequences_done_by_adwin: {self.number_of_sequences_done_by_adwin}")
+            print(f"adwin_reached_the_end: {self.adwin_reached_the_end}")
+            signal_counts = np.array(self.adwin.get_int_data(1, 1000), dtype=np.int64)
+            """total_counts = np.array(self.adwin.get_int_data(2, self.number_of_iterations), dtype=np.int64)
+            ref_counts=total_counts.astype(np.int64)-signal_counts.astype(np.int64)"""
+            ref_counts = np.array(self.adwin.get_int_data(2, 1000), dtype=np.int64)
+            total_counts = ref_counts.astype(np.int64) + signal_counts.astype(np.int64)
             for signal_counts_val in signal_counts:
                 self.logger.info(f"signal_counts_val {signal_counts_val}")
                 print(f"signal_counts_val {signal_counts_val}")
@@ -1127,7 +1142,7 @@ class ODMRPulsedExperiment(Experiment):
                 print(f"total_counts_val {total_counts_val}")
             # Stop Proteus
             #self.proteus.stop_sequence()
-            self.proteus.driver._close()
+            #self.proteus.driver._close()
             print(f"end of _run_sequence_and_collect_data()")
 
             return {
@@ -1173,17 +1188,13 @@ readout pulse on channel 3 at 800ns, square, 600ns, 0.3
             Sequence text in the sequence language format
         """
         sequence_text = """    
-sequence: name=odmr_pulsed, type=odmr, duration=15002600ns, sample_rate=1GHz, repeat_count=50000
-variable pulse_duration, start=0ns, stop=15000000ns, steps=20
-initialize pulse on channel 3 at 0ns, square, 2000ns, 1.0
-wait pulse on channel 3 at 2000ns, square, pulse_duration, 0.0
-signal pulse on channel 3 at 2000ns+pulse_duration, square, 300ns, 1.0
-reference pulse on channel 3 at 2300ns+pulse_duration, square, 300ns, 1.0
-#marker, laser_int_1 on channel 1 at 0ns, 50ns
-#pi/2 pulse on channel 1 at 50ns, gaussian, pulse_duration, 1.0
-#pi/2 pulse on channel 2 at 50ns, gaussian, pulse_duration, 1.0 
-#marker, laser_readout_1 on channel 1 at 550ns, 300ns
-#marker, ref_readout_1 on channel 1 at 1000ns, 300ns
+sequence: name=odmr_pulsed, type=odmr, duration=15437ns, sample_rate=1GHz, repeat_count=100000000
+variable pulse_duration, start=0ns, stop=200ns, steps=10
+initialize pulse on channel 4 at 1437ns, square, 2000ns, 1.0
+initialize pulse on channel 3 at 1437ns, square, 2000ns, 1.0
+signal pulse on channel 4 at 13437ns, square, 2000ns, 1.0
+signal pulse on channel 3 at 13437ns, square, 2000ns, 1.0
+var_pulse pulse on channel 2 at 0 ns, square, pulse_duration, 0.0
     """
         return sequence_text.strip()
 
@@ -1340,7 +1351,7 @@ class SequencePreviewWindow:
 # Example usage and testing
 if __name__ == "__main__":
     # Create experiment for testing
-    """experiment = ODMRPulsedExperiment(name="test_odmr")
+    experiment = ODMRPulsedExperiment(name="test_odmr")
     
     # Set parameters
     experiment.set_microwave_parameters(2.87e9, -10.0, 25.0)
@@ -1363,14 +1374,14 @@ if __name__ == "__main__":
     else:
         print("Failed to build scan sequences")
     # Generate AWG sequences
-    if experiment.generate_awg_sequences_awg_triggering_adwin_case():
-    #if experiment.generate_awg_task_sequences_adwin_triggering_awg_case():
+    #if experiment.generate_awg_sequences_awg_triggering_adwin_case():
+    if experiment.generate_awg_task_sequences_adwin_triggering_awg_case():
        print("AWG sequences generated successfully")
     else:
-       print("Failed to generate AWG sequences")"""
+       print("Failed to generate AWG sequences")
 
     # with adwin:
-    experiment = ODMRPulsedExperiment(name="test_odmr")
+    """experiment = ODMRPulsedExperiment(name="test_odmr")
 
     # Set parameters
     experiment.set_microwave_parameters(2.87e9, -10.0, 25.0)
@@ -1395,6 +1406,6 @@ if __name__ == "__main__":
         print(f"Frequencies scanned: {[f/1e9 for f in results['frequencies']]} GHz")
         print(f"Signal counts shape: {len(results['signal_counts'])} frequencies x {len(results['signal_counts'][0])} points")
     else:
-        print(f"Experiment failed: {results['error']}")
+        print(f"Experiment failed: {results['error']}")"""
     experiment.show_sequence_preview(10)
     print("\nODMR Pulsed Experiment ready!")

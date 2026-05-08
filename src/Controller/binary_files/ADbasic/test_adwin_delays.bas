@@ -67,15 +67,15 @@ init:
   'trigger_duration = 1  ' 10ns trigger pulse width (in 10 ns)
 
   Cnt_Clear(1)          ' Clear counter 1
-  count_time = 30 ' 300/10 as it's 300 ns but units are in 10 ns
+  count_time = 60 ' 600/10 as it's 600 ns but units are in 10 ns
   Conf_DIO(1100b) ' configure 0 - 15 as DIGIN, and 16 - 31 as DIGOUT
   ' Set digital output 21 to low (no trigger)
   DIGOUT(21, 0)
   DIGOUT(16, 0)
   Processdelay = 2*count_time*3
 event:
-  DIGOUT(21, 1)
+  DIGOUT(28, 1)
   DIGOUT(16, 1)
   CPU_Sleep(count_time)
-  DIGOUT(21, 0)
+  DIGOUT(28, 0)
   DIGOUT(16, 0)
