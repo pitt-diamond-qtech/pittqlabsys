@@ -15,6 +15,8 @@
 import sys
 
 from src.Model.experiments.example_experiment import ExampleExperimentWrapper,ExampleExperiment,MinimalExperiment
+from src.Model.experiments.feedback_arduino_acquire_block import FeedbackArduinoAcquireBlock
+from src.Model.experiments.feedback_arduino_live_plot import FeedbackArduinoLivePlot
 
 # Only import NI-DAQ dependent modules on Windows
 if sys.platform.startswith('win'):
