@@ -18,6 +18,7 @@ from .awg520 import AWG520Device
 from .sg384 import SG384Generator
 from .windfreak_synth_usbii import WindfreakSynthUSBII
 from .example_device import ExampleDevice, Plant, PIController
+from .feedback_arduino import FeedbackArduino
 
 # Import the base Device class
 from src.core.device import Device
@@ -1070,7 +1071,7 @@ else:
     MUXControl = MockMUXControl
 
 _DEVICE_REGISTRY = {
-    "awg520": AWG520Device, 
+    "awg520": AWG520Device,
     "sg384": SG384Generator,
     "windfreak_synth_usbii": WindfreakSynthUSBII,
     "nanodrive": MCLNanoDrive,
@@ -1081,6 +1082,7 @@ _DEVICE_REGISTRY = {
     "pi_controller": PIController,
     "mux_control": MUXControlDevice,
     "mux": MUXControl,  # Legacy alias
+    "feedback_arduino": FeedbackArduino,
 }
 
 _DEVICE_REGISTRY.update({
@@ -1102,7 +1104,7 @@ __all__ = [
     'MCLNanoDrive', 'AdwinGoldDevice',
     'AWG520Device', 'SG384Generator', 'WindfreakSynthUSBII',
     'PulseBlaster', 'ExampleDevice', 'Plant', 'PIController',
-    'MUXControlDevice', 'MUXControl',
+    'MUXControlDevice', 'MUXControl', 'FeedbackArduino',
     'create_device',
     'MockNI6229', 'MockPCI6601', 'MockMCLNanoDrive', 'MockAdwinGoldDevice', 'MockSG384Generator', 'MockMUXControlDevice'
 ]
