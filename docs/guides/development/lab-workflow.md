@@ -21,9 +21,50 @@ This document outlines the development workflow for the PittQLabSys project, des
 - **Purpose**: Hardware-specific experiments and rapid prototyping
 - **Freedom**: Work however you want, break things, iterate quickly
 
+## 🔀 **Main repo vs fork (read this first)**
+
+GitHub **“fork”** means copying the repo to another account or org so you can open pull requests. **Lab PCs usually do not need a fork** to try new work **when that work already lives on a branch of the main repo** (`pitt-diamond-qtech/pittqlabsys`).
+
+**Two different goals:**
+
+- **Forks (`duttlab-sys/pittqlabsys-[setup-name]`, etc.)** — Still the right place for **ongoing freedom**: your own drivers, experiments, and hardware-specific hacks without worrying about breaking shared code. That is the “full freedom for students and scientists” model described below.
+- **Branch on the main repo** — Use this when someone (often the maintainer) published a **specific feature for everyone to try or test** (e.g. Feedback Arduino on `matlab-conversion`). You only need to **fetch and checkout that branch** in a clone of the main repo (or via `upstream` if your day-to-day clone is a fork). No second repo is required for that kind of “try it before we merge to `main`.”
+
+**Typical pattern for validating a feature branch** (e.g. hardware testing before merge to `main`):
+
+1. **You already have a clone of the main repo** (`origin` → `pitt-diamond-qtech/pittqlabsys`):
+
+```bash
+cd pittqlabsys
+git fetch origin
+git checkout <branch-name>    # e.g. matlab-conversion
+git pull origin <branch-name>
+```
+
+2. **You do not have the repo yet** — clone once, then move to the branch:
+
+```bash
+git clone https://github.com/pitt-diamond-qtech/pittqlabsys.git
+cd pittqlabsys
+git checkout <branch-name>
+```
+
+Optional one-step clone of a single branch: `git clone -b <branch-name> --single-branch https://github.com/pitt-diamond-qtech/pittqlabsys.git`
+
+**If your existing clone uses a fork as `origin`** (`duttlab-sys/pittqlabsys-...` with `upstream` → main repo): fetch the branch from upstream, then check it out locally, for example:
+
+```bash
+git fetch upstream
+git checkout -B <branch-name> upstream/<branch-name>
+```
+
+After you are on the right branch, follow the **markdown testing guide** for that work (for example under `docs/conversions/` or `docs/` for device-specific checklists). Feature branches live on the **same** GitHub repository as `main`; teammates **fetch and checkout** the branch name—they do not “fork from a branch.”
+
+The **individual fork** workflow below is unchanged: it is for longer-lived, setup-specific repos (`pittqlabsys-[setup-name]`) and **deliberate freedom** to experiment. It is simply **not the only path** when the only task is “checkout branch X on the main repo and run the lab testing doc.”
+
 ## 🚀 **Getting Started**
 
-### **1. Initial Setup**
+### **1. Initial Setup (fork on `duttlab-sys` — setup-specific work)**
 ```bash
 # Fork the main repository on GitHub
 # Name it: pittqlabsys-[your-setup-name]
