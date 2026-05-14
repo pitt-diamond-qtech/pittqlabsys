@@ -17,6 +17,8 @@ PyYAML>=6.0.1
 ADwin>=0.17.0
 nidaqmx>=0.9.0
 PyVISA>=1.14.0
+# Serial / USB virtual COM (FeedbackArduino and similar)
+pyserial>=3.5
 
 # Units and measurements
 Pint>=0.21
