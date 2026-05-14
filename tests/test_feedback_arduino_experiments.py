@@ -11,7 +11,7 @@ Tests cover:
 
 Usage:
     pytest tests/test_feedback_arduino_experiments.py -v
-    pytest tests/test_feedback_arduino_experiments.py -v --real-hardware
+    RUN_HARDWARE_TESTS=1 pytest tests/test_feedback_arduino_experiments.py -m hardware -v
 """
 
 import pytest
@@ -514,7 +514,7 @@ def test_live_plot_parameter_update(live_plot_experiment):
 
 
 # ============================================================================
-# Hardware Tests (require --real-hardware flag)
+# Hardware Tests (require RUN_HARDWARE_TESTS=1; see tests/conftest.py)
 # ============================================================================
 
 @pytest.mark.hardware

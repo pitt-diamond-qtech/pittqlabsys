@@ -14,7 +14,7 @@ Tests cover:
 
 Usage:
     pytest tests/test_feedback_arduino.py -v
-    pytest tests/test_feedback_arduino.py -v --real-hardware  # requires actual Arduino
+    RUN_HARDWARE_TESTS=1 pytest tests/test_feedback_arduino.py -m hardware -v  # real Arduino
 """
 
 import pytest
@@ -61,8 +61,8 @@ def arduino_device(mock_serial):
 
 @pytest.fixture
 def real_arduino_device():
-    """Create FeedbackArduino device with real hardware (requires --real-hardware)."""
-    # This fixture is only used when --real-hardware flag is passed
+    """Create FeedbackArduino device with real hardware (requires RUN_HARDWARE_TESTS=1)."""
+    # Used only when hardware tests are not skipped; see tests/conftest.py
     device = FeedbackArduino(name='real_arduino', settings={'com_port': 'COM10'})
     yield device
     if device.is_connected:
@@ -530,7 +530,7 @@ def test_close_stops_acquisition(arduino_device, mock_serial):
 
 @pytest.mark.hardware
 def test_real_hardware_connection(real_arduino_device):
-    """Test actual hardware connection (requires --real-hardware flag)."""
+    """Test actual hardware connection (requires RUN_HARDWARE_TESTS=1)."""
     assert real_arduino_device.is_connected
 
     # Test ID query

@@ -6,11 +6,13 @@
 
 This document provides a minimal testing strategy for validating the FeedbackArduino device driver and experiment classes on the lab PC with real hardware.
 
+**Pytest reference (markers, env var, file layout):** [tests/README_feedback_arduino_hardware_tests.md](../../tests/README_feedback_arduino_hardware_tests.md).
+
 ## Prerequisites
 
 - Arduino Due connected via USB
 - Firmware: SIS Arduino_Analog_I/O
-- Lab PC: Windows with correct COM port identified
+- Lab PC: Windows with correct COM port identified (hardware pytest below: set the env var in **PowerShell**, which is what lab PCs use)
 - Python environment: pittqlabsys/.venv activated
 
 ---
@@ -48,20 +50,33 @@ Ensure your `config.json` contains the Arduino entry with the correct COM port:
 
 ## 2. Core Hardware Tests (5 minutes)
 
-From the `pittqlabsys` root directory:
+Hardware-marked tests are **skipped by default** in CI and locally. Enable them with `RUN_HARDWARE_TESTS=1` (see `tests/conftest.py`).
+
+**COM port for pytest:** `tests/test_feedback_arduino.py` uses a fixture that opens `COM10` by default. If your Arduino is on another port, temporarily change the `com_port` in the `real_arduino_device` fixture or use a symlink/driver alias on Windows—`config.json` alone does not affect that fixture.
+
+From the `pittqlabsys` root directory, activate the venv and set `RUN_HARDWARE_TESTS`, then run the three tests.
+
+**Windows PowerShell (lab PCs):**
+
+```powershell
+.venv\Scripts\Activate.ps1
+$env:RUN_HARDWARE_TESTS="1"
+pytest tests/test_feedback_arduino.py::test_real_hardware_connection -v -s
+pytest tests/test_feedback_arduino.py::test_real_hardware_status_query -v -s
+pytest tests/test_feedback_arduino.py::test_real_hardware_info_query -v -s
+```
+
+**macOS / Linux:**
 
 ```bash
-source .venv/bin/activate  # Or: .venv\Scripts\activate on Windows
-
-# Test 1: Basic connection and device ID
+source .venv/bin/activate
+export RUN_HARDWARE_TESTS=1
 pytest tests/test_feedback_arduino.py::test_real_hardware_connection -v -s
-
-# Test 2: Status probe query
-pytest tests/test_feedback_arduino.py::test_hardware_status_probe -v -s
-
-# Test 3: Info probe query
-pytest tests/test_feedback_arduino.py::test_hardware_info_probe -v -s
+pytest tests/test_feedback_arduino.py::test_real_hardware_status_query -v -s
+pytest tests/test_feedback_arduino.py::test_real_hardware_info_query -v -s
 ```
+
+*(Windows CMD instead of PowerShell: `set RUN_HARDWARE_TESTS=1` then the same three `pytest` lines.)*
 
 ### Expected Results
 
@@ -101,6 +116,7 @@ PASSED
 | `Timeout` | Arduino not responding | Check USB cable, restart Arduino |
 | `Checksum mismatch` | Baud rate wrong or cable issue | Verify 115200 baud in driver |
 | Device ID not found | Wrong firmware | Flash correct firmware to Arduino |
+| Tests skipped (`Hardware tests disabled by default`) | `RUN_HARDWARE_TESTS` unset | macOS/Linux: `export RUN_HARDWARE_TESTS=1`. Lab PC (PowerShell): `$env:RUN_HARDWARE_TESTS="1"` (see section 2) |
 
 **⚠️ Stop here if any test fails** — indicates serial/firmware issue that must be resolved before proceeding.
 
@@ -108,7 +124,7 @@ PASSED
 
 ## 3. Basic Acquisition Test (3 minutes)
 
-Run the integration example script:
+Run the integration example script (this script accepts `--real-hardware`; pytest does not use that flag for the tests above):
 
 ```bash
 python examples/test_feedback_arduino_acquisition.py --real-hardware --com-port COM10
@@ -193,15 +209,25 @@ Let it run for 5-10 seconds, then stop with Ctrl+C or let it complete.
 
 ## Full Regression Suite (Optional)
 
-Once the above tests pass, you can run the full hardware-marked test suite:
+Once the above tests pass, you can run the full hardware-marked test suite. Set `RUN_HARDWARE_TESTS` the same way as in section 2, then run pytest.
+
+**macOS / Linux:**
 
 ```bash
-# All hardware tests for device driver
+export RUN_HARDWARE_TESTS=1
 pytest tests/test_feedback_arduino.py -m hardware -v
-
-# All hardware tests for experiments
 pytest tests/test_feedback_arduino_experiments.py -m hardware -v
 ```
+
+**Windows PowerShell (lab PCs):**
+
+```powershell
+$env:RUN_HARDWARE_TESTS="1"
+pytest tests/test_feedback_arduino.py -m hardware -v
+pytest tests/test_feedback_arduino_experiments.py -m hardware -v
+```
+
+The experiment hardware tests load `src/config.json`; ensure `feedback_arduino` is configured there.
 
 This is recommended before merging to main, but not required for initial validation.
 

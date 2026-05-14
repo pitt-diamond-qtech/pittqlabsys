@@ -124,14 +124,16 @@ pytest --ignore=tests/test_adwin_hardware.py
 - Verify that all required dependencies are installed
 - Check that the project structure is correct
 
-## Comparison with SG384 Tests
+## Comparison with SG384 and Feedback Arduino tests
 
-This approach follows the same pattern as the SG384 hardware tests (`tests/test_sg384_hardware.py`):
+This approach follows the same pattern as the SG384 hardware tests (`tests/test_sg384_hardware.py`) and the Feedback Arduino tests (`tests/test_feedback_arduino.py`, `tests/test_feedback_arduino_experiments.py`):
 
 - Both use the `RUN_HARDWARE_TESTS` environment variable to control hardware vs mock mode
 - Both provide comprehensive mock fixtures
 - Both support pytest markers for selective test execution
 - Both include proper cleanup and error handling
+
+Feedback Arduino details: [README_feedback_arduino_hardware_tests.md](README_feedback_arduino_hardware_tests.md).
 
 ## Example Workflow
 
