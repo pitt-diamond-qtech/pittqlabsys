@@ -422,8 +422,7 @@ def test_live_plot_invalid_channel_count(live_plot_experiment, mock_arduino_devi
 # ============================================================================
 
 def test_live_plot_plotting_2x2_grid(live_plot_experiment, mock_arduino_device):
-    """Test that live plot creates 2x2 subplot grid."""
-    # Run experiment briefly to populate data
+    """Test that live plot draws on four axes in a 2x2 grid."""
     call_count = 0
 
     def poll_side_effect():
@@ -442,49 +441,54 @@ def test_live_plot_plotting_2x2_grid(live_plot_experiment, mock_arduino_device):
 
     live_plot_experiment.run()
 
-    # Create mock GraphicsLayoutWidget
-    mock_layout = Mock()
-    mock_layout.clear = Mock()
-    mock_layout.addPlot = Mock(return_value=Mock())
+    mock_axes = [Mock() for _ in range(4)]
+    for ax in mock_axes:
+        ax.clear = Mock()
+        ax.plot = Mock()
+        ax.setLabel = Mock()
+        ax.setTitle = Mock()
+        ax.showGrid = Mock()
 
-    # Call plot
-    live_plot_experiment._plot([mock_layout])
+    live_plot_experiment._plot(mock_axes)
 
-    # Verify 2x2 grid was created
-    assert mock_layout.addPlot.call_count == 4  # 4 subplots
-
-    # Check that correct positions were used
-    calls = mock_layout.addPlot.call_args_list
-    positions = [(call[1]['row'], call[1]['col']) for call in calls]
-    assert (0, 0) in positions  # Channel A
-    assert (0, 1) in positions  # Channel B
-    assert (1, 0) in positions  # Channel C
-    assert (1, 1) in positions  # Channel D
+    for ax in mock_axes:
+        ax.clear.assert_called_once()
+        ax.plot.assert_called_once()
 
 
 def test_live_plot_no_data_no_crash(live_plot_experiment):
     """Test that plotting with no data doesn't crash."""
     live_plot_experiment.data = None
 
-    mock_layout = Mock()
-    live_plot_experiment._plot([mock_layout])
+    mock_axes = [Mock() for _ in range(4)]
+    live_plot_experiment._plot(mock_axes)
 
-    # Should not crash
-    mock_layout.clear.assert_not_called()
+    for ax in mock_axes:
+        ax.clear.assert_not_called()
 
 
 def test_live_plot_get_axes_layout(live_plot_experiment):
-    """Test get_axes_layout returns GraphicsLayoutWidget."""
+    """Test get_axes_layout creates four PlotItem axes in a 2x2 grid."""
     mock_graph = Mock()
     mock_graph.clear = Mock()
+    mock_graph.addPlot = Mock(side_effect=lambda row, col: Mock(name=f'ax_{row}_{col}'))
+    mock_graph.getItem = Mock(side_effect=lambda row, col: Mock(name=f'ax_{row}_{col}'))
 
-    # First call (plot_refresh=True)
     live_plot_experiment._plot_refresh = True
     axes = live_plot_experiment.get_axes_layout([mock_graph])
 
-    assert len(axes) == 1
-    assert axes[0] == mock_graph
+    assert len(axes) == 4
     mock_graph.clear.assert_called_once()
+    assert mock_graph.addPlot.call_count == 4
+
+    calls = mock_graph.addPlot.call_args_list
+    positions = [(call[1]['row'], call[1]['col']) for call in calls]
+    assert positions == [(0, 0), (0, 1), (1, 0), (1, 1)]
+
+    live_plot_experiment._plot_refresh = False
+    axes = live_plot_experiment.get_axes_layout([mock_graph])
+    assert len(axes) == 4
+    assert mock_graph.getItem.call_count == 4
 
 
 # ============================================================================

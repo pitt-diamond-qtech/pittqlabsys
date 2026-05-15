@@ -16,8 +16,6 @@ import time
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
-import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
 
 from src.core.experiment import Experiment
 from src.core import Parameter
@@ -338,6 +336,8 @@ class ODMRPulsedExperiment(Experiment):
             num_points: Number of scan points to preview
         """
         if not self.scan_sequences:
+            from tkinter import messagebox
+
             messagebox.showerror("Error", "No scan sequences available. Build sequences first.")
             return
         
@@ -679,6 +679,15 @@ pi/2 pulse on channel 1 at 0ns, gaussian, 50ns, 1.0
 
 class SequencePreviewWindow:
     """Window for previewing sequence scan points."""
+
+    @staticmethod
+    def _load_tk():
+        """Import Tk only when preview is shown (avoids requiring _tkinter at import time)."""
+        import tkinter as tk
+        from tkinter import ttk
+        from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+
+        return tk, ttk, FigureCanvasTkAgg
     
     def __init__(self, sequences: List[Sequence], description):
         """Initialize preview window."""
@@ -688,6 +697,7 @@ class SequencePreviewWindow:
         
     def show(self):
         """Show the preview window."""
+        tk, ttk, _FigureCanvasTkAgg = self._load_tk()
         # Create main window
         self.window = tk.Tk()
         self.window.title("ODMR Pulsed Sequence Preview")
@@ -717,6 +727,7 @@ class SequencePreviewWindow:
     
     def _create_overview_tab(self, parent):
         """Create overview tab."""
+        _, ttk, _ = self._load_tk()
         # Sequence info
         info_frame = ttk.LabelFrame(parent, text="Sequence Information", padding=10)
         info_frame.pack(fill='x', padx=10, pady=5)
@@ -737,12 +748,11 @@ class SequencePreviewWindow:
     
     def _create_plots_tab(self, parent):
         """Create plots tab."""
+        _, ttk, FigureCanvasTkAgg = self._load_tk()
         # Create matplotlib figure
         fig, ax = plt.subplots(figsize=(8, 6))
         fig.canvas.draw()
         
-        # Embed in tkinter
-        from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
         canvas = FigureCanvasTkAgg(fig, parent)
         canvas.draw()
         canvas.get_tk_widget().pack(fill='both', expand=True)
@@ -757,6 +767,7 @@ class SequencePreviewWindow:
     
     def _create_parameters_tab(self, parent):
         """Create parameters tab."""
+        _, ttk, _ = self._load_tk()
         # Parameters info
         params_frame = ttk.LabelFrame(parent, text="Experiment Parameters", padding=10)
         params_frame.pack(fill='x', padx=10, pady=5)

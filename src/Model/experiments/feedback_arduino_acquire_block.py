@@ -2,10 +2,11 @@
 # Converted from MATLAB script: feedback_arduinos_acquire_block.m
 # Model/experiments/feedback_arduino_acquire_block.py
 
-from src.core import Experiment, Parameter
-from src.Controller.feedback_arduino import FeedbackArduino
-import numpy as np
 import logging
+
+import numpy as np
+
+from src.core import Experiment, Parameter
 
 logger = logging.getLogger(__name__)
 
@@ -63,10 +64,8 @@ class FeedbackArduinoAcquireBlock(Experiment):
             - adc_sample_rate_hz: Actual ADC sample rate after decimation
             - decimator: Decimation factor used
         """
-        # Get device instance
-        arduino = self.instruments['arduino']['instance']
+        arduino = self.devices['arduino']['instance']
 
-        # Extract settings
         decimator = self.settings['decimator']
         usb_data_n = self.settings['usb_data_n']
         trig_channel = self.settings['trig_channel']
@@ -79,7 +78,6 @@ class FeedbackArduinoAcquireBlock(Experiment):
                 f"data_n={usb_data_n}, trig_ch={trig_channel}, "
                 f"level={trig_level}, hyst={trig_hyst}")
 
-        # Configure Arduino in triggered scope mode (mode 2)
         arduino.configure_scope_mode(
             decimator=decimator,
             usb_data_n=usb_data_n,
@@ -88,21 +86,17 @@ class FeedbackArduinoAcquireBlock(Experiment):
             trig_hyst=trig_hyst
         )
 
-        # Start acquisition
         self.log("Starting data acquisition")
         arduino.start_acquisition()
 
-        # Update progress: acquisition started (25%)
         self.progress = 25
         self.updateProgress.emit(self.progress)
 
-        # Poll for data block with timeout
         self.log(f"Waiting for data block (max {max_wait_s}s)")
         try:
             result = arduino.get_data_block(max_wait_s=max_wait_s, poll_dt=poll_dt)
         except TimeoutError as e:
             self.log(f"ERROR: {e}")
-            # Stop acquisition even if we failed to get data
             arduino.stop_acquisition()
             self.data = {'error': str(e)}
             return
@@ -112,15 +106,12 @@ class FeedbackArduinoAcquireBlock(Experiment):
             self.data = {'error': str(e)}
             return
 
-        # Update progress: data received (75%)
         self.progress = 75
         self.updateProgress.emit(self.progress)
 
-        # Stop acquisition
         self.log("Stopping data acquisition")
         arduino.stop_acquisition()
 
-        # Extract channel data
         if result['samples_by_channel'] is None or result['samples_by_channel'].shape[1] != 4:
             self.log("ERROR: Expected 4-channel data")
             self.data = {'error': 'Expected 4-channel data', 'result': result}
@@ -131,7 +122,6 @@ class FeedbackArduinoAcquireBlock(Experiment):
 
         self.log(f"Acquired {n_samples} samples per channel")
 
-        # Query ADC sample rate for metadata
         try:
             info = arduino.read_probes('info')
             adc_sample_rate_hz = info['adc_sample_rate_hz']
@@ -139,7 +129,6 @@ class FeedbackArduinoAcquireBlock(Experiment):
             logger.warning(f"Could not query ADC sample rate: {e}")
             adc_sample_rate_hz = None
 
-        # Store data in self.data dict
         self.data = {
             'samples_by_channel': data_array,
             'chA': data_array[:, 0],
@@ -152,56 +141,40 @@ class FeedbackArduinoAcquireBlock(Experiment):
             'decimator': decimator,
         }
 
-        # Update progress: complete (100%)
         self.progress = 100
         self.updateProgress.emit(self.progress)
 
         self.log("Data acquisition complete")
 
-    def _plot(self, axes_list):
-        """Plot the acquired 4-channel data.
+    def _plot(self, axes_list, data=None):
+        """Plot the acquired 4-channel data on a single axes.
 
         Args:
-            axes_list: List of pyqtgraph axes provided by the GUI.
-                      axes_list[0] is used for the 4-channel plot.
+            axes_list: List of pyqtgraph PlotItem objects from get_axes_layout.
+            data: Optional data dict; defaults to self.data.
         """
-        if self.data is None or 'samples_by_channel' not in self.data:
+        if data is None:
+            data = self.data
+
+        if not data or 'samples_by_channel' not in data or 'error' in data:
             return
 
-        # Check if there was an error
-        if 'error' in self.data:
+        if len(axes_list) < 1:
             return
 
-        # Get the first axes
         ax = axes_list[0]
-
-        # Clear and plot all 4 channels
         ax.clear()
 
-        data = self.data['samples_by_channel']
-        n_samples = data.shape[0]
-        x = np.arange(n_samples)
+        samples = data['samples_by_channel']
+        x = np.arange(samples.shape[0])
 
-        # Plot each channel with different colors
-        colors = ['r', 'g', 'b', 'y']  # Red, Green, Blue, Yellow
+        colors = ['r', 'g', 'b', 'y']
         labels = ['Ch A', 'Ch B', 'Ch C', 'Ch D']
 
         for i in range(4):
-            ax.plot(x, data[:, i], pen=colors[i], name=labels[i])
+            ax.plot(x, samples[:, i], pen=colors[i], name=labels[i])
 
-        # Set labels
         ax.setLabel('bottom', 'Sample Index')
-        ax.setLabel('left', 'ADC Counts', units='')
+        ax.setLabel('left', 'ADC Counts')
         ax.setTitle('Arduino 4-Channel Acquisition')
         ax.addLegend()
-
-    def _update_plot(self, axes_list):
-        """Update plot during live run.
-
-        For single-shot acquisition, this just calls _plot() since there's
-        no incremental data to update.
-
-        Args:
-            axes_list: List of axes objects.
-        """
-        self._plot(axes_list)
