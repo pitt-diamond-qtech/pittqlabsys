@@ -88,6 +88,13 @@ git push origin main
 
 ## 🔒 **Lab-wide Contributions (Strict Review)**
 
+### **Rule of thumb**
+| Situation | What to do |
+|-----------|------------|
+| **Daily work on your setup** | Keep using your fork as before (`duttlab-sys/pittqlabsys-[setup-name]`). No change. |
+| **Code for the whole lab** | Branch from **`contributions`**, open a PR **into `contributions`** (not `main`). |
+| **Try a maintainer feature branch** (e.g. `matlab-conversion`) | `git fetch` + checkout that branch on a clone of the main repo; see feature testing docs under `docs/conversions/`. |
+
 ### **When to Contribute Back**
 Only contribute to the main repository when you have something valuable for everyone:
 - New experiment types that others might use
@@ -139,6 +146,72 @@ git push origin your-name-short-description
 ```bash
 git clone -b contributions --single-branch https://github.com/pitt-diamond-qtech/pittqlabsys.git
 ```
+
+### **Quick reference by how you already use the repo**
+
+Pick the path that matches your machine. In every case, the GitHub PR **base branch** is **`contributions`** on `pitt-diamond-qtech/pittqlabsys`.
+
+#### **A. You already have a fork** (common on experiment workstations)
+
+`origin` = your fork; `upstream` = main repo.
+
+```bash
+cd pittqlabsys
+git fetch upstream
+git checkout contributions
+git pull upstream contributions
+git checkout -b your-name-short-description
+# ... edit, test, commit ...
+git push origin your-name-short-description
+```
+
+On GitHub: **New pull request** → base **`contributions`**, compare **your branch** (from your fork into the main repo).
+
+If `upstream` is not configured yet:
+```bash
+git remote add upstream https://github.com/pitt-diamond-qtech/pittqlabsys.git
+```
+
+#### **B. You have a clone of the main repo**
+
+`origin` points at `pitt-diamond-qtech/pittqlabsys`.
+
+```bash
+cd pittqlabsys
+git fetch origin
+git checkout contributions
+git pull origin contributions
+git checkout -b your-name-short-description
+# ... edit, test, commit ...
+git push origin your-name-short-description
+```
+
+On GitHub: **New pull request** → base **`contributions`**, compare **your branch** (same repository).
+
+#### **C. You do not have the repo yet**
+
+**Lab-wide contribution** (simplest):
+
+```bash
+git clone https://github.com/pitt-diamond-qtech/pittqlabsys.git
+cd pittqlabsys
+git checkout contributions
+git checkout -b your-name-short-description
+```
+
+Or clone `contributions` directly:
+```bash
+git clone -b contributions https://github.com/pitt-diamond-qtech/pittqlabsys.git
+cd pittqlabsys
+git checkout -b your-name-short-description
+```
+
+**Personal setup fork** (ongoing workstation work): create `duttlab-sys/pittqlabsys-[setup-name]` on GitHub, clone it, add `upstream` as in [Initial Setup](#1-initial-setup), then use **A** when you are ready to open a lab-wide PR.
+
+#### **Before you open the PR**
+- Run `python -m pytest tests/` (and hardware tests only when your change needs them)
+- Use the [Pull Request Template](.github/pull_request_template.md)
+- Request review from **@gurudevdutt**
 
 ## 🤝 **Sharing Experiments Between Lab Members**
 
