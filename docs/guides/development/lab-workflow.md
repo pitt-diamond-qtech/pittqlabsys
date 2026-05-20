@@ -21,6 +21,13 @@ This document outlines the development workflow for the PittQLabSys project, des
 - **Purpose**: Hardware-specific experiments and rapid prototyping
 - **Freedom**: Work however you want, break things, iterate quickly
 
+### **`contributions` branch (lab-wide PRs into `main`)**
+- **`pitt-diamond-qtech/pittqlabsys` → branch `contributions`**: Integration branch for code headed to `main`
+- **Purpose**: Keeps `main` stable while student and lab PRs are reviewed and tested
+- **Who uses it**: Anyone opening a lab-wide PR (fork or clone of the main repo)
+- **Flow**: Branch off `contributions` → open PR **into** `contributions` → after review, maintainers merge `contributions` → `main`
+- **Maintainer-only branches** (e.g. `matlab-conversion`) stay separate for feature testing before they land on `contributions` or `main`
+
 ## 🚀 **Getting Started**
 
 ### **1. Initial Setup**
@@ -100,19 +107,37 @@ Only contribute to the main repository when you have something valuable for ever
 - ✅ Must use the **[Pull Request Template](.github/pull_request_template.md)** for consistent formatting
 
 ### **Process**
+
+**Target branch:** open PRs into **`contributions`**, not directly into `main`.
+
 ```bash
-# 1. Test thoroughly
+# 0. Sync with the integration branch (main repo clone or fork with upstream)
+git fetch upstream   # or: git fetch origin  if origin is pitt-diamond-qtech/pittqlabsys
+git checkout contributions
+git pull upstream contributions   # or: git pull origin contributions
+
+# 1. Create your feature branch from contributions
+git checkout -b your-name-short-description
+
+# 2. Test thoroughly
 python -m pytest tests/
 python examples/your_experiment.py --test-only
 
-# 2. Update documentation
-# Update README.md, CHANGELOG.md, etc.
+# 3. Commit, push, and open a PR into contributions (not main)
+git push origin your-name-short-description
+# On GitHub: base branch = contributions, compare = your-name-short-description
 
-# 3. Create PR using the template
-# Use the Pull Request Template (.github/pull_request_template.md)
-# Include what, why, and how it benefits the lab
+# 4. Update documentation (README, CHANGELOG, examples/ as needed)
 
-# 4. Wait for review and approval from @gurudevdutt
+# 5. Use the Pull Request Template (.github/pull_request_template.md)
+
+# 6. Wait for review and approval from @gurudevdutt
+#    Maintainers merge contributions → main when a batch of work is ready
+```
+
+**Clone only `contributions` (optional):**
+```bash
+git clone -b contributions --single-branch https://github.com/pitt-diamond-qtech/pittqlabsys.git
 ```
 
 ## 🤝 **Sharing Experiments Between Lab Members**
