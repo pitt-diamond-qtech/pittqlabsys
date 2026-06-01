@@ -89,7 +89,6 @@ _CONFIG_PATH = get_project_root() / "src" / "config.json"
 paths = resolve_paths(_CONFIG_PATH)
 
 # now you can inspect any one, for example:
-print(f"Experiments folder: {paths['experiments_folder']}")
 try:
     thisdir = get_project_root()
     #qtdesignerfile = thisdir / 'View/ui_files/main_window.ui'  # this is the .ui file created in QtCreator
@@ -99,8 +98,6 @@ except (ImportError, IOError):
     # load precompiled old_gui, to compile run pyuic5 main_window.ui -o gui_compiled_main_window.py
     from ..compiled_ui_files.gui_compiled_main_window import Ui_MainWindow
     from PyQt5.QtWidgets import QMainWindow
-    print('Warning: on-the-fly conversion of main_window.ui file failed, loaded .py file instead.\n')
-
 
 class CustomEventFilter(QtCore.QObject):
     def eventFilter(self, QObject, QEvent):
@@ -211,7 +208,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         )
         
         self.log(self.startup_msg)
-        print(self.startup_msg)
         #self.config_filepath = None
         gui_logger.debug("Calling super().__init__()")
         super(MainWindow, self).__init__()
@@ -373,17 +369,14 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         gui_logger.debug("setup_trees() completed, about to call connect_controls()")
         
         # Install NumberClampDelegate for column 1 (Value column) on both trees
-        print("installing NumberClampDelegate")
         from src.View.windows_and_widgets.widgets import NumberClampDelegate
         
         self.settings_delegate = NumberClampDelegate(self.tree_settings)
         self.tree_settings.setItemDelegateForColumn(1, self.settings_delegate)
         self.settings_delegate.validation_result_signal.connect(self._handle_delegate_validation_result)
-        print("settings_delegate done")
         self.experiments_delegate = NumberClampDelegate(self.tree_experiments)
         self.tree_experiments.setItemDelegateForColumn(1, self.experiments_delegate)
         self.experiments_delegate.validation_result_signal.connect(self._handle_delegate_validation_result)
-        print("experiments_delegate done")
         gui_logger.debug("Installed NumberClampDelegate for column 1 on both trees and connected validation signals")
         
         connect_controls()
@@ -527,9 +520,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             if (event.type() == QtCore.QEvent.ChildAdded):
                 item = self.tree_experiments.selectedItems()[0]
                 if not isinstance(item.value, Experiment):
-                    print('ONLY EXPERIMENTS CAN BE DRAGGED')
                     return False
-                print(('XXX ChildAdded', self.tree_experiments.selectedItems()[0].name))
 
 
 
@@ -811,7 +802,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                     log_function=self.log,
                     data_path=data_folder_name,
                     raise_errors=False)
-                print(f"experiments {self.experiments} loaded_failed {loaded_failed} devices {self.devices}")
 
                 # delete instances of new devices/experiments that have been deselected
                 for name in removed_experiments:
@@ -939,18 +929,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 experiment, path_to_experiment, experiment_item = item.get_experiment()
                 if self.getbasicdatacheckBox.isChecked():
                     checked_devices = []
-                    print("The checkbox is CHECKED.")
                     for device_name, device_obj in self.devices.items():
-                        print(device_name)
                         if device_obj.settings['get_data'] == True:
-                            print(f"device {device_name}'s data is included")
                             checked_devices.append(device_obj)
-                        else:
-                            print(f"device {device_name}'s data is NOT included")
                     experiment.get_checked_devices(checked_devices)
-                else:
-                    print("The checkbox is UNCHECKED.")
-                
+
                 gui_logger.info(f"Starting experiment: {experiment.name}")
 
                 self.update_experiment_from_item(experiment_item)
@@ -1019,7 +1002,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             for exp in self.experiments.values():
                 if hasattr(exp, 'proteus'):
                     exp.proteus.driver._close()
-                    print("PROTEUS closed")
 
         def skip_button():
             """
@@ -1174,7 +1156,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                     
                 if not loaded_failed:
                     gui_logger.warning(f"Following probes could not be loaded: {loaded_failed}")
-                    print(('WARNING following probes could not be loaded', loaded_failed, len(loaded_failed)))
 
                 # restart the readprobes thread
                 gui_logger.debug("Restarting read probes thread")
@@ -1215,8 +1196,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                     
                 if len(loaded_failed) > 0:
                     gui_logger.warning(f"Following devices could not be loaded: {loaded_failed}")
-                    print(('WARNING following device could not be loaded', loaded_failed))
-                    
+
                 # delete instances of new devices/experiments that have been deselected
                 for name in removed_devices:
                     gui_logger.debug(f"Removing device: {name}")
@@ -1542,10 +1522,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             changed_col: the column that changed (if called from signal)
         """
         # Prevent recursion
-        print(f"inside update_parameters")
-        print(f"treeWidget.item() {treeWidget}")
-        print(f"changed_item.name {changed_item.name}")
-        print(f"changed_col {changed_col}")
         if getattr(self, "_updating_parameters", False) or getattr(self, "_programmatic_update", False):
             return
 
@@ -1564,8 +1540,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             return
 
         item = changed_item
-        print(f"changed_item: {changed_item} changed_col {changed_col} treeWidget {treeWidget} device, path_to_device = item.get_device() {item.get_device()}")
-        
+
         self._updating_parameters = True
         try:
             # Check if this item is already being processed for clamping
@@ -1990,9 +1965,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         This provides visual feedback, logging, and GUI history updates."""
 
         gui_logger.debug(f"Received delegate validation result for {item.name}: {result}")
-        print(f"item.name: {item.name} param_name {param_name} result {result}")
         device, path_to_device = item.get_device()
-        print(f"device: {device}, path_to_device {path_to_device}")
         device.update({param_name: result['actual_value']})
 
         # Update the item's display text if the actual value is different
@@ -2027,7 +2000,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                     tree_widget = tree
                     gui_logger.debug(f"MAIN WINDOW: Found item {item.name} in tree {tree.objectName()}")
                     break
-            print(f"tree_widget {tree_widget}")
 
             if tree_widget:
                 # Find the index for the value column (column 1)
@@ -2067,7 +2039,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             is_error: Whether this is an error message
         """
         # Log the message
-        print(f"_show_parameter_notification message {message} is_error: {is_error}")
         if is_error:
             gui_logger.error(f"Parameter notification (ERROR): {message}")
         else:
@@ -2574,11 +2545,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                         except Exception:
                             config_settings[x] = self._DEFAULT_CONFIG[x]
                             os.makedirs(config_settings[x])
-                            print(('WARNING: failed validating or creating path: set to default path'.format(config_settings[x])))
                 else:
                     config_settings[x] = self._DEFAULT_CONFIG[x]
                     os.makedirs(config_settings[x])
-                    print(('WARNING: path {:s} not specified set to default {:s}'.format(x, config_settings[x])))
 
         # check if file_name is a valid filename
         if filepath is not None and os.path.exists(os.path.dirname(filepath)):

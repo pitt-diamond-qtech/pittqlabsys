@@ -59,7 +59,7 @@ class Experiment(QObject):
     finished = pyqtSignal()  # signals the end of the experiment
 
     _DEFAULT_SETTINGS = [
-        Parameter('path', '', str, 'path to folder where data is saved'),
+        Parameter('path', "D:\Data", str, 'path to folder where data is saved'),
         Parameter('tag', 'default_tag'),
         Parameter('save', False, bool, 'check to automatically save data'),
     ]
@@ -546,17 +546,15 @@ class Experiment(QObject):
 
         filename = base_path / f"{file_name}_{time_now}.h5"
         if self.checked_devices is None:
-            print("no devices seleted to get basic data")
             return
         else:
             structure_to_save.basic_data_devices = MyStruct()
             for device in self.checked_devices:
-                if device not in self.devices:
+                if device.name not in self.devices:
+                    #only save data from checked devices that are not part of the experiment
                     dev_name = device.name
                     setattr(structure_to_save.basic_data_devices, dev_name, device.get_data())
-            print(f"saving data to {filename}")
             save_data(filename, structure_to_save)
-            print(f"saved data to {filename}")
 
     def save_hdf5(self):
         """subclasses need to define their own data then call save_hdf_data(structure_to_save: MyStruct), this way, the Get Basic Data button gets to save data from selected external devices: for more info, please refer to github: https://github.com/duttlab-sys/pittqlabsys-single-NV/tree/main/docs/guides/development/data_saving_documentation.pdf"""

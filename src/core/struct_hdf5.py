@@ -59,7 +59,6 @@ def save_data(filename, obj, mode="w", swmr=True):
         if isinstance(obj, StructArray):
             _write_structarray(f, obj)
         else:
-            print(f"obj{obj}")
             _write_mystruct(f, obj)
 
         if swmr and mode in ("w", "r+"):
@@ -123,8 +122,6 @@ def _write_value(h5group, name, value):
             chunks=True)
         except Exception:
             h5group.attrs[name] = str(value)
-            """print(f"Failed to create {name}")
-            raise Exception"""
 
 
 # ============================================================
@@ -303,8 +300,6 @@ if __name__ == "__main__":
     save_data("example.h5", obj)
     loaded = load_data("example.h5")
 
-    print(loaded)
-    print(loaded[1].matrix)
     # PARAM HELPERS EXAMPLE USAGE
     """Save spectrum analyzer defaults
     save_parameters_hdf5(

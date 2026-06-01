@@ -151,10 +151,8 @@ class Device:
         
         # Get actual values
         if '_PROBES' in self.__dict__ and self._PROBES:
-            print("getting actual value from read_probes")
             actual_values = self.read_probes()
         else:
-            print("getting actual value from _settings")
             actual_values = dict(self._settings)
         
         # Generate feedback for each parameter
@@ -408,7 +406,6 @@ class Device:
 
         """
 
-        #        print(('xxxxx probes', key, self._PROBES()))
 
         if key is None:
             # return the value all probe in dictionary form
@@ -603,7 +600,6 @@ class Device:
             # check if device already exists
             if device_name in list(devices.keys()) \
                     and device_class_name == devices[device_name].__name__:
-                print(('WARNING: device {:s} already exists. Did not load!'.format(device_name)))
                 loaded_failed[device_name] = device_name
             else:
                 device_instance = None
@@ -628,8 +624,6 @@ class Device:
                                                               settings=device_settings)
                     except Exception as e:
                         loaded_failed[device_name] = e
-                        print('loading ' + device_name + ' failed:')
-                        print(traceback.format_exc())
                         if raise_errors:
                             raise e
                         continue
@@ -650,9 +644,6 @@ class Device:
                                                               settings=device_settings)
                     except Exception as e:
                         loaded_failed[device_name] = e
-                        # print(device_name, ': ', str(e))
-                        print('loading ' + device_name + ' failed:')
-                        print(traceback.format_exc())
                         if raise_errors:
                             raise e
                         continue

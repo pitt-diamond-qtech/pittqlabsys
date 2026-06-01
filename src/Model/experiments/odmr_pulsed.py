@@ -50,7 +50,7 @@ class ODMRPulsedExperiment(Experiment):
     """
     _DEFAULT_SETTINGS = [
         Parameter('sequence',[
-            Parameter('file_path', "D:\Data\jannet_trabelsi\March2026\odmr_sequence.txt", str, 'Path to sequence definition file'),
+            Parameter('file_path', "D:\Data\odmr_sequence.txt", str, 'Path to sequence definition file'),
             Parameter('load_from_file', False, bool, 'load the sequence from a file'),
             Parameter('text',"sequence: name=odmr_pulsed, type=odmr, duration=1002500ns, sample_rate=1GHz, repeat_count=50000\nvariable pulse_duration, start=50ns, stop=500ns, steps=20\nmarker, laser_int_1 on channel 1 at 0ns, 500ns\npi/2 pulse on channel 1 at 500ns, gaussian, pulse_duration, 1.0\npi/2 pulse on channel 2 at 500ns, gaussian, pulse_duration, 1.0 \nwait pulse on channel 1 at pulse_duration+0.000000500, square, 2*pulse_duration, 0.0\nwait pulse on channel 2 at pulse_duration+0.000000500, square, 2*pulse_duration, 0.0\npi/2 pulse on channel 1 at 3*pulse_duration+0.000000500, gaussian, pulse_duration, 1.0\npi/2 pulse on channel 2 at 3*pulse_duration+0.000000500, gaussian, pulse_duration, 1.0\nmarker, laser_readout_1 on channel 1 at 2500ns, 1ms\nmarker, readout_counts_1 on channel 2 at 2500ns, 300ns\nmarker, reference_counts_1 on channel 2 at 1002200ns, 300ns", str, 'sequence_text')
         ]),
@@ -77,7 +77,6 @@ class ODMRPulsedExperiment(Experiment):
             Parameter('auto_generate_files', True, bool, 'Automatically generate AWG files'),
             Parameter('output_directory', 'odmr_pulsed_output', str, 'Output directory for AWG files')
         ]),
-        Parameter('path', "D:\Data"),
         Parameter('filename', "odmr_pulsed_output"),
         Parameter('tag', "odmrpulsedexperiment"),
         Parameter('save', False)
@@ -99,7 +98,7 @@ class ODMRPulsedExperiment(Experiment):
         self.logger = logging.getLogger(__name__)
         self.repeat_count = None
         self.number_of_iterations = 0
-        self.config_path = config_path or self.get_config_path("D:\\Duttlab\\Experiments\\AQuISS_default_save_location\\experiments_auto_generated\\ODMRPulsedExperiment.json")
+        self.config_path = config_path or self.get_config_path("ODMRPulsedExperiment.json")
         # Configuration
         self.config = self._load_config()
         self.sequence_text = None
