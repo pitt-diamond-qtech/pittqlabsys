@@ -12,12 +12,13 @@
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
-from PyQt5 import QtGui, QtCore, QtWidgets
-from PyQt5.uic import loadUiType
-from PyQt5.QtCore import QThread, pyqtSlot, Qt, QTimer, QSignalBlocker
-from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
-import pyqtgraph as pg
 
+# pyuic5 -x main_window.ui -o gui_compiled_main_window.py
+from PyQt5 import QtGui, QtWidgets
+from PyQt5.uic import loadUiType
+from PyQt5 import QtCore
+from PyQt5.QtWidgets import QSizePolicy
+from PyQt5.QtCore import QThread, pyqtSlot, Qt, QSignalBlocker
 from src.core import Parameter, Device, Experiment, Probe
 from src.core.experiment_iterator import ExperimentIterator
 from src.core.read_probes import ReadProbes
@@ -27,8 +28,9 @@ from src.core.read_write_functions import load_aqs_file
 from src.core.helper_functions import get_project_root
 from src.config_store import load_config, merge_config, save_config
 from pathlib import Path
+from PyQt5.QtWidgets import QFileDialog
 from src.config_paths import resolve_paths
-import os, io, json, webbrowser, datetime, operator
+import os, webbrowser, datetime, operator
 import numpy as np
 from collections import deque
 from functools import reduce
@@ -87,7 +89,6 @@ _CONFIG_PATH = get_project_root() / "src" / "config.json"
 paths = resolve_paths(_CONFIG_PATH)
 
 # now you can inspect any one, for example:
-print(f"Experiments folder: {paths['experiments_folder']}")
 try:
     thisdir = get_project_root()
     #qtdesignerfile = thisdir / 'View/ui_files/main_window.ui'  # this is the .ui file created in QtCreator
@@ -97,8 +98,6 @@ except (ImportError, IOError):
     # load precompiled old_gui, to compile run pyuic5 main_window.ui -o gui_compiled_main_window.py
     from ..compiled_ui_files.gui_compiled_main_window import Ui_MainWindow
     from PyQt5.QtWidgets import QMainWindow
-    print('Warning: on-the-fly conversion of main_window.ui file failed, loaded .py file instead.\n')
-
 
 class CustomEventFilter(QtCore.QObject):
     def eventFilter(self, QObject, QEvent):
@@ -158,6 +157,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.paths = resolve_paths(cfg_path)
         gui_logger.debug(f"Resolved paths: {self.paths}")
         # now self.paths["data_folder"], self.paths["experiments_folder"], etc.
+        self.first_time_positioning = True
 
         # 2) Load any other globals you need:
         self.global_cfg = load_config(cfg_path)
@@ -208,7 +208,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         )
         
         self.log(self.startup_msg)
-        print(self.startup_msg)
         #self.config_filepath = None
         gui_logger.debug("Calling super().__init__()")
         super(MainWindow, self).__init__()
@@ -241,9 +240,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
             self.tree_experiments.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
             self.tree_probes.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
-            self.tree_settings.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
+            #commented out by Jannet Trabelsi: self.tree_settings.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
 
-            self.tree_gui_settings.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
+            #commented out by Jannet Trabelsi: self.tree_gui_settings.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
             self.tree_gui_settings.doubleClicked.connect(self.edit_tree_item)
 
             self.current_experiment = None
@@ -261,9 +260,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.tree_gui_settings_model.setHorizontalHeaderLabels(['parameter', 'value'])
 
             self.tree_experiments.header().setStretchLastSection(True)
+
         def connect_controls():
             gui_logger.debug("Connecting controls")
-            
+
             # Debug: Check if menu actions exist
             gui_logger.debug(f"actionExport exists: {hasattr(self, 'actionExport')}")
             if hasattr(self, 'actionExport'):
@@ -318,9 +318,14 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             # Helper function to make only column 1 editable
             def onExperimentParamClick(item, column):
                 tree = item.treeWidget()
-                if column == 1 and not isinstance(item.value, (Experiment, Device)) and (hasattr(item, 'is_point') and not item.is_point()):
-                    # self.tree_experiments.editItem(item, column)
-                    tree.editItem(item, column)
+                if column == 1 and not isinstance(item.value, (Experiment, Device)) and (
+                        hasattr(item, 'is_point') and not item.is_point()):
+                    # Check if it's a directory parameter and handle specially
+                    param_name = item.text(0).lower() if item.text(0) else ""
+                    if any(keyword in param_name for keyword in ['directory', 'folder', 'path']):
+                        self._handle_directory_parameter(item, column)
+                    else:
+                        tree.editItem(item, column)
 
             # tree structures
             self.tree_experiments.itemClicked.connect(
@@ -332,8 +337,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.tree_experiments.itemClicked.connect(self.btn_clicked)
             # self.tree_experiments.installEventFilter(self)
             # QtWidgets.QTreeWidget.installEventFilter(self)
-
-
             self.tabWidget.currentChanged.connect(lambda : self.switch_tab())
             self.tree_dataset.clicked.connect(lambda: self.btn_clicked())
 
@@ -371,11 +374,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.settings_delegate = NumberClampDelegate(self.tree_settings)
         self.tree_settings.setItemDelegateForColumn(1, self.settings_delegate)
         self.settings_delegate.validation_result_signal.connect(self._handle_delegate_validation_result)
-        
         self.experiments_delegate = NumberClampDelegate(self.tree_experiments)
         self.tree_experiments.setItemDelegateForColumn(1, self.experiments_delegate)
         self.experiments_delegate.validation_result_signal.connect(self._handle_delegate_validation_result)
-        
         gui_logger.debug("Installed NumberClampDelegate for column 1 on both trees and connected validation signals")
         
         connect_controls()
@@ -449,6 +450,35 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         # if self.config_filepath is None:
         #     self.config_filepath = os.path.join(self._DEFAULT_CONFIG["gui_settings"], 'gui.aqs')
 
+    def _handle_directory_parameter(self, item, column):
+        """
+        Special handling for directory parameters - open file dialog.
+        """
+        if column == 1:  # Value column
+            # Check if this parameter is a directory path
+            param_name = item.text(0).lower() if item.text(0) else ""
+
+            if any(keyword in param_name for keyword in ['directory', 'folder', 'path']):
+                # Get current value
+                current_value = item.text(1) if item.text(1) else os.path.expanduser("~")
+
+                # Open directory dialog
+                directory = QFileDialog.getExistingDirectory(
+                    self,
+                    "Select Directory",
+                    current_value,
+                    QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks
+                )
+
+                if directory:
+                    item.setText(1, directory)
+                    # Update the parameter value
+                    if hasattr(item, 'value'):
+                        item.value = directory
+                    # Trigger the update
+                    self.update_parameters(self.tree_experiments, item, column)
+
+
     def closeEvent(self, event):
         """
         things to be done when gui closes, like save the settings
@@ -470,7 +500,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         print('================= Closing AQuISS Python LAB =============')
         print('======================================================\n\n')
 
-    def eventFilter(self, object, event):
+    def eventFilter(self, obj, event):
         """
 
         TEMPORARY / UNDER DEVELOPMENT
@@ -478,21 +508,19 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         THIS IS TO ALLOW COPYING OF PARAMETERS VIA DRAP AND DROP
 
         Args:
-            object:
+            obj:
             event:
 
         Returns:
 
         """
-        if (object is self.tree_experiments):
+        if (obj is self.tree_experiments):
             # print('XXXXXXX = event in experiments', event.type(),
             #       QtCore.QEvent.DragEnter, QtCore.QEvent.DragMove, QtCore.QEvent.DragLeave)
             if (event.type() == QtCore.QEvent.ChildAdded):
                 item = self.tree_experiments.selectedItems()[0]
                 if not isinstance(item.value, Experiment):
-                    print('ONLY EXPERIMENTS CAN BE DRAGGED')
                     return False
-                print(('XXX ChildAdded', self.tree_experiments.selectedItems()[0].name))
 
 
 
@@ -509,7 +537,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 # if event.mimeData().hasUrls():  # if file or link is dropped
                 #     urlcount = len(event.mimeData().urls())  # count number of drops
                 #     url = event.mimeData().urls()[0]  # get first url
-                #     object.setText(url.toString())  # assign first url to editline
+                #     obj.setText(url.toString())  # assign first url to editline
                 #     # event.accept()  # doesnt appear to be needed
             return False  # lets the event continue to the edit
 
@@ -532,30 +560,35 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         else:
             self.probe_file.close()
 
-
-
     def switch_tab(self):
         """
         takes care of the action that happen when switching between tabs
         e.g. activates and deactives probes
         """
-        current_tab = str(self.tabWidget.tabText(self.tabWidget.currentIndex()))
-        if self.current_experiment is None:
-            if current_tab == 'Probes':
-                self.read_probes.start()
-                self.read_probes.updateProgress.connect(self.update_probes)
+        try:
+            current_tab = str(self.tabWidget.tabText(self.tabWidget.currentIndex()))
+
+            # Rest of your existing code...
+            if self.current_experiment is None:
+                if current_tab == 'Probes':
+                    self.read_probes.start()
+                    self.read_probes.updateProgress.connect(self.update_probes)
+                else:
+                    try:
+                        self.read_probes.updateProgress.disconnect()
+                        self.read_probes.quit()
+                    except TypeError:
+                        pass
+
+                if current_tab == 'Devices':
+                    self.refresh_devices()
             else:
-                try:
-                    self.read_probes.updateProgress.disconnect()
-                    self.read_probes.quit()
-                except TypeError:
-                    pass
+                self.log('updating probes / devices disabled while experiment is running!')
 
-            if current_tab == 'Devices':
-                self.refresh_devices()
-
-        else:
-            self.log('updating probes / devices disabled while experiment is running!')
+        except Exception as e:
+            print(f"Error in switch_tab: {e}")
+            import traceback
+            traceback.print_exc()
 
     def refresh_devices(self):
         """
@@ -894,7 +927,13 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 # get experiment and update settings from tree
                 self.running_item = item
                 experiment, path_to_experiment, experiment_item = item.get_experiment()
-                
+                if self.getbasicdatacheckBox.isChecked():
+                    checked_devices = []
+                    for device_name, device_obj in self.devices.items():
+                        if device_obj.settings['get_data'] == True:
+                            checked_devices.append(device_obj)
+                    experiment.get_checked_devices(checked_devices)
+
                 gui_logger.info(f"Starting experiment: {experiment.name}")
 
                 self.update_experiment_from_item(experiment_item)
@@ -960,6 +999,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 self.log('User clicked stop, but there isn\'t anything running...this is awkward. Re-enabling start button anyway.')
             self.btn_start_experiment.setEnabled(True)
             gui_logger.debug("Start button re-enabled")
+            for exp in self.experiments.values():
+                if hasattr(exp, 'proteus'):
+                    exp.proteus.driver._close()
 
         def skip_button():
             """
@@ -1114,7 +1156,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                     
                 if not loaded_failed:
                     gui_logger.warning(f"Following probes could not be loaded: {loaded_failed}")
-                    print(('WARNING following probes could not be loaded', loaded_failed, len(loaded_failed)))
 
                 # restart the readprobes thread
                 gui_logger.debug("Restarting read probes thread")
@@ -1155,8 +1196,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                     
                 if len(loaded_failed) > 0:
                     gui_logger.warning(f"Following devices could not be loaded: {loaded_failed}")
-                    print(('WARNING following device could not be loaded', loaded_failed))
-                    
+
                 # delete instances of new devices/experiments that have been deselected
                 for name in removed_devices:
                     gui_logger.debug(f"Removing device: {name}")
@@ -1500,7 +1540,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             return
 
         item = changed_item
-        
+
         self._updating_parameters = True
         try:
             # Check if this item is already being processed for clamping
@@ -1920,22 +1960,24 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.log(msg)
 
     def _handle_delegate_validation_result(self, item, param_name, result):
-        """
-        Handles validation results from the NumberClampDelegate.
-        This provides visual feedback, logging, and GUI history updates.
-        """
+
+        """Handles validation results from the NumberClampDelegate.
+        This provides visual feedback, logging, and GUI history updates."""
+
         gui_logger.debug(f"Received delegate validation result for {item.name}: {result}")
-        
+        device, path_to_device = item.get_device()
+        device.update({param_name: result['actual_value']})
+
         # Update the item's display text if the actual value is different
         if result.get('actual_value') is not None and result.get('actual_value') != result.get('requested_value'):
             # Update the display text to show the actual value
             item.setText(1, str(result['actual_value']))
             item.value = result['actual_value']
-        
+
         # Set visual feedback using the new model-based approach
         reason = result.get('reason', 'unknown')
         gui_logger.info(f"MAIN WINDOW: Processing delegate result for {item.name}, reason: {reason}")
-        
+
         # Map reason to visual feedback status
         if reason == 'clamped':
             feedback_status = 'clamped'
@@ -1945,11 +1987,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             feedback_status = 'success'
         else:
             feedback_status = None
-        
+
         # Apply visual feedback if we have a status
         if feedback_status:
             gui_logger.debug(f"MAIN WINDOW: Applying visual feedback '{feedback_status}' for item {item.name}")
-            
+
             # Find the index for this item
             tree_widget = None
             for tree in [self.tree_settings, self.tree_experiments]:
@@ -1958,17 +2000,17 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                     tree_widget = tree
                     gui_logger.debug(f"MAIN WINDOW: Found item {item.name} in tree {tree.objectName()}")
                     break
-            
+
             if tree_widget:
                 # Find the index for the value column (column 1)
                 item_index = tree_widget.indexFromItem(item, 1)
                 gui_logger.debug(f"MAIN WINDOW: Item index for {item.name}: {item_index.isValid()}")
-                
+
                 if item_index.isValid():
                     # Get the delegate and use its _color_index method
                     delegate = tree_widget.itemDelegateForColumn(1)
                     gui_logger.debug(f"MAIN WINDOW: Delegate type: {type(delegate)}")
-                    
+
                     if hasattr(delegate, '_color_index'):
                         gui_logger.debug(f"MAIN WINDOW: Calling _color_index for {item.name} with status '{feedback_status}'")
                         delegate._color_index(tree_widget, item_index, feedback_status)
@@ -1978,11 +2020,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                     gui_logger.warning(f"MAIN WINDOW: Invalid index for item {item.name}")
             else:
                 gui_logger.warning(f"MAIN WINDOW: Could not find tree widget for item {item.name}")
-        
+
         # Log the message to GUI history
         message = result.get('message', 'Parameter validation completed')
         self.log(message)
-        
+
         # Show notification
         is_error = reason == 'error'
         self._show_parameter_notification(message, is_error=is_error)
@@ -2503,11 +2545,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                         except Exception:
                             config_settings[x] = self._DEFAULT_CONFIG[x]
                             os.makedirs(config_settings[x])
-                            print(('WARNING: failed validating or creating path: set to default path'.format(config_settings[x])))
                 else:
                     config_settings[x] = self._DEFAULT_CONFIG[x]
                     os.makedirs(config_settings[x])
-                    print(('WARNING: path {:s} not specified set to default {:s}'.format(x, config_settings[x])))
 
         # check if file_name is a valid filename
         if filepath is not None and os.path.exists(os.path.dirname(filepath)):
