@@ -67,32 +67,59 @@ class Sequence:
             raise ValueError("MarkerEvent length must match Sequence length")
         self.markers.append(marker)
 
-    def to_waveform(self) -> Dict[str, np.ndarray]:
+    def to_waveform(self) -> Dict[int, Dict[str, np.ndarray]]:
         """
-        Render the full waveform and marker map.
+        Render waveforms and markers **per channel**.
+
 
         Returns:
-            A dict with keys:
-              'envelope' -> np.ndarray of floats (shape: [length])
-              'markers'  -> np.ndarray of ints   (shape: [length])
+            Dict mapping channel -> {'envelope': np.ndarray, 'markers': np.ndarray}
         """
-        # 1) Allocate empty arrays
-        envelope = np.zeros(self.length, dtype=float)
-        markers  = np.zeros(self.length, dtype=int)
-
-        # 2) Place each pulse’s samples
+        # 1) Determine all channels used in pulses or markers
+        channels = set()
         for start, pulse in self.pulses:
-            samples = pulse.generate_samples()
-            end = min(start + pulse.length, self.length)
-            num = end - start
-            # Sum overlapping pulses
-            envelope[start:end] += samples[:num]
-
-        # 3) OR together all marker events
+            ch = int(pulse.name.split("_")[-1])
+            channels.add(ch)
         for mk in self.markers:
-            markers |= mk.generate_markers()
+            channels.add(int(mk.name.split("_")[-1]))
 
-        return {"envelope": envelope, "markers": markers}
+        # 2) Prepare per-channel outputs
+        output: Dict[int, Dict[str, np.ndarray]] = {}
+
+        for ch in channels:
+            # Allocate arrays of length equal to the sequence's total length
+            envelope = np.zeros(self.length, dtype=float)
+            markers = np.zeros(self.length, dtype=np.uint64)
+
+            # Place pulses for this channel
+            for start, pulse in self.pulses:
+                if int(pulse.name.split("_")[-1]) != ch:
+                    continue
+                end = min(start + pulse.length, self.length)
+                num = end - start
+                envelope[start:end] += pulse.generate_samples()[:num]
+
+            # Place markers for this channel
+            for mk in self.markers:
+                if (int(mk.name.split("_")[-1])) != ch:
+                    continue
+
+                mk_markers = mk.generate_markers()
+
+                # Check first pulse
+                on_indices = np.where(mk_markers != 0)[0]
+                if len(on_indices) > 0:
+                    # Check duration
+                    first_pulse_end = on_indices[0]
+                    while first_pulse_end < len(mk_markers) and mk_markers[first_pulse_end] != 0:
+                        first_pulse_end += 1
+
+                markers |= mk_markers
+
+            # Store per-channel waveform
+            output[ch] = {"envelope": envelope, "markers": markers}
+
+        return output
 
     def clear(self) -> None:
         """
@@ -106,7 +133,7 @@ class Sequence:
         Quick‐and‐dirty plot of the sequence:
           - Red line: analog envelope
           - Green step: digital markers (if requested)
-        Returns the (fig, ax) tuple so you can customize or save it.
+        Returns the (fig, ax) tuple so we can customize or save it.
         """
         wave = self.to_waveform()
         env = wave['envelope']

@@ -28,7 +28,6 @@ class TimingType(Enum):
     RELATIVE = "relative"      # "wait 1ms"
     VARIABLE = "variable"      # "wait tau"
 
-
 @dataclass
 class PulseDescription:
     """Description of a single pulse in a sequence."""
@@ -37,9 +36,9 @@ class PulseDescription:
     pulse_type: str  # e.g., "pi/2", "pi", "custom"
     channel: int
     shape: PulseShape
-    duration: float  # in seconds
-    amplitude: float = 1.0
-    timing: float = 0.0  # absolute time in seconds
+    duration: float | str  # in seconds
+    amplitude: float | str = 1.0
+    timing: float | str  = 0.0  # absolute time in seconds
     timing_type: TimingType = TimingType.ABSOLUTE
     parameters: Dict[str, Any] = field(default_factory=dict)  # amplitude, phase, frequency, etc.
     markers: List[MarkerDescription] = field(default_factory=list)
@@ -49,11 +48,12 @@ class PulseDescription:
         """Validate pulse description after initialization."""
         if not isinstance(self.channel, int) or self.channel < 1:
             raise ValueError("Channel must be a positive integer")
-        if self.duration <= 0:
+        # allowing string: only raise for float
+        if isinstance(self.duration, float) and self.duration <= 0:
             raise ValueError("Duration must be positive")
-        if self.amplitude < 0:
+        if isinstance(self.amplitude, float) and self.amplitude < 0:
             raise ValueError("Amplitude must be non-negative")
-        if self.timing < 0:
+        if isinstance(self.timing, float) and self.timing < 0:
             raise ValueError("Timing must be non-negative")
     
     def get_parameter(self, key: str, default: Any = None) -> Any:
@@ -167,6 +167,7 @@ class SequenceDescription:
     total_duration: float  # in seconds
     sample_rate: float     # in Hz
     pulses: List[PulseDescription] = field(default_factory=list)
+    markers: List[MarkerDescription] = field(default_factory=list)
     loops: List[LoopDescription] = field(default_factory=list)
     conditionals: List[ConditionalDescription] = field(default_factory=list)
     variables: Dict[str, VariableDescription] = field(default_factory=dict)
@@ -186,10 +187,16 @@ class SequenceDescription:
     def add_pulse(self, pulse: PulseDescription):
         """Add a pulse to the sequence."""
         self.pulses.append(pulse)
+
+    def add_marker(self, marker: MarkerDescription):
+        """Add a pulse to the sequence."""
+        self.markers.append(marker)
     
     def add_loop(self, loop: LoopDescription):
         """Add a loop to the sequence."""
+        print("inside add_loop")
         self.loops.append(loop)
+        print(f"self.loops{self.loops}")
     
     def add_conditional(self, conditional: ConditionalDescription):
         """Add a conditional to the sequence."""
@@ -236,30 +243,41 @@ class SequenceDescription:
             # Only check basic constraints for variable sequences
             for pulse in self.pulses:
                 if pulse.timing < 0:
+                    print("1")
                     return False
                 if pulse.duration <= 0:
+                    print("2")
                     return False
         else:
             # For fixed sequences, check that all pulses fit within total duration
             for pulse in self.pulses:
                 if pulse.timing + pulse.duration > self.total_duration:
+                    print(f"sequence: {self.name} pulse{pulse.name}")
+                    print(f"pulse timing{pulse.timing}, pulse duration{pulse.duration}, total duration{self.total_duration}")
+                    print("3")
                     return False
         
         # Check that loops and conditionals are valid
         for loop in self.loops:
             if loop.start_time < 0:
+                print("4")
                 return False
             if not self.variables and loop.end_time > self.total_duration:
+                print("5")
                 return False
             if loop.start_time >= loop.end_time:
+                print("6")
                 return False
         
         for conditional in self.conditionals:
             if conditional.start_time < 0:
+                print("7")
                 return False
             if not self.variables and conditional.end_time > self.total_duration:
+                print("8")
                 return False
             if conditional.start_time >= conditional.end_time:
+                print("9")
                 return False
         
         return True
