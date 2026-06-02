@@ -824,6 +824,7 @@ class SG384Generator(MicrowaveGeneratorBase):
     @property
     def _PROBES(self):
         return {
+            'get_data': 'choose whether you need to get data from this device or not',
             'enable_output': 'if type-N output is enabled',
             'frequency': 'frequency of output in Hz',
             # Low frequency output (BNC)
@@ -883,6 +884,8 @@ class SG384Generator(MicrowaveGeneratorBase):
         
         if key in probe_mapping:
             return probe_mapping[key](key)
+        elif key == 'get_data':
+            return self.settings['get_data']
         else:
             raise KeyError(f"No such probe: {key}")
     

@@ -12,7 +12,7 @@ logger = logging.getLogger("mw_generator_base")
 
 class MicrowaveGeneratorBase(Device, ABC):
 
-    _DEFAULT_SETTINGS = Parameter([
+    _DEFAULT_SETTINGS = Parameter(Device._get_base_settings() +[
         Parameter('connection_type', 'LAN', ['LAN','GPIB','RS232'], 'Transport type'),
         # for LAN:
         Parameter('ip_address', '',     str, 'IP for LAN'),
