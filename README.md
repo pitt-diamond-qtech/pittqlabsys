@@ -444,6 +444,7 @@ AQuISS supports multiple data formats:
 - **MATLAB**: `.mat` files for compatibility with MATLAB
 - **CSV**: Tabular data export
 - **Images**: Plot exports in various formats
+- **HDF5 Files**: Structure based data saving
 
 ### Data Organization
 
