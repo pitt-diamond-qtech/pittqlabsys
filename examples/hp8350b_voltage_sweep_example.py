@@ -6,6 +6,10 @@ Runs a stepped voltage sweep on an NI-DAQ analog output while counting photons.
 The AO voltage controls HP8350B frequency in external sweep mode. Results are
 saved as counts vs frequency.
 
+Data is saved as .npz for now (same as other sweep examples on contributions).
+Lab-wide HDF5 saving (struct_hdf5 / save_hdf5) arrives with PR #11; the goal
+here is verifying hardware and software wiring, not the file format.
+
 Lab setup (see config.template.json lab_setup_notes):
   - PCI6229 AO0 -> HP8350B external frequency input
   - APD pulses   -> PCI6229 ctr0 (or PCI6601 if using external clock)
@@ -132,6 +136,7 @@ def run_sweep(
 
 
 def save_results(data, settings, use_mock):
+    # Interim .npz format until PR #11 (struct_hdf5) lands on contributions.
     output_dir = Path.home() / "Experiments" / "hp8350b_sweeps"
     output_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
