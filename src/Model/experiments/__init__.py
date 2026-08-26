@@ -20,6 +20,7 @@ from src.Model.experiments.example_experiment import ExampleExperimentWrapper,Ex
 if sys.platform.startswith('win'):
     from src.Model.experiments.daq_read_counter import Pxi6733ReadCounter
     from src.Model.experiments.galvo_scan import GalvoScan
+    from src.Model.experiments.hp8350b_voltage_sweep import HP8350BVoltageSweep
     from .galvo_scan_generic import GalvoScanGeneric
     from .select_points import SelectPoints
         # Legacy confocal experiments (deprecated - use new focused modules instead)
@@ -33,6 +34,7 @@ else:
     # On non-Windows platforms, create placeholder imports to avoid import errors
     Pxi6733ReadCounter = None
     GalvoScan = None
+    HP8350BVoltageSweep = None
     GalvoScanGeneric = None
     SelectPoints = None
     ConfocalScan_Fast = None

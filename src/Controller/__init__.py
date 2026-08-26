@@ -384,6 +384,24 @@ class MockNI6229(Device):
                 Parameter('min_voltage', -10.0, float, 'minimum input voltage'),
                 Parameter('max_voltage', 10.0, float, 'maximum input voltage')
             ])
+        ]),
+        Parameter('digital_input', [
+            Parameter('ctr0', [
+                Parameter('input_channel', 0, list(range(0, 32)), 'counter input channel'),
+                Parameter('counter_PFI_channel', 1, list(range(0, 32)), 'PFI for counter input'),
+                Parameter('gate_PFI_channel', 2, list(range(0, 32)), 'PFI for gate'),
+                Parameter('clock_PFI_channel', 3, list(range(0, 32)), 'PFI for clock'),
+                Parameter('clock_counter_channel', 1, [0, 1], 'clock counter channel'),
+                Parameter('sample_rate', 1000.0, float, 'counter sample rate (Hz)', units="Hz")
+            ]),
+            Parameter('ctr1', [
+                Parameter('input_channel', 1, list(range(0, 32)), 'counter input channel'),
+                Parameter('counter_PFI_channel', 4, list(range(0, 32)), 'PFI for counter input'),
+                Parameter('gate_PFI_channel', 5, list(range(0, 32)), 'PFI for gate'),
+                Parameter('clock_PFI_channel', 6, list(range(0, 32)), 'PFI for clock'),
+                Parameter('clock_counter_channel', 0, [0, 1], 'clock counter channel'),
+                Parameter('sample_rate', 1000.0, float, 'counter sample rate (Hz)', units="Hz")
+            ])
         ])
     ])
     
@@ -458,11 +476,30 @@ class MockNI6229(Device):
     def AO_waitToFinish(self):
         """Wait for AO task to finish."""
         print("Mock NI6229: AO wait to finish")
-    
+
+    def setup_AI(self, channels, num_samples, continuous=False, clk_source=""):
+        """Setup analog input task."""
+        task_id = f"mock_ai_task_{len(self._tasks)}"
+        self._tasks[task_id] = {
+            'type': 'AI',
+            'channels': channels,
+            'num_samples': num_samples,
+        }
+        print(f"Mock NI6229: Setup AI {channels} with {num_samples} samples")
+        return task_id
+
+    def wait_to_finish(self, task):
+        """Wait for task to finish."""
+        pass
+
     def read(self, task):
         """Read data from task."""
         import numpy as np
-        # Return mock data that looks like counter data
+        task_info = self._tasks.get(task, {})
+        if task_info.get('type') == 'AI':
+            n = task_info.get('num_samples', 10)
+            return np.random.normal(0.5, 0.05, n), n
+        # Return mock counter data
         data = np.cumsum(np.random.poisson(100, 1000))
         return data, None
 
@@ -842,6 +879,92 @@ class MockAdwinGoldDevice(Device):
         return True
 
 
+class MockHP8350B(Device):
+    """Mock HP8350B for cross-platform testing."""
+
+    _DEFAULT_SETTINGS = Parameter([
+        Parameter('visa_resource', 'GPIB0::19::INSTR', str, 'PyVISA resource string'),
+        Parameter('start_frequency', 2.80e9, float, 'Sweep start frequency (Hz)', units='Hz'),
+        Parameter('stop_frequency', 2.95e9, float, 'Sweep stop frequency (Hz)', units='Hz'),
+        Parameter('power', -10.0, float, 'Output power (dBm)', units='dBm'),
+        Parameter('voltage_min', 0.0, float, 'Voltage at start frequency (V)', units='V'),
+        Parameter('voltage_max', 10.0, float, 'Voltage at stop frequency (V)', units='V'),
+        Parameter('output_enabled', False, bool, 'RF output enabled'),
+        Parameter('sweep_mode', 'external', ['external', 'cw'], 'Operating mode'),
+    ])
+
+    _PROBES = {
+        'start_frequency': 'Sweep start frequency',
+        'stop_frequency': 'Sweep stop frequency',
+        'power': 'Output power',
+        'output_enabled': 'RF output enabled',
+    }
+
+    def __init__(self, name=None, settings=None):
+        self._commands = []
+        super().__init__(name=name, settings=settings)
+        print("Mock HP8350B: Initialized")
+
+    @property
+    def sweep_sensitivity(self) -> float:
+        v_span = self.settings['voltage_max'] - self.settings['voltage_min']
+        f_span = self.settings['stop_frequency'] - self.settings['start_frequency']
+        return f_span / v_span
+
+    def voltage_to_frequency(self, voltage: float) -> float:
+        return self.settings['start_frequency'] + (
+            voltage - self.settings['voltage_min']
+        ) * self.sweep_sensitivity
+
+    def frequency_to_voltage(self, frequency: float) -> float:
+        return self.settings['voltage_min'] + (
+            frequency - self.settings['start_frequency']
+        ) / self.sweep_sensitivity
+
+    def voltages_to_frequencies(self, voltages):
+        import numpy as np
+        voltages = np.asarray(voltages, dtype=float)
+        return self.settings['start_frequency'] + (
+            voltages - self.settings['voltage_min']
+        ) * self.sweep_sensitivity
+
+    def configure_external_sweep(self, start_freq=None, stop_freq=None, power=None, enable_output=True):
+        if start_freq is not None:
+            self.settings['start_frequency'] = start_freq
+        if stop_freq is not None:
+            self.settings['stop_frequency'] = stop_freq
+        if power is not None:
+            self.settings['power'] = power
+        self.settings['sweep_mode'] = 'external'
+        self._commands.extend(['FA', 'FB', 'PL', 'SX', 'T3'])
+        if enable_output:
+            self.output_on()
+
+    def set_power(self, power: float):
+        self.settings['power'] = power
+
+    def output_on(self):
+        self.settings['output_enabled'] = True
+        self._commands.append('RF1')
+
+    def output_off(self):
+        self.settings['output_enabled'] = False
+        self._commands.append('RF0')
+
+    def turn_off(self):
+        self.output_off()
+
+    @property
+    def is_connected(self):
+        return True
+
+    def read_probes(self, key):
+        return self.settings[key]
+
+    def close(self):
+        pass
+
+
 class MockMUXControlDevice(Device):
     """Mock MUX Control Device for testing."""
     
@@ -1057,6 +1180,11 @@ if sys.platform.startswith('win'):
     except ImportError:
         MUXControlDevice = MockMUXControlDevice
         MUXControl = MockMUXControl
+
+    try:
+        from .hp8350b import HP8350B
+    except ImportError:
+        HP8350B = MockHP8350B
 else:
     PXI6733 = MockNI6229
     NI6281 = MockNI6229
@@ -1068,6 +1196,7 @@ else:
     SG384Generator = MockSG384Generator
     MUXControlDevice = MockMUXControlDevice
     MUXControl = MockMUXControl
+    HP8350B = MockHP8350B
 
 _DEVICE_REGISTRY = {
     "awg520": AWG520Device, 
@@ -1089,6 +1218,7 @@ _DEVICE_REGISTRY.update({
     "ni6281": NI6281,
     "pci6229": PCI6229,
     "pci6601": PCI6601,
+    "hp8350b": HP8350B,
 })
 
 def create_device(kind: str, **kwargs):
@@ -1104,5 +1234,6 @@ __all__ = [
     'PulseBlaster', 'ExampleDevice', 'Plant', 'PIController',
     'MUXControlDevice', 'MUXControl',
     'create_device',
-    'MockNI6229', 'MockPCI6601', 'MockMCLNanoDrive', 'MockAdwinGoldDevice', 'MockSG384Generator', 'MockMUXControlDevice'
+    'MockNI6229', 'MockPCI6601', 'MockMCLNanoDrive', 'MockAdwinGoldDevice', 'MockSG384Generator',
+    'MockMUXControlDevice', 'MockHP8350B', 'HP8350B',
 ]

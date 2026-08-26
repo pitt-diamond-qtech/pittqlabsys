@@ -64,6 +64,77 @@
                 "timeout": 5000,
                 "auto_connect": true
             }
+        },
+        "hp8350b": {
+            "class": "HP8350B",
+            "filepath": "src/Controller/hp8350b.py",
+            "settings": {
+                "visa_resource": "GPIB0::19::INSTR",
+                "connection_timeout_ms": 10000,
+                "start_frequency": 2800000000,
+                "stop_frequency": 2950000000,
+                "power": -10.0,
+                "voltage_min": 0.0,
+                "voltage_max": 10.0
+            }
+        },
+        "pci6229": {
+            "class": "PCI6229",
+            "filepath": "src/Controller/ni_daq.py",
+            "settings": {
+                "device": "Dev1",
+                "external_daq": "Dev2",
+                "analog_output": {
+                    "ao0": {
+                        "channel": 0,
+                        "sample_rate": 1000.0,
+                        "min_voltage": 0.0,
+                        "max_voltage": 10.0
+                    }
+                },
+                "digital_input": {
+                    "ctr0": {
+                        "input_channel": 0,
+                        "counter_PFI_channel": 1,
+                        "gate_PFI_channel": 2,
+                        "clock_PFI_channel": 3,
+                        "clock_counter_channel": 1,
+                        "sample_rate": 1000.0
+                    }
+                },
+                "analog_input": {
+                    "ai0": {
+                        "channel": 0,
+                        "sample_rate": 1000.0,
+                        "min_voltage": -10.0,
+                        "max_voltage": 10.0
+                    }
+                },
+                "external_daq_clock": {
+                    "ctr0": {
+                        "channel": 0,
+                        "sample_rate": 1000.0,
+                        "clock_PFI_channel": 0
+                    }
+                }
+            }
+        },
+        "pci6601": {
+            "class": "PCI6601",
+            "filepath": "src/Controller/ni_daq.py",
+            "settings": {
+                "device": "Dev2",
+                "digital_input": {
+                    "ctr0": {
+                        "input_channel": 0,
+                        "counter_PFI_channel": 39,
+                        "gate_PFI_channel": 38,
+                        "clock_PFI_channel": 31,
+                        "clock_counter_channel": 1,
+                        "sample_rate": 1000.0
+                    }
+                }
+            }
         }
     },
     "experiments": {},
