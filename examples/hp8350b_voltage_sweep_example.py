@@ -11,7 +11,6 @@ Lab-wide HDF5 saving (struct_hdf5 / save_hdf5) arrives with PR #11; the goal
 here is verifying hardware and software wiring, not the file format.
 
 Lab setup: see docs/guides/hardware/hp8350b-lab-setup.md
-  (summary also in config.template.json → lab_setup_notes)
   - PCI6229 AO0 -> HP8350B external frequency input
   - APD pulses   -> PCI6229 ctr0 (or PCI6601 if using external clock)
   - Photodiode   -> PCI6229 AI0  (use --analog-mode for bright signals)

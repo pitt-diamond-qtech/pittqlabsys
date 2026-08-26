@@ -118,7 +118,7 @@ python examples/hp8350b_voltage_sweep_example.py --real-hardware --config path/t
 | `tests/test_hp8350b.py` | Device unit tests (mock GPIB) |
 | `tests/test_hp8350b_voltage_sweep.py` | Experiment tests (mock DAQ) |
 | `tests/test_pci_daq_devices.py` | PCI6229 / PCI6601 mock tests |
-| `src/config.template.json` | Device templates (`lab_setup_notes` summary) |
+| `src/config.template.json` | Device templates for hp8350b, pci6229, pci6601 |
 
 Run unit tests:
 

@@ -137,15 +137,6 @@
             }
         }
     },
-    "lab_setup_notes": {
-        "_doc": "Full guide: docs/guides/hardware/hp8350b-lab-setup.md",
-        "hp8350b_wiring": "Connect PCI6229 AO0 to HP8350B external frequency input. Set voltage_min/voltage_max to match the voltage span the HP8350B expects (often 0-10 V). Set start_frequency/stop_frequency to match FA/FB on the instrument.",
-        "photon_counter_wiring": "Connect APD pulse output to PCI6229 PFI1 (ctr0 counter input). Update counter_PFI_channel in pci6229 settings if your wiring differs.",
-        "photodiode_wiring": "For bright ensemble NV signals, connect photodiode to PCI6229 AI0 and set count_mode=analog in the experiment.",
-        "external_clock_wiring": "When using PCI6229 for both AO and counter, connect PCI6601 counter clock output (PFI31) to PCI6229 PFI0 for external sample clock. Set external_daq=Dev2 in pci6229 and device=Dev2 in pci6601 to match NI-MAX device names.",
-        "ni_max_device_names": "Open NI-MAX and note exact device names (e.g. Dev1, Dev2). Update device and external_daq fields in pci6229/pci6601 settings accordingly.",
-        "gpib_address": "Check HP8350B GPIB address on the instrument front panel; update visa_resource (e.g. GPIB0::19::INSTR)."
-    },
     "experiments": {},
     "probes": {},
     "paths": {
