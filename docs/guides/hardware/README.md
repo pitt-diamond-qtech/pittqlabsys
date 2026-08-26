@@ -7,6 +7,7 @@ This section contains guides for setting up and configuring hardware devices in 
 ### Signal Generators
 - [AWG520 Setup](awg520-setup.md) - AWG520 signal generator configuration
 - [SG384 Setup](sg384-setup.md) - SG384 microwave generator setup
+- [HP8350B Lab Setup](hp8350b-lab-setup.md) - HP8350B external-sweep ODMR with PCI6229/PCI6601
 
 ### Control Systems
 - [MUX Control Setup](mux-control-setup.md) - Multiplexer control configuration
@@ -26,7 +27,8 @@ This section contains guides for setting up and configuring hardware devices in 
 ### 2. Device-Specific Setup
 1. **AWG520**: Follow [AWG520 Setup](awg520-setup.md)
 2. **SG384**: Follow [SG384 Setup](sg384-setup.md)
-3. **MUX Control**: Follow [MUX Control Setup](mux-control-setup.md)
+3. **HP8350B + NI-DAQ**: Follow [HP8350B Lab Setup](hp8350b-lab-setup.md)
+4. **MUX Control**: Follow [MUX Control Setup](mux-control-setup.md)
 
 ### 3. Testing
 1. Use [Testing with Mock](../development/testing-with-mock.md) for development
