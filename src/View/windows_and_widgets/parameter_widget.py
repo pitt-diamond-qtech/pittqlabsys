@@ -18,6 +18,110 @@ try:
 except ImportError:
     PYQT5_AVAILABLE = False
 
+from PyQt5.QtWidgets import (QWidget, QHBoxLayout, QVBoxLayout, QLineEdit,
+                             QLabel, QComboBox, QPushButton, QDialog,
+                             QFormLayout, QSpinBox, QDoubleSpinBox,
+                             QCheckBox, QApplication, QFileDialog, QToolButton)
+from PyQt5.QtCore import pyqtSignal, Qt
+import os
+from PyQt5.QtWidgets import QFileDialog, QToolButton
+
+
+# Add a new class for directory parameter widget
+class DirectoryParameterWidget(QWidget):
+    """
+    Parameter widget for directory selection with file explorer button.
+    """
+
+    valueChanged = pyqtSignal(str, object)  # key, new_value
+
+    def __init__(self, parameter, key=None, parent=None):
+        """
+        Initialize the directory parameter widget.
+
+        Args:
+            parameter: Parameter object to edit
+            key: Parameter key
+            parent: Parent widget
+        """
+        if not PYQT5_AVAILABLE:
+            raise ImportError("PyQt5 is required for DirectoryParameterWidget")
+
+        super().__init__(parent)
+
+        self.parameter = parameter
+        self.key = key or list(parameter.keys())[0] if parameter else None
+
+        if self.key is None:
+            raise ValueError("No parameter key specified")
+
+        self._setup_ui()
+        self._connect_signals()
+
+    def _setup_ui(self):
+        """Set up the user interface with file explorer button."""
+        layout = QHBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        # Parameter name label
+        name_label = QLabel(f"{self.key}:")
+        layout.addWidget(name_label)
+
+        # Value input field
+        self.value_edit = QLineEdit()
+        current_value = self.parameter[self.key]
+        self.value_edit.setText(str(current_value))
+        layout.addWidget(self.value_edit)
+
+        # Browse button
+        self.browse_button = QToolButton()
+        self.browse_button.setText("...")
+        self.browse_button.setToolTip("Browse for directory")
+        self.browse_button.setMaximumWidth(30)
+        layout.addWidget(self.browse_button)
+
+        self.setLayout(layout)
+
+    def _connect_signals(self):
+        """Connect widget signals."""
+        self.value_edit.textChanged.connect(self._on_value_changed)
+        self.browse_button.clicked.connect(self._on_browse_clicked)
+
+    def _on_value_changed(self, text):
+        """Handle manual value changes."""
+        self.parameter[self.key] = text
+        self.valueChanged.emit(self.key, text)
+
+    def _on_browse_clicked(self):
+        """Open file dialog for directory selection."""
+        # Get current directory or default
+        current_dir = self.value_edit.text()
+        if not current_dir or not os.path.exists(current_dir):
+            current_dir = os.path.expanduser("~")
+
+        # Open directory dialog
+        directory = QFileDialog.getExistingDirectory(
+            self,
+            "Select Output Directory",
+            current_dir,
+            QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks
+        )
+
+        if directory:
+            self.value_edit.setText(directory)
+            # Emit signal immediately when directory is selected
+            self.parameter[self.key] = directory
+            self.valueChanged.emit(self.key, directory)
+
+    def get_value(self):
+        """Get the current parameter value."""
+        return self.parameter[self.key]
+
+    def set_value(self, value):
+        """Set the parameter value."""
+        self.parameter[self.key] = value
+        self.value_edit.setText(str(value))
+
 
 class ParameterWidget(QWidget):
     """
@@ -361,25 +465,25 @@ class ParameterDialog(QDialog):
 def create_parameter_widget(parameter, key=None, parent=None):
     """
     Factory function to create appropriate parameter widget.
-    
-    Args:
-        parameter: Parameter object
-        key: Parameter key
-        parent: Parent widget
-        
-    Returns:
-        ParameterWidget or None if PyQt5 not available
+    Now supports directory parameter type.
     """
     if not PYQT5_AVAILABLE:
         return None
-    
+
     try:
         # Check if QApplication exists
         app = QApplication.instance()
         if app is None:
             # No QApplication exists, return None to avoid crashes
             return None
-        
+
+        # Check if this is a directory parameter
+        if key and ('directory' in key.lower() or 'folder' in key.lower() or 'path' in key.lower()):
+            # Check if the parameter is a string (typical for paths)
+            if isinstance(parameter[key], str):
+                return DirectoryParameterWidget(parameter, key, parent)
+
+        # For all other parameters, use the original ParameterWidget
         return ParameterWidget(parameter, key, parent)
     except Exception:
         return None

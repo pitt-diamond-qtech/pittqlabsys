@@ -102,16 +102,20 @@ class HardwareCalibrator:
                 "2": {
                     "connection": "IQ_modulator_Q_input", 
                     "calibration_delays": ["iq_delay"]
+                },
+                "3": {
+                    "connection": "IQ_modulator_Q_input",
+                    "calibration_delays": ["orange_laser_delay"]
                 }
             },
             "markers": {
                 "ch1_marker1": {
-                    "connection": "unassigned",
-                    "calibration_delays": []
+                    "connection": "laser_switch",
+                    "calibration_delays": ["green_laser_delay"]
                 },
                 "ch1_marker2": {
-                    "connection": "laser_switch",
-                    "calibration_delays": ["laser_delay"]
+                    "connection": "unassigned",
+                    "calibration_delays": []
                 },
                 "ch2_marker1": {
                     "connection": "unassigned",
@@ -125,18 +129,23 @@ class HardwareCalibrator:
             "experiment_types": {
                 "odmr": {
                     "description": "ODMR experiment using IQ modulator and laser",
-                    "required_connections": ["ch1", "ch2", "ch1_marker2", "ch2_marker2"],
-                    "optional_connections": ["ch1_marker1", "ch2_marker1"]
+                    "required_connections": ["ch1", "ch2", "ch1_marker1"],
+                    "optional_connections": []
                 },
                 "rabi": {
                     "description": "Rabi oscillation experiment",
-                    "required_connections": ["ch1", "ch2", "ch1_marker2", "ch2_marker2"],
-                    "optional_connections": ["ch1_marker1", "ch2_marker1"]
+                    "required_connections": ["ch1", "ch2", "ch1_marker1"],
+                    "optional_connections": []
                 },
                 "spin_echo": {
                     "description": "Spin echo experiment",
-                    "required_connections": ["ch1", "ch2", "ch1_marker2", "ch2_marker2"],
-                    "optional_connections": ["ch1_marker1", "ch2_marker1"]
+                    "required_connections": ["ch1", "ch2", "ch1_marker1"],
+                    "optional_connections": []
+                },
+                "SCC": {
+                    "description": "Spin Charge Conversion experiment",
+                    "required_connections": ["ch1", "ch2", "ch3", "ch1_marker1"],
+                    "optional_connections": []
                 }
             }
         }
@@ -145,7 +154,8 @@ class HardwareCalibrator:
     def _set_default_calibration_delays(self) -> None:
         """Set default calibration delay values."""
         self.calibration_delays = {
-            "laser_delay": 50.0,
+            "green_laser_delay": 50.0,
+            "orange_laser_delay": 10.0,
             "mw_delay": 25.0,
             "iq_delay": 30.0,
             "counter_delay": 15.0,

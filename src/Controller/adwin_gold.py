@@ -15,7 +15,7 @@ class AdwinGoldDevice(Device):
     The processor and priority can be changed for each process and is left to the user writing the ADbasic script.
     '''
 
-    _DEFAULT_SETTINGS = Parameter([
+    _DEFAULT_SETTINGS = Parameter(Device._get_base_settings() +[
         Parameter('process_1',[
             Parameter('load','',str,'Filename to load (should end with .__1 for process 1). Input empty string to clear process'),
             Parameter('delay',3000,int,'Time interval between executions of the event section (time = delay x 3.3ns)'),
@@ -437,6 +437,8 @@ class AdwinGoldDevice(Device):
             value = self.adw.Get_FPar_All()
         elif key == 'all_float64s':
             value = self.adw.Get_FPar_All_Double()
+        elif key == 'get_data':
+            return self.settings['get_data']
 
         elif key == 'int_array':
             value = self.adw.GetData_Long(id, 1 ,length)
@@ -476,6 +478,7 @@ class AdwinGoldDevice(Device):
     @property
     def _PROBES(self):
         return {
+            'get_data': 'choose whether you need to get data from this device or not',
             #read variables of different types
             'int_var':'Returns Par_{id}', 'float_var':'Returns FPar_{id}', 'float64_var':'Returns 64bit FPar_{id}',
             'all_ints':'Returns all Par', 'all_floats':'Returns all FPar', 'all_float64s':'Returns all 64bit FPar',
