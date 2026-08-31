@@ -35,6 +35,7 @@ class SequenceTextParser:
         # Lazy-load presets to avoid raising during initialization in tests
         self.preset_qubit_experiments: Dict[str, Dict[str, Any]] = {}
         self._preset_loader = None  # Will be initialized when needed
+        self.parser_variables = {}
     
     def parse_file(self, filename: Union[str, Path]) -> SequenceDescription:
         """
@@ -140,7 +141,7 @@ class SequenceTextParser:
             pulses = []
             loops = []
             conditionals = []
-            variables = {}
+            markers = []
 
             # Parse the text line by line
             i = 0
@@ -156,25 +157,34 @@ class SequenceTextParser:
                 if line.startswith("sequence:"):
                     header_info = self._parse_sequence_header(line)
                     sequence_name = header_info.get("name", sequence_name)
+                    print(f"name {sequence_name}")
                     experiment_type = header_info.get("type", experiment_type)
+                    print(f"type {experiment_type}")
                     total_duration = header_info.get("duration", total_duration)
+                    print(f"duration {total_duration}")
                     sample_rate = header_info.get("sample_rate", sample_rate)
+                    print(f"sample_rate {sample_rate}")
                     repeat_count = header_info.get("repeat_count", repeat_count)
+                    print(f"repeat_count {repeat_count}")
                     i += 1
 
                 elif line.startswith("variable"):
                     var_name, start_val, stop_val, steps, unit = self._parse_variable_line(line)
-                    variables[var_name] = VariableDescription(
+                    self.parser_variables[var_name] = VariableDescription(
                         name=var_name,
                         start_value=start_val,
                         stop_value=stop_val,
                         steps=steps,
                         unit=unit
                     )
+                    print(f"variable name {var_name}")
+                    print(start_val, stop_val, steps, unit)
                     i += 1
 
                 elif line.startswith("loop"):
+                    print("inside elif line.startswith(loop):")
                     loop_desc, lines_consumed = self._parse_loop_block(lines[i:])
+                    print(f"loop desc: {loop_desc} lines consumed: {lines_consumed}")
                     loops.append(loop_desc)
                     i += lines_consumed
 
@@ -191,23 +201,38 @@ class SequenceTextParser:
                         pulses.extend(preset_desc.pulses)
                         loops.extend(preset_desc.loops)
                         conditionals.extend(preset_desc.conditionals)
-                        variables.update(preset_desc.variables)
+                        self.parser_variables.update(preset_desc.variables)
+                    i += 1
+
+                elif line.startswith("marker"):
+                    try:
+                        marker_desc = self._parse_marker_line(line)
+                        print("marker:")
+                        print(marker_desc)
+                        markers.append(marker_desc)
+                    except ParseError as e:
+                        # Log warning but continue parsing
+                        print(f"Warning: Skipping invalid marker line '{line}': {e}")
                     i += 1
 
                 else:
                     # Assume it's a pulse line
                     try:
+                        print("here 1")
                         pulse_desc = self._parse_pulse_line(line)
+                        print("here 2")
+                        print("pulse:")
+                        print(pulse_desc)
                         pulses.append(pulse_desc)
                     except ParseError as e:
                         # Log warning but continue parsing
                         print(f"Warning: Skipping invalid pulse line '{line}': {e}")
                     i += 1
-
+            print("after while loops:")
             # Validate single variable scanning
-            if len(variables) > 1:
+            if len(self.parser_variables) > 1:
                 raise ParseError(
-                    f"Multiple variable scanning not allowed. Found {len(variables)} variables: {list(variables.keys())}. "
+                    f"Multiple variable scanning not allowed. Found {len(self.parser_variables)} variables: {list(self.parser_variables.keys())}. "
                     f"Use experiment_iterator class for multi-dimensional scans to ensure clean data correlation."
                 )
 
@@ -227,15 +252,61 @@ class SequenceTextParser:
                 desc.add_loop(loop)
             for conditional in conditionals:
                 desc.add_conditional(conditional)
-            for var_name, var_desc in variables.items():
+            for var_name, var_desc in self.parser_variables.items():
                 desc.add_variable(var_name, var_desc.start_value, var_desc.stop_value, var_desc.steps, var_desc.unit)
-
+            for marker in markers:
+                desc.add_marker(marker)
             return desc
 
         except Exception as e:
             if isinstance(e, ParseError):
                 raise
             raise ParseError(f"Failed to parse sequence text: {e}")
+
+    def _parse_marker_line(self, line: str) -> MarkerDescription:
+        try:
+            # Check for [fixed] marker
+            fixed_timing = "[fixed]" in line
+            line = line.replace("[fixed]", "").strip()
+
+            # Split the line into components
+            parts = [part.strip() for part in line.split(',')]
+            if len(parts) < 3:
+                raise ParseError(f"Marker line must have at least 3 parts: {line}")
+
+            # Parse basic components
+            # marker line: marker, laser_int_1 on channel 1 at 0ns, 50us
+            marker_identifier = parts[0]  # "marker"
+            marker_part = parts[1]  # "laser_int_1 on channel 1 at 0ns"
+            duration = parts[2]  # "50us"
+
+            # Parse marker part: "laser_int_1 on channel 1 at 0ns"
+            marker_match = re.match(r"(\S+)\s+on\s+channel\s+(\d+)\s+at\s+(.+)", marker_part)
+            if not marker_match:
+                raise ParseError(f"Invalid marker format: {marker_part}")
+
+            marker_name_index = marker_match.group(1)
+            channel = int(marker_match.group(2))
+            timing_str = marker_match.group(3)
+
+            # Parse timing
+            timing = self._parse_timing_expression(timing_str)
+            # Parse duration
+            duration_val = self._parse_timing_expression(duration)
+            print("creating MarkerDescription")
+            # Create pulse description
+            return MarkerDescription(
+                name=f"{marker_name_index}",
+                channel=channel,
+                start_time=timing,
+                duration=duration_val,
+                state=True
+            )
+
+        except Exception as e:
+            if isinstance(e, ParseError):
+                raise
+            raise ParseError(f"Failed to parse pulse line '{line}': {e}")
 
     def _load_preset_qubit_experiments(self, preset_name: str) -> Optional[SequenceDescription]:
         """
@@ -338,7 +409,8 @@ class SequenceTextParser:
             
             # Parse amplitude
             try:
-                amplitude_val = float(amplitude)
+                #amplitude_val = float(amplitude)
+                amplitude_val = self._parse_amplitude_expression(amplitude)
             except ValueError:
                 raise ParseError(f"Invalid amplitude: {amplitude}")
             
@@ -378,7 +450,7 @@ class SequenceTextParser:
                                 parameters[param_name] = float(param_value)
                             except ValueError:
                                 parameters[param_name] = param_value
-            
+            print("creating PulseDescription")
             # Create pulse description
             return PulseDescription(
                 name=f"{pulse_type.replace('/', '_')}_{channel}",
@@ -391,6 +463,7 @@ class SequenceTextParser:
                 parameters=parameters,
                 fixed_timing=fixed_timing
             )
+            print("done creating PulseDescription")
             
         except Exception as e:
             if isinstance(e, ParseError):
@@ -411,16 +484,24 @@ class SequenceTextParser:
             ParseError: If timing expression is invalid
         """
         timing = timing.strip().lower()
-        
+
+        # If it contains arithmetic operators, return as expression
+        if any(op in timing for op in ['+', '-', '*', '/', '(', ')']):
+            return timing
+
+        # If it matches a valid variable name (letters, numbers, underscores), return as expression
+        if re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', timing):
+            return timing
+
         # Pattern: number + unit (ns, μs, us, ms, s)
-        timing_pattern = r"([\d.]+)\s*(ns|μs|us|ms|s)"
+        timing_pattern = r"([\d.]+)\s*(ns|μs|us|ms|s)?"
         match = re.match(timing_pattern, timing)
         
         if not match:
             raise ParseError(f"Invalid timing expression: {timing}")
         
         value = float(match.group(1))
-        unit = match.group(2)
+        unit = match.group(2) or "s"
         
         # Convert to seconds
         unit_multipliers = {
@@ -435,7 +516,42 @@ class SequenceTextParser:
             raise ParseError(f"Unknown time unit: {unit}")
         
         return value * unit_multipliers[unit]
-    
+
+    def _parse_amplitude_expression(self, amplitude: str) -> float:
+        amplitude = amplitude.strip().lower()
+
+        # If it contains arithmetic operators, return as expression
+        if any(op in amplitude for op in ['+', '-', '*', '/', '(', ')']):
+            return amplitude
+
+        # If it matches a valid variable name (letters, numbers, underscores), return as expression
+        if re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', amplitude):
+            return amplitude
+
+        # Pattern: number + unit (V)
+        amplitude_pattern = r"([\d.]+)\s*(nV|μV|uV|mV|V)?"
+        match = re.match(amplitude_pattern, amplitude)
+
+        if not match:
+            raise ParseError(f"Invalid amplitude: {amplitude}")
+
+        value = float(match.group(1))
+        unit = match.group(2) or "V"
+
+        # Convert to seconds
+        unit_multipliers = {
+            "nV": 1e-9,
+            "μV": 1e-6,
+            "uV": 1e-6,
+            "mV": 1e-3,
+            "V": 1.0
+        }
+
+        if unit not in unit_multipliers:
+            raise ParseError(f"Unknown time unit: {unit}")
+
+        return value * unit_multipliers[unit]
+
     def _parse_loop_block(self, lines: List[str]) -> tuple[LoopDescription, int]:
         """
         Parse a loop block from the text.
@@ -455,21 +571,22 @@ class SequenceTextParser:
         Raises:
             ParseError: If the loop block contains invalid syntax
         """
-        if not lines or not lines[0].startswith("loop:"):
+        if not lines or not lines[0].startswith("loop"):
             raise ParseError("Invalid loop block start")
-        
+        print(lines[0])
         # Parse loop header
         header = lines[0]
-        loop_match = re.match(r"loop:\s*(\d+)", header)
+        loop_match = re.match(r"loop\s+([A-Za-z_]\w*):$", header)
         if not loop_match:
             raise ParseError(f"Invalid loop header: {header}")
-        
-        iterations = int(loop_match.group(1))
-        
+        loop_variable = loop_match.group(1)
+        if loop_variable not in self.parser_variables:
+            raise ParseError(f"Loop variable '{loop_variable}' is not defined")
+
         # Find end of loop block
         end_index = -1
         for i, line in enumerate(lines[1:], 1):
-            if line.strip() == "end":
+            if line.strip() == "end loop":
                 end_index = i
                 break
         
@@ -481,17 +598,22 @@ class SequenceTextParser:
         for line in lines[1:end_index]:
             if line.strip() and not line.startswith("#"):
                 try:
+                    print("before pulse = self._parse_pulse_line(line)")
                     pulse = self._parse_pulse_line(line)
+                    print("after pulse = self._parse_pulse_line(line)")
                     loop_pulses.append(pulse)
+                    print("loop pulse:")
+                    print(pulse)
                 except ParseError as e:
                     print(f"Warning: Skipping invalid pulse in loop: {line} - {e}")
         
         # Calculate timing for the loop
         start_time = 0.0
-        end_time = sum(pulse.duration for pulse in loop_pulses) if loop_pulses else 0.0
-        
+        #end_time = sum(pulse.duration for pulse in loop_pulses) if loop_pulses else 0.0
+        end_time = 2e-6
+        iterations = self.parser_variables[loop_variable].steps
         return LoopDescription(
-            name=f"loop_{iterations}",
+            name=f"loop_{loop_variable}",
             iterations=iterations,
             start_time=start_time,
             end_time=end_time,
@@ -758,7 +880,6 @@ class SequenceTextParser:
             for pulse in description.pulses:
                 if pulse.timing < 0:
                     raise ValidationError(f"Pulse '{pulse.name}' has negative timing")
-                
                 if pulse.timing + pulse.duration > description.total_duration:
                     raise ValidationError(f"Pulse '{pulse.name}' extends beyond total duration")
                 

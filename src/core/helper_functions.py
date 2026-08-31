@@ -262,7 +262,8 @@ def module_name_from_path(folder_name, verbose=False):
                 src_index = parts.index('src')
                 if src_index < len(parts) - 1:
                     # Build module path from src onwards
-                    module_parts = parts[src_index + 1:]
+                    #module_parts = parts[src_index + 1:]
+                    module_parts = parts[src_index:]
                     # Remove the filename (last part)
                     if module_parts and module_parts[-1].endswith('.py'):
                         module_parts = module_parts[:-1]
@@ -296,7 +297,9 @@ def module_name_from_path(folder_name, verbose=False):
                 # Look for src directory
                 if 'src' in parts:
                     src_index = parts.index('src')
-                    module_parts = parts[src_index + 1:]
+                    #module_parts = parts[src_index + 1:]
+                    module_parts = parts[src_index:]
+
                     if module_parts:
                         module = '.'.join(module_parts)
                         path = cwd

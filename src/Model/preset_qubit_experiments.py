@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 @dataclass
 class PresetExperiment:
     """Base class for preset experiment definitions."""
-    
+
     name: str
     description: str
     parameters: Dict[str, Any] = field(default_factory=dict)

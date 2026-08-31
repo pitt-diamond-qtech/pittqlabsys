@@ -19,6 +19,7 @@ from copy import deepcopy
 from importlib import import_module
 from src.core.helper_functions import module_name_from_path
 from src.core.read_write_functions import save_aqs_file
+from src.core.struct_hdf5 import MyStruct, parameter_to_mystruct
 
 
 class Device:
@@ -32,7 +33,10 @@ class Device:
         - is_connected => property that checks if the device is actually connected
 
     """
-    _DEFAULT_SETTINGS = Parameter("default", 0, int, "some int parameter")
+    #_DEFAULT_SETTINGS = Parameter("default", 0, int, "some int parameter")
+    _DEFAULT_SETTINGS = Parameter([
+        Parameter('get_data', True, [False, True], 'choose whether you need to get data from this device or not')
+    ])
 
     @classmethod
     def _get_base_settings(cls):
@@ -81,6 +85,16 @@ class Device:
         returns the default parameter_list of the device this function should be over written in any subclass
         """
         return NotImplementedError
+
+    def get_data(self):
+        """ data saving: any experiment that clicks Get Basic Data button can have the devices selected True in the devices tab for get_data saved along with the experiment data.
+        If your device data that needs to be saved is only the parameters, please refrain from overriding the function. However, if you need to add more data, please override this function
+        For example, please check Agilent8596E get_data function that overrides this function and adds self.data.trace. if you have a camera, you can have self.data.image and override this
+        function to share that data
+        For more info, please refer to github: https://github.com/duttlab-sys/pittqlabsys-single-NV/tree/main/docs/guides/development/data_saving_documentation.pdf"""
+        self.data = MyStruct()
+        self.data.params = parameter_to_mystruct(self.settings)
+        return self.data
 
     def update(self, settings):
         """
@@ -392,7 +406,6 @@ class Device:
 
         """
 
-        #        print(('xxxxx probes', key, self._PROBES()))
 
         if key is None:
             # return the value all probe in dictionary form
@@ -587,7 +600,6 @@ class Device:
             # check if device already exists
             if device_name in list(devices.keys()) \
                     and device_class_name == devices[device_name].__name__:
-                print(('WARNING: device {:s} already exists. Did not load!'.format(device_name)))
                 loaded_failed[device_name] = device_name
             else:
                 device_instance = None
@@ -612,8 +624,6 @@ class Device:
                                                               settings=device_settings)
                     except Exception as e:
                         loaded_failed[device_name] = e
-                        print('loading ' + device_name + ' failed:')
-                        print(traceback.format_exc())
                         if raise_errors:
                             raise e
                         continue
@@ -634,9 +644,6 @@ class Device:
                                                               settings=device_settings)
                     except Exception as e:
                         loaded_failed[device_name] = e
-                        # print(device_name, ': ', str(e))
-                        print('loading ' + device_name + ' failed:')
-                        print(traceback.format_exc())
                         if raise_errors:
                             raise e
                         continue

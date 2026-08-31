@@ -13,7 +13,7 @@ class WindfreakSynthUSBII(MicrowaveGeneratorBase):
     Communicates over VISA (USB/RS232) using pyvisa.
     """
 
-    _DEFAULT_SETTINGS = Parameter([
+    _DEFAULT_SETTINGS = Parameter(MicrowaveGeneratorBase._get_base_settings() +[
         # Base settings from MicrowaveGeneratorBase
         Parameter('connection_type', 'LAN', ['LAN','GPIB','RS232'], 'Transport type'),
         Parameter('ip_address', '',     str, 'IP for LAN'),
@@ -129,6 +129,7 @@ class WindfreakSynthUSBII(MicrowaveGeneratorBase):
     @property
     def _PROBES(self):
         return {
+            'get_data': 'choose whether you need to get data from this device or not',
             'frequency': 'MHz',
             'power':     'dBm',
             'reference': 'internal/external',
@@ -144,6 +145,8 @@ class WindfreakSynthUSBII(MicrowaveGeneratorBase):
         assert self._settings_initialized
         if key == 'frequency':
             return float(self._query('f?'))
+        elif key == 'get_data':
+            return self.settings['get_data']
         elif key == 'power':
             code = self._query('a?')
             return { '0':-4, '1':-1, '2':2, '3':5 }[code]

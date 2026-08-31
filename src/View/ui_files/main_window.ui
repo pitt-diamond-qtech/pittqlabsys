@@ -16,9 +16,9 @@
     <verstretch>0</verstretch>
    </sizepolicy>
   </property>
-     <property name="windowTitle">
-    <string>Pitt AQuISS GUI</string>
-   </property>
+  <property name="windowTitle">
+   <string>Pitt AQuISS GUI</string>
+  </property>
   <widget class="QWidget" name="centralwidget">
    <layout class="QHBoxLayout" name="horizontalLayout_8">
     <item>
@@ -106,11 +106,11 @@
                     <pointsize>10</pointsize>
                    </font>
                   </property>
-                  <property name="text">
-                   <string>Convert Python Files</string>
-                  </property>
                   <property name="toolTip">
                    <string>Convert Python experiment/device files to AQS format</string>
+                  </property>
+                  <property name="text">
+                   <string>Convert Python Files</string>
                   </property>
                  </widget>
                 </item>
@@ -303,6 +303,13 @@
                  </widget>
                 </item>
                </layout>
+              </item>
+              <item>
+               <widget class="QCheckBox" name="getbasicdatacheckBox">
+                <property name="text">
+                 <string>Get Basic Data</string>
+                </property>
+               </widget>
               </item>
               <item>
                <layout class="QHBoxLayout" name="horizontalLayout_6" stretch="1,1,1">
@@ -721,48 +728,48 @@
      </layout>
     </item>
    </layout>
-  <widget class="QMenuBar" name="menubar">
-   <property name="geometry">
-    <rect>
-     <x>0</x>
-     <y>0</y>
-     <width>1733</width>
-     <height>21</height>
-    </rect>
-   </property>
-   <property name="nativeMenuBar">
-    <bool>false</bool>
-   </property>
-   <widget class="QMenu" name="menuFile">
-    <property name="enabled">
-     <bool>true</bool>
+   <widget class="QMenuBar" name="menubar">
+    <property name="geometry">
+     <rect>
+      <x>0</x>
+      <y>0</y>
+      <width>1733</width>
+      <height>21</height>
+     </rect>
     </property>
-    <property name="acceptDrops">
-     <bool>true</bool>
+    <property name="nativeMenuBar">
+     <bool>false</bool>
     </property>
-    <property name="title">
-     <string>File</string>
-    </property>
-    <addaction name="actionExport"/>
-    <addaction name="actionSave"/>
-    <addaction name="btn_save_gui"/>
-    <addaction name="btn_load_gui"/>
-    <addaction name="separator"/>
-    <addaction name="actionSaveWorkspace"/>
-    <addaction name="actionLoadWorkspace"/>
-    <addaction name="separator"/>
-    <addaction name="btn_exit"/>
+    <widget class="QMenu" name="menuFile">
+     <property name="enabled">
+      <bool>true</bool>
+     </property>
+     <property name="acceptDrops">
+      <bool>true</bool>
+     </property>
+     <property name="title">
+      <string>File</string>
+     </property>
+     <addaction name="actionExport"/>
+     <addaction name="actionSave"/>
+     <addaction name="btn_save_gui"/>
+     <addaction name="btn_load_gui"/>
+     <addaction name="separator"/>
+     <addaction name="actionSaveWorkspace"/>
+     <addaction name="actionLoadWorkspace"/>
+     <addaction name="separator"/>
+     <addaction name="btn_exit"/>
+    </widget>
+    <widget class="QMenu" name="menuHelp">
+     <property name="title">
+      <string>Help</string>
+     </property>
+     <addaction name="btn_about"/>
+     <addaction name="actionGo_to_AQuISS_GitHub_page"/>
+    </widget>
+    <addaction name="menuFile"/>
+    <addaction name="menuHelp"/>
    </widget>
-   <widget class="QMenu" name="menuHelp">
-    <property name="title">
-     <string>Help</string>
-    </property>
-    <addaction name="btn_about"/>
-    <addaction name="actionGo_to_AQuISS_GitHub_page"/>
-   </widget>
-   <addaction name="menuFile"/>
-   <addaction name="menuHelp"/>
-  </widget>
   </widget>
   <action name="btn_exit">
    <property name="text">
